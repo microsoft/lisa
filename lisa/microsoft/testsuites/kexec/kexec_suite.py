@@ -69,7 +69,7 @@ class KexecSuite(TestSuite):
         kexec as a reboot mechanism.
         """
         # Check systemctl availability early
-        if node.execute("which systemctl", shell=True).exit_code != 0:
+        if node.execute("command -v systemctl", shell=True).exit_code != 0:
             raise SkippedException("systemctl not available on this system")
 
         self._run_kexec_test(node, log, result, use_systemctl=True)
@@ -130,7 +130,7 @@ class KexecSuite(TestSuite):
                 "kexec running-guests test requires at least one guest peer node"
             )
 
-        if target_node.execute("which systemctl", shell=True).exit_code != 0:
+        if target_node.execute("command -v systemctl", shell=True).exit_code != 0:
             raise SkippedException("systemctl not available on this system")
 
         peer_boot_ids = self._record_peer_boot_ids(peer_nodes, log)
@@ -327,7 +327,7 @@ class KexecSuite(TestSuite):
 
         Raises SkippedException if installation fails.
         """
-        kexec_check = node.execute("which kexec", shell=True)
+        kexec_check = node.execute("command -v kexec", shell=True)
         if kexec_check.exit_code == 0:
             log.debug("kexec tool is already installed")
             return
@@ -339,7 +339,7 @@ class KexecSuite(TestSuite):
         node.os.install_packages("kexec-tools")
 
         # Verify installation
-        verify_check = node.execute("which kexec", shell=True)
+        verify_check = node.execute("command -v kexec", shell=True)
         if verify_check.exit_code != 0:
             raise SkippedException(
                 "Failed to install kexec-tools package. "
@@ -669,7 +669,9 @@ class KexecSuite(TestSuite):
         if kexec_marker not in cmdline_after:
             # Gather diagnostic info from previous boot logs
             diagnostic_info = ""
-            has_journalctl = node.execute("which journalctl", shell=True).exit_code == 0
+            has_journalctl = (
+                node.execute("command -v journalctl", shell=True).exit_code == 0
+            )
             if has_journalctl:
                 try:
                     # Check previous boot (-b-1) for kexec evidence
@@ -712,7 +714,7 @@ class KexecSuite(TestSuite):
 
     def _check_system_health(self, node: RemoteNode, log: Logger) -> None:
         """Check basic system health after reboot."""
-        has_systemctl = node.execute("which systemctl", shell=True).exit_code == 0
+        has_systemctl = node.execute("command -v systemctl", shell=True).exit_code == 0
         if has_systemctl:
             result = node.execute("systemctl is-system-running", sudo=True)
             state = result.stdout.strip()
