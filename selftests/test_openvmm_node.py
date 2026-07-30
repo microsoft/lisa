@@ -15,6 +15,7 @@ from lisa.features import SerialConsole as SerialConsoleFeature
 from lisa.sut_orchestrator.openvmm.context import NodeContext
 from lisa.sut_orchestrator.openvmm.node import OpenVmmController, OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
+    OPENVMM_CONNECTION_MODE_HOST_PROXY,
     OPENVMM_NETWORK_MODE_TAP,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
@@ -293,10 +294,15 @@ class OpenVmmNodeTestCase(TestCase):
         bridge_name = "ovmbr1"
         guest_address = "10.0.1.2"
         tap_host_cidr = "10.0.1.1/24"
-        execute_result = SimpleNamespace(exit_code=0, stderr="", stdout="0")
+
+        def _execute(command: str, *args: Any, **kwargs: Any) -> Any:
+            if command.startswith("iptables") and " -C " in command:
+                return SimpleNamespace(exit_code=1, stderr="", stdout="")
+            return SimpleNamespace(exit_code=0, stderr="", stdout="0")
+
         host_node = SimpleNamespace(
             is_remote=True,
-            execute=MagicMock(return_value=execute_result),
+            execute=MagicMock(side_effect=_execute),
             tools={Ip: SimpleNamespace(get_default_route_info=lambda: ("eth0", ""))},
         )
         controller = OpenVmmController(cast(Any, host_node), MagicMock())
@@ -336,6 +342,39 @@ class OpenVmmNodeTestCase(TestCase):
         )
         self.assertTrue(
             any(
+                f"iptables -C FORWARD ! -i {bridge_name} -o {bridge_name} "
+                f"-p tcp -d {guest_address} --dport 22 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -I FORWARD -i {bridge_name} -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -I FORWARD -i {bridge_name} ! -o eth0 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -I FORWARD ! -i eth0 -o {bridge_name} "
+                "-m state --state RELATED,ESTABLISHED -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
+                f"iptables -I FORWARD ! -i {bridge_name} -o {bridge_name} "
+                f"-p tcp -d {guest_address} --dport 22 -j ACCEPT" in command
+                for command in commands
+            )
+        )
+        self.assertTrue(
+            any(
                 f"iptables -D FORWARD -i {bridge_name} -o eth0 -j ACCEPT" in command
                 for command in commands
             )
@@ -353,12 +392,68 @@ class OpenVmmNodeTestCase(TestCase):
                 for command in commands
             )
         )
+        self.assertTrue(
+            any(
+                f"iptables -D FORWARD ! -i {bridge_name} -o {bridge_name} "
+                f"-p tcp -d {guest_address} --dport 22 -j ACCEPT" in command
+                for command in commands
+            )
+        )
         self.assertFalse(
             any(
                 f"iptables -C FORWARD -i {bridge_name} -j ACCEPT" in command
                 for command in commands
             )
         )
+        self.assertFalse(
+            any(
+                f"FORWARD -i eth0 -o {bridge_name} -p tcp -d {guest_address}" in command
+                for command in commands
+            )
+        )
+
+    def test_configure_connection_uses_host_proxy_mode(self) -> None:
+        host_connection = schema.ConnectionInfo(
+            address="10.0.0.10",
+            port=22,
+            username="hostuser",
+            password="hostpass",
+        )
+        host_node = SimpleNamespace(is_remote=True, _connection_info=host_connection)
+        controller = OpenVmmController(cast(Any, host_node), MagicMock())
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            connection_mode=OPENVMM_CONNECTION_MODE_HOST_PROXY,
+            tap_name="tap0",
+        )
+        node = SimpleNamespace(
+            runbook=OpenVmmGuestNodeSchema(
+                uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+                disk_img="/tmp/guest.raw",
+                username="root",
+                password="guestpass",
+                network=network,
+            ),
+            set_connection_info=MagicMock(),
+        )
+        node_context = NodeContext(guest_address="10.0.0.2")
+
+        with patch(
+            "lisa.sut_orchestrator.openvmm.node.get_node_context",
+            return_value=node_context,
+        ), patch.object(
+            controller, "_resolve_guest_address", return_value="10.0.0.2"
+        ), patch.object(
+            controller, "_wait_for_guest_ssh_from_host"
+        ) as wait_from_host:
+            controller.configure_connection(cast(Any, node), MagicMock())
+
+        wait_from_host.assert_called_once()
+        node.set_connection_info.assert_called_once()
+        kwargs = node.set_connection_info.call_args.kwargs
+        self.assertEqual("10.0.0.2", kwargs["address"])
+        self.assertFalse(kwargs["use_public_address"])
+        self.assertEqual([host_connection], kwargs["proxy_jump_boxes"])
 
     def test_create_node_cloud_init_iso_skips_root_resize_for_non_raw_disk(
         self,

@@ -6,11 +6,11 @@ import time
 import xml.etree.ElementTree as ETree
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Optional, Type
+from typing import Any, Callable, Optional, Type
 
 import redfish
 from assertpy import assert_that
-from redfish.rest.v1 import JsonDecodingError
+from redfish.rest.v1 import JsonDecodingError, RetriesExhaustedError
 from retry import retry
 
 from lisa import features, schema
@@ -27,6 +27,14 @@ VIRTUAL_MEDIA_EJECT_TIMEOUT = 30
 IDRAC_RESET_TIMEOUT = 120
 IDRAC_REMOTE_SERVICES_TIMEOUT = 300
 VIRTUAL_MEDIA_INSERTION_POLL_TIMEOUT = 30
+IDRAC_JOB_QUEUE_TIMEOUT = 300
+IDRAC_JOB_QUEUE_POLL_INTERVAL = 5
+IDRAC_LOGIN_RETRY_COUNT = 3
+IDRAC_LOGIN_RETRY_DELAY = 10
+
+IDRAC_JOB_ALREADY_RUNNING_MESSAGE_ID = "IDRAC.2.8.RAC0679"
+IDRAC_SERVER_ALREADY_POWERED_MESSAGE_ID = "IDRAC.2.8.PSU501"
+IDRAC_ACCESS_DENIED_MESSAGE_ID = "Base.1.8.AccessDenied"
 
 
 @dataclass
@@ -272,35 +280,46 @@ class Idrac(Cluster):
         return str(response.dict["ServerScreenShotFile"])
 
     def reset(self, operation: str, force_run: bool = False) -> None:
-        if operation in self.state_dict.keys():
-            expected_state = self.state_dict[operation]
+        expected_state = self.state_dict.get(operation)
+        if expected_state:
             if not force_run and self.get_power_state() == expected_state:
                 self._log.debug(f"System is already in {expected_state} state.")
                 return
 
         body = {"ResetType": operation}
+        url = "/redfish/v1/Systems/System.Embedded.1/Actions/ComputerSystem.Reset"
+
+        def _post_reset() -> None:
+            response = self.redfish_instance.post(url, body=body)
+            self._wait_for_completion(response)
 
         # Try reset operation with iDRAC recovery on HTTP 500 errors
         try:
-            response = self.redfish_instance.post(
-                "/redfish/v1/Systems/System.Embedded.1/Actions/ComputerSystem.Reset",
-                body=body,
+            self._run_with_idrac_job_retry(
+                f"ComputerSystem.Reset '{operation}'",
+                _post_reset,
             )
-            self._wait_for_completion(response)
         except LisaException as e:
-            if self._reset_if_idrac_error(str(e)):
-                # iDRAC was reset, retry the operation once
-                url = (
-                    "/redfish/v1/Systems/System.Embedded.1/Actions/"
-                    "ComputerSystem.Reset"
+            error_msg = str(e)
+            if expected_state and self._is_already_in_expected_state_error(
+                error_msg,
+                expected_state,
+            ):
+                self._log.debug(
+                    f"ComputerSystem.Reset '{operation}' reported that the server "
+                    f"is already in '{expected_state}' state. Continuing."
                 )
-                response = self.redfish_instance.post(url, body=body)
-                self._wait_for_completion(response)
+            elif self._reset_if_idrac_error(error_msg):
+                # iDRAC was reset, retry the operation once
+                self._run_with_idrac_job_retry(
+                    f"ComputerSystem.Reset '{operation}' after iDRAC reset",
+                    _post_reset,
+                )
             else:
                 # Not a retriable iDRAC error - re-raise original exception
                 raise
 
-        if operation in self.state_dict.keys():
+        if expected_state:
             check_till_timeout(
                 lambda: self.get_power_state() == expected_state,
                 timeout_message=(f"wait for client into '{expected_state}' state"),
@@ -319,13 +338,17 @@ class Idrac(Cluster):
 
         status = getattr(response, "status", "unknown")
         response_keys = list(response_dict.keys())
-        raise LisaException(
+        error_msg = (
             "Failed to get iDRAC power state because the System endpoint response "
             f"did not include a non-null PowerState. "
             f"status={status}, keys={response_keys}. "
             "Verify the iDRAC System endpoint and Lifecycle Controller health."
         )
+        if self._reset_if_idrac_error(error_msg):
+            raise LisaException(f"{error_msg} iDRAC reset completed; retrying.")
+        raise LisaException(error_msg)
 
+    @retry(tries=IDRAC_LOGIN_RETRY_COUNT, delay=IDRAC_LOGIN_RETRY_DELAY)  # type: ignore
     def login(self) -> None:
         self.redfish_instance = redfish.redfish_client(
             base_url="https://" + self.idrac_runbook.address,
@@ -361,6 +384,82 @@ class Idrac(Cluster):
             if hasattr(response, "dict"):
                 error_msg += f", details: {response.dict}"
             raise LisaException(error_msg)
+
+    def _run_with_idrac_job_retry(
+        self,
+        operation_description: str,
+        operation: Callable[[], None],
+    ) -> None:
+        access_denied_recovered = False
+
+        def _try_operation() -> bool:
+            nonlocal access_denied_recovered
+            try:
+                operation()
+                return True
+            except LisaException as e:
+                if self._is_access_denied_error(str(e)):
+                    if access_denied_recovered:
+                        raise
+                    access_denied_recovered = True
+                    self._refresh_session_after_access_denied(operation_description)
+                    return False
+                if not self._is_idrac_job_already_running_error(str(e)):
+                    raise
+                self._log.debug(
+                    f"{operation_description} is waiting on an existing iDRAC "
+                    f"job to complete: {e}"
+                )
+                return False
+
+        check_till_timeout(
+            _try_operation,
+            timeout_message=(
+                f"wait for existing iDRAC job before {operation_description}"
+            ),
+            timeout=IDRAC_JOB_QUEUE_TIMEOUT,
+            interval=IDRAC_JOB_QUEUE_POLL_INTERVAL,
+        )
+
+    @staticmethod
+    def _is_idrac_job_already_running_error(error_str: str) -> bool:
+        normalized_error = error_str.lower()
+        return (
+            IDRAC_JOB_ALREADY_RUNNING_MESSAGE_ID.lower() in normalized_error
+            or "a job operation is already running" in normalized_error
+        )
+
+    @staticmethod
+    def _is_already_in_expected_state_error(
+        error_str: str,
+        expected_state: str,
+    ) -> bool:
+        normalized_error = error_str.lower()
+        expected_state = expected_state.lower()
+        if expected_state == "on" and (
+            IDRAC_SERVER_ALREADY_POWERED_MESSAGE_ID.lower() in normalized_error
+        ):
+            return True
+        return f"server is already powered {expected_state}" in normalized_error
+
+    @staticmethod
+    def _is_access_denied_error(error_str: str) -> bool:
+        normalized_error = error_str.lower()
+        return (
+            IDRAC_ACCESS_DENIED_MESSAGE_ID.lower() in normalized_error
+            or "accessdenied" in normalized_error
+            or "access denied" in normalized_error
+            or "credentials included with this request are missing or invalid"
+            in normalized_error
+        )
+
+    def _refresh_session_after_access_denied(self, operation_description: str) -> None:
+        self._log.debug(
+            f"{operation_description} received iDRAC access denied. "
+            "Refreshing the Redfish session before retrying."
+        )
+        self.logout()
+        self.login()
 
     def _eject_vm(self, device_name: str) -> None:
         """Eject virtual media from specified device (CD or RemovableDisk)."""
@@ -440,6 +539,8 @@ class Idrac(Cluster):
             or "idrac.2.8.rac0508" in normalized_error
             or "base.1.12.internalerror" in normalized_error
             or "provider is not ready" in normalized_error
+            or "status=500" in normalized_error
+            or "status 500" in normalized_error
         )
 
         if is_idrac_internal_error:
@@ -626,6 +727,10 @@ class Idrac(Cluster):
         except LisaException as e:
             error_msg = str(e)
 
+            if self._is_access_denied_error(error_msg):
+                self._refresh_session_after_access_denied("VirtualMedia.InsertMedia")
+                raise
+
             # Check for HTTP 500 internal server errors and reset if needed
             if self._reset_if_idrac_error(error_msg):
                 # Re-raise to trigger retry
@@ -699,23 +804,28 @@ class Idrac(Cluster):
         )
 
         try:
-            response = self.redfish_instance.post(url, body=body)
-            self._log.debug("Waiting for boot order override task to complete...")
-            self._wait_for_completion(response)
+            self._run_with_idrac_job_retry(
+                "boot order override",
+                lambda: self._post_boot_order_override(url, body),
+            )
         except LisaException as e:
             if self._reset_if_idrac_error(str(e)):
                 self._log.debug(
                     "Retrying boot order override after iDRAC reset recovery..."
                 )
-                response = self.redfish_instance.post(url, body=body)
-                self._log.debug(
-                    "Waiting for boot order override task to complete after retry..."
+                self._run_with_idrac_job_retry(
+                    "boot order override after iDRAC reset",
+                    lambda: self._post_boot_order_override(url, body),
                 )
-                self._wait_for_completion(response)
             else:
                 raise
 
         self._log.debug(f"Updating boot source to {boot_from} completed")
+
+    def _post_boot_order_override(self, url: str, body: Any) -> None:
+        response = self.redfish_instance.post(url, body=body)
+        self._log.debug("Waiting for boot order override task to complete...")
+        self._wait_for_completion(response)
 
     def _enable_serial_console(self) -> None:
         # iDRAC may return 503 Service Unavailable transiently (e.g. just after
@@ -762,6 +872,12 @@ class Idrac(Cluster):
                     f"{e}. Retrying..."
                 )
                 return False
+            except RetriesExhaustedError as e:
+                self._log.info(
+                    "iDRAC serial console setup could not reach Redfish: "
+                    f"{e}. Retrying..."
+                )
+                return False
             finally:
                 self.logout()
 
@@ -769,7 +885,7 @@ class Idrac(Cluster):
             _try_enable,
             timeout_message=(
                 "iDRAC Attributes endpoint unavailable after retries "
-                "(repeated 503 / invalid JSON responses)"
+                "(repeated Redfish connection failures or invalid JSON responses)"
             ),
             timeout=IDRAC_RESET_TIMEOUT,
             interval=10,

@@ -556,6 +556,7 @@ class TestSuiteMetadata:
         requirement: TestCaseRequirement = DEFAULT_REQUIREMENT,
         owner: str = "Microsoft",
         full_name: str = "",
+        maturity: str = "",
     ) -> None:
         self.name = name
         self.full_name = full_name
@@ -571,6 +572,13 @@ class TestSuiteMetadata:
         self.description = description
         self.requirement = requirement
         self.owner = owner
+        maturity = maturity.strip() if maturity else ""
+        self.maturity = maturity if maturity else constants.TESTCASE_MATURITY_STABLE
+        if self.maturity not in constants.TESTCASE_MATURITY_LEVELS:
+            raise LisaException(
+                f"invalid maturity '{self.maturity}' for suite '{self.name or area}'. "
+                f"Must be one of: {constants.TESTCASE_MATURITY_LEVELS}"
+            )
 
     def __call__(self, test_class: Type[TestSuite]) -> Callable[..., object]:
         self.test_class = test_class
@@ -599,6 +607,7 @@ class TestCaseMetadata:
         owner: str = "",
         requirement: Optional[TestCaseRequirement] = None,
         tags: Optional[List[str]] = None,
+        maturity: str = "",
     ) -> None:
         self.suite: TestSuiteMetadata
 
@@ -611,6 +620,12 @@ class TestCaseMetadata:
         if tags:
             self.tags = tags
         self._owner = owner
+        self._maturity = maturity.strip() if maturity else ""
+        if self._maturity and self._maturity not in constants.TESTCASE_MATURITY_LEVELS:
+            raise LisaException(
+                f"invalid maturity '{maturity}' for test case '{description}'. "
+                f"Must be one of: {constants.TESTCASE_MATURITY_LEVELS}"
+            )
 
     def __getattr__(self, key: str) -> Any:
         # return attributes of test suite, if it's not redefined in case level
@@ -641,6 +656,13 @@ class TestCaseMetadata:
             return self._owner
 
         return self.suite.owner
+
+    @property
+    def maturity(self) -> str:
+        if self._maturity:
+            return self._maturity
+
+        return self.suite.maturity
 
 
 class TestCaseRuntimeData:

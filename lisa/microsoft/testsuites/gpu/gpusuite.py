@@ -427,7 +427,8 @@ def _gpu_provision_check(min_pci_count: int, node: Node, log: Logger) -> None:
     init_gpu = lspci.get_gpu_devices(force_run=True)
     log.debug(f"Initial GPU count {len(init_gpu)}")
     assert_that(len(init_gpu)).described_as(
-        "Number of GPU PCI device is not greater than 0"
+        f"Detected GPU PCI device count {len(init_gpu)} is less than the "
+        f"expected minimum {min_pci_count}"
     ).is_greater_than_or_equal_to(min_pci_count)
 
     node.reboot()

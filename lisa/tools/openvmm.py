@@ -13,12 +13,17 @@ from lisa.util import LisaException
 VERSION_PATTERN = re.compile(r"openvmm(?:\.exe)?\s+(?P<version>.+)")
 
 OPENVMM_NETWORK_BACKEND_CONSOMME = "consomme"
+OPENVMM_DEFAULT_SCSI_CONTROLLER = "lisa_scsi0"
 
 _COMMAND_NOT_FOUND_MARKERS = (
     "command not found",
     "no such file or directory",
     "is not recognized as an internal or external command",
 )
+
+
+def _new_str_list() -> List[str]:
+    return []
 
 
 def is_missing_command_output(output: str) -> bool:
@@ -32,7 +37,7 @@ class OpenVmmLaunchConfig:
     with_hv: bool = True
     hypervisor: str = "mshv"
     disk_img_path: str = ""
-    dvd_disk_paths: List[str] = field(default_factory=list)
+    dvd_disk_paths: List[str] = field(default_factory=_new_str_list)
     processors: int = 1
     memory_mb: int = 1024
     network_mode: str = "user"
@@ -40,7 +45,7 @@ class OpenVmmLaunchConfig:
     network_cidr: str = ""
     serial_mode: str = "file"
     serial_path: str = ""
-    extra_args: List[str] = field(default_factory=list)
+    extra_args: List[str] = field(default_factory=_new_str_list)
     stdout_path: str = ""
     stderr_path: str = ""
 
@@ -103,11 +108,26 @@ class OpenVmm(Tool):
         args.append("--uefi")
         args.extend(["--uefi-firmware", config.uefi_firmware_path])
 
-        if config.disk_img_path:
-            args.extend(["--disk", f"file:{config.disk_img_path}"])
+        if config.disk_img_path or config.dvd_disk_paths:
+            args.extend(["--vmbus-scsi", f"id={OPENVMM_DEFAULT_SCSI_CONTROLLER}"])
 
-        for dvd_disk_path in config.dvd_disk_paths:
-            args.extend(["--disk", f"file:{dvd_disk_path},dvd"])
+        if config.disk_img_path:
+            args.extend(
+                [
+                    "--disk",
+                    f"file:{config.disk_img_path},"
+                    f"on={OPENVMM_DEFAULT_SCSI_CONTROLLER},lun=0",
+                ]
+            )
+
+        for lun, dvd_disk_path in enumerate(config.dvd_disk_paths, start=1):
+            args.extend(
+                [
+                    "--disk",
+                    f"file:{dvd_disk_path},on={OPENVMM_DEFAULT_SCSI_CONTROLLER},"
+                    f"lun={lun},dvd",
+                ]
+            )
 
         if config.network_mode == "user":
             network_backend = OPENVMM_NETWORK_BACKEND_CONSOMME

@@ -24,6 +24,7 @@ from lisa.tools import Uname
     description="""
     This test suite validates OpenVMM guests running on a prepared L1 host.
     """,
+    maturity="preview",
 )
 class OpenVmmPlatformSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

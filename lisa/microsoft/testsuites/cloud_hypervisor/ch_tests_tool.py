@@ -34,6 +34,7 @@ from lisa.tools import (
 )
 from lisa.util import (
     LisaException,
+    SkippedException,
     UnsupportedDistroException,
     check_test_panic,
     find_groups_in_lines,
@@ -147,6 +148,32 @@ class CloudHypervisorTests(Tool):
         """Sanitize names for filenames: keep alphanumeric, dot, dash, underscore."""
         return re.sub(r"[^A-Za-z0-9_.-]", "_", s)
 
+    @staticmethod
+    def _escape_nextest_filter_matcher(matcher: str) -> str:
+        return matcher.replace("\\", "\\\\").replace(")", "\\)")
+
+    def _build_nextest_filterset(
+        self,
+        base_filter: str,
+        only: Optional[List[str]],
+        skip: Optional[List[str]],
+    ) -> str:
+        filterset = f"test(~{self._escape_nextest_filter_matcher(base_filter)})"
+
+        if only:
+            included_tests = "|".join(
+                f"test(={self._escape_nextest_filter_matcher(test_name)})"
+                for test_name in only
+            )
+            filterset = f"({filterset}&({included_tests}))"
+
+        if skip:
+            for skipped_test in skip:
+                skipped_filter = self._escape_nextest_filter_matcher(skipped_test)
+                filterset = f"{filterset}-test(={skipped_filter})"
+
+        return f"--filterset={filterset}"
+
     def _prepare_subtests(
         self,
         test_type: str,
@@ -172,6 +199,49 @@ class CloudHypervisorTests(Tool):
         self._log.debug(f"Final Subtests list to run: {subtests}")
 
         return {"subtest_set": set(subtests), "skip_args": skip_args}
+
+    def _prepare_filtered_subtests(
+        self,
+        test_type: str,
+        hypervisor: str,
+        cli_test_filter: str,
+        only: Optional[List[str]],
+        skip: Optional[List[str]],
+    ) -> Dict[str, Any]:
+        subtests = self._list_subtests(hypervisor, test_type)
+        self._ordered_subtests = subtests.copy()
+
+        filtered_subtests = [
+            subtest for subtest in subtests if cli_test_filter in subtest
+        ]
+        if only is not None:
+            filtered_subtests = [
+                subtest for subtest in filtered_subtests if subtest in only
+            ]
+        if skip is not None:
+            filtered_subtests = [
+                subtest for subtest in filtered_subtests if subtest not in skip
+            ]
+
+        if not filtered_subtests:
+            # An empty match is a legitimate "nothing to run" precondition, not a
+            # failure: some subtest families are compiled out for a given
+            # hypervisor (for example, Cloud Hypervisor gates every live
+            # migration test behind cfg(not(feature = "mshv")), so none exist in
+            # an mshv build), or the include/exclude filters removed all matches.
+            raise SkippedException(
+                f"No Cloud Hypervisor {test_type} subtests matched filter "
+                f"'{cli_test_filter}' for hypervisor '{hypervisor}' in the "
+                "selected Cloud Hypervisor ref. These tests may be gated out "
+                "for this hypervisor (for example, live migration tests are "
+                "compiled only when the 'mshv' feature is disabled), or the "
+                "include/exclude filters removed all matches. Verify the ref "
+                "builds matching tests for this hypervisor and review the "
+                "include/exclude filters."
+            )
+
+        self._log.debug(f"Final Subtests list to run: {filtered_subtests}")
+        return {"subtest_set": set(filtered_subtests), "skip_args": ""}
 
     def _configure_environment_if_needed(self, hypervisor: str) -> None:
         """Configure environment specific settings if needed."""
@@ -412,16 +482,45 @@ class CloudHypervisorTests(Tool):
         ref: str = "",
         only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
+        cli_test_filter: Optional[str] = None,
     ) -> None:
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
-        subtests = self._prepare_subtests(test_type, hypervisor, only, skip)
+        if cli_test_filter:
+            subtests = self._prepare_filtered_subtests(
+                test_type,
+                hypervisor,
+                cli_test_filter,
+                only,
+                skip,
+            )
+        else:
+            subtests = self._prepare_subtests(
+                test_type,
+                hypervisor,
+                only,
+                skip,
+            )
         self._configure_environment_if_needed(hypervisor)
 
         # Use enhanced diagnostics for better debugging and monitoring
         skip_args = subtests["skip_args"]
-        cmd_args = f"tests --hypervisor {hypervisor} --{test_type} -- -- {skip_args}"
+        if cli_test_filter:
+            nextest_filter = self._build_nextest_filterset(
+                cli_test_filter,
+                only,
+                skip,
+            )
+            test_script_args = f"--test-filter {shlex.quote(nextest_filter)}"
+            cmd_args = (
+                f"tests --hypervisor {hypervisor} --{test_type} -- "
+                f"{test_script_args}"
+            )
+        else:
+            cmd_args = (
+                f"tests --hypervisor {hypervisor} --{test_type} -- -- " f"{skip_args}"
+            )
         # normalize name so artifacts are predictable (no spaces/colons/slashes)
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
         test_name = self._sanitize_name(f"ch_{safe_test_type}_{hypervisor}")
@@ -985,7 +1084,7 @@ class CloudHypervisorTests(Tool):
 
         # Create a single command that runs everything on the remote VM
         # with proper bash handling
-        full_cmd = f"""bash -lc '
+        script = f"""
 set -o pipefail
 
 # enable core dumps (best-effort)
@@ -1209,7 +1308,8 @@ else
 fi
 
 exit $ec
-'"""
+"""
+        full_cmd = f"bash -lc {shlex.quote(script)}"
 
         # Best-effort install gdb if not available
         try:
@@ -1383,7 +1483,27 @@ exit $ec
             self._log.debug(f"Could not cache VMM version: {e}")
 
     def _list_subtests(self, hypervisor: str, test_type: str) -> List[str]:
-        cmd_args = f"tests --hypervisor {hypervisor} --{test_type} -- -- --list"
+        # Cloud Hypervisor's integration tests run under cargo-nextest, which
+        # rejects the libtest "-- -- --list" flag ("failed to parse test binary
+        # arguments `--list`: arguments are unsupported"). Enumerate the subtests
+        # with "cargo nextest list" instead. The return value is still the same
+        # List[str] of "<module>::<test>" names, so the runbook-driven
+        # include/exclude (only/skip/cli_test_filter) and per-subtest result
+        # tracking keep working exactly as before.
+        #
+        # dev_cli.sh has no list sub-command, so nextest is run inside the same
+        # dev container via "dev_cli.sh shell", which executes its arguments as
+        # `bash -c "$*"`. That re-joins the arguments on spaces and drops
+        # quoting, so RUSTFLAGS must be a single space-free token: the
+        # "--cfg=<name>" form is used instead of "--cfg <name>" so the
+        # devcli_testenv cfg the integration test scripts build with is still
+        # applied. The "mshv" feature mirrors the MSHV build.
+        test_features = "--features mshv" if hypervisor == "mshv" else ""
+        nextest_list_cmd = (
+            "RUSTFLAGS=--cfg=devcli_testenv cargo nextest list "
+            f"-p cloud-hypervisor {test_features} --message-format json"
+        )
+        cmd_args = f"shell -- {nextest_list_cmd}"
         # Use enhanced environment variables for consistency
         enhanced_env_vars = self.env_vars.copy()
         enhanced_env_vars.update(
@@ -1402,10 +1522,33 @@ exit $ec
             shell=True,
             update_envs=enhanced_env_vars,
         )
-        # e.g. "integration::test_vfio: test"
-        matches = re.findall(r"^(.*::.*): test", result.stdout, re.M)
-        self._log.debug(f"Subtests list: {matches}")
-        return matches
+        subtests = self._parse_nextest_subtest_list(result.stdout)
+        self._log.debug(f"Subtests list: {subtests}")
+        return subtests
+
+    @staticmethod
+    def _parse_nextest_subtest_list(stdout: str) -> List[str]:
+        # "cargo nextest list --message-format json" emits a JSON object with a
+        # "rust-suites" map; each suite has a "testcases" map keyed by the test
+        # name (e.g. "live_migration::test_live_migration_local"). dev_cli.sh
+        # interleaves docker pull and cargo build output on the same stream, so
+        # scan each '{' and decode the first object that has "rust-suites". The
+        # returned names preserve the previous "<module>::<test>" list contract.
+        decoder = json.JSONDecoder()
+        pos = stdout.find("{")
+        while pos != -1:
+            try:
+                decoded, _ = decoder.raw_decode(stdout[pos:])
+            except json.JSONDecodeError:
+                decoded = None
+            if isinstance(decoded, dict) and "rust-suites" in decoded:
+                data = cast(Dict[str, Any], decoded)
+                subtests: List[str] = []
+                for suite in data["rust-suites"].values():
+                    subtests.extend(suite.get("testcases", {}).keys())
+                return subtests
+            pos = stdout.find("{", pos + 1)
+        return []
 
     def _extract_test_results(
         self, output: str, log_path: Path, subtests: Set[str]

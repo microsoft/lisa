@@ -11,8 +11,6 @@ from lisa.operating_system import CBLMariner, Posix, Ubuntu
 from lisa.tools.curl import Curl
 from lisa.tools.echo import Echo
 from lisa.tools.gcc import Gcc
-from lisa.tools.ln import Ln
-from lisa.tools.rm import Rm
 from lisa.util import LisaException, UnsupportedDistroException
 from lisa.util.process import ExecutableResult
 
@@ -30,6 +28,13 @@ class Cargo(Tool):
         re.M,
     )
     toolchain: str = ""
+    # Rustup mutates shared state under $HOME/.rustup. Baremetal jobs may reuse the
+    # same account concurrently, so wait long enough for another toolchain install.
+    RUSTUP_LOCK_TIMEOUT = 1800
+    # The rustup installer downloads the full Rust toolchain. Baremetal lab
+    # network throughput can be slow enough that the default command timeout is
+    # too short even when the download is still making progress.
+    RUSTUP_INSTALL_TIMEOUT = 1800
 
     @property
     def command(self) -> str:
@@ -46,71 +51,113 @@ class Cargo(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "cargo"
 
+    def _check_exists(self) -> bool:
+        exists, self._use_sudo = self.command_exists(self.command)
+        if exists and self._cargo_runs(self.command):
+            return True
+
+        home_dir = self._get_home_dir()
+        if not home_dir:
+            return False
+
+        cargo_bin = f"{home_dir}/.cargo/bin/cargo"
+        if self._cargo_runs(cargo_bin):
+            self._command = cargo_bin
+            self._use_sudo = False
+            rustup_bin = f"{home_dir}/.cargo/bin/rustup"
+            self._try_set_toolchain(rustup_bin)
+            return True
+
+        return False
+
     def _install(self) -> bool:
         node_os = self.node.os
         cargo_source_url = "https://sh.rustup.rs"
         if isinstance(node_os, CBLMariner) or isinstance(node_os, Ubuntu):
             self.__install_dependencies()
 
-            # install cargo/rust
-            curl = self.node.tools[Curl]
-            result = curl.fetch(
-                arg="-sSf",
-                url=cargo_source_url,
-                execute_arg="-s -- -y",
-                shell=True,
-            )
-            result.assert_exit_code()
-
-            echo = self.node.tools[Echo]
-            home_dir = echo.run(
-                "$HOME",
-                shell=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message="failure to grab $HOME path",
-            ).stdout.strip()
+            home_dir = self._get_home_dir()
+            if not home_dir:
+                raise LisaException("failure to grab $HOME path")
             cargo_bin = f"{home_dir}/.cargo/bin/cargo"
             rustup_bin = f"{home_dir}/.cargo/bin/rustup"
 
-            ln = self.node.tools[Ln]
-            ln.create_link(
-                is_symbolic=True,
-                target=cargo_bin,
-                link="/usr/local/bin/cargo",
+            # install cargo/rust
+            curl = self.node.tools[Curl]
+            install_command = (
+                f"{shlex.quote(cargo_bin)} --version >/dev/null 2>&1 || "
+                f"{shlex.quote(curl.command)} -sSf "
+                f"{shlex.quote(cargo_source_url)} | sh -s -- -y"
             )
-            ln.create_link(
-                is_symbolic=True,
-                target=rustup_bin,
-                link="/usr/local/bin/rustup",
+            self.node.execute(
+                self.wrap_with_rustup_lock(install_command),
+                shell=True,
+                timeout=self.RUSTUP_INSTALL_TIMEOUT,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="curl fetch failed",
             )
         else:
             raise UnsupportedDistroException(node_os)
 
         self.node.execute(
-            f"{shlex.quote(rustup_bin)} default stable",
+            self.wrap_with_rustup_lock(f"{shlex.quote(rustup_bin)} default stable"),
             shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message="failed to set rustup stable toolchain",
         )
         self.toolchain = self.__get_rust_toolchain(rustup_command=rustup_bin)
         self._log.debug(f"Rust toolchain: {self.toolchain}")
-        self._command = f"{home_dir}/.rustup/toolchains/{self.toolchain}/bin/cargo"
+        self._command = cargo_bin
         self._exists = None
         is_installed = self._check_exists()
-        if not is_installed:
-            self._command = cargo_bin
-            self._exists = None
-            is_installed = self._check_exists()
-
-        self.node.tools[Rm].remove_file(
-            "/usr/local/bin/cargo",
-            sudo=True,
-        )
-        self.node.tools[Rm].remove_file(
-            "/usr/local/bin/rustup",
-            sudo=True,
-        )
         return is_installed
+
+    def wrap_with_rustup_lock(self, command: str) -> str:
+        return (
+            'mkdir -p "$HOME/.rustup" && '
+            f"flock -w {self.RUSTUP_LOCK_TIMEOUT} "
+            '"$HOME/.rustup/lisa-rustup.lock" '
+            f"sh -c {shlex.quote(command)}"
+        )
+
+    def _get_home_dir(self) -> str:
+        result = self.node.execute(
+            "echo $HOME",
+            shell=True,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
+        if result.exit_code != 0:
+            return ""
+        return result.stdout.strip()
+
+    def _cargo_runs(self, command: str) -> bool:
+        result = self.node.execute(
+            f"{shlex.quote(command)} --version",
+            shell=True,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
+        return result.exit_code == 0
+
+    def _try_set_toolchain(self, rustup_command: str) -> None:
+        result = self.node.execute(
+            f"test -x {shlex.quote(rustup_command)}",
+            shell=True,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
+        if result.exit_code != 0:
+            return
+        try:
+            self.toolchain = self.__get_rust_toolchain(rustup_command=rustup_command)
+        except LisaException as identifier:
+            self._log.debug(
+                f"failed to detect rust toolchain from {rustup_command}: {identifier}"
+            )
 
     def __install_dependencies(self) -> None:
         node_os: Posix = cast(Posix, self.node.os)

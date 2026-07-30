@@ -1750,9 +1750,20 @@ class Criteria:
         default=None,
         metadata=field_metadata(validate=ListableValidator(str), allow_none=True),
     )
+    # maturity filters tests by lifecycle stage.
+    maturity: Optional[Union[str, List[str]]] = field(
+        default=None,
+        metadata=field_metadata(
+            validate=ListableValidator(
+                str,
+                validate.OneOf(constants.TESTCASE_MATURITY_LEVELS),
+            ),
+            allow_none=True,
+        ),
+    )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        strip_strs(self, ["name", "area", "category", "tags"])
+        strip_strs(self, ["name", "area", "category", "tags", "maturity"])
 
 
 @dataclass_json()

@@ -254,6 +254,40 @@ class EnvironmentTestCase(TestCase):
             env_cap.nodes[0].network_interface.nic_count,
         )
 
+    def test_node_cleanup_uses_guest_snapshot(self) -> None:
+        parent = node.LocalNode(
+            index=0,
+            runbook=schema.LocalNode(),
+            logger_name="node",
+        )
+        cleanup_counter: List[str] = []
+        guest = node.LocalNode(
+            index=0,
+            runbook=schema.LocalNode(),
+            logger_name="g",
+            parent=parent,
+        )
+
+        def cleanup_guest() -> None:
+            cleanup_counter.append(guest.name)
+            parent.guests.append(
+                node.LocalNode(
+                    index=len(parent.guests),
+                    runbook=schema.LocalNode(),
+                    logger_name="g",
+                    parent=parent,
+                )
+            )
+            node.LocalNode.cleanup(guest)
+
+        cast(Any, guest).cleanup = cleanup_guest
+        parent.guests.append(guest)
+
+        parent.cleanup()
+
+        self.assertEqual(1, len(cleanup_counter))
+        self.assertEqual(1, len(parent.guests))
+
     def test_create_from_requirement(self) -> None:
         requirement = simple_requirement(min_count=2)
         env_requirement = requirement.environment

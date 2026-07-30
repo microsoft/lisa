@@ -81,7 +81,7 @@ class ReadyPlatform(Platform):
         pass
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
-        if self._ready_runbook.reuse_dirty_env:
+        if self._ready_runbook.reuse_dirty_env and not self.runbook.guest_enabled:
             log.debug(
                 f"Environment '{environment.name}' was marked as 'Deleted' "
                 "because it was dirty. Now resetting it to 'Prepared' since "
@@ -89,3 +89,8 @@ class ReadyPlatform(Platform):
                 "the environment."
             )
             environment.status = EnvironmentStatus.Prepared
+        elif self._ready_runbook.reuse_dirty_env:
+            log.debug(
+                f"Environment '{environment.name}' was marked as 'Deleted'. "
+                "It won't be reused because guest_enabled is true."
+            )

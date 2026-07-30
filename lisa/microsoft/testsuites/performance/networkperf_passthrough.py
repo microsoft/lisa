@@ -26,7 +26,7 @@ from lisa import (
 )
 from lisa.environment import Environment, Node
 from lisa.operating_system import Windows
-from lisa.sut_orchestrator import CLOUD_HYPERVISOR, HYPERV
+from lisa.sut_orchestrator import CLOUD_HYPERVISOR, HYPERV, OPENVMM
 from lisa.testsuite import TestResult
 from lisa.tools import Dhclient, Kill, PowerShell, Sysctl
 from lisa.tools.ip import Ip
@@ -47,7 +47,7 @@ from lisa.util import (
 from lisa.util.logger import get_logger
 from lisa.util.parallel import run_in_parallel
 
-SUPPORTED_PASSTHROUGH_PLATFORMS = [CLOUD_HYPERVISOR, HYPERV]
+SUPPORTED_PASSTHROUGH_PLATFORMS = [CLOUD_HYPERVISOR, HYPERV, OPENVMM]
 WINDOWS_NTTTCP_MAX_SERVER_THREADS = 64
 WINDOWS_NTTTCP_MAX_MIXED_TCP_CONNECTIONS = 512
 WINDOWS_NTTTCP_RECEIVER_WAIT_TIMEOUT = 90
@@ -790,6 +790,13 @@ class NetworkPerformance(TestSuite):
         return passthrough_nic_ip
 
     def _get_passthrough_node_context(self, node: Node) -> Any:
+        if node.type_name() == OPENVMM:
+            from lisa.sut_orchestrator.openvmm.context import (
+                get_node_context as get_openvmm_node_context,
+            )
+
+            return get_openvmm_node_context(node)
+
         try:
             from lisa.sut_orchestrator.libvirt.context import (
                 get_node_context as get_libvirt_node_context,

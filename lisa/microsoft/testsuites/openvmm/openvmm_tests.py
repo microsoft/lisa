@@ -37,6 +37,7 @@ def _get_openvmm_tests_type() -> Any:
     This suite runs the upstream OpenVMM vmm_tests from the Linux OpenVMM host.
     """,
     requirement=simple_requirement(supported_os=[CBLMariner]),
+    maturity="preview",
 )
 class OpenVmmUpstreamTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

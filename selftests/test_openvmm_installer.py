@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 from lisa.sut_orchestrator.openvmm.installer import OpenVmmSourceInstaller
 from lisa.sut_orchestrator.openvmm.schema import OpenVmmSourceInstallerSchema
-from lisa.tools import Cargo, Git, Ln
+from lisa.tools import Cargo, Git, Ln, Rm
 
 
 class _ToolMap:
@@ -32,22 +32,34 @@ class OpenVmmInstallerTestCase(TestCase):
     def test_source_installer_uses_host_paths_for_remote_commands(self) -> None:
         package_installs: List[List[str]] = []
         linux = Ubuntu(package_installs)
+
+        def _wrap_with_rustup_lock(command: str) -> str:
+            return f"locked({command})"
+
         cargo = SimpleNamespace(
             exists=True,
-            command="/home/test/.cargo/bin/cargo",
+            command="cargo",
             toolchain="stable",
+            wrap_with_rustup_lock=_wrap_with_rustup_lock,
         )
         git = SimpleNamespace(
-            clone=MagicMock(return_value="/tmp/work/openvmm-src"),
+            clone=MagicMock(return_value="/tmp/work/openvmm"),
             get_current_commit_hash=MagicMock(return_value="abc1234"),
         )
         ln = SimpleNamespace(create_link=MagicMock())
+        rm = SimpleNamespace(remove_directory=MagicMock())
         executed_commands: List[Dict[str, Any]] = []
 
         def _execute(command: str, **kwargs: Any) -> SimpleNamespace:
             executed_commands.append({"command": command, **kwargs})
             if command == "echo $HOME":
                 return SimpleNamespace(stdout="/home/test\n", stderr="", exit_code=0)
+            if command == "command -v cargo":
+                return SimpleNamespace(
+                    stdout="/home/test/.cargo/bin/cargo\n",
+                    stderr="",
+                    exit_code=0,
+                )
             if command == "/usr/local/bin/openvmm --version":
                 return SimpleNamespace(stdout="openvmm 1.0.0\n", stderr="", exit_code=0)
             return SimpleNamespace(stdout="", stderr="", exit_code=0)
@@ -58,7 +70,7 @@ class OpenVmmInstallerTestCase(TestCase):
             execute=_execute,
             get_pure_path=PurePosixPath,
             get_str_path=str,
-            tools=_ToolMap({Cargo: cargo, Git: git, Ln: ln}),
+            tools=_ToolMap({Cargo: cargo, Git: git, Ln: ln, Rm: rm}),
         )
         runbook = OpenVmmSourceInstallerSchema(
             repo="https://github.com/microsoft/openvmm.git",
@@ -88,6 +100,20 @@ class OpenVmmInstallerTestCase(TestCase):
             },
             restore_call["update_envs"],
         )
+        rust_src_call = next(
+            command
+            for command in executed_commands
+            if "component add rust-src" in command["command"]
+        )
+        self.assertTrue(rust_src_call["command"].startswith("locked("))
+        rm.remove_directory.assert_called_once_with("/tmp/work/openvmm")
+        git.clone.assert_called_once_with(
+            url="https://github.com/microsoft/openvmm.git",
+            cwd=PurePosixPath("/tmp/work"),
+            dir_name="openvmm",
+            ref="",
+            auth_token="",
+        )
         install_dir_call = next(
             command
             for command in executed_commands
@@ -99,7 +125,76 @@ class OpenVmmInstallerTestCase(TestCase):
             for command in executed_commands
             if command["command"].startswith("cp ")
         )
-        self.assertIn(
-            "/tmp/work/openvmm-src/target/release/openvmm", copy_call["command"]
-        )
+        self.assertIn("/tmp/work/openvmm/target/release/openvmm", copy_call["command"])
         self.assertNotIn("\\", copy_call["command"])
+
+    def test_source_installer_refreshes_stale_source_checkout(self) -> None:
+        package_installs: List[List[str]] = []
+        linux = Ubuntu(package_installs)
+
+        def _wrap_with_rustup_lock(command: str) -> str:
+            return f"locked({command})"
+
+        cargo = SimpleNamespace(
+            exists=True,
+            command="cargo",
+            toolchain="stable",
+            wrap_with_rustup_lock=_wrap_with_rustup_lock,
+        )
+        git = SimpleNamespace(
+            clone=MagicMock(return_value="/tmp/work/openvmm"),
+            get_current_commit_hash=MagicMock(return_value="abc1234"),
+        )
+        ln = SimpleNamespace(create_link=MagicMock())
+        rm = SimpleNamespace(remove_directory=MagicMock())
+        executed_commands: List[Dict[str, Any]] = []
+
+        def _execute(command: str, **kwargs: Any) -> SimpleNamespace:
+            executed_commands.append({"command": command, **kwargs})
+            if command == "echo $HOME":
+                return SimpleNamespace(stdout="/home/test\n", stderr="", exit_code=0)
+            if command == "command -v cargo":
+                return SimpleNamespace(
+                    stdout="/home/test/.cargo/bin/cargo\n",
+                    stderr="",
+                    exit_code=0,
+                )
+            if command == "/usr/local/bin/openvmm --version":
+                return SimpleNamespace(stdout="openvmm 1.0.0\n", stderr="", exit_code=0)
+            return SimpleNamespace(stdout="", stderr="", exit_code=0)
+
+        node = SimpleNamespace(
+            os=linux,
+            working_path=PurePosixPath("/tmp/work"),
+            execute=_execute,
+            get_pure_path=PurePosixPath,
+            get_str_path=str,
+            tools=_ToolMap({Cargo: cargo, Git: git, Ln: ln, Rm: rm}),
+        )
+        runbook = OpenVmmSourceInstallerSchema(
+            repo="https://github.com/microsoft/openvmm.git",
+            install_path="/usr/local/bin/openvmm",
+        )
+        installer = OpenVmmSourceInstaller(
+            runbook=runbook,
+            node=cast(Any, node),
+            log=MagicMock(),
+        )
+
+        version = installer.install()
+
+        self.assertEqual("openvmm 1.0.0", version)
+        rm.remove_directory.assert_called_once_with("/tmp/work/openvmm")
+        git.clone.assert_called_once_with(
+            url="https://github.com/microsoft/openvmm.git",
+            cwd=PurePosixPath("/tmp/work"),
+            dir_name="openvmm",
+            ref="",
+            auth_token="",
+        )
+        restore_calls = [
+            command
+            for command in executed_commands
+            if "xflowey restore-packages" in command["command"]
+        ]
+        self.assertEqual(1, len(restore_calls))

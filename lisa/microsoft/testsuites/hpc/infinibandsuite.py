@@ -387,18 +387,10 @@ class InfinibandSuite(TestSuite):
         server_ssh.add_known_host(client_ip)
         client_ssh.add_known_host(server_ip)
 
+        # Locate the IMB-MPI1 benchmark once and reuse it for both tests.
+        test_path = self._locate_imb_mpi1(server_node)
+
         # Ping Pong test
-        find = server_node.tools[Find]
-        find_results = find.find_files(
-            server_node.get_pure_path("/usr"), "IMB-MPI1", sudo=True
-        )
-        assert_that(len(find_results)).described_as(
-            "Could not find location of IMB-MPI1 for Open MPI"
-        ).is_greater_than(0)
-        test_path = find_results[0]
-        assert_that(test_path).described_as(
-            "Could not find location of IMB-MPI1 for Open MPI"
-        ).is_not_empty()
         server_node.execute(
             f"/usr/local/bin/mpirun --host {server_ip},{server_ip} "
             "-n 2 --mca btl self,vader,openib --mca btl_openib_cq_size 4096 "
@@ -410,16 +402,6 @@ class InfinibandSuite(TestSuite):
         )
 
         # IMB-MPI Tests
-        find_results = find.find_files(
-            server_node.get_pure_path("/usr"), "IMB-MPI1", sudo=True
-        )
-        assert_that(len(find_results)).described_as(
-            "Could not find location of Open MPI test: IMB-MPI1"
-        ).is_greater_than(0)
-        test_path = find_results[0]
-        assert_that(test_path).described_as(
-            "Could not find location of Open MPI test: IMB-MPI1"
-        ).is_not_empty()
         server_node.execute(
             f"/usr/local/bin/mpirun --host {server_ip},{client_ip} "
             "-n 2 --mca btl self,vader,openib --mca btl_openib_cq_size 4096 "
@@ -427,6 +409,25 @@ class InfinibandSuite(TestSuite):
             f"btl_openib_warn_no_device_params_found 0 {test_path}",
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed " "IMB-MPI1 test with Open MPI",
+        )
+
+    def _locate_imb_mpi1(self, node: Node) -> str:
+        # IMB-MPI1 (Intel MPI Benchmarks) ships with the HPC image rather than
+        # with the Open MPI build. It usually lives under /usr, but on some
+        # images (for example ARM64 HPC images) it is provided via an HPC-X
+        # package under /opt, so search both locations before giving up.
+        find = node.tools[Find]
+        for search_root in ("/usr", "/opt"):
+            find_results = find.find_files(
+                node.get_pure_path(search_root), "IMB-MPI1", sudo=True
+            )
+            if find_results and find_results[0]:
+                return find_results[0]
+        raise LisaException(
+            "IMB-MPI1 (Intel MPI Benchmarks) was not found under /usr or /opt. "
+            "This benchmark ships with the HPC image, not with the Open MPI "
+            "build, so it is unavailable on this image. Use an HPC image that "
+            "provides IMB-MPI1 to run this test."
         )
 
     @TestCaseMetadata(

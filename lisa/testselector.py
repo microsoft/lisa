@@ -79,13 +79,18 @@ def _prefilter_by_target_os(
     return kept
 
 
-def select_testcases(
+def select_testcases(  # noqa: C901
     filters: Optional[List[schema.TestCase]] = None,
     init_cases: Optional[List[TestCaseMetadata]] = None,
     target_os: Optional[Type[OperatingSystem]] = None,
+    apply_stable_gate: bool = True,
 ) -> List[TestCaseRuntimeData]:
     """
-    based on filters to select test cases. If filters are None, return all cases.
+    Select test cases based on filters. When ``apply_stable_gate`` is True
+    (the default), an implicit stable gate filters out non-stable tests
+    unless they are approved by an explicit maturity criterion or
+    forceInclude. Set ``apply_stable_gate`` to False to bypass the gate
+    (e.g. for ``lisa list --all``).
 
     When ``target_os`` is provided, cases whose declared ``supported_os`` /
     ``unsupported_os`` requirement makes them inapplicable to that OS class
@@ -105,10 +110,37 @@ def select_testcases(
         selected: Dict[str, TestCaseRuntimeData] = {}
         force_included: Set[str] = set()
         force_excluded: Set[str] = set()
+        maturity_approved: Set[str] = set()
         for filter_ in filters:
             selected = _apply_filter(
-                filter_, selected, force_included, force_excluded, full_list
+                filter_,
+                selected,
+                force_included,
+                force_excluded,
+                full_list,
+                maturity_approved,
             )
+
+        # implicit stable gate: drop non-stable tests that were not
+        # explicitly approved by a maturity criterion or force-included
+        dropped: List[str] = []
+        if apply_stable_gate:
+            for name in list(selected.keys()):
+                case_maturity = selected[name].metadata.maturity
+                if case_maturity != constants.TESTCASE_MATURITY_STABLE:
+                    if name not in force_included and name not in maturity_approved:
+                        del selected[name]
+                        dropped.append(name)
+                    elif case_maturity == constants.TESTCASE_MATURITY_DEPRECATED:
+                        log.warning(
+                            f"deprecated test '{name}' is included; "
+                            "consider removing it from your runbook"
+                        )
+        if dropped:
+            log.info(
+                f"stable gate: dropped {len(dropped)} non-stable " f"test(s): {dropped}"
+            )
+
         results: List[TestCaseRuntimeData] = []
         for case in selected.values():
             times = case.times
@@ -120,7 +152,17 @@ def select_testcases(
     else:
         results = []
         for metadata in full_list.values():
-            results.append(TestCaseRuntimeData(metadata))
+            # implicit stable gate: only include stable tests by default
+            if (
+                not apply_stable_gate
+                or metadata.maturity == constants.TESTCASE_MATURITY_STABLE
+            ):
+                results.append(TestCaseRuntimeData(metadata))
+            else:
+                log.debug(
+                    f"stable gate: skipping '{metadata.full_name}' "
+                    f"(maturity={metadata.maturity})"
+                )
 
     log.info(f"selected count: {len(results)}")
     for result in results:
@@ -168,6 +210,16 @@ def _match_tags(
     else:
         is_matched = any(x in case_tags for x in criteria_tags)
     return is_matched
+
+
+def _match_maturity(
+    case: Union[TestCaseRuntimeData, TestCaseMetadata],
+    criteria_maturity: Union[str, List[str]],
+) -> bool:
+    case_maturity = case.maturity
+    if isinstance(criteria_maturity, str):
+        return case_maturity == criteria_maturity
+    return case_maturity in criteria_maturity
 
 
 def _match_cases(
@@ -236,11 +288,13 @@ def _apply_filter(  # noqa: C901
     force_included: Set[str],
     force_excluded: Set[str],
     full_list: Dict[str, TestCaseMetadata],
+    maturity_approved: Set[str],
 ) -> Dict[str, TestCaseRuntimeData]:
     # TODO: Reduce this function's complexity and remove the disabled warning.
 
     log = _get_logger()
     # initialize criteria
+    has_maturity_criterion = False
     patterns: List[Callable[[Union[TestCaseRuntimeData, TestCaseMetadata]], bool]] = []
     criteria_runbook = case_runbook.criteria
     assert criteria_runbook, "test case criteria cannot be None"
@@ -269,6 +323,14 @@ def _apply_filter(  # noqa: C901
                 Union[str, List[str]], criteria_runbook_dict[runbook_key]
             )
             patterns.append(partial(_match_tags, criteria_tags=tag_pattern))
+        elif runbook_key == constants.TESTCASE_CRITERIA_MATURITY:
+            maturity_pattern = cast(
+                Union[str, List[str]], criteria_runbook_dict[runbook_key]
+            )
+            patterns.append(
+                partial(_match_maturity, criteria_maturity=maturity_pattern)
+            )
+            has_maturity_criterion = True
         else:
             raise LisaException(f"unknown criteria key: {runbook_key}")
 
@@ -287,6 +349,12 @@ def _apply_filter(  # noqa: C901
     if case_runbook.select_action == constants.TESTCASE_SELECT_ACTION_NONE:
         # Just apply settings on test cases
         changed_cases = _match_cases(current_selected, patterns)
+        # track maturity approval for the none action as well, so that
+        # tests matched by an explicit maturity criterion are not dropped
+        # by the implicit stable gate
+        if has_maturity_criterion:
+            for name in changed_cases:
+                maturity_approved.add(name)
     elif case_runbook.select_action in [
         constants.TESTCASE_SELECT_ACTION_INCLUDE,
         constants.TESTCASE_SELECT_ACTION_FORCE_INCLUDE,
@@ -304,6 +372,11 @@ def _apply_filter(  # noqa: C901
             )
             if is_skip:
                 continue
+
+            # track tests included by a filter with an explicit maturity
+            # criterion so the implicit stable gate won't drop them
+            if has_maturity_criterion:
+                maturity_approved.add(name)
 
             # reuse original test cases
             case_data = current_selected.get(name, new_case_data)
