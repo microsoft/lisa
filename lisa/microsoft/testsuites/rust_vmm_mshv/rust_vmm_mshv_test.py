@@ -32,10 +32,10 @@ class RustVmmTestSuite(TestSuite):
             raise SkippedException(f"{node.os} is not supported.")
 
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
-        if not virtualization_enabled:
+        mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
+        if not virtualization_enabled and not mshv_exists:
             raise SkippedException("Virtualization is not enabled in hardware")
 
-        mshv_exists = node.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
         if not mshv_exists:
             raise SkippedException(
                 "Rust Vmm MSHV test can be run with MSHV wrapper (/dev/mshv) only."
