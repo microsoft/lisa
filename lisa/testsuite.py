@@ -868,6 +868,7 @@ class TestSuite:
 
         timer = create_timer()
         try:
+            self._check_expected_vf_driver(test_kwargs, log)
             _call_with_timeout(
                 self.before_case,
                 timeout=timeout,
@@ -879,6 +880,76 @@ class TestSuite:
 
         log.debug(f"before_case end in {timer}")
         return result
+
+    def _check_expected_vf_driver(
+        self, test_kwargs: Dict[str, Any], log: Logger
+    ) -> None:
+        """Skip the case if the VM does not expose the required VF driver.
+
+        The requirement is opt-in through the case-visible runbook variable
+        ``expected_vf_driver`` (e.g. 'mlx' or 'mana'). When the variable is
+        absent or empty, no check is performed. When set, the created VM's NICs
+        are inspected and the case is skipped if the required VF driver is not
+        present.
+        """
+        variables = test_kwargs.get("variables") or {}
+        expected_vf_driver = (
+            str(variables.get("expected_vf_driver", "")).strip().lower()
+        )
+        # No requirement configured, so the gate is a no-op.
+        if not expected_vf_driver:
+            return
+
+        # Import here to avoid a circular import at module load time.
+        from lisa.nic import get_supported_vf_driver_types
+
+        supported = get_supported_vf_driver_types()
+        if expected_vf_driver not in supported:
+            raise LisaException(
+                f"Invalid 'expected_vf_driver' value '{expected_vf_driver}'. "
+                f"Expected one of {supported}. Update the runbook variable to a "
+                f"supported VF driver type."
+            )
+
+        node = test_kwargs.get("node")
+        if node is None:
+            raise SkippedException(
+                "'expected_vf_driver' is set but no node is available to inspect "
+                "for a VF driver. Verify the environment has a deployed node."
+            )
+
+        try:
+            if isinstance(node.os, Windows):
+                raise SkippedException(
+                    f"'expected_vf_driver' check for '{expected_vf_driver}' is only "
+                    f"supported on Linux nodes, but node '{node.name}' runs Windows."
+                )
+            node.nics.reload()
+            has_vf = node.nics.has_vf_driver(expected_vf_driver)
+            used_modules = node.nics.get_used_modules(["hv_netvsc"])
+        except LisaException:
+            # SkippedException and validation errors flow through unchanged.
+            raise
+        except Exception as e:
+            raise SkippedException(
+                f"Could not determine the VF driver on node '{node.name}' to verify "
+                f"the required '{expected_vf_driver}' VF driver. Investigate node "
+                f"connectivity or NIC state. Error: {e}"
+            )
+
+        if not has_vf:
+            raise SkippedException(
+                f"Required VF driver '{expected_vf_driver}' was not found on node "
+                f"'{node.name}'. Detected VF driver modules: "
+                f"{used_modules or 'none'}. Verify the VM size and image expose a "
+                f"'{expected_vf_driver}' VF, or update the 'expected_vf_driver' "
+                f"runbook variable."
+            )
+
+        log.info(
+            f"expected_vf_driver check passed: '{expected_vf_driver}' VF driver "
+            f"present on node '{node.name}'."
+        )
 
     def __after_case(
         self,
