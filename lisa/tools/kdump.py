@@ -17,6 +17,7 @@ from lisa.operating_system import (
     CBLMariner,
     Debian,
     Fedora,
+    OpenEuler,
     Oracle,
     Posix,
     Redhat,
@@ -231,6 +232,8 @@ class KdumpBase(Tool):
             return KdumpCBLMariner(node)
         elif type(node.os) is Fedora:
             return KdumpFedora(node)
+        elif isinstance(node.os, OpenEuler):
+            return KdumpOpenEuler(node)
         else:
             raise UnsupportedDistroException(os=node.os)
 
@@ -587,6 +590,19 @@ class KdumpRedhat(KdumpBase):
             sudo=True,
         )
         sed.append(f"path {self.dump_path}", kdump_conf, sudo=True)
+
+
+class KdumpOpenEuler(KdumpRedhat):
+    # openEuler is an RPMDistro (not a Redhat subclass) but is RHEL-derived: it
+    # ships the kdump service via the "kexec-tools" package (providing kdumpctl)
+    # and uses grubby to manage the crashkernel boot argument, the same as
+    # Redhat 8+. Only the install step needs its own OS assertion; the
+    # crashkernel config is inherited from KdumpRedhat (openEuler version 24 >= 8
+    # selects the grubby path).
+    def _install(self) -> bool:
+        assert isinstance(self.node.os, OpenEuler)
+        self.node.os.install_packages("kexec-tools")
+        return self._check_exists()
 
 
 class KdumpFedora(KdumpBase):
