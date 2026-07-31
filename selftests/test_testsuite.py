@@ -238,6 +238,7 @@ class TestSuiteTestCase(TestCase):
     def test_expected_vf_driver_empty_is_noop(self) -> None:
         # When expected_vf_driver is not set, the gate must not inspect the node.
         test_suite = self.generate_suite_instance()
+        test_suite._metadata.area = "network"
         node = MagicMock()
         test_suite._check_expected_vf_driver(
             {"variables": {"expected_vf_driver": ""}, "node": node},
@@ -245,9 +246,22 @@ class TestSuiteTestCase(TestCase):
         )
         node.nics.reload.assert_not_called()
 
+    def test_expected_vf_driver_non_network_area_is_noop(self) -> None:
+        # The gate only applies to network/sriov areas; other areas are ignored
+        # even when the variable is set.
+        test_suite = self.generate_suite_instance()
+        test_suite._metadata.area = "provisioning"
+        node = MagicMock()
+        test_suite._check_expected_vf_driver(
+            {"variables": {"expected_vf_driver": "mlx"}, "node": node},
+            get_logger("test"),
+        )
+        node.nics.reload.assert_not_called()
+
     def test_expected_vf_driver_invalid_value(self) -> None:
         # An unsupported value is a runbook misconfiguration, not a skip.
         test_suite = self.generate_suite_instance()
+        test_suite._metadata.area = "sriov"
         node = MagicMock()
         with self.assertRaises(LisaException):
             test_suite._check_expected_vf_driver(
@@ -257,6 +271,7 @@ class TestSuiteTestCase(TestCase):
 
     def test_expected_vf_driver_present_passes(self) -> None:
         test_suite = self.generate_suite_instance()
+        test_suite._metadata.area = "network"
         node = MagicMock()
         node.os = MagicMock(spec=Posix)
         node.nics.has_vf_driver.return_value = True
@@ -270,6 +285,7 @@ class TestSuiteTestCase(TestCase):
 
     def test_expected_vf_driver_absent_skips(self) -> None:
         test_suite = self.generate_suite_instance()
+        test_suite._metadata.area = "sriov"
         node = MagicMock()
         node.os = MagicMock(spec=Posix)
         node.nics.has_vf_driver.return_value = False
@@ -282,6 +298,7 @@ class TestSuiteTestCase(TestCase):
 
     def test_expected_vf_driver_windows_skips(self) -> None:
         test_suite = self.generate_suite_instance()
+        test_suite._metadata.area = "network"
         node = MagicMock()
         node.os = MagicMock(spec=Windows)
         with self.assertRaises(SkippedException):
