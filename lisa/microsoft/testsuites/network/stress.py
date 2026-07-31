@@ -167,7 +167,7 @@ class Stress(TestSuite):
     def stress_sriov_with_max_nics_reboot(self, environment: Environment) -> None:
         initialize_nic_info(environment)
         sriov_basic_test(environment)
-        for _ in range(10):
+        for _ in range(10):  # repeat reboot cycles to stress NIC stability
             for node in environment.nodes.list():
                 node.reboot()
             initialize_nic_info(environment)
