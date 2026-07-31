@@ -36,7 +36,7 @@ from lisa.tools import Cat, Iperf3
     area="sriov",
     category="stress",
     description="""
-    This test suite uses to verify accelerated network functionality under stress.
+    This test suite is used to verify accelerated network functionality under stress.
     """,
 )
 class Stress(TestSuite):
@@ -245,7 +245,7 @@ class Stress(TestSuite):
     area="synthetic",
     category="stress",
     description="""
-    This test suite uses to verify synthetic network functionality under stress.
+    This test suite is used to verify synthetic network functionality under stress.
     """,
 )
 class StressSynthetic(TestSuite):
