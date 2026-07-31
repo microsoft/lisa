@@ -448,39 +448,59 @@ class LisaRunner(BaseRunner):
         # Some test cases may break the ssh connections. To reduce side effects
         # on next test cases, close the connection after each test run. It will
         # be connected on the next command automatically.
-        tested_environment.nodes.close()
-        # Try to connect node(s), if cannot access node(s) of this environment,
-        # set the current environment as Bad. So that this environment won't be reused.
-        if not is_unittest() and not tested_environment.nodes.test_connections():
+        #
+        # The clean up below is best effort. It must not prevent the
+        # keep_environment handling that follows it from running, otherwise a
+        # failed environment would be deleted even though it was asked to be
+        # kept. This matters for long running suites, such as the performance
+        # tests, where the node is often unreachable by the time the test
+        # finishes and closing/probing the connection can raise.
+        try:
+            tested_environment.nodes.close()
+            # Try to connect node(s), if cannot access node(s) of this
+            # environment, set the current environment as Bad. So that this
+            # environment won't be reused.
+            if not is_unittest() and not tested_environment.nodes.test_connections():
+                environment.status = EnvironmentStatus.Bad
+                self._log.debug(
+                    f"set environment '{environment.name}' as bad, "
+                    f"because after test case '{test_result.name}', "
+                    f"node(s) cannot be accessible."
+                )
+                try:
+                    # check panic when node(s) in bad status
+                    environment.nodes.check_kernel_panics()
+                except KernelPanicException as e:
+                    # not throw exception here, since it will cancel all tasks
+                    # just print log here and set test result status as failed
+                    test_result.set_status(TestStatus.FAILED, str(e))
+                    self._log.debug(
+                        "found kernel panic from the node(s) of "
+                        f"'{environment.name}': {e}"
+                    )
+            tested_environment.nodes.close()
+        except Exception as e:
+            # an unreachable node can fail the clean up above. Treat the
+            # environment as bad and carry on, so the keep_environment setting
+            # is still honored below.
             environment.status = EnvironmentStatus.Bad
             self._log.debug(
                 f"set environment '{environment.name}' as bad, "
-                f"because after test case '{test_result.name}', "
-                f"node(s) cannot be accessible."
+                f"because clean up after test case '{test_result.name}' "
+                f"failed: {e}"
             )
-            try:
-                # check panic when node(s) in bad status
-                environment.nodes.check_kernel_panics()
-            except KernelPanicException as e:
-                # not throw exception here, since it will cancel all tasks
-                # just print log here and set test result status as failed
-                test_result.set_status(TestStatus.FAILED, str(e))
-                self._log.debug(
-                    "found kernel panic from the node(s) of "
-                    f"'{environment.name}': {e}"
-                )
-        tested_environment.nodes.close()
 
         # keep failed environment, not to delete
         if (
-            test_result.status == TestStatus.FAILED
+            test_result.status in [TestStatus.FAILED, TestStatus.ATTEMPTED]
             and self.platform.runbook.keep_environment
             == constants.ENVIRONMENT_KEEP_FAILED
         ):
-            self._log.debug(
+            self._log.info(
                 f"keep environment '{environment.name}', "
                 f"because keep_environment is 'failed', "
-                f"and test case '{test_result.name}' failed on it."
+                f"and test case '{test_result.name}' did not pass on it "
+                f"(status: {test_result.status.name})."
             )
             environment.status = EnvironmentStatus.Deleted
 
@@ -676,6 +696,12 @@ class LisaRunner(BaseRunner):
             f"'{result.runtime_data.metadata.full_name}({result.id_})': "
             f"{exception}"
         )
+        # The environment failed during deployment or initialization, so mark it
+        # as bad. Without this the platform cannot tell a failed environment
+        # from a completed one, and keep_environment='failed' would delete it.
+        # Performance tests hit this often, as their larger environments (many
+        # data disks, multiple nodes) tend to fail before any case runs.
+        environment.status = EnvironmentStatus.Bad
         # release environment reference to optimize memory.
         result.environment = None
 
