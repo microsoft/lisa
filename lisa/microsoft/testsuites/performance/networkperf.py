@@ -4,6 +4,7 @@ from functools import partial
 from typing import Any, Dict
 
 from microsoft.testsuites.performance.common import (
+    check_ntttcp_sriov_bandwidth,
     cleanup_process,
     perf_iperf,
     perf_ntttcp,
@@ -187,7 +188,8 @@ class NetworkPerformace(TestSuite):
     def perf_tcp_ntttcp_sriov(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
-        perf_ntttcp(result, variables=variables)
+        perf_messages = perf_ntttcp(result, variables=variables)
+        check_ntttcp_sriov_bandwidth(result, perf_messages)
 
     @TestCaseMetadata(
         description="""

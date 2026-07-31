@@ -757,6 +757,144 @@ def perf_ntttcp(  # noqa: C901
     return perf_ntttcp_message_list
 
 
+# perf_tcp_ntttcp_sriov bandwidth validation constants.
+# VMs with fewer than this many vCPUs only exercise the small connection range.
+NTTTCP_SRIOV_SMALL_VM_VCPUS = 8
+# Connection counts considered when averaging throughput, keyed on VM size.
+NTTTCP_SRIOV_SMALL_VM_CONN_RANGE = (1, 256)
+NTTTCP_SRIOV_LARGE_VM_CONN_RANGE = (2, 10240)
+# Per-connection averages above 110% of the rated bandwidth are treated as
+# measurement noise and capped to the rated bandwidth before averaging.
+NTTTCP_SRIOV_BANDWIDTH_CAP_RATIO = 1.1
+# The averaged throughput must exceed 90% of the rated bandwidth to pass.
+NTTTCP_SRIOV_BANDWIDTH_PASS_RATIO = 0.9
+
+
+def _get_azure_sku_capabilities(
+    test_result: TestResult, node: Node
+) -> Optional[Dict[str, str]]:
+    """Return the Azure SKU capability name/value map for the node's VM size.
+
+    Returns ``None`` when the platform is not Azure or the VM size capabilities
+    are unavailable (for example on non-Azure platforms).
+    """
+    try:
+        from lisa.sut_orchestrator import AZURE
+        from lisa.sut_orchestrator.azure.common import AzureNodeSchema
+        from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+    except ImportError:
+        return None
+
+    environment = test_result.environment
+    if environment is None:
+        return None
+    platform = environment.platform
+    if not isinstance(platform, AzurePlatform):
+        return None
+
+    node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+    vm_size = node_runbook.vm_size
+    location = node_runbook.location
+    if not vm_size or not location:
+        return None
+
+    location_info = platform.get_location_info(location, node.log)
+    azure_capability = location_info.capabilities.get(vm_size)
+    if azure_capability is None:
+        return None
+    caps = azure_capability.resource_sku.get("capabilities", [])
+    return {
+        cap["name"]: cap["value"]
+        for cap in caps
+        if "name" in cap and "value" in cap
+    }
+
+
+def check_ntttcp_sriov_bandwidth(
+    test_result: TestResult,
+    perf_messages: List[
+        Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]
+    ],
+) -> None:
+    """Validate perf_tcp_ntttcp_sriov throughput against the rated VM bandwidth.
+
+    Compares the average measured TCP throughput against the VM SKU's rated
+    network bandwidth (``MaxNetworkBandwidthGbps``) using these rules:
+
+    - Only connection counts within the VM's range are considered: ``1-256``
+      for VMs with fewer than 8 vCPUs, otherwise ``2-10240``.
+    - Any per-connection average above 110% of the rated bandwidth is capped to
+      the rated bandwidth before averaging (throughput above the rated line is
+      treated as measurement noise, not extra capacity).
+    - The reported average is the mean of those capped per-connection values.
+      The test passes when that mean exceeds 90% of the rated VM bandwidth.
+    """
+    environment = test_result.environment
+    assert environment, "fail to get environment from testresult"
+    client = cast(RemoteNode, environment.nodes[0])
+    log = client.log
+
+    sku_caps = _get_azure_sku_capabilities(test_result, client)
+    if sku_caps is None or "MaxNetworkBandwidthGbps" not in sku_caps:
+        raise SkippedException(
+            "Rated VM network bandwidth (MaxNetworkBandwidthGbps) is not "
+            "available for this VM size or platform. Cannot validate "
+            "perf_tcp_ntttcp_sriov throughput against the rated bandwidth. "
+            "Run this test on an Azure VM size that publishes "
+            "MaxNetworkBandwidthGbps."
+        )
+    rated_bandwidth_gbps = float(sku_caps["MaxNetworkBandwidthGbps"])
+
+    # Prefer the SKU vCPU count to pick the connection range; fall back to the
+    # measured thread count when the SKU does not report it.
+    vcpu_count = int(sku_caps.get("vCPUs", "0"))
+    if vcpu_count <= 0:
+        vcpu_count = client.tools[Lscpu].get_thread_count()
+    if vcpu_count < NTTTCP_SRIOV_SMALL_VM_VCPUS:
+        min_conn, max_conn = NTTTCP_SRIOV_SMALL_VM_CONN_RANGE
+    else:
+        min_conn, max_conn = NTTTCP_SRIOV_LARGE_VM_CONN_RANGE
+
+    cap_threshold_gbps = rated_bandwidth_gbps * NTTTCP_SRIOV_BANDWIDTH_CAP_RATIO
+    capped_throughputs: List[float] = []
+    for message in perf_messages:
+        if not isinstance(message, NetworkTCPPerformanceMessage):
+            continue
+        if not min_conn <= message.connections_num <= max_conn:
+            continue
+        throughput = float(message.throughput_in_gbps)
+        # Throughput above 110% of the rated line is measurement noise, not
+        # extra capacity, so cap it to the rated bandwidth before averaging.
+        if throughput > cap_threshold_gbps:
+            throughput = rated_bandwidth_gbps
+        capped_throughputs.append(throughput)
+
+    if not capped_throughputs:
+        raise LisaException(
+            f"No ntttcp TCP throughput samples were found within the "
+            f"connection range [{min_conn}, {max_conn}] for a VM with "
+            f"{vcpu_count} vCPUs. Verify the test produced results for the "
+            f"expected connection counts."
+        )
+
+    average_throughput_gbps = sum(capped_throughputs) / len(capped_throughputs)
+    required_bandwidth_gbps = rated_bandwidth_gbps * NTTTCP_SRIOV_BANDWIDTH_PASS_RATIO
+    log.info(
+        f"perf_tcp_ntttcp_sriov bandwidth check on {client.name}: average "
+        f"throughput {average_throughput_gbps:.3f} Gbps across "
+        f"{len(capped_throughputs)} connection counts in range "
+        f"[{min_conn}, {max_conn}]; rated VM bandwidth "
+        f"{rated_bandwidth_gbps:.3f} Gbps; required > "
+        f"{required_bandwidth_gbps:.3f} Gbps (90% of rated)."
+    )
+    assert_that(average_throughput_gbps).described_as(
+        f"average capped TCP throughput ({average_throughput_gbps:.3f} Gbps) "
+        f"must exceed 90% ({required_bandwidth_gbps:.3f} Gbps) of the rated VM "
+        f"network bandwidth ({rated_bandwidth_gbps:.3f} Gbps) for "
+        f"perf_tcp_ntttcp_sriov to pass"
+    ).is_greater_than(required_bandwidth_gbps)
+
+
 def perf_iperf(
     test_result: TestResult,
     connections: List[int],
