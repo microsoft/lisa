@@ -228,7 +228,7 @@ class Stress(TestSuite):
     ) -> None:
         initialize_nic_info(environment)
         sriov_basic_test(environment)
-        for _ in range(10):
+        for _ in range(10):  # repeat platform stop/start cycles to stress NIC stability
             for node in environment.nodes.list():
                 start_stop = node.features[StartStop]
                 start_stop.stop()
