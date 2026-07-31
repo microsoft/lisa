@@ -16,7 +16,8 @@ from lisa.util.process import ExecutableResult
 
 
 class AzureCVMAttestationTests(Tool):
-    repo = "https://github.com/Azure/cvm-attestation-tools.git"
+    # repo = "https://github.com/Azure/cvm-attestation-tools.git"
+    repo = "https://github.com/SRIKKANTH/cvm-attestation-tools.git"
     cmd_path: PurePath
     repo_root: PurePath
 
