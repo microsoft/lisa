@@ -279,7 +279,7 @@ class StressSynthetic(TestSuite):
             skip_if_no_synthetic_nics(node)
 
         initialize_nic_info(environment, is_sriov=False)
-        for _ in range(10):
+        for _ in range(10):  # repeat reboot cycles to stress NIC stability
             for node in environment.nodes.list():
                 node.reboot()
             initialize_nic_info(environment, is_sriov=False)
