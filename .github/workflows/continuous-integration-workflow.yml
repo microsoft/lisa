@@ -65,7 +65,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install libgirepository1.0-dev libcairo2-dev ${{ matrix.additional-sys-deps }}
+          sudo apt install libgirepository-2.0-dev libcairo2-dev ${{ matrix.additional-sys-deps }}
         if: startsWith(matrix.os, 'ubuntu')
 
       - name: Install Nox
