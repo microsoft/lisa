@@ -45,6 +45,10 @@ from lisa.util.perf_timer import Timer, create_timer
 _all_suites: Dict[str, TestSuiteMetadata] = {}
 _all_cases: Dict[str, TestCaseMetadata] = {}
 
+# Test suite areas the ``expected_vf_driver`` gate applies to. The VF driver
+# requirement is only meaningful for networking-focused test areas.
+_EXPECTED_VF_DRIVER_AREAS = frozenset({"network", "sriov"})
+
 
 def _call_with_timeout(
     method: Callable[..., Any],
@@ -891,7 +895,14 @@ class TestSuite:
         absent or empty, no check is performed. When set, the created VM's NICs
         are inspected and the case is skipped if the required VF driver is not
         present.
+
+        The gate only applies to networking-focused test areas
+        (see ``_EXPECTED_VF_DRIVER_AREAS``); cases in other areas are ignored.
         """
+        # Limit the gate to network/sriov areas where a VF driver is relevant.
+        if self._metadata.area.lower() not in _EXPECTED_VF_DRIVER_AREAS:
+            return
+
         variables = test_kwargs.get("variables") or {}
         expected_vf_driver = (
             str(variables.get("expected_vf_driver", "")).strip().lower()
