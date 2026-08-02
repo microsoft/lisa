@@ -40,6 +40,18 @@ class Dns(TestSuite):
     _fail_to_install_package_pattern = re.compile(
         r"ModuleNotFoundError: No module named \'apt_inst\'", re.M
     )
+    # unattended-upgrade prints this once all applicable upgrades are applied.
+    _upgrade_success_pattern = re.compile(r"All upgrades installed", re.M)
+    # Genuine failures from apt/dpkg. unattended-upgrade returns a non-zero exit
+    # code when it only holds back packages (conffile prompts, blacklisted or
+    # pinned packages such as ubuntu-pro-client on FDE/Ubuntu Pro images), which
+    # is not a real failure; these markers distinguish an actual error.
+    _upgrade_real_error_pattern = re.compile(
+        r"^(?:dpkg: error|E: |Errors were encountered)|"
+        r"not fully installed|"
+        r"Sub-process /usr/bin/dpkg returned an error",
+        re.M,
+    )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         log.debug("after_case: mark node as dirty to avoid affecting other test cases")
@@ -147,8 +159,24 @@ class Dns(TestSuite):
                     timeout=2400,
                 )
             if result.exit_code != 0:
-                # make node as dirty, so the node will be not used in next test case
-                node.mark_dirty()
-                raise LisaException(
-                    "fail to run apt update && unattended-upgrade -d -v"
+                upgrade_succeeded = bool(
+                    self._upgrade_success_pattern.findall(result.stdout)
                 )
+                has_real_error = bool(
+                    self._upgrade_real_error_pattern.findall(result.stdout)
+                )
+                if upgrade_succeeded and not has_real_error:
+                    # unattended-upgrade returns a non-zero exit code when it
+                    # holds back packages (conffile prompts, blacklisted or
+                    # pinned packages such as ubuntu-pro-client on FDE/Ubuntu
+                    # Pro images) even though all applicable upgrades installed
+                    # successfully. This is not a failure for this test.
+                    node.log.info(
+                        "unattended-upgrade reported 'All upgrades installed' "
+                        f"with exit code {result.exit_code}; treating held-back "
+                        "packages as a non-fatal condition."
+                    )
+                else:
+                    raise LisaException(
+                        "fail to run apt update && unattended-upgrade -d -v"
+                    )
