@@ -558,7 +558,7 @@ class Storage(TestSuite):
         """,
         priority=2,
         timeout=TIME_OUT,
-        requirement=simple_requirement(disk=DiskStandardSSDLRS()),
+        requirement=simple_requirement(disk=DiskPremiumSSDLRS()),
     )
     def verify_hot_add_disk_serial_random_lun_premium_ssd(
         self, log: Logger, node: Node
