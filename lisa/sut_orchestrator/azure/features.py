@@ -2039,6 +2039,30 @@ class Disk(AzureFeatureMixin, features.Disk):
         assert matched[0], "not found the matched disk label"
         return list(set(matched[0]))
 
+    @retry(ResourceExistsError, tries=5, delay=2, backoff=1.5)  # type: ignore
+    def _update_vm_disks(
+        self,
+        compute_client: Any,
+        resource_group_name: str,
+        vm_name: str,
+        vm: Any,
+    ) -> None:
+        """Helper method to update the VM's attached disks with retry logic.
+
+        Attaching/detaching a data disk is a read-modify-write of the whole
+        VM resource. A concurrent write to the same VM landing in that
+        window (another disk operation, an extension status update, etc.)
+        makes ARM reject this call with ResourceExistsError
+        (ConflictingConcurrentWriteNotAllowed). Retry, mirroring
+        NetworkInterface._update_vm_nics/Resize._update_vm_size.
+        """
+        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
+            resource_group_name,
+            vm_name,
+            vm,
+        )
+        async_vm_update.wait()
+
     def add_data_disk(
         self,
         count: int,
@@ -2096,12 +2120,7 @@ class Disk(AzureFeatureMixin, features.Disk):
             )
 
         # update vm
-        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
-            self._resource_group_name,
-            vm.name,
-            vm,
-        )
-        async_vm_update.wait()
+        self._update_vm_disks(compute_client, self._resource_group_name, vm.name, vm)
 
         # update data disk count
         add_disk_names = [managed_disk.name for managed_disk in managed_disks]
@@ -2128,12 +2147,7 @@ class Disk(AzureFeatureMixin, features.Disk):
         data_disks[:] = [disk for disk in data_disks if disk.name not in names]
 
         # update vm
-        async_vm_update = compute_client.virtual_machines.begin_create_or_update(
-            self._resource_group_name,
-            vm.name,
-            vm,
-        )
-        async_vm_update.wait()
+        self._update_vm_disks(compute_client, self._resource_group_name, vm.name, vm)
 
         # delete managed disk
         for name in names:
