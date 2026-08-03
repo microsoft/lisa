@@ -159,11 +159,12 @@ class Dns(TestSuite):
                     timeout=2400,
                 )
             if result.exit_code != 0:
+                combined_output = (result.stdout or "") + (result.stderr or "")
                 upgrade_succeeded = bool(
-                    self._upgrade_success_pattern.findall(result.stdout)
+                    self._upgrade_success_pattern.search(combined_output)
                 )
                 has_real_error = bool(
-                    self._upgrade_real_error_pattern.findall(result.stdout)
+                    self._upgrade_real_error_pattern.search(combined_output)
                 )
                 if upgrade_succeeded and not has_real_error:
                     # unattended-upgrade returns a non-zero exit code when it
