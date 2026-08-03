@@ -131,7 +131,7 @@ def perf_disk(
     overwrite: bool = False,
     ioengine: IoEngine = IoEngine.LIBAIO,
     cwd: Optional[pathlib.PurePath] = None,
-) -> None:
+) -> List[DiskPerformanceMessage]:
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
     numjobiterator = 0
@@ -188,6 +188,7 @@ def perf_disk(
     )
     for fio_message in fio_messages:
         notifier.notify(fio_message)
+    return fio_messages
 
 
 def get_nic_datapath(node: Node) -> str:
@@ -943,7 +944,7 @@ def perf_premium_datadisks(
     start_iodepth: int = 1,
     max_iodepth: int = 256,
     ioengine: IoEngine = IoEngine.LIBAIO,
-) -> None:
+) -> List[DiskPerformanceMessage]:
     disk = node.features[Disk]
     data_disks = disk.get_raw_data_disks()
     disk_count = len(data_disks)
@@ -954,7 +955,7 @@ def perf_premium_datadisks(
     filename = ":".join(partition_disks)
     cpu = node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
-    perf_disk(
+    return perf_disk(
         node,
         start_iodepth,
         max_iodepth,
@@ -971,6 +972,175 @@ def perf_premium_datadisks(
         test_result=test_result,
         ioengine=ioengine,
     )
+
+
+# Premium data-disk performance validation constants.
+# IO depths at or below this value cannot saturate the device and are ignored.
+PREMIUM_DATADISK_MIN_IODEPTH = 8
+# Every qualifying IO depth must reach at least this fraction of the rated max.
+PREMIUM_DATADISK_PASS_RATIO = 0.95
+# Block sizes at or above this value (in KiB) are bandwidth-bound rather than
+# IOPS-bound, so they are validated against the rated disk throughput.
+PREMIUM_DATADISK_BANDWIDTH_BLOCK_SIZE_KB = 1024
+
+
+def _get_azure_sku_capabilities(
+    test_result: TestResult, node: Node
+) -> Optional[Dict[str, str]]:
+    """Return the Azure SKU capability name/value map for the node's VM size.
+
+    Returns ``None`` when the platform is not Azure or the VM size capabilities
+    are unavailable (for example on non-Azure platforms).
+    """
+    try:
+        from lisa.sut_orchestrator import AZURE
+        from lisa.sut_orchestrator.azure.common import AzureNodeSchema
+        from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+    except ImportError:
+        return None
+
+    environment = test_result.environment
+    if environment is None:
+        return None
+    platform = environment.platform
+    if not isinstance(platform, AzurePlatform):
+        return None
+
+    node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+    vm_size = node_runbook.vm_size
+    location = node_runbook.location
+    if not vm_size or not location:
+        return None
+
+    location_info = platform.get_location_info(location, node.log)
+    azure_capability = location_info.capabilities.get(vm_size)
+    if azure_capability is None:
+        return None
+    caps = azure_capability.resource_sku.get("capabilities", [])
+    return {
+        cap["name"]: cap["value"] for cap in caps if "name" in cap and "value" in cap
+    }
+
+
+def check_premium_datadisks_performance(
+    test_result: TestResult,
+    perf_messages: List[DiskPerformanceMessage],
+) -> None:
+    """Validate premium data-disk random-read performance against the rated max.
+
+    Rules:
+    - Only IO depths greater than ``PREMIUM_DATADISK_MIN_IODEPTH`` are considered;
+      lower queue depths cannot saturate the device.
+    - For each qualifying IO depth, the random-read value is averaged across all
+      iterations at that depth to get one value per depth.
+    - The per-depth values are compared against the VM SKU's rated maximum. For
+      4K (IOPS-bound) tests the rated maximum is ``UncachedDiskIOPS``; for 1024K
+      (bandwidth-bound) tests it is ``UncachedDiskBytesPerSecond`` and the
+      random-read IOPS are converted to bytes/sec using the block size.
+    - The VM passes when, at every IO depth above ``PREMIUM_DATADISK_MIN_IODEPTH``,
+      the averaged value reaches at least ``PREMIUM_DATADISK_PASS_RATIO`` of the
+      rated maximum.
+    """
+    environment = test_result.environment
+    assert environment, "fail to get environment from testresult"
+    node = cast(RemoteNode, environment.nodes[0])
+    log = node.log
+
+    sku_caps = _get_azure_sku_capabilities(test_result, node)
+    if sku_caps is None:
+        raise SkippedException(
+            "Skipping premium data-disk performance validation: rated disk "
+            "performance is not available for this VM size or platform. This "
+            "check requires an Azure VM size that publishes "
+            "UncachedDiskIOPS/UncachedDiskBytesPerSecond."
+        )
+
+    # Determine whether the run is bandwidth-bound (1024K) or IOPS-bound (4K)
+    # from the block size recorded on the messages.
+    block_size_kb = 0
+    for message in perf_messages:
+        if message.block_size:
+            block_size_kb = message.block_size
+            break
+    bandwidth_bound = block_size_kb >= PREMIUM_DATADISK_BANDWIDTH_BLOCK_SIZE_KB
+
+    if bandwidth_bound:
+        cap_name = "UncachedDiskBytesPerSecond"
+        rated_unit = "bytes/sec"
+    else:
+        cap_name = "UncachedDiskIOPS"
+        rated_unit = "IOPS"
+    if cap_name not in sku_caps:
+        raise SkippedException(
+            f"Skipping premium data-disk performance validation: rated disk "
+            f"capability '{cap_name}' is not published for this VM size. This "
+            f"check requires a VM size that publishes '{cap_name}'."
+        )
+    try:
+        rated_max = float(sku_caps[cap_name])
+    except (TypeError, ValueError) as identifier:
+        raise SkippedException(
+            f"Skipping premium data-disk performance validation: rated disk "
+            f"capability '{cap_name}' value '{sku_caps.get(cap_name)}' is not a number."
+        ) from identifier
+    block_size_bytes = block_size_kb * 1024
+
+    # Average the random-read value per IO depth across iterations, keeping only
+    # depths above the saturation threshold.
+    randread_by_iodepth: Dict[int, List[float]] = {}
+    for message in perf_messages:
+        if message.iodepth <= PREMIUM_DATADISK_MIN_IODEPTH:
+            continue
+        randread_iops = float(message.randread_iops)
+        if bandwidth_bound:
+            # Convert random-read IOPS to bytes/sec so it can be compared to the
+            # rated throughput.
+            measured = randread_iops * block_size_bytes
+        else:
+            measured = randread_iops
+        randread_by_iodepth.setdefault(message.iodepth, []).append(measured)
+
+    if not randread_by_iodepth:
+        raise LisaException(
+            f"No random-read samples were found at an IO depth greater than "
+            f"{PREMIUM_DATADISK_MIN_IODEPTH}. Verify the test produced results "
+            f"for the expected IO depths."
+        )
+
+    required = rated_max * PREMIUM_DATADISK_PASS_RATIO
+    pass_percent = PREMIUM_DATADISK_PASS_RATIO * 100
+    failing_iodepths: List[str] = []
+    per_depth_percentages: List[float] = []
+    for iodepth in sorted(randread_by_iodepth):
+        # The best observed value at this depth (max across iterations).
+        best = max(randread_by_iodepth[iodepth])
+        percent_of_rated = best / rated_max * 100
+        per_depth_percentages.append(percent_of_rated)
+        log.info(
+            f"premium data-disk check on {node.name} at iodepth {iodepth}: "
+            f"best random-read {best:.1f} {rated_unit} = "
+            f"{percent_of_rated:.1f}% of rated maximum {rated_max:.1f} "
+            f"{rated_unit} (required >= {pass_percent:.0f}%)."
+        )
+        if best < required:
+            failing_iodepths.append(
+                f"iodepth {iodepth}: {best:.1f} {rated_unit} "
+                f"({percent_of_rated:.1f}%)"
+            )
+
+    average_percent = sum(per_depth_percentages) / len(per_depth_percentages)
+    log.info(
+        f"premium data-disk check on {node.name}: average random-read across "
+        f"{len(per_depth_percentages)} IO depths above "
+        f"{PREMIUM_DATADISK_MIN_IODEPTH} is {average_percent:.1f}% of the rated "
+        f"maximum {rated_max:.1f} {rated_unit}."
+    )
+    assert_that(failing_iodepths).described_as(
+        f"every IO depth above {PREMIUM_DATADISK_MIN_IODEPTH} must reach at "
+        f"least {pass_percent:.0f}% ({required:.1f} {rated_unit}) of the rated "
+        f"maximum ({rated_max:.1f} {rated_unit}), but these IO depths fell "
+        f"short: {failing_iodepths}"
+    ).is_empty()
 
 
 def perf_resource_disks(
