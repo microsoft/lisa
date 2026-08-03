@@ -970,6 +970,12 @@ def initialize_node_resources(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
 
+    # the nic info was last loaded before the dpdk build, which takes long
+    # enough that a nic which came back without an address (for example
+    # after a previous run unbound it) has since been configured. reload the
+    # addresses from the guest before matching nics by subnet.
+    node.nics.load_nics_info()
+
     test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
 
     # check an assumption that our nics are bound to hv_netvsc

@@ -549,7 +549,7 @@ class DpdkTestpmd(Tool):
             include_flag = "-w"
 
         if self.is_mana:
-            include_flag = f'{include_flag} {node_nic.dev_uuid}'
+            include_flag = f"{include_flag} {node_nic.dev_uuid}"
         else:
             include_flag = f' {include_flag} "{node_nic.pci_slot}"'
 
@@ -593,8 +593,9 @@ class DpdkTestpmd(Tool):
         service_cores: int = 1,
         mtu: int = 0,
         mbuf_size: int = 0,
-        stats_period: int = 2,
         eal_device_args: str = "",
+        core_offset: int = 0,
+        extra_eal_args: str = "",
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -642,7 +643,9 @@ class DpdkTestpmd(Tool):
 
         queues_and_servicing_core = (queues * len(nic_to_include)) + service_cores
 
-        while queues_and_servicing_core > (threads_available - 2):
+        # core_offset reserves the low cores for another testpmd process on the
+        # same node, so they're not available to this one.
+        while queues_and_servicing_core > (threads_available - 2 - core_offset):
             # if less, split the number of queues
             queues = queues // 2
             queues_and_servicing_core = (queues * len(nic_to_include)) + service_cores
@@ -658,7 +661,7 @@ class DpdkTestpmd(Tool):
         forwarding_cores = max_core_index - service_cores
 
         # core range argument
-        core_list = f"-l 1-{max_core_index}"
+        core_list = f"-l {1 + core_offset}-{max_core_index + core_offset}"
         if extra_args:
             extra_args = extra_args.strip()
         else:
@@ -712,7 +715,7 @@ class DpdkTestpmd(Tool):
         ).is_not_empty()
         # add debug logging args, EAL ones are very verbose
         # but netvsc are useful for identifying hotplugs on azure
-        debug_logging=[]
+        debug_logging = []
         # omitting eal even though it's good for debugging some issues.
         # it's extremely verbose.
         for lib in [
@@ -729,11 +732,12 @@ class DpdkTestpmd(Tool):
             debug_logging += [f"--log-level {lib},debug"]
         debug_log_args = " ".join(debug_logging)
         nic_includes = " ".join(nic_include_infos)
+        eal_args = f"{core_list} {nic_includes} {debug_log_args}"
+        if extra_eal_args:
+            eal_args += f" {extra_eal_args.strip()}"
         return (
-            f"{self._testpmd_install_path} {core_list} "
-            f"{nic_includes} {debug_log_args} -- --forward-mode={mode} "
-            f"-a --stats-period {stats_period} --nb-cores={forwarding_cores}"
-            f" {extra_args}"
+            f"{self._testpmd_install_path} {eal_args} -- --forward-mode={mode} "
+            f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -941,16 +945,12 @@ class DpdkTestpmd(Tool):
                 if nic_stats_port is not None:
                     current_port = int(nic_stats_port)
                     in_forward_stats = False
-                    stats_by_port.setdefault(
-                        current_port, DpdkPortStats(current_port)
-                    )
+                    stats_by_port.setdefault(current_port, DpdkPortStats(current_port))
                     continue
                 if fwd_stats_port is not None:
                     current_port = int(fwd_stats_port)
                     in_forward_stats = True
-                    stats_by_port.setdefault(
-                        current_port, DpdkPortStats(current_port)
-                    )
+                    stats_by_port.setdefault(current_port, DpdkPortStats(current_port))
                     continue
                 if match.group(self._stats_banner_all) is not None:
                     # totals for all ports, not attributable to one port.
