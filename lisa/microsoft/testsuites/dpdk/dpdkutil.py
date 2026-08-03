@@ -429,14 +429,17 @@ def initialize_node_resources(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
     )
-    network_interface_feature = node.features[NetworkInterface]
-    sriov_is_enabled = network_interface_feature.is_enabled_sriov()
-    if not sriov_is_enabled:
-        network_interface_feature.switch_sriov(enable=True, wait=True)
+    # Check SRIOV/AN from inside the guest instead of asking the platform.
+    # node.nics walks /sys/class/net/*/lower_* and the pci slot for each
+    # interface, so this works on every platform (the NetworkInterface
+    # feature's is_enabled_sriov() is only implemented for azure and aws).
+    node.nics.reload()
+    sriov_is_enabled = node.nics.is_pci_module_enabled()
 
     log.info(f"Node[{node.name}] Verify SRIOV is enabled: {sriov_is_enabled}")
     assert_that(sriov_is_enabled).described_as(
-        f"SRIOV was not enabled for this test node ({node.name})"
+        f"SRIOV was not enabled for this test node ({node.name}), "
+        "no VF was paired with a synthetic interface in /sys/class/net"
     ).is_true()
 
     # dump some info about the pci devices before we start
@@ -484,6 +487,12 @@ def initialize_node_resources(
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
+
+    # the nic info was last loaded before the dpdk build, which takes long
+    # enough that a nic which came back without an address (for example
+    # after a previous run unbound it) has since been configured. reload the
+    # addresses from the guest before matching nics by subnet.
+    node.nics.load_nics_info()
 
     test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
 

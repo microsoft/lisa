@@ -551,6 +551,8 @@ class DpdkTestpmd(Tool):
         service_cores: int = 1,
         mtu: int = 0,
         mbuf_size: int = 0,
+        core_offset: int = 0,
+        extra_eal_args: str = "",
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -590,7 +592,9 @@ class DpdkTestpmd(Tool):
 
         queues_and_servicing_core = (queues * len(nic_to_include)) + service_cores
 
-        while queues_and_servicing_core > (threads_available - 2):
+        # core_offset reserves the low cores for another testpmd process on the
+        # same node, so they're not available to this one.
+        while queues_and_servicing_core > (threads_available - 2 - core_offset):
             # if less, split the number of queues
             queues = queues // 2
             queues_and_servicing_core = queues + service_cores
@@ -606,7 +610,7 @@ class DpdkTestpmd(Tool):
         forwarding_cores = max_core_index - service_cores
 
         # core range argument
-        core_list = f"-l 1-{max_core_index}"
+        core_list = f"-l {1 + core_offset}-{max_core_index + core_offset}"
         if extra_args:
             extra_args = extra_args.strip()
         else:
@@ -662,9 +666,11 @@ class DpdkTestpmd(Tool):
         # but netvsc are useful for identifying hotplugs on azure
         debug_logging = "--log-level netvsc,debug"
         nic_includes = " ".join(nic_include_infos)
+        eal_args = f"{core_list} {nic_includes} {debug_logging}"
+        if extra_eal_args:
+            eal_args += f" {extra_eal_args.strip()}"
         return (
-            f"{self._testpmd_install_path} {core_list} "
-            f"{nic_includes} {debug_logging} -- --forward-mode={mode} "
+            f"{self._testpmd_install_path} {eal_args} -- --forward-mode={mode} "
             f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
         )
 

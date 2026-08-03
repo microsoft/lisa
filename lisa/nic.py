@@ -311,6 +311,9 @@ class Nics(InitializableMixin):
         # parses the subnet and mask string ex '10.0.1.0/24'
         network = ipaddress.ip_network(subnet)
         for nic in self.nics.values():
+            # a nic which isn't configured yet has no address to compare
+            if not nic.ip_addr:
+                continue
             # parse the ip address str for comparison
             ip_addr = ipaddress.ip_address(nic.ip_addr)
             # if the ip address resides within the subnet
