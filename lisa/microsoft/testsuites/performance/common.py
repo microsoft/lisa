@@ -1014,16 +1014,17 @@ def check_premium_datadisks_performance(
     """Validate premium data-disk random-read performance against the rated max.
 
     Rules:
-    - Only IO depths greater than 8 are considered; lower queue depths cannot
-      saturate the device.
+    - Only IO depths greater than ``PREMIUM_DATADISK_MIN_IODEPTH`` are considered;
+      lower queue depths cannot saturate the device.
     - For each qualifying IO depth, the random-read value is averaged across all
       iterations at that depth to get one value per depth.
     - The per-depth values are compared against the VM SKU's rated maximum. For
       4K (IOPS-bound) tests the rated maximum is ``UncachedDiskIOPS``; for 1024K
       (bandwidth-bound) tests it is ``UncachedDiskBytesPerSecond`` and the
       random-read IOPS are converted to bytes/sec using the block size.
-    - The VM passes when, at every IO depth above 8, the best observed value
-      reaches at least 95% of the rated maximum.
+    - The VM passes when, at every IO depth above ``PREMIUM_DATADISK_MIN_IODEPTH``,
+      the averaged value reaches at least ``PREMIUM_DATADISK_PASS_RATIO`` of the
+      rated maximum.
     """
     environment = test_result.environment
     assert environment, "fail to get environment from testresult"
