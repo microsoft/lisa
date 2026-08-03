@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import inspect
 import pathlib
+import re
 import time
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
@@ -770,13 +771,33 @@ NTTTCP_SRIOV_BANDWIDTH_CAP_RATIO = 1.1
 NTTTCP_SRIOV_BANDWIDTH_PASS_RATIO = 0.9
 
 
+# Constrained-core VM sizes embed the usable vCPU count as ``-<n>`` in the name,
+# e.g. ``Standard_E32-8ds_v6`` is the 8-vCPU constrained variant of
+# ``Standard_E32ds_v6``. They inherit the parent size's networking capabilities.
+_CONSTRAINED_VM_SIZE_PATTERN = re.compile(r"^(Standard_[A-Za-z]+\d+)-\d+(.*)$")
+
+
+def _parent_constrained_vm_size(vm_size: str) -> Optional[str]:
+    """Return the parent size of a constrained-core VM size, or ``None``.
+
+    ``Standard_E32-8ds_v6`` -> ``Standard_E32ds_v6``. Returns ``None`` when the
+    name is not a constrained-core size.
+    """
+    match = _CONSTRAINED_VM_SIZE_PATTERN.match(vm_size)
+    if match:
+        return match.group(1) + match.group(2)
+    return None
+
+
 def _get_azure_sku_capabilities(
     test_result: TestResult, node: Node
 ) -> Optional[Dict[str, str]]:
     """Return the Azure SKU capability name/value map for the node's VM size.
 
     Returns ``None`` when the platform is not Azure or the VM size capabilities
-    are unavailable (for example on non-Azure platforms).
+    are unavailable (for example on non-Azure platforms). For constrained-core
+    sizes, capabilities missing on the constrained SKU (such as
+    ``MaxNetworkBandwidthGbps``) are backfilled from the parent size.
     """
     try:
         from lisa.sut_orchestrator import AZURE
@@ -799,15 +820,31 @@ def _get_azure_sku_capabilities(
         return None
 
     location_info = platform.get_location_info(location, node.log)
-    azure_capability = location_info.capabilities.get(vm_size)
-    if azure_capability is None:
+
+    def caps_for(size: str) -> Dict[str, str]:
+        azure_capability = location_info.capabilities.get(size)
+        if azure_capability is None:
+            return {}
+        return {
+            cap["name"]: cap["value"]
+            for cap in azure_capability.resource_sku.get("capabilities", [])
+            if "name" in cap and "value" in cap
+        }
+
+    sku_caps = caps_for(vm_size)
+    if not sku_caps:
         return None
-    caps = azure_capability.resource_sku.get("capabilities", [])
-    return {
-        cap["name"]: cap["value"]
-        for cap in caps
-        if "name" in cap and "value" in cap
-    }
+
+    # Constrained-core sizes do not always publish network capabilities such as
+    # ``MaxNetworkBandwidthGbps``; they share the NIC and rated bandwidth of
+    # their parent size, so backfill any missing values from the parent.
+    if "MaxNetworkBandwidthGbps" not in sku_caps:
+        parent_vm_size = _parent_constrained_vm_size(vm_size)
+        if parent_vm_size:
+            for name, value in caps_for(parent_vm_size).items():
+                sku_caps.setdefault(name, value)
+
+    return sku_caps
 
 
 def check_ntttcp_sriov_bandwidth(
