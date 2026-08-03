@@ -120,16 +120,18 @@ class Lagscope(Tool, KillableMixin):
     def _freebsd_tool(cls) -> Optional[Type[Tool]]:
         return BSDLagscope
 
-    def set_busy_poll(self) -> None:
+    def set_busy_poll(self, value: str = "50") -> None:
         # Busy polling helps reduce latency in the network receive path by
         #  allowing socket layer code to poll the receive queue of a network
         #  device, and disabling network interrupts. This removes delays caused
         #  by the interrupt and the resultant context switch. However, it also
         #  increases CPU utilization. Busy polling also prevents the CPU from
         #  sleeping, which can incur additional power consumption.
+        # Pass "0" to explicitly disable global busy polling, which throughput
+        #  oriented workloads need on large SKUs.
         sysctl = self.node.tools[Sysctl]
         for key in self._busy_pool_keys:
-            sysctl.write(key, "50")
+            sysctl.write(key, value)
 
     def restore_busy_poll(self) -> None:
         sysctl = self.node.tools[Sysctl]
@@ -530,7 +532,7 @@ class BSDLagscope(Lagscope):
     def get_average(self, result: ExecutableResult) -> Decimal:
         return self.node.tools[Sockperf].get_average_latency(result.stdout)
 
-    def set_busy_poll(self) -> None:
+    def set_busy_poll(self, value: str = "50") -> None:
         # This is not supported on FreeBSD.
         return
 

@@ -62,6 +62,11 @@ from lisa.util.process import ExecutableResult, Process
 # NTTTCP may need extra time after the requested run duration to emit totals.
 DEFAULT_NTTTCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS = 60
 
+# net.core.busy_poll / net.core.busy_read value used for the ntttcp throughput
+# runs. Global busy polling causes throughput drops and heavy TCP
+# retransmissions in the middle of a run on large SKUs, so it is disabled here.
+NTTTCP_BUSY_POLL_VALUE = "0"
+
 
 def perf_nvme(
     node: Node,
@@ -428,8 +433,13 @@ def perf_ntttcp(  # noqa: C901
             refreshed_client_nic_name, refreshed_server_nic_name = post_ntttcp_setup()
             client_nic_name = refreshed_client_nic_name or client_nic_name
             server_nic_name = refreshed_server_nic_name or server_nic_name
+        # Global busy polling is a latency optimization, but for throughput
+        # workloads it is the primary trigger of the mid-run throughput drops
+        # and the large TCP retransmission counts seen on big SKUs. Disable
+        # net.core.busy_poll and net.core.busy_read for the ntttcp runs; the
+        # original values are restored in the finally block below.
         for lagscope in [client_lagscope, server_lagscope]:
-            lagscope.set_busy_poll()
+            lagscope.set_busy_poll(NTTTCP_BUSY_POLL_VALUE)
         client_nic = client.nics.default_nic
         server_nic = server.nics.default_nic
         client_ip = client.tools[Ip]
