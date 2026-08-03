@@ -651,8 +651,10 @@ class Iperf3(Tool):
     def _pre_handle(self, result: str) -> str:
         result = result.replace("-nan", "0")
         result_matched = get_matched_str(result, self._json_pattern)
-        assert result_matched, (
-            "failed to find JSON in iperf3 output; the client may have crashed "
-            f"(e.g. segmentation fault) instead of reporting results: {result}"
-        )
+        if not result_matched:
+            raise LisaException(
+                "failed to find JSON in iperf3 output; the client may have "
+                "crashed (e.g. segmentation fault) instead of reporting "
+                f"results: {result}"
+            )
         return result_matched
