@@ -847,6 +847,17 @@ def _get_azure_sku_capabilities(
     return sku_caps
 
 
+def _get_node_vm_size(node: Node) -> str:
+    """Return the Azure VM size for the node, or an empty string when unknown."""
+    try:
+        from lisa.sut_orchestrator import AZURE
+        from lisa.sut_orchestrator.azure.common import AzureNodeSchema
+    except ImportError:
+        return ""
+    node_runbook = node.capability.get_extended_runbook(AzureNodeSchema, AZURE)
+    return node_runbook.vm_size or ""
+
+
 def check_ntttcp_sriov_bandwidth(
     test_result: TestResult,
     perf_messages: List[
@@ -870,15 +881,15 @@ def check_ntttcp_sriov_bandwidth(
     assert environment, "fail to get environment from testresult"
     client = cast(RemoteNode, environment.nodes[0])
     log = client.log
+    vm_size = _get_node_vm_size(client) or "unknown"
 
     sku_caps = _get_azure_sku_capabilities(test_result, client)
     if sku_caps is None or "MaxNetworkBandwidthGbps" not in sku_caps:
         raise SkippedException(
-            "Rated VM network bandwidth (MaxNetworkBandwidthGbps) is not "
-            "available for this VM size or platform. Cannot validate "
-            "perf_tcp_ntttcp_sriov throughput against the rated bandwidth. "
-            "Run this test on an Azure VM size that publishes "
-            "MaxNetworkBandwidthGbps."
+            "Test is finished without validation."
+            f"Rated VM network bandwidth (MaxNetworkBandwidthGbps) is not "
+            f"available for VM size [{vm_size}] or platform. Cannot validate "
+            f"perf_tcp_ntttcp_sriov throughput against the rated bandwidth. "
         )
     rated_bandwidth_gbps = float(sku_caps["MaxNetworkBandwidthGbps"])
 
@@ -917,7 +928,8 @@ def check_ntttcp_sriov_bandwidth(
     average_throughput_gbps = sum(capped_throughputs) / len(capped_throughputs)
     required_bandwidth_gbps = rated_bandwidth_gbps * NTTTCP_SRIOV_BANDWIDTH_PASS_RATIO
     log.info(
-        f"perf_tcp_ntttcp_sriov bandwidth check on {client.name}: average "
+        f"perf_tcp_ntttcp_sriov bandwidth check on {client.name} "
+        f"(VM size [{vm_size}]): average "
         f"throughput {average_throughput_gbps:.3f} Gbps across "
         f"{len(capped_throughputs)} connection counts in range "
         f"[{min_conn}, {max_conn}]; rated VM bandwidth "
