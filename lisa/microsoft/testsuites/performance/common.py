@@ -1061,7 +1061,13 @@ def check_premium_datadisks_performance(
             f"capability '{cap_name}' is not published for this VM size. This "
             f"check requires a VM size that publishes '{cap_name}'."
         )
-    rated_max = float(sku_caps[cap_name])
+    try:
+        rated_max = float(sku_caps[cap_name])
+    except (TypeError, ValueError) as identifier:
+        raise SkippedException(
+            f"Skipping premium data-disk performance validation: rated disk "
+            f"capability '{cap_name}' value '{sku_caps.get(cap_name)}' is not a number."
+        ) from identifier
     block_size_bytes = block_size_kb * 1024
 
     # Average the random-read value per IO depth across iterations, keeping only
