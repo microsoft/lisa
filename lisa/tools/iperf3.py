@@ -79,12 +79,14 @@ class Iperf3(Tool):
     # iperf 3.16 introduced a multi-threaded (thread-per-stream) model that
     # regressed UDP mode: with high stream counts (e.g. -P 64) the client
     # segfaults instead of emitting the JSON report the perf tests parse,
-    # which makes the tests fail (Ubuntu 24.04 ships the affected 3.16). Any
-    # such multi-threaded build (>= 3.16) is replaced by building a vetted,
-    # fixed release (``_branch``) from source, which keeps the multi-threaded
-    # throughput gains. Older single-threaded versions (< 3.16) are unaffected
-    # and kept as-is.
+    # which makes the tests fail (Ubuntu 24.04 ships the affected 3.16). Those
+    # threading crashes were fixed upstream in 3.18, so only 3.16-3.17 are
+    # affected. Such a version is replaced by building a vetted, fixed release
+    # (``_branch``) from source, which keeps the multi-threaded throughput
+    # gains. Older single-threaded versions (< 3.16) and already-fixed ones
+    # (>= 3.18) are kept as-is, so a source build only happens where needed.
     _first_multithreaded_version = "3.16.0"
+    _first_fixed_version = "3.18.0"
     _branch = "3.21"
     # Matches the version in ``iperf 3.16 (cJSON 1.7.15)``.
     _version_pattern = re.compile(r"iperf\s+(\d+\.\d+(?:\.\d+)?)")
@@ -135,9 +137,14 @@ class Iperf3(Tool):
                 "installing a fixed build from source."
             )
             return True
-        # 3.16+ is the multi-threaded line with the UDP segfault; replace it
-        # with the vetted build. Older single-threaded builds are fine.
-        return bool(version >= parse_version(self._first_multithreaded_version))
+        # Only 3.16-3.17 have the UDP threading segfault; 3.18+ fixed it
+        # upstream, so a distro shipping a fixed release keeps its package and
+        # no source build is triggered.
+        return bool(
+            parse_version(self._first_multithreaded_version)
+            <= version
+            < parse_version(self._first_fixed_version)
+        )
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
