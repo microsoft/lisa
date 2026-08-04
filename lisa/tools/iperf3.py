@@ -76,14 +76,16 @@ IPERF_UDP_CONCURRENCY = [
 
 class Iperf3(Tool):
     _repo = "https://github.com/esnet/iperf"
-    _branch = "3.10.1"
-    # iperf 3.16 replaced the single-process design with a multi-threaded
-    # (thread-per-stream) model. That rewrite regressed UDP mode: with high
-    # stream counts (e.g. -P 64) the client segfaults instead of emitting the
-    # JSON report the perf tests parse, which makes the tests fail. Distro
-    # packages in this range (Ubuntu 24.04 ships 3.16) are therefore replaced
-    # with a known-good release built from source (see ``_branch``).
+    # iperf 3.16 introduced a multi-threaded (thread-per-stream) model that
+    # regressed UDP mode: with high stream counts (e.g. -P 64) the client
+    # segfaults instead of emitting the JSON report the perf tests parse,
+    # which makes the tests fail (Ubuntu 24.04 ships the affected 3.16). Any
+    # such multi-threaded build (>= 3.16) is replaced by building a vetted,
+    # fixed release (``_branch``) from source, which keeps the multi-threaded
+    # throughput gains. Older single-threaded versions (< 3.16) are unaffected
+    # and kept as-is.
     _first_multithreaded_version = "3.16.0"
+    _branch = "3.21"
     # Matches the version in ``iperf 3.16 (cJSON 1.7.15)``.
     _version_pattern = re.compile(r"iperf\s+(\d+\.\d+(?:\.\d+)?)")
     _sender_pattern = re.compile(
@@ -130,9 +132,11 @@ class Iperf3(Tool):
             # Could not determine the version; rebuild from source to be safe.
             self._log.debug(
                 "Could not parse installed iperf3 version; "
-                "installing a known-good build from source."
+                "installing a fixed build from source."
             )
             return True
+        # 3.16+ is the multi-threaded line with the UDP segfault; replace it
+        # with the vetted build. Older single-threaded builds are fine.
         return bool(version >= parse_version(self._first_multithreaded_version))
 
     def install(self) -> bool:
@@ -628,9 +632,8 @@ class Iperf3(Tool):
     def _install_from_src(self) -> None:
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
-        # Pin to a known-good release (single-threaded, before the 3.16
-        # multi-threading rewrite) so the built binary does not have the UDP
-        # segfault regression.
+        # Pin to a fixed upstream release so the built binary does not have the
+        # UDP multi-threading segfault regression.
         git.clone(self._repo, tool_path, ref=self._branch)
         code_path = tool_path.joinpath("iperf")
         make = self.node.tools[Make]
