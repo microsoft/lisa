@@ -436,6 +436,9 @@ class LisaRunner(BaseRunner):
         tested_environment = environment
         if self._guest_enabled:
             tested_environment = environment.get_guest_environment()
+            # Guest environments are transient wrappers, so mark the scheduled
+            # parent as used as well.
+            environment.is_new = False
 
         test_suite.start(
             environment=tested_environment,
