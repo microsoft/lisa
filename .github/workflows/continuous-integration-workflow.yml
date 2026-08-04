@@ -65,8 +65,10 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install libgirepository-2.0-dev libcairo2-dev ${{ matrix.additional-sys-deps }}
-        if: startsWith(matrix.os, 'ubuntu')
+          if [ -n "${{ matrix.additional-sys-deps }}" ]; then
+            sudo apt install ${{ matrix.additional-sys-deps }}
+          fi
+        if: startsWith(matrix.os, 'ubuntu') && matrix.additional-sys-deps
 
       - name: Install Nox
         # argcomplete >= 3.6 uses Python 3.10 union-type syntax. Keep the
