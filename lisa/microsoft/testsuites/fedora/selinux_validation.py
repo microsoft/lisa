@@ -52,7 +52,9 @@ class FedoraSELinuxValidation(TestSuite):
         if backup.strip():
             node.execute(
                 f"echo '{backup}' > /tmp/audit_backup && auditctl -R /tmp/audit_backup",
-                shell=True, sudo=True, no_error_log=True
+                shell=True,
+                sudo=True,
+                no_error_log=True,
             )
             node.execute("rm -f /tmp/audit_backup", sudo=True, no_error_log=True)
 
@@ -60,6 +62,7 @@ class FedoraSELinuxValidation(TestSuite):
         self, node: Node, service: str, timeout: int = 30
     ) -> None:
         """Wait for a systemd service to become active."""
+
         def check_active() -> bool:
             result = node.execute(f"systemctl is-active {service}", no_error_log=True)
             return result.stdout.strip() == "active"
@@ -79,9 +82,7 @@ class FedoraSELinuxValidation(TestSuite):
         has_error = (
             any(kw in combined for kw in error_keywords) or result.exit_code != 0
         )
-        assert_that(has_error).described_as(
-            f"{desc} (got: {combined[:200]})"
-        ).is_true()
+        assert_that(has_error).described_as(f"{desc} (got: {combined[:200]})").is_true()
 
     def _setenforce_and_verify(self, node: Node, value: str) -> None:
         """Run setenforce <value> and verify both exit code and enforce file."""
@@ -143,10 +144,12 @@ class FedoraSELinuxValidation(TestSuite):
             # poll until MAC_STATUS record appears, scoped to start_time
             def check_mac_status_enforcing1() -> bool:
                 result = node.execute(
-                    f'ausearch --input-logs -m MAC_STATUS -i -ts {start_time}'
+                    f"ausearch --input-logs -m MAC_STATUS -i -ts {start_time}"
                     ' | grep "type=MAC_STATUS"'
                     ' | grep "enforcing=1" | grep "old_enforcing=0"',
-                    sudo=True, no_error_log=True, shell=True,
+                    sudo=True,
+                    no_error_log=True,
+                    shell=True,
                 )
                 return result.exit_code == 0
 
@@ -161,10 +164,12 @@ class FedoraSELinuxValidation(TestSuite):
 
             # Verify enforcing=0 record exists
             avc0_result = node.execute(
-                f'ausearch --input-logs -m MAC_STATUS -i -ts {start_time}'
+                f"ausearch --input-logs -m MAC_STATUS -i -ts {start_time}"
                 ' | grep "type=MAC_STATUS"'
                 ' | grep "enforcing=0" | grep "old_enforcing=1"',
-                sudo=True, no_error_log=True, shell=True,
+                sudo=True,
+                no_error_log=True,
+                shell=True,
             )
             assert_that(avc0_result.exit_code).described_as(
                 "MAC_STATUS record enforcing=0 old_enforcing=1 must exist in audit log"
@@ -172,9 +177,11 @@ class FedoraSELinuxValidation(TestSuite):
 
             # Associated SYSCALL record must show comm=setenforce
             syscall_result = node.execute(
-                f'ausearch --input-logs -m MAC_STATUS -i -ts {start_time}'
+                f"ausearch --input-logs -m MAC_STATUS -i -ts {start_time}"
                 ' | grep "type=SYSCALL" | grep "comm=setenforce"',
-                sudo=True, no_error_log=True, shell=True,
+                sudo=True,
+                no_error_log=True,
+                shell=True,
             )
             assert_that(syscall_result.exit_code).described_as(
                 "MAC_STATUS event with comm=setenforce must exist in audit log"
@@ -189,7 +196,8 @@ class FedoraSELinuxValidation(TestSuite):
             if umount_result.exit_code == 0:
                 for val in ["1", "0", "Enforcing", "Permissive"]:
                     self._assert_cmd_fails_with_error(
-                        node, f"setenforce {val} 2>&1",
+                        node,
+                        f"setenforce {val} 2>&1",
                         ["selinux is disabled"],
                         f"setenforce {val} with selinuxfs unmounted"
                         " must indicate disabled",
@@ -216,18 +224,23 @@ class FedoraSELinuxValidation(TestSuite):
             try:
                 for val in ["1", "0", "Enforcing", "Permissive"]:
                     self._assert_cmd_fails_with_error(
-                        node, f"setenforce {val} 2>&1",
+                        node,
+                        f"setenforce {val} 2>&1",
                         ["failed"],
-                        f"setenforce {val} with bound enforce file must report failure"
+                        f"setenforce {val} with bound enforce file must report failure",
                     )
             finally:
                 node.execute(
                     f"umount {self._SELINUX_FS_MOUNT}/enforce 2>/dev/null || true",
-                    shell=True, sudo=True, no_error_log=True
+                    shell=True,
+                    sudo=True,
+                    no_error_log=True,
                 )
                 node.execute(
                     "chattr -i /var/tmp/selinux_enforce_bind_test 2>/dev/null || true",
-                    shell=True, sudo=True, no_error_log=True
+                    shell=True,
+                    sudo=True,
+                    no_error_log=True,
                 )
                 node.execute(
                     "rm -f /var/tmp/selinux_enforce_bind_test",
@@ -328,9 +341,9 @@ class FedoraSELinuxValidation(TestSuite):
             (r"Max kernel policy version:\s+\d+", "Max kernel policy version"),
         ]
         for pattern, desc in sestatus_fields:
-            assert_that(output).described_as(
-                f"sestatus must show {desc}"
-            ).matches(pattern)
+            assert_that(output).described_as(f"sestatus must show {desc}").matches(
+                pattern
+            )
 
         # === sestatus: policy booleans ===
         sestatus_b = node.execute("sestatus -b")
@@ -353,13 +366,13 @@ class FedoraSELinuxValidation(TestSuite):
         assert_that(sestatus_v.exit_code).described_as(
             "sestatus -v must succeed"
         ).is_equal_to(0)
-        _CON = r"[a-z_]+_u:[a-z_]+_r:[a-z_]+_t:s\d+"
+        _con = r"[a-z_]+_u:[a-z_]+_r:[a-z_]+_t:s\d+"
         for pattern, desc in [
             (r"Process contexts:", "Process contexts section"),
-            (r"Current context:\s+" + _CON, "Current context with valid SELinux label"),
+            (r"Current context:\s+" + _con, "Current context with valid SELinux label"),
             (r"Init context:\s+system_u:system_r:init_t:s0", "Init context"),
             (r"File contexts:", "File contexts section"),
-            (r"/etc/passwd\s+" + _CON, "/etc/passwd context with valid SELinux label"),
+            (r"/etc/passwd\s+" + _con, "/etc/passwd context with valid SELinux label"),
         ]:
             assert_that(sestatus_v.stdout).described_as(
                 f"sestatus -v must show {desc}"
