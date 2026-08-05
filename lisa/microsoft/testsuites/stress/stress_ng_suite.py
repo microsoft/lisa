@@ -8,7 +8,7 @@ import yaml
 
 # ExceptionGroup is built-in for Python 3.11+
 try:
-    from exceptiongroup import ExceptionGroup
+    from exceptiongroup import ExceptionGroup  # pylint: disable=redefined-builtin
 except ImportError:
     # Python 3.11+ has ExceptionGroup as a built-in
     pass
@@ -44,6 +44,18 @@ class StressNgTestSuite(TestSuite):
     TIME_OUT = 435600
     CONFIG_VARIABLE = "stress_ng_jobs"
 
+    @staticmethod
+    def _normalize_job_files(jobs: Any) -> List[str]:
+        if jobs is None:
+            return []
+
+        if isinstance(jobs, list):
+            candidates = jobs
+        else:
+            candidates = str(jobs).split(",")
+
+        return [str(job).strip() for job in candidates if str(job).strip()]
+
     @TestCaseMetadata(
         description="""
         Runs a stress-ng jobfile. The path to the jobfile must be specified
@@ -62,11 +74,9 @@ class StressNgTestSuite(TestSuite):
         result: TestResult,
     ) -> None:
         if self.CONFIG_VARIABLE in variables:
-            jobs = variables[self.CONFIG_VARIABLE]
-
-            # Convert job file configuration to a list if needed
-            if not isinstance(jobs, list):
-                jobs = [job.strip() for job in str(jobs).split(",")]
+            jobs = self._normalize_job_files(variables[self.CONFIG_VARIABLE])
+            if not jobs:
+                raise SkippedException("No jobfile provided for stress-ng")
 
             for job_file in jobs:
                 try:
@@ -179,9 +189,9 @@ class StressNgTestSuite(TestSuite):
         if self.CONFIG_VARIABLE not in variables:
             raise SkippedException("No jobfile provided for multi-VM stress test")
 
-        jobs = variables[self.CONFIG_VARIABLE]
-        if not isinstance(jobs, list):
-            jobs = [job.strip() for job in str(jobs).split(",")]
+        jobs = self._normalize_job_files(variables[self.CONFIG_VARIABLE])
+        if not jobs:
+            raise SkippedException("No jobfile provided for multi-VM stress test")
 
         # Execute each jobfile across all VMs
         for job_file in jobs:
@@ -316,6 +326,10 @@ class StressNgTestSuite(TestSuite):
                 node.shell.mkdir(remote_workspace, exist_ok=True)
 
                 # Deploy job file to remote node
+                if not Path(job_file).is_file():
+                    raise FileNotFoundError(
+                        f"stress-ng job file is not a file: {job_file}"
+                    )
                 remote_job_file = remote_workspace / job_file_name
                 node.shell.copy(PurePath(job_file), remote_job_file)
 
