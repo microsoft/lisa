@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import json
+import math
 import os
 import re
 import shlex
@@ -10,6 +11,7 @@ from pathlib import Path, PurePath
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, cast
 
 from assertpy.assertpy import assert_that, fail
+from paramiko.ssh_exception import SSHException
 
 from lisa import Node
 from lisa.executable import ExecutableResult, Tool
@@ -40,6 +42,16 @@ from lisa.util import (
     find_groups_in_lines,
 )
 
+# Operational connection/transport failures that can occur mid-retry (e.g. an
+# SSH channel dropping). These are contained so already-collected unaffected
+# metrics are still reported and the original timeout result is preserved.
+# Genuine programming errors (e.g. RuntimeError) are intentionally excluded so
+# they propagate. TimeoutError and ConnectionResetError are OSError subclasses.
+_RETRY_CONNECTION_ERRORS = (LisaException, SSHException, OSError, EOFError)
+# Report retrieval additionally decodes JSON; JSONDecodeError is a ValueError,
+# not an OSError, so it must be listed explicitly.
+_RETRY_REPORT_ERRORS = _RETRY_CONNECTION_ERRORS + (json.JSONDecodeError,)
+
 
 @dataclass
 class CloudHypervisorTestResult:
@@ -62,6 +74,28 @@ class CloudHypervisorTests(Tool):
     PERF_CASE_TIME_OUT = 21600 + 2400
     PERF_CMD_TIME_OUT = 1200
     METRICS_REPORT_FILE = "lisa_metrics_report.json"
+    # Structured merged report written next to the original after a successful
+    # isolated recovery. The original report is always preserved untouched so
+    # first-attempt (timeout) evidence is never lost.
+    METRICS_FINAL_REPORT_FILE = "lisa_metrics_report_final.json"
+
+    # Isolated-retry policy for metrics that FAILED solely because the upstream
+    # Cloud Hypervisor performance harness killed the subtest on its own
+    # wall-clock timeout (structured "TestTimeout"), not a functional error.
+    METRICS_TIMEOUT_RETRY_ENABLED = True
+    # Per-test timeout (seconds) passed to the isolated retry via --timeout.
+    # None keeps the harness default so the retry measures the metric the same
+    # way as the first attempt (no result skew); set to override for a metric
+    # that legitimately needs a different budget.
+    METRICS_TIMEOUT_RETRY_TIMEOUT: Optional[int] = None
+
+    # Markers the CH performance-metrics harness prints when it kills a subtest
+    # on its own wall-clock timeout. These are distinct from functional
+    # failures, letting us retry only genuine timeouts.
+    _METRIC_TIMEOUT_PATTERNS = (
+        re.compile(r"Test '([^']+)' failed: 'TestTimeout'"),
+        re.compile(r"\[Error\] Test '([^']+)' time-out after \d+ second"),
+    )
 
     upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
     env_vars = {
@@ -641,6 +675,22 @@ class CloudHypervisorTests(Tool):
                 )
             fail(report_error)
 
+        recovered = self._recover_timed_out_metrics(
+            hypervisor=hypervisor,
+            log_path=log_path,
+            result=result,
+            per_test_results=per_test_results,
+            subtest_timeout=subtest_timeout,
+            numa_cmd=numa_cmd,
+        )
+        if recovered:
+            self._write_final_merged_report(
+                original_report=local_report,
+                final_report=log_path / self.METRICS_FINAL_REPORT_FILE,
+                per_test_results=per_test_results,
+                recovered=recovered,
+            )
+
         for testcase, entry in per_test_results.items():
             status, metrics, trace = self._classify_test_result(testcase, entry)
 
@@ -773,11 +823,14 @@ class CloudHypervisorTests(Tool):
         subtest_timeout: Optional[int],
         only: Optional[str] = None,
         skip: Optional[str] = None,
+        report_file: Optional[str] = None,
     ) -> str:
+        report_name = report_file or self.METRICS_REPORT_FILE
+        report_path = shlex.quote(f"/cloud-hypervisor/{report_name}")
         cmd_args = (
             f"tests --hypervisor {hypervisor} --metrics -- --"
             " --continue-on-failure"
-            f" --report-file /cloud-hypervisor/{self.METRICS_REPORT_FILE}"
+            f" --report-file {report_path}"
         )
         if only:
             cmd_args = f"{cmd_args} --test-filter {shlex.quote(only)}"
@@ -786,6 +839,225 @@ class CloudHypervisorTests(Tool):
         if subtest_timeout:
             cmd_args = f"{cmd_args} --timeout {subtest_timeout}"
         return cmd_args
+
+    def _detect_timed_out_metrics(
+        self, stdout: str, per_test_results: Dict[str, Any]
+    ) -> List[str]:
+        """Return metrics that FAILED specifically due to the perf-harness timeout.
+
+        A metric qualifies only when both signals agree:
+
+        * its JSON report entry has status ``FAILED``; and
+        * the run stdout contains the harness' structured timeout marker
+          (``failed: 'TestTimeout'`` / ``time-out after N seconds``) for it.
+
+        This intentionally excludes functional failures, which report
+        ``FAILED`` without a timeout marker, so only genuine timeouts are
+        retried. Order follows the report for deterministic behaviour.
+        """
+        if not stdout:
+            return []
+        timed_out: Set[str] = set()
+        for pattern in self._METRIC_TIMEOUT_PATTERNS:
+            timed_out.update(pattern.findall(stdout))
+        return [
+            name
+            for name, entry in per_test_results.items()
+            if name in timed_out and entry.get("status") == "FAILED"
+        ]
+
+    def _is_valid_retry_metric(self, entry: Optional[Dict[str, Any]]) -> bool:
+        """A retry counts as recovered only with a PASSED, finite, positive mean."""
+        if not entry or entry.get("status") != "PASSED":
+            return False
+        mean = entry.get("mean")
+        # bool is a subclass of int; reject it explicitly.
+        if isinstance(mean, bool) or not isinstance(mean, (int, float)):
+            return False
+        return math.isfinite(mean) and mean > 0
+
+    @staticmethod
+    def _sanitize_metric_name(metric: str) -> str:
+        """Make a metric name safe to embed in report/artifact file names.
+
+        Collapses anything outside ``[A-Za-z0-9._-]`` to ``_`` so an untrusted
+        metric name can never traverse paths or inject shell/file characters.
+        The raw metric name is used only for the shlex-quoted ``--test-filter``.
+        """
+        sanitized = re.sub(r"[^A-Za-z0-9._-]", "_", metric)
+        return sanitized or "metric"
+
+    def _recover_timed_out_metrics(
+        self,
+        hypervisor: str,
+        log_path: Path,
+        result: ExecutableResult,
+        per_test_results: Dict[str, Any],
+        subtest_timeout: Optional[int],
+        numa_cmd: str,
+    ) -> List[str]:
+        """Detect perf-harness timeouts and merge successful isolated retries.
+
+        Mutates ``per_test_results`` in place: a timed-out metric is replaced
+        with its retry entry only when the retry yields a valid finite positive
+        metric. First-attempt timeouts stay visible in logs and artifacts, and
+        metrics that keep failing are left as failures. Returns the list of
+        metric names that were successfully recovered.
+        """
+        if not self.METRICS_TIMEOUT_RETRY_ENABLED:
+            return []
+        stdout = getattr(result, "stdout", "") or ""
+        timed_out = self._detect_timed_out_metrics(stdout, per_test_results)
+        if not timed_out:
+            return []
+        self._log.info(
+            f"[timeout-retry] Metrics timed out in perf harness: {timed_out}"
+        )
+        recovered: List[str] = []
+        for metric in timed_out:
+            retry_entry = self._retry_single_timed_out_metric(
+                hypervisor, metric, log_path, subtest_timeout, numa_cmd
+            )
+            if self._is_valid_retry_metric(retry_entry):
+                assert retry_entry is not None
+                self._log.info(
+                    f"[timeout-retry] '{metric}' recovered on isolated retry: "
+                    f"mean={retry_entry.get('mean')}"
+                )
+                per_test_results[metric] = retry_entry
+                recovered.append(metric)
+            else:
+                self._log.error(
+                    f"[timeout-retry] '{metric}' still failing after isolated "
+                    f"retry; keeping original timeout failure. "
+                    f"retry_entry={retry_entry}"
+                )
+        return recovered
+
+    def _retry_single_timed_out_metric(
+        self,
+        hypervisor: str,
+        metric: str,
+        log_path: Path,
+        subtest_timeout: Optional[int],
+        numa_cmd: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Re-run a single timed-out metric in isolation and return its entry.
+
+        Uses a dedicated (sanitized) report file and artifact prefix so the
+        first attempt's report and logs are preserved. The metric runs alone
+        (``--test-filter``) against a freshly booted VM, so no unaffected
+        metrics are re-run. The outer command budget is ``PERF_CASE_TIME_OUT``
+        so LISA never preempts the metric's own configured harness timeout.
+        Any stale remote report is deleted first, and the retry's report is
+        merged only when the run exits 0, so a setup/transport failure cannot
+        recover a timeout from a previous run's PASSED JSON. Returns the parsed
+        report entry for ``metric`` or ``None`` when the retry produced no
+        usable entry.
+        """
+        retry_timeout = (
+            self.METRICS_TIMEOUT_RETRY_TIMEOUT
+            if self.METRICS_TIMEOUT_RETRY_TIMEOUT is not None
+            else subtest_timeout
+        )
+        safe_metric = self._sanitize_metric_name(metric)
+        retry_report = f"lisa_metrics_report_retry_{safe_metric}.json"
+        retry_test_name = f"ch_metrics_retry_{safe_metric}_{hypervisor}"
+        remote_report = self.repo_root / retry_report
+        local_report = log_path / retry_report
+        cmd_args = self._build_metrics_cmd_args(
+            hypervisor,
+            retry_timeout,
+            only=metric,
+            skip=None,
+            report_file=retry_report,
+        )
+        # Guarantee report freshness: delete any stale remote report before the
+        # retry so a setup/transport failure that never writes a new report
+        # cannot let a PASSED JSON from a previous run recover the timeout.
+        try:
+            self.node.execute(
+                f"rm -f {shlex.quote(str(remote_report))}",
+                shell=True,
+                timeout=60,
+            )
+        except _RETRY_CONNECTION_ERRORS as e:
+            self._log.warning(
+                f"[timeout-retry] could not clear stale report for '{metric}': {e}"
+            )
+            return None
+        self._log.info(
+            f"[timeout-retry] Re-running timed-out metric '{metric}' in isolation"
+        )
+        run_result: Optional[ExecutableResult] = None
+        try:
+            run_result = self._run_with_enhanced_diagnostics(
+                cmd_args=cmd_args,
+                timeout=self.PERF_CASE_TIME_OUT,
+                test_name=retry_test_name,
+                numa_cmd=numa_cmd,
+            )
+        except _RETRY_CONNECTION_ERRORS as e:
+            self._log.warning(f"[timeout-retry] retry run for '{metric}' failed: {e}")
+            return None
+        finally:
+            self._copy_back_artifacts(log_path, retry_test_name)
+
+        # Only a retry that itself completed successfully may replace a timeout.
+        if run_result.exit_code != 0:
+            self._log.warning(
+                f"[timeout-retry] retry run for '{metric}' exited with code "
+                f"{run_result.exit_code}; not merging its report."
+            )
+            return None
+
+        try:
+            self.node.shell.copy_back(remote_report, local_report)
+            retry_results = self._parse_metrics_report(local_report)
+        except _RETRY_REPORT_ERRORS as e:
+            self._log.warning(
+                f"[timeout-retry] could not read retry report for '{metric}': {e}"
+            )
+            return None
+        return retry_results.get(metric)
+
+    def _write_final_merged_report(
+        self,
+        original_report: Path,
+        final_report: Path,
+        per_test_results: Dict[str, Any],
+        recovered: List[str],
+    ) -> None:
+        """Write a structured merged report reflecting recovered metrics.
+
+        The original report on disk is left untouched (first-attempt evidence).
+        The merged report reuses the original metadata, swaps in the recovered
+        entries by name, and records which metrics were recovered under
+        ``lisa_timeout_recovered`` so artifact consumers see the final result.
+        """
+        try:
+            with open(original_report, "r") as f:
+                report = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            self._log.warning(f"[timeout-retry] could not build merged report: {e}")
+            return
+
+        for entry in report.get("results", []):
+            name = entry.get("name", "")
+            if name in per_test_results:
+                entry.update(per_test_results[name])
+        report["lisa_timeout_recovered"] = recovered
+
+        try:
+            with open(final_report, "w") as f:
+                json.dump(report, f, indent=2)
+        except OSError as e:
+            self._log.warning(f"[timeout-retry] could not write merged report: {e}")
+            return
+        self._log.info(
+            f"[timeout-retry] Wrote merged report to {final_report} "
+            f"(recovered={recovered})"
+        )
 
     def _parse_metrics_report(self, report_path: Path) -> Dict[str, Any]:
         """Parse a metrics JSON report file into per-test result dicts.
