@@ -32,7 +32,6 @@ class RepoWorktreeSchema(RepoLocationSchema):
     worktree_name: str = ""
     worktree_repo: str = ""
     worktree_ref: str = ""
-    worktree_local_branch: str = ""
 
 
 @dataclass_json()
@@ -388,6 +387,131 @@ class RepoWorktree(BaseLocation):
     def type_schema(cls) -> Type[schema.TypedSchema]:
         return RepoWorktreeSchema
 
+    def _cleanup_detached_worktrees(
+        self,
+        code_path: PurePath,
+    ) -> None:
+        git = self._node.tools[Git]
+
+        # Remove detached worktrees and their associated branches.
+        worktrees = git.worktree_list(cwd=code_path)
+        detached_worktrees = [
+            wt["path"] for wt in worktrees if wt.get("branch") == "(detached)"
+        ]
+
+        for worktree in detached_worktrees:
+            try:
+                git.worktree_remove(cwd=code_path, path=worktree)
+                # Also deleting branches created by the worktree for coherence.
+                # This doesn't work for mainline in
+                # /mnt/code/linux pointed by origin.
+                # Use basename since worktree is a full path from worktree_list.
+                worktree_name = PurePath(worktree).name
+                self._node.execute(
+                    f"git branch --list '{worktree_name}-*' | xargs git branch -D",
+                    shell=True,
+                    no_error_log=True,
+                    cwd=code_path,
+                )
+            except Exception as e:
+                self._log.debug(
+                    "failed to cleanup detached worktree and branches "
+                    f"'{worktree}': {e}"
+                )
+
+        git.worktree_prune(cwd=code_path)
+
+    def _is_tag(
+        self,
+        target_path: PurePath,
+        ref: str,
+    ) -> bool:
+        result = self._node.execute(
+            f"git tag -l {ref}",
+            shell=True,
+            cwd=target_path,
+        )
+        return bool(result.stdout.strip())
+
+    def _checkout_target_ref(
+        self,
+        target_path: PurePath,
+        target_ref: str,
+        remote: str,
+    ) -> None:
+        git = self._node.tools[Git]
+
+        # Tags are not namespaced under remotes (there is no remote/tag-name).
+        # Detect tags and use the ref directly instead of remote/ref.
+        is_tag = self._is_tag(target_path, target_ref)
+        if is_tag:
+            remote_ref = target_ref
+            self._log.debug(
+                f"'{target_ref}' is a tag, using it directly instead of "
+                f"'{remote}/{target_ref}'."
+            )
+        else:
+            remote_ref = f"{remote}/{target_ref}"
+
+        # Checkout and update the target ref, with force-checkout fallback.
+        expected_local_branch_name = f"{remote}-{target_ref}"
+        try:
+            local_branches_result = self._node.execute(
+                "git branch --format='%(refname:short)'",
+                shell=True,
+                cwd=target_path,
+            )
+            local_branches = [
+                b.strip().strip("'")
+                for b in local_branches_result.stdout.splitlines()
+                if b.strip()
+            ]
+            if expected_local_branch_name in local_branches:
+                self._log.debug("Pulling upstream in an existing branch.")
+                self._node.execute(
+                    f"git checkout -f {expected_local_branch_name}",
+                    shell=True,
+                    cwd=target_path,
+                    expected_exit_code=0,
+                )
+                if not is_tag:
+                    git.pull(cwd=target_path)
+            elif target_ref in local_branches:
+                self._log.debug("Pulling upstream in an existing branch.")
+                self._node.execute(
+                    f"git checkout -f {target_ref}",
+                    shell=True,
+                    cwd=target_path,
+                    expected_exit_code=0,
+                )
+                if not is_tag:
+                    git.pull(cwd=target_path)
+            else:
+                self._log.debug("Checking out a new branch synced with remote.")
+                self._node.execute(
+                    f"git checkout -b {expected_local_branch_name} {remote_ref}",
+                    shell=True,
+                    cwd=target_path,
+                    expected_exit_code=0,
+                )
+
+            self._log.info(
+                f"checkout code from: '{target_ref}', in "
+                f"'{git.get_current_branch(cwd=target_path)}'"
+            )
+        except Exception:
+            self._log.debug("Checking out a new branch force synced with remote")
+            self._node.execute(
+                f"git checkout -B {expected_local_branch_name} {remote_ref}",
+                shell=True,
+                cwd=target_path,
+                expected_exit_code=0,
+            )
+            self._log.info(
+                f"checkout code from: '{target_ref}', in "
+                f"'{git.get_current_branch(cwd=target_path)}'"
+            )
+
     def get_source_code(self) -> PurePath:
         runbook: RepoWorktreeSchema = cast(RepoWorktreeSchema, self.runbook)
 
@@ -418,31 +542,42 @@ class RepoWorktree(BaseLocation):
         else:
             code_path = code_path / repo_name
 
-        # check if the 'repo' is already a remote url
-        remote_exists = False
-        remote = ""
+        remote = "origin"
         remotes = git.remote_list(code_path)
         self._log.debug(f"existing remotes: {remotes}")
-        for remote in remotes:
-            if runbook.worktree_repo == git.remote_get_url(code_path, remote):
-                remote_exists = True
-                break
+        if runbook.worktree_name:
+            if runbook.worktree_name in remotes:
+                self._log.debug("Setting the remote based on worktree name/path.")
+                remote = runbook.worktree_name
+                if runbook.worktree_repo:
+                    assert runbook.worktree_repo == git.remote_get_url(
+                        code_path, remote
+                    ), f"Existing remote url doesn't match with {runbook.worktree_repo}"
+            elif runbook.worktree_name == repo_name:
+                self._log.debug("Using the upstream repo pointed by 'origin' remote")
 
-        if not remote_exists:
-            remote = runbook.worktree_name
-            self._log.info(f"adding remote {remote} for {runbook.worktree_repo}")
-            git.remote_add(cwd=code_path, name=remote, url=runbook.worktree_repo)
-        git.fetch(
+            else:
+                assert runbook.worktree_repo, "Remote can not be added without a URL"
+                remote = runbook.worktree_name
+                self._log.info(f"adding remote {remote} for {runbook.worktree_repo}")
+                git.remote_add(cwd=code_path, name=remote, url=runbook.worktree_repo)
+
+        self._node.execute(
+            f"git fetch -p {remote} --force --tags",
+            shell=True,
+            no_info_log=False,
             cwd=code_path,
-            remote=remote,
+            expected_exit_code=0,
         )
 
         target_path = code_path
         target_ref = runbook.ref
         if runbook.worktree_name:
+            self._cleanup_detached_worktrees(code_path)
+
             worktree_path = code_path.parent / runbook.worktree_name
-            git.worktree_prune(cwd=code_path)
             if not git.worktree_exists(cwd=code_path, path=str(worktree_path)):
+                assert runbook.worktree_ref, "Worktree ref needs to be set by user"
                 self._log.info(
                     f"creating a new worktree at {worktree_path} "
                     f"pointing at {remote}/{runbook.worktree_ref}"
@@ -452,7 +587,7 @@ class RepoWorktree(BaseLocation):
                     path=worktree_path,
                     remote=remote,
                     remote_ref=runbook.worktree_ref,
-                    new_branch=runbook.worktree_local_branch,
+                    new_branch=f"{remote}-{runbook.worktree_ref}",
                     track=True,
                 )
 
@@ -460,16 +595,14 @@ class RepoWorktree(BaseLocation):
                 self._log.info(f"Kernel HEAD is now at : {latest_commit_id}")
                 return worktree_path
 
-            # worktree exists
-            target_ref = runbook.worktree_ref
+            # worktree exists — fetch the tracking remote and update
+            self._log.debug("Using the existing worktree")
+            if runbook.worktree_ref:
+                target_ref = runbook.worktree_ref
             target_path = worktree_path
 
         if target_ref:
-            if git.get_current_branch(cwd=target_path) == target_ref:
-                git.pull(cwd=target_path)
-
-            git.checkout(ref=target_ref, cwd=target_path)
-            self._log.info(f"checkout code from: '{target_ref}'")
+            self._checkout_target_ref(target_path, target_ref, remote)
 
         latest_commit_id = git.get_latest_commit_id(cwd=target_path)
         self._log.info(f"Kernel HEAD is now at : {latest_commit_id}")
