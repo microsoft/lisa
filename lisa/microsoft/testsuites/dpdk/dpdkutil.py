@@ -629,13 +629,24 @@ def initialize_node_resources(
     rdma_branch = variables.get("rdma_branch", "")
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     log.info(
-        "Dpdk initialize_node_resources running"
+        "Dpdk initialize_node_resources running "
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
     )
-    network_interface_feature = node.features[NetworkInterface]
-    sriov_is_enabled = network_interface_feature.is_enabled_sriov()
-    if not sriov_is_enabled:
+    
+    # Check SRIOV/AN from inside the guest instead of asking the platform.
+    # node.nics walks /sys/class/net/*/lower_* and the pci slot for each
+    # interface, so this works on the ready platform as well.
+    node.nics.reload()
+    sriov_is_enabled = node.nics.is_pci_module_enabled()
+    # check whether we can switch sriov on, if it's off. 
+    # Some platforms (ReadyPlatform) don't support this feature.
+    if not sriov_is_enabled and node.features.is_supported(NetworkInterface):
+        network_interface_feature = node.features[NetworkInterface]
         network_interface_feature.switch_sriov(enable=True, wait=True)
+    else:
+        raise SkippedException(
+            "SRIOV was not active and platform "
+            "does not support NetworkInterface feature")
 
     log.info(f"Node[{node.name}] Verify SRIOV is enabled: {sriov_is_enabled}")
     assert_that(sriov_is_enabled).described_as(
