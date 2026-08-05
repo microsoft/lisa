@@ -40,7 +40,7 @@ from lisa.tools import (
     Modprobe,
     Reboot,
 )
-from lisa.util import SkippedException
+from lisa.util import KernelPanicException, SkippedException
 
 
 @TestSuiteMetadata(
@@ -136,17 +136,21 @@ class CPUSuite(TestSuite):
                 "Storage workload was not running during CPUhotplug",
             ).is_true()
         finally:
-            # Capture serial console log out-of-band. When the VM hangs during
-            # CPU hotplug, SSH is unresponsive but the serial console still
-            # records kernel hung-task/panic traces needed for diagnosis.
-            try:
-                node.features[SerialConsole].get_console_log(
-                    saved_path=node.local_log_path, force_run=True
-                )
-            except Exception as e:
-                log.debug(f"failed to capture serial console log: {e}")
             # kill fio process
             node.tools[Kill].by_name("fio", ignore_not_exist=True)
+            # Capture serial console log out-of-band and check for kernel
+            # panic. When the VM hangs during CPU hotplug, SSH is unresponsive
+            # but the serial console still records hung-task/panic traces.
+            try:
+                node.features[SerialConsole].check_panic(
+                    saved_path=node.local_log_path,
+                    stage="after_cpu_hotplug",
+                    force_run=True,
+                )
+            except KernelPanicException:
+                raise
+            except Exception as e:
+                log.debug(f"failed to capture serial console log: {e}")
 
     @TestCaseMetadata(
         description="""
