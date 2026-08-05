@@ -7,8 +7,10 @@ import re
 import secrets
 import shutil
 import xml.etree.ElementTree as ET  # noqa: N817
-from pathlib import Path
-from typing import Any, List, Type, cast
+from pathlib import Path, PurePosixPath
+from typing import Any, Dict, List, Tuple, Type, cast
+
+import libvirt
 
 from lisa import schema
 from lisa.environment import Environment
@@ -20,8 +22,8 @@ from lisa.sut_orchestrator.libvirt.context import (
     get_node_context,
 )
 from lisa.sut_orchestrator.libvirt.platform import BaseLibvirtPlatform
-from lisa.tools import Ls, QemuImg
-from lisa.util import LisaException, parse_version
+from lisa.tools import Chown, Cp, Ls, QemuImg, Whoami
+from lisa.util import LisaException, SkippedException, parse_version
 from lisa.util.logger import Logger, filter_ansi_escape
 
 from .. import CLOUD_HYPERVISOR
@@ -29,6 +31,38 @@ from .console_logger import QemuConsoleLogger
 from .schema import BaseLibvirtNodeSchema, CloudHypervisorNodeSchema, DiskImageFormat
 
 CH_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
+
+# Directory where the libvirt Cloud Hypervisor (ch) driver writes the per-domain
+# CH log/stderr. libvirt removes/overwrites these when it cleans up a domain that
+# exits during start, so they must be captured before that cleanup runs.
+CH_DOMAIN_LOG_DIR = PurePosixPath("/var/log/libvirt/ch")
+
+# Artifact name prefixes for diagnostics preserved into the LISA per-node log path.
+CH_DOMAIN_LOG_ARTIFACT_PREFIX = "ch-domain-"
+DOMAIN_START_ERROR_ARTIFACT_PREFIX = "domain-start-error-"
+DOMAIN_XML_ARTIFACT_PREFIX = "domain-"
+DOMAIN_START_EVIDENCE_ARTIFACT_PREFIX = "domain-start-evidence-"
+
+# Expected exceptions while collecting best-effort diagnostics. These are caught
+# and logged so that diagnostic collection never masks the original libvirt error,
+# while genuine programming errors (e.g. AttributeError/TypeError) still surface.
+# AssertionError is included because LISA tools (e.g. Cp/Chown) raise it to signal
+# an underlying host command failure.
+_DIAGNOSTIC_EXCEPTIONS = (
+    OSError,
+    AssertionError,
+    libvirt.libvirtError,
+    LisaException,
+)
+
+# Exact captured Cloud Hypervisor signature indicating the guest VM configuration
+# is not supported on this host. Only a "VmCreate" failure paired with an
+# EINVAL / "Invalid argument" / "os error 22" on the same line is treated as
+# unsupported; any other deployment error keeps its normal failure behavior.
+CH_UNSUPPORTED_VMCREATE_PATTERN = re.compile(
+    r"VmCreate\b[^\n]*?(?:invalid argument|os error 22|einval)",
+    re.IGNORECASE,
+)
 
 
 class CloudHypervisorPlatform(BaseLibvirtPlatform):
@@ -249,13 +283,22 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             )
             start_domain_and_attach_logger()
 
-        self._run_libvirt_operation_with_reconnect(
-            operation=start_domain_and_attach_logger,
-            retry_operation=retry_start_domain_and_attach_logger,
-            operation_description="domain start and console attach",
-            vm_name=node_context.vm_name,
-            log=self._log,
-        )
+        try:
+            self._run_libvirt_operation_with_reconnect(
+                operation=start_domain_and_attach_logger,
+                retry_operation=retry_start_domain_and_attach_logger,
+                operation_description="domain start and console attach",
+                vm_name=node_context.vm_name,
+                log=self._log,
+            )
+        except libvirt.libvirtError as ex:
+            # The domain may have exited during createWithFlags before it ever
+            # became active. Only a genuine start failure (domain inactive) is
+            # eligible for diagnostics/skip classification; a failure raised
+            # after the domain became active (e.g. console attach/openConsole)
+            # is re-raised unchanged.
+            self._handle_domain_start_failure(node_context, ex)
+            raise
 
         if len(node_context.passthrough_devices) > 0:
             # Once libvirt domain is created, check if driver attached to device
@@ -264,6 +307,236 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             self.device_pool._verify_device_passthrough_post_boot(
                 node_context=node_context,
             )
+
+    def _is_domain_active(self, node_context: NodeContext) -> bool:
+        domain = node_context.domain
+        if domain is None:
+            return False
+        try:
+            return bool(cast(Any, domain).isActive())
+        except libvirt.libvirtError:
+            return False
+
+    def _handle_domain_start_failure(
+        self,
+        node_context: NodeContext,
+        error: libvirt.libvirtError,
+    ) -> None:
+        """
+        Preserve domain-start diagnostics for artifact publication and, only for
+        a Confidential VM (CVM) guest whose captured Cloud Hypervisor log matches
+        the exact unsupported-VmCreate signature, raise SkippedException.
+        Otherwise return so the original deployment error keeps its normal
+        failure behavior.
+        """
+        if self._is_domain_active(node_context):
+            # The domain is active, so the failure originated from console
+            # attach/openConsole rather than starting the guest. This is not a
+            # start failure and must not be classified as unsupported.
+            self._log.debug(
+                f"Domain {node_context.vm_name} is active; treating '{error}' as "
+                "a console-attach failure, not a start failure."
+            )
+            return
+
+        try:
+            (
+                artifacts,
+                evidence,
+                ch_log_content,
+            ) = self._preserve_domain_start_diagnostics(node_context, error, self._log)
+        except _DIAGNOSTIC_EXCEPTIONS as ex:
+            # Diagnostic collection must never mask the original libvirt error.
+            self._log.warning(
+                f"Failed to collect domain-start diagnostics for "
+                f"{node_context.vm_name}: {ex}"
+            )
+            return
+
+        # Only a Confidential VM guest with the exact CH VmCreate/EINVAL signature
+        # is classified as an unsupported configuration.
+        if node_context.guest_vm_type is not GuestVmType.ConfidentialVM:
+            return
+
+        match = CH_UNSUPPORTED_VMCREATE_PATTERN.search(ch_log_content)
+        if not match:
+            return
+
+        signature = match.group(0).strip()
+        artifact_names = (
+            ", ".join(sorted(path.name for path in artifacts.values())) or "<none>"
+        )
+        evidence_summary = (
+            "; ".join(f"{key}={value}" for key, value in evidence.items())
+            or "<unavailable>"
+        )
+        raise SkippedException(
+            "Cloud Hypervisor reported the Confidential VM (CVM) guest "
+            "configuration is not supported on this host (captured signature: "
+            f"'{signature}'). Runtime evidence: {evidence_summary}. Preserved "
+            f"artifacts: {artifact_names}."
+        ) from error
+
+    def _preserve_domain_start_diagnostics(
+        self,
+        node_context: NodeContext,
+        error: Exception,
+        log: Logger,
+    ) -> Tuple[Dict[str, Path], Dict[str, str], str]:
+        """
+        Preserve auditable domain-start diagnostics into the node's LISA log
+        directory before libvirt cleanup removes them. Collects, best-effort:
+        the per-domain Cloud Hypervisor log/stderr, the domain XML, the
+        domain-start error, and runtime evidence (CH, kernel and libvirt
+        versions). Works even when the domain never became active and no console
+        is available.
+
+        Returns the map of preserved artifact name -> local path, the collected
+        runtime evidence, and the CH log text content (used to classify the
+        failure).
+        """
+        vm_name = node_context.vm_name
+        artifacts: Dict[str, Path] = {}
+        evidence: Dict[str, str] = {}
+        ch_log_content = ""
+
+        # Derive the node's LISA log directory from the console log path so the
+        # diagnostics land next to the other per-node artifacts (e.g.
+        # ch-console.log). Fall back to the host node's log path if unset.
+        if node_context.console_log_file_path:
+            local_log_dir = Path(node_context.console_log_file_path).parent
+        else:
+            local_log_dir = self.host_node.local_log_path
+
+        try:
+            local_log_dir.mkdir(parents=True, exist_ok=True)
+        except _DIAGNOSTIC_EXCEPTIONS as e:
+            log.warning(f"Failed to create log directory {local_log_dir}: {e}")
+            return artifacts, evidence, ch_log_content
+
+        # Collect runtime evidence where safely obtainable.
+        evidence = self._collect_runtime_evidence(log)
+
+        # Record the domain-start error itself, even if the CH log or XML are gone.
+        start_error_path = (
+            local_log_dir / f"{DOMAIN_START_ERROR_ARTIFACT_PREFIX}{vm_name}.log"
+        )
+        try:
+            start_error_path.write_text(
+                f"Domain '{vm_name}' failed to start during createWithFlags "
+                f"before becoming active:\n{error}\n",
+                encoding="utf-8",
+            )
+            artifacts["start_error"] = start_error_path
+        except _DIAGNOSTIC_EXCEPTIONS as e:
+            log.warning(f"Failed to write domain-start error log: {e}")
+
+        # Record the collected runtime evidence as an auditable artifact.
+        evidence_path = (
+            local_log_dir / f"{DOMAIN_START_EVIDENCE_ARTIFACT_PREFIX}{vm_name}.txt"
+        )
+        try:
+            evidence_path.write_text(
+                "\n".join(f"{key}: {value}" for key, value in evidence.items()) + "\n",
+                encoding="utf-8",
+            )
+            artifacts["evidence"] = evidence_path
+        except _DIAGNOSTIC_EXCEPTIONS as e:
+            log.warning(f"Failed to write domain-start evidence log: {e}")
+
+        # Preserve the domain XML so the exact configuration is auditable.
+        self._preserve_domain_xml(node_context, local_log_dir, artifacts, log)
+
+        # Preserve the per-domain CH log/stderr before libvirt removes it.
+        ch_log_content = self._preserve_ch_domain_log(
+            node_context, local_log_dir, artifacts, log
+        )
+
+        return artifacts, evidence, ch_log_content
+
+    def _collect_runtime_evidence(self, log: Logger) -> Dict[str, str]:
+        evidence: Dict[str, str] = {}
+        getters = (
+            ("cloud_hypervisor_version", self._get_vmm_version),
+            ("kernel_version", self._get_host_kernel_version),
+            ("libvirt_version", self._get_libvirt_version),
+        )
+        for key, getter in getters:
+            try:
+                value = getter()
+            except _DIAGNOSTIC_EXCEPTIONS + (IndexError, ValueError) as e:
+                # IndexError/ValueError guard against empty/malformed version
+                # output while parsing so evidence collection never masks the
+                # original libvirt failure.
+                log.warning(f"Failed to collect {key}: {e}")
+                value = "<unavailable>"
+            evidence[key] = value or "<unknown>"
+        return evidence
+
+    def _preserve_domain_xml(
+        self,
+        node_context: NodeContext,
+        local_log_dir: Path,
+        artifacts: Dict[str, Path],
+        log: Logger,
+    ) -> None:
+        domain = node_context.domain
+        if domain is None:
+            return
+        try:
+            xml_text = cast(str, cast(Any, domain).XMLDesc(0))
+        except libvirt.libvirtError as e:
+            log.warning(f"Failed to read domain XML for {node_context.vm_name}: {e}")
+            return
+        if not xml_text:
+            return
+        xml_path = (
+            local_log_dir / f"{DOMAIN_XML_ARTIFACT_PREFIX}{node_context.vm_name}.xml"
+        )
+        try:
+            xml_path.write_text(xml_text, encoding="utf-8")
+            artifacts["domain_xml"] = xml_path
+        except _DIAGNOSTIC_EXCEPTIONS as e:
+            log.warning(f"Failed to write domain XML artifact: {e}")
+
+    def _preserve_ch_domain_log(
+        self,
+        node_context: NodeContext,
+        local_log_dir: Path,
+        artifacts: Dict[str, Path],
+        log: Logger,
+    ) -> str:
+        vm_name = node_context.vm_name
+        ch_log_content = ""
+        host_ch_log = CH_DOMAIN_LOG_DIR / f"{vm_name}.log"
+        try:
+            if not self.host_node.tools[Ls].path_exists(str(host_ch_log), sudo=True):
+                log.debug(f"No CH domain log found at {host_ch_log} for {vm_name}")
+                return ch_log_content
+
+            dst = local_log_dir / f"{CH_DOMAIN_LOG_ARTIFACT_PREFIX}{vm_name}.log"
+            # Stage the root-owned CH log into the host working path with sudo,
+            # fix ownership, then copy back so this works for both local and
+            # remote hosts (same pattern as _capture_libvirt_logs).
+            temp_path = self.host_node.working_path / f"{vm_name}-ch.log"
+            try:
+                self.host_node.tools[Cp].copy(host_ch_log, temp_path, sudo=True)
+                user = self.host_node.tools[Whoami].get_username()
+                self.host_node.tools[Chown].change_owner(temp_path, user)
+                self.host_node.shell.copy_back(temp_path, dst)
+                artifacts["ch_log"] = dst
+                ch_log_content = dst.read_text(encoding="utf-8", errors="replace")
+                log.debug(f"Preserved CH domain log for {vm_name} to {dst}")
+            finally:
+                # Remove the staged temp copy from the host working path.
+                try:
+                    self.host_node.shell.remove(temp_path)
+                except _DIAGNOSTIC_EXCEPTIONS as e:
+                    log.warning(f"Failed to remove staged CH log temp {temp_path}: {e}")
+        except _DIAGNOSTIC_EXCEPTIONS as e:
+            log.warning(f"Failed to preserve CH domain log for {vm_name}: {e}")
+
+        return ch_log_content
 
     def _attach_console_logger(self, node_context: NodeContext) -> None:
         domain = cast(Any, node_context.domain)
