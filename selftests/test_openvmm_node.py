@@ -15,6 +15,7 @@ from lisa.features import SerialConsole as SerialConsoleFeature
 from lisa.sut_orchestrator.openvmm.context import NodeContext
 from lisa.sut_orchestrator.openvmm.node import OpenVmmController, OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
+    OPENVMM_ADDRESS_MODE_STATIC,
     OPENVMM_CONNECTION_MODE_HOST_PROXY,
     OPENVMM_NETWORK_MODE_TAP,
     OpenVmmGuestNodeSchema,
@@ -26,6 +27,11 @@ from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
 from lisa.tools import Cat, Ip, Kill, Mkdir
+from lisa.tools.openvmm import (
+    OPENVMM_DISK_DEVICE_SCSI,
+    OPENVMM_IOMMU_NONE,
+    OPENVMM_NETWORK_DEVICE_SYNTHETIC,
+)
 from lisa.util import LisaException
 
 
@@ -131,7 +137,16 @@ class OpenVmmNodeTestCase(TestCase):
         node = SimpleNamespace(
             runbook=SimpleNamespace(
                 openvmm_binary="/usr/local/bin/openvmm",
-                network=SimpleNamespace(mode="user", consomme_cidr=""),
+                disk_device=OPENVMM_DISK_DEVICE_SCSI,
+                iommu=OPENVMM_IOMMU_NONE,
+                vps_per_socket=None,
+                smt="off",
+                network=SimpleNamespace(
+                    mode="user",
+                    device=OPENVMM_NETWORK_DEVICE_SYNTHETIC,
+                    queue_count=1,
+                    consomme_cidr="",
+                ),
                 serial=SimpleNamespace(mode="file"),
                 extra_args=[],
             ),
@@ -158,6 +173,10 @@ class OpenVmmNodeTestCase(TestCase):
             cwd=PurePosixPath("/var/tmp/openvmm-host-g0"),
             sudo=False,
         )
+        launch_config = openvmm.launch_vm.call_args.args[0]
+        self.assertEqual(OPENVMM_DISK_DEVICE_SCSI, launch_config.disk_device)
+        self.assertEqual(OPENVMM_NETWORK_DEVICE_SYNTHETIC, launch_config.network_device)
+        self.assertEqual(1, launch_config.network_queue_count)
 
     def test_create_effective_network_derives_unique_tap_settings(self) -> None:
         controller, _, _, _ = self._create_controller()
@@ -188,6 +207,73 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertEqual(60024, third_guest_network.forwarded_port)
         self.assertEqual("tap0", network.tap_name)
         self.assertEqual("10.0.0.1/24", network.tap_host_cidr)
+
+    def test_create_effective_network_reuses_shared_tap_subnet(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            shared_subnet=True,
+            address_mode=OPENVMM_ADDRESS_MODE_STATIC,
+            tap_name="tap0",
+            bridge_name="ovmbr0",
+            tap_host_cidr="10.0.0.1/24",
+            guest_address="10.0.0.2",
+            forward_ssh_port=True,
+            forwarded_port=60022,
+        )
+
+        third_guest_network = controller.create_effective_network(network, 2)
+
+        self.assertEqual("tap2", third_guest_network.tap_name)
+        self.assertEqual("ovmbr0", third_guest_network.bridge_name)
+        self.assertEqual("10.0.0.1/24", third_guest_network.tap_host_cidr)
+        self.assertEqual("10.0.0.4", third_guest_network.guest_address)
+        self.assertEqual(60024, third_guest_network.forwarded_port)
+
+    def test_create_effective_network_rejects_shared_tap_name_overflow(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            shared_subnet=True,
+            tap_name="abcdefghijklmno",
+            bridge_name="ovmbr0",
+        )
+
+        with self.assertRaisesRegex(
+            LisaException,
+            "cannot derive OpenVMM tap network interface names",
+        ):
+            controller.create_effective_network(network, 1)
+
+    def test_shared_tap_setup_failure_removes_node_input_rules(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            shared_subnet=True,
+            tap_name="tap0",
+            bridge_name="ovmbr0",
+        )
+        node_context = NodeContext()
+        input_rule = "INPUT -i ovmbr0 -p udp --dport 67 -j ACCEPT"
+
+        def _fail_after_adding_input_rule(*args: Any, **kwargs: Any) -> None:
+            node_context.tap_input_rules_added.append(input_rule)
+            raise LisaException("dnsmasq failed")
+
+        with patch.object(
+            controller,
+            "_prepare_tap_network_resources",
+            side_effect=_fail_after_adding_input_rule,
+        ), self.assertRaisesRegex(LisaException, "dnsmasq failed"):
+            controller._prepare_tap_network(network, node_context)
+
+        execute = cast(MagicMock, controller.host_node.execute)
+        self.assertIn(
+            f"iptables -D {input_rule} || true",
+            [call.args[0] for call in execute.call_args_list],
+        )
+        self.assertEqual([], node_context.tap_input_rules_added)
+        self.assertEqual("", node_context.shared_tap_network_key)
 
     def test_supported_features_include_serial_console(self) -> None:
         supported_feature_names = [

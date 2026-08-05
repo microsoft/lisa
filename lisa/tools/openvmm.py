@@ -14,6 +14,19 @@ VERSION_PATTERN = re.compile(r"openvmm(?:\.exe)?\s+(?P<version>.+)")
 
 OPENVMM_NETWORK_BACKEND_CONSOMME = "consomme"
 OPENVMM_DEFAULT_SCSI_CONTROLLER = "lisa_scsi0"
+OPENVMM_DISK_DEVICE_SCSI = "scsi"
+OPENVMM_DISK_DEVICE_VIRTIO_BLK = "virtio-blk"
+OPENVMM_IOMMU_AMD = "amd-iommu"
+OPENVMM_IOMMU_INTEL = "intel-vtd"
+OPENVMM_IOMMU_NONE = "none"
+OPENVMM_NETWORK_DEVICE_SYNTHETIC = "synthetic"
+OPENVMM_NETWORK_DEVICE_VIRTIO = "virtio"
+OPENVMM_SMT_AUTO = "auto"
+OPENVMM_SMT_FORCE = "force"
+OPENVMM_SMT_OFF = "off"
+OPENVMM_VIRTIO_ROOT_COMPLEX = "lisa_virtio_rc0"
+OPENVMM_VIRTIO_DISK_PORT = "lisa_virtio_disk"
+OPENVMM_VIRTIO_NETWORK_PORT = "lisa_virtio_net"
 
 _COMMAND_NOT_FOUND_MARKERS = (
     "command not found",
@@ -37,10 +50,16 @@ class OpenVmmLaunchConfig:
     with_hv: bool = True
     hypervisor: str = "mshv"
     disk_img_path: str = ""
+    disk_device: str = OPENVMM_DISK_DEVICE_SCSI
+    iommu: str = OPENVMM_IOMMU_NONE
     dvd_disk_paths: List[str] = field(default_factory=_new_str_list)
     processors: int = 1
+    vps_per_socket: Optional[int] = None
+    smt: str = ""
     memory_mb: int = 1024
     network_mode: str = "user"
+    network_device: str = OPENVMM_NETWORK_DEVICE_SYNTHETIC
+    network_queue_count: Optional[int] = None
     tap_name: str = ""
     network_cidr: str = ""
     serial_mode: str = "file"
@@ -100,7 +119,12 @@ class OpenVmm(Tool):
             args.append("--hv")
         if config.hypervisor:
             args.extend(["--hypervisor", config.hypervisor])
+        self._validate_processor_topology(config)
         args.extend(["--processors", str(config.processors)])
+        if config.vps_per_socket is not None:
+            args.extend(["--vps-per-socket", str(config.vps_per_socket)])
+        if config.smt:
+            args.extend(["--smt", config.smt])
         args.extend(["--memory", f"{config.memory_mb}MB"])
 
         if not config.uefi_firmware_path:
@@ -108,38 +132,11 @@ class OpenVmm(Tool):
         args.append("--uefi")
         args.extend(["--uefi-firmware", config.uefi_firmware_path])
 
-        if config.disk_img_path or config.dvd_disk_paths:
-            args.extend(["--vmbus-scsi", f"id={OPENVMM_DEFAULT_SCSI_CONTROLLER}"])
-
-        if config.disk_img_path:
-            args.extend(
-                [
-                    "--disk",
-                    f"file:{config.disk_img_path},"
-                    f"on={OPENVMM_DEFAULT_SCSI_CONTROLLER},lun=0",
-                ]
-            )
-
-        for lun, dvd_disk_path in enumerate(config.dvd_disk_paths, start=1):
-            args.extend(
-                [
-                    "--disk",
-                    f"file:{dvd_disk_path},on={OPENVMM_DEFAULT_SCSI_CONTROLLER},"
-                    f"lun={lun},dvd",
-                ]
-            )
-
-        if config.network_mode == "user":
-            network_backend = OPENVMM_NETWORK_BACKEND_CONSOMME
-            if config.network_cidr:
-                network_backend = f"{network_backend}:{config.network_cidr}"
-            args.extend(["--net", network_backend])
-        elif config.network_mode == "tap":
-            if not config.tap_name:
-                raise LisaException("tap_name must be provided for tap networking")
-            args.extend(["--net", f"tap:{config.tap_name}"])
-        else:
-            raise LisaException(f"Unsupported network mode: {config.network_mode}")
+        self._validate_device_types(config)
+        self._add_pcie_args(args, config)
+        self._add_disk_args(args, config)
+        network_backend = self._get_network_backend(config)
+        self._add_network_args(args, config, network_backend)
 
         if config.serial_mode == "stderr":
             args.extend(["--com1", "stderr"])
@@ -152,6 +149,147 @@ class OpenVmm(Tool):
 
         args.extend(config.extra_args)
         return " ".join(shlex.quote(arg) for arg in args)
+
+    def _validate_processor_topology(self, config: OpenVmmLaunchConfig) -> None:
+        if config.vps_per_socket is not None and config.vps_per_socket < 1:
+            raise LisaException(
+                "OpenVMM vps_per_socket must be at least 1. "
+                "Set it to the number of virtual processors in each socket."
+            )
+        if config.smt and config.smt not in [
+            OPENVMM_SMT_AUTO,
+            OPENVMM_SMT_FORCE,
+            OPENVMM_SMT_OFF,
+        ]:
+            raise LisaException(
+                f"OpenVMM SMT mode '{config.smt}' is not supported. "
+                f"Use {OPENVMM_SMT_AUTO}, {OPENVMM_SMT_FORCE}, or "
+                f"{OPENVMM_SMT_OFF}."
+            )
+
+    def _validate_device_types(self, config: OpenVmmLaunchConfig) -> None:
+        if config.disk_device not in [
+            OPENVMM_DISK_DEVICE_SCSI,
+            OPENVMM_DISK_DEVICE_VIRTIO_BLK,
+        ]:
+            raise LisaException(
+                f"Unsupported OpenVMM disk device: {config.disk_device}"
+            )
+        if config.network_device not in [
+            OPENVMM_NETWORK_DEVICE_SYNTHETIC,
+            OPENVMM_NETWORK_DEVICE_VIRTIO,
+        ]:
+            raise LisaException(
+                f"Unsupported OpenVMM network device: {config.network_device}"
+            )
+        if config.network_queue_count is not None and not (
+            1 <= config.network_queue_count <= 65535
+        ):
+            raise LisaException(
+                "OpenVMM network queue count must be between 1 and 65535. "
+                "Set network.queue_count to a supported positive value."
+            )
+        if config.iommu not in [
+            OPENVMM_IOMMU_NONE,
+            OPENVMM_IOMMU_INTEL,
+            OPENVMM_IOMMU_AMD,
+        ]:
+            raise LisaException(f"Unsupported OpenVMM IOMMU: {config.iommu}")
+
+    def _add_pcie_args(self, args: List[str], config: OpenVmmLaunchConfig) -> None:
+        use_virtio_disk = bool(config.disk_img_path) and (
+            config.disk_device == OPENVMM_DISK_DEVICE_VIRTIO_BLK
+        )
+        use_virtio_network = config.network_device == OPENVMM_NETWORK_DEVICE_VIRTIO
+        if use_virtio_disk or use_virtio_network:
+            args.extend(["--pcie-root-complex", OPENVMM_VIRTIO_ROOT_COMPLEX])
+            if config.iommu != OPENVMM_IOMMU_NONE:
+                args.extend([f"--{config.iommu}", OPENVMM_VIRTIO_ROOT_COMPLEX])
+        elif config.iommu != OPENVMM_IOMMU_NONE:
+            raise LisaException(
+                "OpenVMM IOMMU requires a virtio disk or network device on PCIe"
+            )
+        if use_virtio_disk:
+            args.extend(
+                [
+                    "--pcie-root-port",
+                    f"{OPENVMM_VIRTIO_ROOT_COMPLEX}:{OPENVMM_VIRTIO_DISK_PORT}",
+                ]
+            )
+        if use_virtio_network:
+            network_root_port = (
+                f"{OPENVMM_VIRTIO_ROOT_COMPLEX}:{OPENVMM_VIRTIO_NETWORK_PORT}"
+            )
+            args.extend(
+                [
+                    "--pcie-root-port",
+                    network_root_port,
+                ]
+            )
+
+    def _add_disk_args(self, args: List[str], config: OpenVmmLaunchConfig) -> None:
+        if config.dvd_disk_paths or (
+            config.disk_img_path and config.disk_device == OPENVMM_DISK_DEVICE_SCSI
+        ):
+            args.extend(["--vmbus-scsi", f"id={OPENVMM_DEFAULT_SCSI_CONTROLLER}"])
+
+        if config.disk_img_path:
+            if config.disk_device == OPENVMM_DISK_DEVICE_SCSI:
+                args.extend(
+                    [
+                        "--disk",
+                        f"file:{config.disk_img_path},"
+                        f"on={OPENVMM_DEFAULT_SCSI_CONTROLLER},lun=0",
+                    ]
+                )
+            else:
+                args.extend(
+                    [
+                        "--virtio-blk",
+                        f"file:{config.disk_img_path},"
+                        f"pcie_port={OPENVMM_VIRTIO_DISK_PORT}",
+                    ]
+                )
+
+        for lun, dvd_disk_path in enumerate(config.dvd_disk_paths, start=1):
+            args.extend(
+                [
+                    "--disk",
+                    f"file:{dvd_disk_path},on={OPENVMM_DEFAULT_SCSI_CONTROLLER},"
+                    f"lun={lun},dvd",
+                ]
+            )
+
+    def _get_network_backend(self, config: OpenVmmLaunchConfig) -> str:
+        if config.network_mode == "user":
+            network_backend = OPENVMM_NETWORK_BACKEND_CONSOMME
+            if config.network_cidr:
+                network_backend = f"{network_backend}:{config.network_cidr}"
+        elif config.network_mode == "tap":
+            if not config.tap_name:
+                raise LisaException("tap_name must be provided for tap networking")
+            network_backend = f"tap:{config.tap_name}"
+        else:
+            raise LisaException(f"Unsupported network mode: {config.network_mode}")
+        return network_backend
+
+    def _add_network_args(
+        self,
+        args: List[str],
+        config: OpenVmmLaunchConfig,
+        network_backend: str,
+    ) -> None:
+        if config.network_queue_count is not None:
+            network_backend = f"queues={config.network_queue_count}:{network_backend}"
+        if config.network_device == OPENVMM_NETWORK_DEVICE_SYNTHETIC:
+            args.extend(["--net", network_backend])
+        else:
+            args.extend(
+                [
+                    "--virtio-net",
+                    f"pcie_port={OPENVMM_VIRTIO_NETWORK_PORT}:{network_backend}",
+                ]
+            )
 
     def launch_vm(
         self,

@@ -71,10 +71,8 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu') && matrix.additional-sys-deps
 
       - name: Install Nox
-        # argcomplete >= 3.6 uses Python 3.10 union-type syntax. Keep the
-        # nox CLI importable on the Python 3.9 matrix jobs while allowing
-        # newer jobs to use the unconstrained latest version.
-        run: python -m pip install nox toml "argcomplete<3.6; python_version < '3.10'"
+        # argcomplete 3.7.1 evaluates PEP 604 unions at import time on Python 3.9.
+        run: python -m pip install nox toml "argcomplete!=3.7.1; python_version < '3.10'"
         if: matrix.nox-session
 
       - name: Run Nox
