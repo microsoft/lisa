@@ -27,6 +27,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import Environment
+from lisa.features import SerialConsole
 from lisa.node import RemoteNode
 from lisa.tools import (
     Ethtool,
@@ -89,6 +90,7 @@ class CPUSuite(TestSuite):
             """,
         priority=4,
         requirement=simple_requirement(
+            supported_features=[SerialConsole],
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=20),
@@ -134,6 +136,15 @@ class CPUSuite(TestSuite):
                 "Storage workload was not running during CPUhotplug",
             ).is_true()
         finally:
+            # Capture serial console log out-of-band. When the VM hangs during
+            # CPU hotplug, SSH is unresponsive but the serial console still
+            # records kernel hung-task/panic traces needed for diagnosis.
+            try:
+                node.features[SerialConsole].get_console_log(
+                    saved_path=node.local_log_path, force_run=True
+                )
+            except Exception as e:
+                log.debug(f"failed to capture serial console log: {e}")
             # kill fio process
             node.tools[Kill].by_name("fio", ignore_not_exist=True)
 
