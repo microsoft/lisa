@@ -4,6 +4,7 @@ from typing import Any, List, Optional
 
 from dataclasses_json import dataclass_json
 
+from lisa import schema
 from lisa.sut_orchestrator.util.schema import (
     CloudInitSchema,
     DevicePassthroughSchema,
@@ -150,3 +151,23 @@ class CloudHypervisorNodeSchema(BaseLibvirtNodeSchema):
     kernel: Optional[KernelSchema] = None
     # Optional extra kernel boot parameters for the guest.
     kernel_boot_parameters: str = ""
+    # Defaults to the guest vCPU count when omitted.
+    network_queue_count: Optional[int] = field(
+        default=None,
+        metadata=schema.field_metadata(
+            field_function=schema.fields.Int,
+            validate=schema.validate.Range(min=1),
+            allow_none=True,
+        ),
+    )
+    # Defaults to the guest vCPU count when omitted.
+    disk_queue_count: Optional[int] = field(
+        default=None,
+        metadata=schema.field_metadata(
+            field_function=schema.fields.Int,
+            validate=schema.validate.Range(min=1),
+            allow_none=True,
+        ),
+    )
+    # Preserve the existing virtio NIC IOMMU behavior when omitted.
+    enable_iommu: bool = True
