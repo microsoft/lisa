@@ -142,6 +142,17 @@ class Reboot(Tool):
             wait_seconds = 60 - current_delta.seconds + 1
             self._log.debug(f"waiting {wait_seconds} seconds before rebooting")
             sleep(wait_seconds)
+
+            self.node.close()
+            current_boot_time = self._get_last_boot_time()
+            if last_boot_time < current_boot_time:
+                remaining_stability_wait = max(
+                    0, time_out - int(timer.elapsed(False))
+                )
+                if remaining_stability_wait > 0:
+                    self._wait_ssh_session_stable(remaining_stability_wait)
+                return
+
             current_delta = date.current().replace(tzinfo=None) - current_boot_time
 
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
