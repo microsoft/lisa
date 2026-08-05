@@ -41,6 +41,7 @@ from .context import (
     DeviceAddressSchema,
     DevicePassthroughContext,
     NodeContext,
+    SharedTapNetworkContext,
     get_host_context,
     get_node_context,
 )
@@ -168,6 +169,28 @@ def _shift_ip_address(address: str, base_cidr: str, index: int) -> str:
         )
 
     return str(ipaddress.ip_address(new_address))
+
+
+def _increment_ip_address(address: str, cidr: str, index: int) -> str:
+    if not address or not cidr or index == 0:
+        return address
+
+    host_interface = ipaddress.ip_interface(cidr)
+    network = host_interface.network
+    new_address = ipaddress.ip_address(int(ipaddress.ip_address(address)) + index)
+    if (
+        new_address not in network
+        or new_address == network.network_address
+        or new_address == network.broadcast_address
+        or new_address == host_interface.ip
+    ):
+        raise LisaException(
+            f"cannot derive a shared OpenVMM guest address from '{address}' "
+            f"for guest index {index} within '{cidr}'. Use a lower base guest "
+            "address or a larger shared subnet."
+        )
+
+    return str(new_address)
 
 
 class GuestIpResolver(ABC):
@@ -380,6 +403,30 @@ class OpenVmmController:
         effective_network.tap_name = _increment_name_suffix(
             effective_network.tap_name, guest_index
         )
+        if effective_network.shared_subnet:
+            try:
+                effective_network.validate_tap_interface_names()
+            except LisaException as identifier:
+                raise LisaException(
+                    "cannot derive OpenVMM tap network interface names for guest "
+                    f"index {guest_index}: {identifier}"
+                ) from identifier
+            if effective_network.address_mode == OPENVMM_ADDRESS_MODE_STATIC:
+                effective_network.guest_address = _increment_ip_address(
+                    effective_network.guest_address,
+                    effective_network.tap_host_cidr,
+                    guest_index,
+                )
+            if effective_network.forward_ssh_port:
+                effective_network.forwarded_port += guest_index
+                if effective_network.forwarded_port > 65535:
+                    raise LisaException(
+                        "cannot derive OpenVMM forwarded SSH port from "
+                        f"'{network.forwarded_port}' for guest index {guest_index}: "
+                        "derived port exceeds 65535. Use a lower base forwarded_port."
+                    )
+            return effective_network
+
         effective_network.bridge_name = _increment_name_suffix(
             effective_network.bridge_name, guest_index
         )
@@ -695,17 +742,28 @@ class OpenVmmController:
         node_context = get_node_context(node)
         network = self._get_node_network(node, node_context)
         self._prepare_tap_network(network, node_context)
+        processor_count = _countspace_to_int(node.capability.core_count)
         launch_config = OpenVmmLaunchConfig(
             uefi_firmware_path=node_context.uefi_firmware_path,
             disk_img_path=node_context.disk_img_path,
+            disk_device=runbook.disk_device,
+            iommu=runbook.iommu,
             dvd_disk_paths=(
                 [node_context.cloud_init_file_path]
                 if node_context.cloud_init_file_path
                 else []
             ),
-            processors=_countspace_to_int(node.capability.core_count),
+            processors=processor_count,
+            vps_per_socket=(
+                runbook.vps_per_socket
+                if runbook.vps_per_socket is not None
+                else processor_count
+            ),
+            smt=runbook.smt,
             memory_mb=_countspace_to_int(node.capability.memory_mb),
             network_mode=network.mode,
+            network_device=network.device,
+            network_queue_count=network.queue_count,
             tap_name=getattr(network, "tap_name", ""),
             network_cidr=network.consomme_cidr,
             serial_mode=runbook.serial.mode,
@@ -833,6 +891,59 @@ class OpenVmmController:
         if network.mode != OPENVMM_NETWORK_MODE_TAP:
             return
 
+        if network.shared_subnet:
+            host_context = get_host_context(self.host_node)
+            network_key = network.bridge_name
+            with host_context.tap_network_lock:
+                shared_context = host_context.shared_tap_networks.get(network_key)
+                if shared_context is None:
+                    shared_context = SharedTapNetworkContext(
+                        tap_host_cidr=network.tap_host_cidr,
+                        address_mode=network.address_mode,
+                    )
+                    host_context.shared_tap_networks[network_key] = shared_context
+                elif (
+                    shared_context.tap_host_cidr != network.tap_host_cidr
+                    or shared_context.address_mode != network.address_mode
+                ):
+                    raise LisaException(
+                        f"OpenVMM shared bridge '{network_key}' is already using "
+                        f"CIDR '{shared_context.tap_host_cidr}' and address mode "
+                        f"'{shared_context.address_mode}'. Use matching shared "
+                        "network settings for every guest on this bridge."
+                    )
+
+                reuse_shared_resources = shared_context.reference_count > 0
+                shared_context.reference_count += 1
+                node_context.shared_tap_network_key = network_key
+                try:
+                    self._prepare_tap_network_resources(
+                        network,
+                        node_context,
+                        shared_context,
+                        reuse_shared_resources,
+                    )
+                except Exception:
+                    try:
+                        self._teardown_tap_network(node_context, network)
+                    except Exception as cleanup_identifier:
+                        self._log.warning(
+                            "failed to roll back OpenVMM shared TAP network "
+                            f"'{network_key}' after setup failed: "
+                            f"{cleanup_identifier}"
+                        )
+                    raise
+            return
+
+        self._prepare_tap_network_resources(network, node_context)
+
+    def _prepare_tap_network_resources(
+        self,
+        network: OpenVmmNetworkSchema,
+        node_context: NodeContext,
+        shared_context: Optional[SharedTapNetworkContext] = None,
+        reuse_shared_resources: bool = False,
+    ) -> None:
         tap_name = network.tap_name
         bridge_name = network.bridge_name
         host = self.host_node
@@ -845,7 +956,10 @@ class OpenVmmController:
 
             if not ip_tool.nic_exists(bridge_name):
                 ip_tool.create_virtual_interface(bridge_name, "bridge")
-                node_context.tap_bridge_created = True
+                if shared_context:
+                    shared_context.bridge_created = True
+                else:
+                    node_context.tap_bridge_created = True
             host.execute(
                 f"ip link set dev {shlex.quote(bridge_name)} type bridge stp_state 0",
                 shell=True,
@@ -948,41 +1062,52 @@ class OpenVmmController:
         ip_tool.up(tap_name)
 
         if network.address_mode != OPENVMM_ADDRESS_MODE_STATIC:
-            self._ensure_tap_host_services_input_allowed(
-                host_interface_name, node_context
-            )
-            pid_file = f"/var/run/qemu-dnsmasq-{host_interface_name}.pid"
-            lease_file = f"/var/run/qemu-dnsmasq-{host_interface_name}.leases"
-            host.execute(
-                (
-                    f"test -f {shlex.quote(pid_file)} && "
-                    f"kill $(cat {shlex.quote(pid_file)}) || true; "
-                    f"rm -f {shlex.quote(pid_file)}; "
-                    f"cp /dev/null {shlex.quote(lease_file)}"
-                ),
-                shell=True,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "failed to reset OpenVMM dnsmasq state before starting "
-                    f"DHCP on interface {host_interface_name}"
-                ),
-            )
-            host.tools[Dnsmasq].start(
-                host_interface_name,
-                tap_gateway,
-                dhcp_range,
-                stop_firewall=False,
-                kill_existing=False,
-                pid_file=pid_file,
-                lease_file=lease_file,
-                dhcp_options=[
-                    f"option:router,{tap_gateway}",
-                    f"option:dns-server,{tap_gateway}",
-                ],
-            )
-            node_context.tap_dnsmasq_pid_file = pid_file
-            node_context.tap_dnsmasq_lease_file = lease_file
+            if shared_context and reuse_shared_resources:
+                node_context.tap_dnsmasq_pid_file = shared_context.dnsmasq_pid_file
+                node_context.tap_dnsmasq_lease_file = shared_context.dnsmasq_lease_file
+            else:
+                self._ensure_tap_host_services_input_allowed(
+                    host_interface_name, node_context
+                )
+                pid_file = f"/var/run/qemu-dnsmasq-{host_interface_name}.pid"
+                lease_file = f"/var/run/qemu-dnsmasq-{host_interface_name}.leases"
+                host.execute(
+                    (
+                        f"test -f {shlex.quote(pid_file)} && "
+                        f"kill $(cat {shlex.quote(pid_file)}) || true; "
+                        f"rm -f {shlex.quote(pid_file)}; "
+                        f"cp /dev/null {shlex.quote(lease_file)}"
+                    ),
+                    shell=True,
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "failed to reset OpenVMM dnsmasq state before starting "
+                        f"DHCP on interface {host_interface_name}"
+                    ),
+                )
+                host.tools[Dnsmasq].start(
+                    host_interface_name,
+                    tap_gateway,
+                    dhcp_range,
+                    stop_firewall=False,
+                    kill_existing=False,
+                    pid_file=pid_file,
+                    lease_file=lease_file,
+                    dhcp_options=[
+                        f"option:router,{tap_gateway}",
+                        f"option:dns-server,{tap_gateway}",
+                    ],
+                )
+                node_context.tap_dnsmasq_pid_file = pid_file
+                node_context.tap_dnsmasq_lease_file = lease_file
+                if shared_context:
+                    shared_context.dnsmasq_pid_file = pid_file
+                    shared_context.dnsmasq_lease_file = lease_file
+                    shared_context.input_rules_added.extend(
+                        node_context.tap_input_rules_added
+                    )
+                    node_context.tap_input_rules_added.clear()
 
         self._log_tap_network_state(network, node_context)
         if node_context.tap_dnsmasq_pid_file:
@@ -991,61 +1116,62 @@ class OpenVmmController:
     def _disable_bridge_netfilter(self, node_context: NodeContext) -> None:
         host = self.host_node
         host_context = get_host_context(host)
-        modprobe = host.tools[Modprobe]
-        if modprobe.module_exists("br_netfilter") and not modprobe.is_module_loaded(
-            "br_netfilter", force_run=True
-        ):
-            modprobe.load("br_netfilter")
+        with host_context.bridge_netfilter_lock:
+            modprobe = host.tools[Modprobe]
+            if modprobe.module_exists("br_netfilter") and not modprobe.is_module_loaded(
+                "br_netfilter", force_run=True
+            ):
+                modprobe.load("br_netfilter")
 
-        if host_context.active_bridge_netfilter_count > 0:
-            host_context.active_bridge_netfilter_count += 1
+            if host_context.active_bridge_netfilter_count > 0:
+                host_context.active_bridge_netfilter_count += 1
+                node_context.tap_bridge_netfilter_disabled = True
+                return
+
+            original_values = {}
+            for key in OPENVMM_BRIDGE_NETFILTER_KEYS:
+                value_result = host.execute(
+                    f"sysctl -n {shlex.quote(key)}",
+                    shell=True,
+                    sudo=True,
+                    no_info_log=True,
+                    no_error_log=True,
+                    expected_exit_code=None,
+                )
+                if value_result.exit_code == 0:
+                    original_values[key] = value_result.stdout.strip()
+
+            if not original_values:
+                return
+
+            host_context.original_bridge_netfilter_values = original_values
+            host_context.active_bridge_netfilter_count = 1
             node_context.tap_bridge_netfilter_disabled = True
-            return
-
-        original_values = {}
-        for key in OPENVMM_BRIDGE_NETFILTER_KEYS:
-            value_result = host.execute(
-                f"sysctl -n {shlex.quote(key)}",
-                shell=True,
-                sudo=True,
-                no_info_log=True,
-                no_error_log=True,
-                expected_exit_code=None,
-            )
-            if value_result.exit_code == 0:
-                original_values[key] = value_result.stdout.strip()
-
-        if not original_values:
-            return
-
-        host_context.original_bridge_netfilter_values = original_values
-        host_context.active_bridge_netfilter_count = 1
-        node_context.tap_bridge_netfilter_disabled = True
-        try:
-            self._set_bridge_netfilter_values(
-                {key: "0" for key in original_values},
-                failure_message=(
-                    "failed to disable bridge netfilter on the OpenVMM host"
-                ),
-            )
-        except Exception:
             try:
                 self._set_bridge_netfilter_values(
-                    original_values,
+                    {key: "0" for key in original_values},
                     failure_message=(
-                        "failed to roll back bridge netfilter after an OpenVMM "
-                        "setup error"
+                        "failed to disable bridge netfilter on the OpenVMM host"
                     ),
                 )
-            except Exception as cleanup_identifier:
-                self._log.debug(
-                    "failed to roll back bridge netfilter after setup error: "
-                    f"{cleanup_identifier}"
-                )
-            host_context.original_bridge_netfilter_values = {}
-            host_context.active_bridge_netfilter_count = 0
-            node_context.tap_bridge_netfilter_disabled = False
-            raise
+            except Exception:
+                try:
+                    self._set_bridge_netfilter_values(
+                        original_values,
+                        failure_message=(
+                            "failed to roll back bridge netfilter after an "
+                            "OpenVMM setup error"
+                        ),
+                    )
+                except Exception as cleanup_identifier:
+                    self._log.debug(
+                        "failed to roll back bridge netfilter after setup error: "
+                        f"{cleanup_identifier}"
+                    )
+                host_context.original_bridge_netfilter_values = {}
+                host_context.active_bridge_netfilter_count = 0
+                node_context.tap_bridge_netfilter_disabled = False
+                raise
 
     def _set_bridge_netfilter_values(
         self,
@@ -1118,6 +1244,26 @@ class OpenVmmController:
 
     def _get_tap_network_config(self, network: OpenVmmNetworkSchema) -> tuple[str, str]:
         host_interface = ipaddress.ip_interface(network.tap_host_cidr)
+        if network.shared_subnet:
+            first_address = int(host_interface.network.network_address) + 1
+            last_address = int(host_interface.network.broadcast_address) - 1
+            gateway = int(host_interface.ip)
+            if first_address == gateway:
+                first_address += 1
+            elif last_address == gateway:
+                last_address -= 1
+            elif first_address < gateway < last_address:
+                first_address = gateway + 1
+            if first_address > last_address:
+                raise LisaException(
+                    f"OpenVMM shared subnet '{network.tap_host_cidr}' has no "
+                    "address available for a guest. Use a larger subnet."
+                )
+            return str(host_interface.ip), (
+                f"{ipaddress.ip_address(first_address)},"
+                f"{ipaddress.ip_address(last_address)}"
+            )
+
         guest_ip = network.guest_address
         if not guest_ip:
             for address in host_interface.network.hosts():
@@ -1266,6 +1412,9 @@ class OpenVmmController:
         network: OpenVmmNetworkSchema,
         log: Logger,
     ) -> str:
+        if network.shared_subnet:
+            return self._wait_for_shared_tap_lease(node_context, network, log)
+
         _, dhcp_range = self._get_tap_network_config(network)
         guest_address = dhcp_range.split(",", maxsplit=1)[0].strip()
         if not guest_address:
@@ -1274,6 +1423,91 @@ class OpenVmmController:
                 f"'{network.tap_host_cidr}'"
             )
         self._wait_for_tap_lease(node_context, guest_address, log, network)
+        return guest_address
+
+    def _wait_for_shared_tap_lease(
+        self,
+        node_context: NodeContext,
+        network: OpenVmmNetworkSchema,
+        log: Logger,
+        timeout: int = OPENVMM_IP_DISCOVERY_TIMEOUT,
+    ) -> str:
+        lease_file = node_context.tap_dnsmasq_lease_file
+        if not lease_file:
+            raise LisaException(
+                "OpenVMM shared TAP DHCP lease tracking is not configured. "
+                "dnsmasq lease file path was not recorded."
+            )
+
+        guest_address = ""
+
+        def _lease_is_ready() -> bool:
+            nonlocal guest_address
+            lease_result = self.host_node.execute(
+                (
+                    f"test -f {shlex.quote(lease_file)} && "
+                    f"cat {shlex.quote(lease_file)} || true"
+                ),
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=0,
+            )
+            fdb_result = self.host_node.execute(
+                f"bridge fdb show dev {shlex.quote(network.tap_name)}",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to inspect the OpenVMM shared bridge forwarding "
+                    f"database for TAP interface {network.tap_name}"
+                ),
+            )
+            tap_mac_addresses = {
+                line.split()[0].lower()
+                for line in fdb_result.stdout.splitlines()
+                if line.split()
+            }
+            for lease_line in lease_result.stdout.splitlines():
+                lease_fields = lease_line.split()
+                if (
+                    len(lease_fields) >= 3
+                    and lease_fields[1].lower() in tap_mac_addresses
+                ):
+                    guest_address = lease_fields[2]
+                    log.debug(
+                        "matched OpenVMM shared TAP interface "
+                        f"'{network.tap_name}' to DHCP lease "
+                        f"'{guest_address}' in {lease_file}"
+                    )
+                    return True
+            if not self._is_process_running(node_context.process_id):
+                raise LisaException(
+                    "OpenVMM process exited before the guest acquired a DHCP "
+                    f"lease on shared TAP interface '{network.tap_name}'. "
+                    f"{self._get_openvmm_failure_context(node_context, network)}"
+                )
+            return False
+
+        try:
+            check_till_timeout(
+                _lease_is_ready,
+                timeout_message=(
+                    "wait for OpenVMM guest DHCP lease on shared TAP interface "
+                    f"'{network.tap_name}'"
+                ),
+                timeout=timeout,
+            )
+        except LisaTimeoutException as identifier:
+            raise LisaException(
+                "OpenVMM guest did not acquire a DHCP lease on shared TAP "
+                f"interface '{network.tap_name}'. "
+                f"{self._get_openvmm_failure_context(node_context, network)}"
+            ) from identifier
+
         return guest_address
 
     def _wait_for_tap_lease(
@@ -1904,6 +2138,8 @@ class OpenVmmController:
         if network.mode != OPENVMM_NETWORK_MODE_TAP:
             return
 
+        shared_network_key = node_context.shared_tap_network_key
+
         if node_context.tap_input_rules_added:
             rules_to_remove = node_context.tap_input_rules_added
             for rule in rules_to_remove:
@@ -1915,7 +2151,7 @@ class OpenVmmController:
                 )
             node_context.tap_input_rules_added.clear()
 
-        if node_context.tap_dnsmasq_pid_file:
+        if not shared_network_key and node_context.tap_dnsmasq_pid_file:
             self.host_node.execute(
                 (
                     f"test -f {shlex.quote(node_context.tap_dnsmasq_pid_file)} && "
@@ -1938,7 +2174,9 @@ class OpenVmmController:
             )
             node_context.tap_created = False
 
-        if node_context.tap_bridge_created and network.bridge_name:
+        if shared_network_key:
+            self._release_shared_tap_network(node_context, shared_network_key)
+        elif node_context.tap_bridge_created and network.bridge_name:
             self.host_node.execute(
                 f"ip link delete {shlex.quote(network.bridge_name)} || true",
                 shell=True,
@@ -1949,23 +2187,67 @@ class OpenVmmController:
 
         if node_context.tap_bridge_netfilter_disabled:
             host_context = get_host_context(self.host_node)
-            if host_context.active_bridge_netfilter_count > 0:
-                host_context.active_bridge_netfilter_count -= 1
+            with host_context.bridge_netfilter_lock:
+                if host_context.active_bridge_netfilter_count > 0:
+                    host_context.active_bridge_netfilter_count -= 1
 
-            if (
-                host_context.active_bridge_netfilter_count == 0
-                and host_context.original_bridge_netfilter_values
-            ):
-                self._set_bridge_netfilter_values(
-                    host_context.original_bridge_netfilter_values,
-                    failure_message=(
-                        "failed to restore bridge netfilter state on the "
-                        "OpenVMM host"
-                    ),
+                if (
+                    host_context.active_bridge_netfilter_count == 0
+                    and host_context.original_bridge_netfilter_values
+                ):
+                    self._set_bridge_netfilter_values(
+                        host_context.original_bridge_netfilter_values,
+                        failure_message=(
+                            "failed to restore bridge netfilter state on the "
+                            "OpenVMM host"
+                        ),
+                    )
+                    host_context.original_bridge_netfilter_values = {}
+
+                node_context.tap_bridge_netfilter_disabled = False
+
+    def _release_shared_tap_network(
+        self, node_context: NodeContext, network_key: str
+    ) -> None:
+        host_context = get_host_context(self.host_node)
+        with host_context.tap_network_lock:
+            shared_context = host_context.shared_tap_networks.get(network_key)
+            node_context.shared_tap_network_key = ""
+            node_context.tap_dnsmasq_pid_file = ""
+            node_context.tap_dnsmasq_lease_file = ""
+            if shared_context is None:
+                return
+
+            shared_context.reference_count -= 1
+            if shared_context.reference_count > 0:
+                return
+
+            for rule in shared_context.input_rules_added:
+                self.host_node.execute(
+                    f"iptables -D {rule} || true",
+                    shell=True,
+                    sudo=True,
+                    expected_exit_code=0,
                 )
-                host_context.original_bridge_netfilter_values = {}
-
-            node_context.tap_bridge_netfilter_disabled = False
+            if shared_context.dnsmasq_pid_file:
+                self.host_node.execute(
+                    (
+                        f"test -f {shlex.quote(shared_context.dnsmasq_pid_file)} "
+                        "&& kill $(cat "
+                        f"{shlex.quote(shared_context.dnsmasq_pid_file)}) || true"
+                    ),
+                    shell=True,
+                    sudo=True,
+                    expected_exit_code=0,
+                )
+            if shared_context.bridge_created:
+                self.host_node.execute(
+                    f"ip link delete {shlex.quote(network_key)} || true",
+                    shell=True,
+                    sudo=True,
+                    expected_exit_code=0,
+                )
+            del host_context.shared_tap_networks[network_key]
 
 
 class OpenVmmGuestNode(RemoteNode):

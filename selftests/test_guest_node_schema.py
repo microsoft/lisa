@@ -4,6 +4,7 @@
 from typing import Any, cast
 from unittest import TestCase
 
+import lisa.sut_orchestrator.openvmm.node  # noqa: F401
 from lisa import constants, schema
 from lisa.sut_orchestrator.openvmm.schema import (
     OpenVmmGuestNodeSchema,

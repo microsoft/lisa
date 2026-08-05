@@ -42,6 +42,17 @@ class DevicePassthroughContext:
 
 
 @dataclass
+class SharedTapNetworkContext:
+    tap_host_cidr: str = ""
+    address_mode: str = ""
+    reference_count: int = 0
+    bridge_created: bool = False
+    dnsmasq_pid_file: str = ""
+    dnsmasq_lease_file: str = ""
+    input_rules_added: List[str] = field(default_factory=_new_str_list)
+
+
+@dataclass
 class NodeContext:
     vm_name: str = ""
     host: Optional[Node] = None
@@ -67,6 +78,7 @@ class NodeContext:
     tap_input_rules_added: List[str] = field(default_factory=_new_str_list)
     tap_dnsmasq_pid_file: str = ""
     tap_dnsmasq_lease_file: str = ""
+    shared_tap_network_key: str = ""
     effective_network: Optional[OpenVmmNetworkSchema] = None
     process_id: str = ""
     command_line: str = ""
@@ -81,12 +93,17 @@ class OpenVmmHostContext:
         default_factory=_new_str_dict
     )
     active_bridge_netfilter_count: int = 0
+    bridge_netfilter_lock: RLock = field(default_factory=RLock)
     ssh_forwarding_lock: RLock = field(default_factory=RLock)
     artifact_copy_lock: Lock = field(default_factory=Lock)
     artifact_cache: Dict[str, str] = field(default_factory=_new_str_dict)
     device_pool_lock: Lock = field(default_factory=Lock)
     device_pool: Optional[Any] = None
     device_pool_config_key: str = ""
+    tap_network_lock: RLock = field(default_factory=RLock)
+    shared_tap_networks: Dict[str, SharedTapNetworkContext] = field(
+        default_factory=dict
+    )
 
 
 def get_node_context(node: Node) -> NodeContext:
