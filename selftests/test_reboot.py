@@ -76,9 +76,11 @@ class RebootTestCase(TestCase):
             self.reboot,
             "_get_last_boot_time",
             side_effect=[self.boot_time, refreshed_boot_time],
-        ), patch.object(
-            self.reboot, "_wait_ssh_session_stable"
-        ) as wait_ssh_session_stable, patch("lisa.tools.reboot.sleep"):
+        ), patch.object(self.reboot, "_wait_ssh_session_stable") as (
+            wait_ssh_session_stable
+        ), patch(
+            "lisa.tools.reboot.sleep"
+        ):
             self.reboot.reboot()
 
         self.reboot.node.close.assert_called_once_with()
