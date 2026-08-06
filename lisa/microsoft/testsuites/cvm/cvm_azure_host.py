@@ -17,7 +17,7 @@ from lisa import (
 from lisa.operating_system import CBLMariner
 from lisa.sut_orchestrator.azure import features
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import Cat, Dmesg
+from lisa.tools import Dmesg, Ls
 from lisa.util import LisaException, SkippedException, get_matched_str
 
 
@@ -31,7 +31,9 @@ from lisa.util import LisaException, SkippedException, get_matched_str
     requirement=simple_requirement(supported_os=[CBLMariner]),
 )
 class CVMAzureHostTestSuite(TestSuite):
-    __sev_enabled_pattern = re.compile(r"mshv: SEV-SNP is supported")
+    __sev_enabled_pattern = re.compile(
+        r"mshv: (?:SEV-SNP is supported|SEV-SNP support status: available \(1\))"
+    )
     __sev_partition_pattern = re.compile(
         r"mshv: Maximum supported SEV-SNP partitions are: (\d+)"
     )
@@ -93,10 +95,4 @@ class CVMAzureHostTestSuite(TestSuite):
 
 
 def is_mariner_dom0(node: Node) -> bool:
-    cat = node.tools[Cat]
-    hosts = cat.read("/etc/hosts")
-    pattern = r"dom0-\d+-\d+-\d+-\w+-\d+"
-    matches = re.findall(pattern, hosts)
-    if matches:
-        return True
-    return False
+    return node.tools[Ls].path_exists("/dev/mshv", sudo=True)
