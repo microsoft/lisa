@@ -639,6 +639,8 @@ class DpdkTestpmd(Tool):
         # add debug logging args, EAL ones are very verbose
         # but netvsc are useful for identifying hotplugs on azure
         debug_logging=[]
+        # omitting eal even though it's good for debugging some issues.
+        # it's extremely verbose.
         for lib in [
             "mlx5",
             "mana",
@@ -647,7 +649,6 @@ class DpdkTestpmd(Tool):
             "vmbus",
             "mbuf",
             "ring",
-            "eal",
             "app",
             "ethdev",
         ]:

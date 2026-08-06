@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
@@ -24,6 +24,8 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     generate_send_receive_run_info,
     init_nodes_concurrent,
     initialize_node_resources,
+    reset_environment_netvsc_binding,
+    reset_node_netvsc_bindings,
     run_dpdk_symmetric_mp,
     run_testpmd_hotplug,
     verify_dpdk_build,
@@ -50,6 +52,7 @@ from lisa import (
     search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
+from lisa.nic import NicInfo
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lscpu, Lsmod, Make, Modprobe
@@ -498,13 +501,21 @@ class Dpdk(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
         pmd: Pmd = Pmd.FAILSAFE,
+        stress:bool=False,
     ) -> None:
+        reset_environment_netvsc_binding(environment,log)
+        nic_pairs : Dict[Node,List[NicInfo]] = {}
+        for node in environment.nodes.list():
+            nic_pairs[node] = [ node.nics.get_nic_by_subnet("10.0.1.0/24") ]
+
+
         test_kits = init_nodes_concurrent(
             environment,
             log,
             variables,
             pmd,
             HugePageSize.HUGE_2MB,
+            specific_pairings=nic_pairs
         )
 
         try:
@@ -519,13 +530,22 @@ class Dpdk(TestSuite):
         sender.switch_sriov = False
 
         # use multiple queues on receiver only to avoid
-        # losing the connection when AN is disabled on it.
+        # losing the connection when AN is disabled on it....
+        # unless we really want to stress things.
+        if stress:
+            extra_args=""
+            mq_args=True
+        else:
+            extra_args = ("--burst=5", "")
+            mq_args=(False, True)
+
+        # generate the run info
         kit_cmd_pairs = generate_send_receive_run_info(
             pmd,
             sender,
             receiver,
-            multiple_queues=(False, True),
-            extra_args=("--burst=5", ""),
+            multiple_queues=mq_args,
+            extra_args=extra_args,
             stats_period=5,
         )
         run_testpmd_hotplug(
@@ -544,14 +564,15 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
         pmd: Pmd = Pmd.FAILSAFE,
     ) -> None:
+        reset_node_netvsc_bindings(node)
+        test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
         try:
             test_kit = initialize_node_resources(
-                node, log, variables, pmd, HugePageSize.HUGE_2MB
+                node, log, variables, pmd, HugePageSize.HUGE_2MB, test_nics=[test_nic]
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
         testpmd = test_kit.testpmd
-        test_nic = node.nics.get_secondary_nic()
         testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd)
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
