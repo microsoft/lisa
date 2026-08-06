@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from assertpy import assert_that
 from retry import retry
@@ -324,29 +324,47 @@ class Nics(InitializableMixin):
                 return nic
         raise LisaException(f"Could not find a nic for requested subnet: {subnet}")
 
-    def unbind(self, nic: NicInfo) -> None:
-        # unbind nic from current driver and return the old sysfs path
+    def unbind(
+        self,
+        nic: "Union[NicInfo, str]",
+        driver_module_path: str = "",
+    ) -> None:
         tee = self._node.tools[Tee]
         ip = self._node.tools[Ip]
-        # if sysfs path is not set, fetch the current driver
-        if not nic.driver_sysfs_path:
-            self.get_nic_driver(nic.name)
-        # if the device is active, set to down before unbind
-        if ip.nic_exists(nic.name):
-            ip.down(nic.name)
-        unbind_path = nic.driver_sysfs_path.joinpath("unbind")
-        tee.write_to_file(nic.dev_uuid, unbind_path, sudo=True)
+        if isinstance(nic, str):
+            dev_uuid = nic
+            driver_sysfs_path = PurePosixPath(driver_module_path)
+        else:
+            # if sysfs path is not set, fetch the current driver
+            if not nic.driver_sysfs_path:
+                self.get_nic_driver(nic.name)
+            dev_uuid = nic.dev_uuid
+            driver_sysfs_path = nic.driver_sysfs_path
+            # if the device is active, set to down before unbind
+            if ip.nic_exists(nic.name):
+                ip.down(nic.name)
+        unbind_path = driver_sysfs_path.joinpath("unbind")
+        tee.write_to_file(dev_uuid, unbind_path, sudo=True)
 
-    def bind(self, nic: NicInfo, driver_module_path: str) -> None:
+    def bind(
+        self,
+        nic: "Union[NicInfo, str]",
+        driver_module_path: str,
+    ) -> None:
         tee = self._node.tools[Tee]
-        nic.driver_sysfs_path = PurePosixPath(driver_module_path)
-        bind_path = nic.driver_sysfs_path.joinpath("bind")
+        driver_sysfs_path = PurePosixPath(driver_module_path)
+        bind_path = driver_sysfs_path.joinpath("bind")
+        if isinstance(nic, str):
+            dev_uuid = nic
+        else:
+            dev_uuid = nic.dev_uuid
+            nic.driver_sysfs_path = driver_sysfs_path
+            nic.module_name = driver_sysfs_path.name
         tee.write_to_file(
-            nic.dev_uuid,
+            dev_uuid,
             self._node.get_pure_path(f"{str(bind_path)}"),
             sudo=True,
         )
-        nic.module_name = nic.driver_sysfs_path.name
 
     def load_nics_info(self, nic_name: Optional[str] = None) -> None:
         ip = self._node.tools[Ip]
