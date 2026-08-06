@@ -229,11 +229,11 @@ def get_vf_pci_slots(node: Node, nics: Optional[List[NicInfo]] = None) -> List[s
     """
     if nics is None:
         nics = list(node.nics.nics.values())
-    slots = [nic.pci_slot for nic in nics if nic.pci_slot]
+    slots = set([nic.pci_slot for nic in nics if nic.pci_slot])
     assert_that(slots).described_as(
         f"Node[{node.name}] has no VF pci devices to hotplug."
     ).is_not_empty()
-    return slots
+    return list(slots)
 
 
 def remove_pci_devices(node: Node, pci_slots: List[str]) -> None:
@@ -242,7 +242,7 @@ def remove_pci_devices(node: Node, pci_slots: List[str]) -> None:
     echo 1 | sudo tee /sys/bus/pci/devices/$slot/remove
     """
     tee = node.tools[Tee]
-    for slot in pci_slots:
+    for slot in set(pci_slots):
         node.log.debug(f"Removing pci device {slot}")
         tee.write_to_file(
             "1",
@@ -1614,7 +1614,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         queue_count=queue_count,
         port_mask=port_mask,
     )
-
+    listener = UeventListener(forwarder)
+    listener.start()
     # START THE TEST
     # finally, start the forwarder
     fwd_proc = forwarder.execute_async(
@@ -1657,14 +1658,28 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             forwarder, [subnet_a_nics[forwarder], subnet_b_nics[forwarder]]
         )
         remove_pci_devices(forwarder, fwd_vf_slots)
-        fwd_proc.wait_output(
-            "HN_DRIVER: hn_nvs_set_datapath(): set datapath Synthetic",
+
+        # wait for uevent listener to see each VF pci device go away
+        listener.wait_for_events(
+            [
+                UeventListener.device_criteria(slot, _PCI_REMOVE_TAG)
+                for slot in fwd_vf_slots
+            ],
+            timeout=60,
         )
+
+        # let it run on synthetic path before restoring the VF
+        sleep(10)
+
         rescan_pci_bus(forwarder)
-        fwd_proc.wait_output(
-            "HN_DRIVER: hn_nvs_set_datapath(): set datapath VF",
-            delta_only=True,
+        # wait for uevent listener to see each VF pci device come back.
+        # The VF may be paired with a different netdev after the rescan,
+        # seeing the same pci device added back is enough.
+        listener.wait_for_events(
+            [UeventListener.device_criteria(slot, _PCI_ADD_TAG) for slot in fwd_vf_slots],
+            timeout=60,
         )
+        
         _receiver_after = ntttcp[receiver].run_as_server_async(
             subnet_b_nics[receiver].name,
             run_time_seconds=ntttcp_run_time,
