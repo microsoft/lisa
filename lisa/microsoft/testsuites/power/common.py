@@ -137,12 +137,12 @@ def _perform_hibernation_cycle(
     Returns (boot_time_before, boot_time_after) for verification.
     """
 
-    # This is a temporary workaround for a bug observed in Redhat Distros
-    # where the VM is not able to hibernate immediately after installing
-    # the hibernation-setup tool.
+    # The hibernation-setup tool writes resume=/resume_offset= to the
+    # bootloader, which only take effect after a reboot; without it the VM
+    # accepts the hibernate uevent but never suspends (seen on Debian 13).
     # A sleep(100) also works, but we are unsure of the exact time required.
     # So it is safer to reboot the VM.
-    if type(node.os) in (Redhat, AlmaLinux, SLES):
+    if type(node.os) in (Redhat, AlmaLinux, SLES, Debian):
         node.reboot()
 
     startstop = node.features[StartStop]
