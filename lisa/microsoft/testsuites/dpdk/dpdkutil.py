@@ -1937,13 +1937,17 @@ class DpdkDevnameInfo:
             # mana needs a vdev argument of pci info
             # followed by kv pairs for mac addresses.
             # https://doc.dpdk.org/guides/nics/mana.html
-            nic_args = (
+            nic_includes = [ f"-a {nic.dev_uuid}" for nic in nics ]
+            vdev_args = [
                 ",".join(
                     [f'--vdev="{nics[0].pci_slot}']
                     + [f"mac={nic.mac_addr}" for nic in nics],
                 )
-                + '"'
-            )
+                + '" '
+            ]
+            
+            nic_args = " ".join(nic_includes + vdev_args)
+            
         else:
             # mlx nics; we get to cheat and just disallow the SSH interface.
             # the driver and EAL handles the rest.
@@ -1986,7 +1990,7 @@ class DpdkDevnameInfo:
 
 # Output line format from azure_uevent_listener:
 # [HH:MM:SS.mmm] TAG subsystem=X pci=... driver=... ifname=... name=... ...
-_uevent_line_regex = re.compile(
+_uevent_line_regex = re.compile( 
     r"\[(?P<timestamp>[\d:.]+)\]\s+"
     r"(?P<tag>\S+)\s+"
     r"(?P<properties>.*)"
