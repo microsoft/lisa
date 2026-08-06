@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import time
 from decimal import Decimal
 from typing import Any, List, cast
 
@@ -150,14 +151,33 @@ def _perform_hibernation_cycle(
 
     boot_time_before_hibernation = who.last_boot()
 
-    try:
-        startstop.stop(state=features.StopState.Hibernate)
-    except Exception as ex:
+    # Azure may return a transient "VMHibernateFailed" internal error; the
+    # platform guidance is to retry. Retry only that exact error, and only
+    # while the VM is still running.
+    max_hibernate_attempts = 3
+    hibernate_retry_delay = 30
+    for attempt in range(1, max_hibernate_attempts + 1):
         try:
-            dmesg.get_output(force_run=True)
-        except Exception as e:
-            log.debug(f"error on get dmesg output: {e}")
-        raise LisaException(f"fail to hibernate: {ex}")
+            startstop.stop(state=features.StopState.Hibernate)
+            break
+        except Exception as ex:
+            transient = "VMHibernateFailed" in str(ex)
+            if (
+                transient
+                and attempt < max_hibernate_attempts
+                and startstop.get_status() == VMStatus.Running
+            ):
+                log.info(
+                    f"transient VMHibernateFailed on attempt {attempt}; "
+                    f"retrying in {hibernate_retry_delay}s"
+                )
+                time.sleep(hibernate_retry_delay)
+                continue
+            try:
+                dmesg.get_output(force_run=True)
+            except Exception as e:
+                log.debug(f"error on get dmesg output: {e}")
+            raise LisaException(f"fail to hibernate: {ex}")
 
     is_ready = True
     timeout = 900
