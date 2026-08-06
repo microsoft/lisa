@@ -3211,10 +3211,16 @@ class AzurePlatform(Platform):
             ) = self._get_available_azure_capabilities(candidate_caps, log)
 
             # Sort available vm sizes to match. Awaitable doesn't need to be
-            # sorted.
-            available_capabilities = self.get_sorted_vm_sizes(
-                available_capabilities, log
-            )
+            # sorted. Skip sorting when the runbook explicitly requested a
+            # vm_size: the candidate list is already restricted to the
+            # requested size(s), and get_sorted_vm_sizes also acts as a
+            # fallback-pattern filter, which would drop explicitly-requested
+            # sizes if they don't match any pattern (e.g. `Internal_*`).
+            node_runbook = req.get_extended_runbook(AzureNodeSchema, AZURE)
+            if not node_runbook.vm_size:
+                available_capabilities = self.get_sorted_vm_sizes(
+                    available_capabilities, log
+                )
             available_candidates.append([req, available_capabilities])
             awaitable_candidates.append(
                 [req, available_capabilities + awaitable_capabilities]
