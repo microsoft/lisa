@@ -69,6 +69,7 @@ from lisa.tools import (
     Lspci,
     Modprobe,
     Ntttcp,
+    Pidof,
     Ping,
     Tee,
     Timeout,
@@ -426,6 +427,126 @@ def generate_send_receive_run_info(
     return kit_cmd_pairs
 
 
+# subnets used by the multi-nic dpdk test environments.
+# every VM in the environment has one nic on each of these subnets,
+# so nic N on the sender always has a peer nic N on the receiver.
+def get_dpdk_test_subnets(nic_count: int) -> List[str]:
+    return [f"10.0.{index + 1}.0/24" for index in range(nic_count)]
+
+
+def generate_multi_port_send_receive_run_info(
+    pmd: Pmd,
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+    sender_nics: List[NicInfo],
+    receiver_nics: List[NicInfo],
+    multiple_queues: bool = False,
+    use_service_cores: int = 1,
+    set_mtu: int = 0,
+    stats_period: int = 2,
+) -> Tuple[Dict[DpdkTestResources, str], Dict[DpdkTestResources, Dict[int, NicInfo]]]:
+    """
+    Generate a txonly/rxonly testpmd command pair which uses more than one
+    port on each node. sender_nics[i] and receiver_nics[i] are on the same
+    subnet, so each sender port transmits to the matching port on the receiver.
+
+    Returns the commands for each kit and the dpdk port id -> nic mapping
+    used to build them, so the caller can grade each port individually.
+    """
+    assert_that(len(sender_nics)).described_as(
+        "Test bug: sender and receiver need an equal number of test nics."
+    ).is_equal_to(len(receiver_nics))
+    assert_that(len(sender_nics)).described_as(
+        "Test bug: the multiple port send/receive test needs more than one nic."
+    ).is_greater_than(1)
+
+    # for MTU test: check that we can fetch the max MTU size for the NIC
+    if set_mtu:
+        run_in_parallel(
+            [
+                partial(_validate_and_set_mtu_for_kit, sender, sender_nics, set_mtu),
+                partial(
+                    _validate_and_set_mtu_for_kit, receiver, receiver_nics, set_mtu
+                ),
+            ]
+        )
+        first_nic = sender_nics[0]
+        check_nic = first_nic.lower if first_nic.lower else first_nic.name
+        maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
+        maxmtu_int = int(maxmtu) if maxmtu else 0
+    else:
+        maxmtu_int = 0
+
+    # DPDK assigns port ids at probe time, the order does not necessarily
+    # match the order of the EAL device arguments. Use the devname helper app
+    # to get the real port id for each nic (and the EAL args which produce
+    # exactly those port ids).
+    eal_args: Dict[DpdkTestResources, str] = dict()
+    port_maps: Dict[DpdkTestResources, Dict[int, NicInfo]] = dict()
+    nic_ports: Dict[DpdkTestResources, Dict[str, int]] = dict()
+    for kit, nics in [(sender, sender_nics), (receiver, receiver_nics)]:
+        devname = DpdkDevnameInfo(kit.testpmd)
+        devname.get_port_info(nics, expect_ports=len(nics))
+        eal_args[kit] = devname.nic_args
+        nic_ports[kit] = dict()
+        port_maps[kit] = dict()
+        for nic in nics:
+            mac_addr = nic.mac_addr.lower()
+            assert_that(devname.nic_port_info).described_as(
+                f"dpdk-devname did not report a port id for {nic.name} "
+                f"({mac_addr}) on {kit.node.name}, the per-port test "
+                "arguments cannot be generated."
+            ).contains_key(mac_addr)
+            nic_ports[kit][mac_addr] = devname.nic_port_info[mac_addr]
+            port_maps[kit][devname.nic_port_info[mac_addr]] = nic
+        kit.node.log.debug(
+            "DPDK port assignment: "
+            + ", ".join(
+                f"port {port_id}={nic.name}/{nic.ip_addr}"
+                for port_id, nic in sorted(port_maps[kit].items())
+            )
+        )
+
+    # one --tx-ip per port so each sender port uses the address pair for
+    # its own subnet. NOTE: the per-port form of --tx-ip is not upstream yet,
+    # see DpdkTestpmd.has_multi_port_tx_ip_flag.
+    tx_ip_args = [
+        (
+            f"--tx-ip={nic_ports[sender][snd_nic.mac_addr.lower()]}:"
+            f"{snd_nic.ip_addr},{rcv_nic.ip_addr}"
+        )
+        for snd_nic, rcv_nic in zip(sender_nics, receiver_nics)
+    ]
+
+    snd_cmd = sender.testpmd.generate_testpmd_command(
+        sender_nics,
+        0,
+        "txonly",
+        pmd=pmd,
+        extra_args=" ".join(tx_ip_args),
+        multiple_queues=multiple_queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+        stats_period=stats_period,
+        eal_device_args=eal_args[sender],
+    )
+    rcv_cmd = receiver.testpmd.generate_testpmd_command(
+        receiver_nics,
+        0,
+        "rxonly",
+        pmd=pmd,
+        multiple_queues=multiple_queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+        stats_period=stats_period,
+        eal_device_args=eal_args[receiver],
+    )
+
+    return {sender: snd_cmd, receiver: rcv_cmd}, port_maps
+
+
 def _validate_and_set_mtu_for_kit(
     kit: DpdkTestResources, nics: List[NicInfo], mtu: int
 ) -> None:
@@ -697,7 +818,8 @@ def do_pmd_driver_setup(
             if test_nic.lower and not ip.is_device_up(test_nic.lower):
                 ip.up(test_nic.lower)
 
-def get_vmbus_network_device_ids(node:Node, filter_driver:str) -> List[str]:
+
+def get_vmbus_network_device_ids(node: Node, filter_driver: str) -> List[str]:
     # get vmbus device id guids for network devices that match a specific driver.
     # the guid for synthetic network devices is well-known and unlikely to change.
     # https://github.com/torvalds/linux/blob/0d839570765118029aa8bf4a95444c6a11aacf85/tools/hv/lsvmbus#L34
@@ -709,11 +831,13 @@ def get_vmbus_network_device_ids(node:Node, filter_driver:str) -> List[str]:
         "| cut -f 1-6 -d / ",
         shell=True,
         expected_exit_code=0,
-        expected_exit_code_failure_message=f"Shell check for vmbus devices bound to driver {filter_driver} returned an error."
-        ).stdout.splitlines()
-    drivers = node.execute(f"for i in {' '.join(device_ids)}; do readlink -f $i/driver; done",shell=True).stdout.splitlines()
+        expected_exit_code_failure_message=f"Shell check for vmbus devices bound to driver {filter_driver} returned an error.",
+    ).stdout.splitlines()
+    drivers = node.execute(
+        f"for i in {' '.join(device_ids)}; do readlink -f $i/driver; done", shell=True
+    ).stdout.splitlines()
     devices = []
-    for pair in zip(drivers,device_ids):
+    for pair in zip(drivers, device_ids):
         driver, dev_id = pair
         if driver == f"/sys/bus/vmbus/drivers/{filter_driver}":
             devices += [PurePath(dev_id).name]
@@ -724,14 +848,22 @@ def get_vmbus_network_device_ids(node:Node, filter_driver:str) -> List[str]:
     return devices
 
 
-def check_if_testpmd_is_running(node:Node, sample_apps:Optional[List[str]] = None) -> bool:
-    check_processes = [ "testpmd" ]
+def get_dpdk_pids(node: Node) -> List[str]:
+    apps = ["testpmd", "l3fwd", "devname", "symmetric_mp"]
+    apps += map(lambda x: f"dpdk-{x}", apps)
+    check = node.tools[Pidof].get_pids(" ".join(apps), sudo=True)
+    return check
+
+
+def check_dpdk_is_running(node: Node, sample_apps: Optional[List[str]] = None) -> bool:
+    check_processes = ["testpmd"]
     if sample_apps:
         for app in sample_apps:
-            check_processes += [ app ]
-    check_processes = check_processes + [ f"dpdk-{app}" for app in check_processes ]
+            check_processes += [app]
+    check_processes = check_processes + [f"dpdk-{app}" for app in check_processes]
     check = node.execute(f"pidof { ' '.join(check_processes)}", shell=True)
     return check.exit_code == 0 and bool(check.stdout)
+
 
 def rebind_uio_devices_to_hv_netvsc(node: Node, devices: List[str]) -> None:
     # unbind any uio_hv_generic devices and re-bind them to hv_netvsc
@@ -743,7 +875,7 @@ def rebind_uio_devices_to_hv_netvsc(node: Node, devices: List[str]) -> None:
     for id in device_ids:
         node.nics.unbind(id, "/sys/bus/vmbus/drivers/uio_hv_generic")
         node.nics.bind(id, "/sys/bus/vmbus/drivers/hv_netvsc")
-    
+
     node.nics.reload()
 
 
@@ -789,8 +921,9 @@ def initialize_node_resources(
         if not node.nics.is_pci_module_enabled():
             raise SkippedException(
                 "SRIOV was not active and platform "
-                "does not support NetworkInterface feature")
-        
+                "does not support NetworkInterface feature"
+            )
+
     # dump some info about the pci devices before we start
     lspci = node.tools[Lspci]
     log.info(f"Node[{node.name}] LSPCI Info:\n{lspci.run().stdout}\n")
@@ -824,7 +957,7 @@ def initialize_node_resources(
     # *type* of installation is already installed,
     # taking it's creation arguments into account.
     testpmd.install()
-    
+
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
@@ -836,7 +969,7 @@ def initialize_node_resources(
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
-    
+
     test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
 
     # check an assumption that our nics are bound to hv_netvsc
@@ -879,6 +1012,30 @@ def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None
                 "dpdk",
                 kit.testpmd.get_dpdk_version(),
                 "-tx-ip flag for ip forwarding",
+            )
+
+
+def check_multi_port_send_receive_compatibility(
+    test_kits: List[DpdkTestResources],
+) -> None:
+    # a multiple port txonly run needs a source/destination address pair
+    # for each port, which requires the per-port form of --tx-ip.
+    # It is not upstream yet, so it is only available when building
+    # dpdk from a source which carries the patch. ex:
+    # dpdk_source: https://github.com/mcgov/dpdk-next-net.git
+    check_send_receive_compatibility(test_kits)
+    for kit in test_kits:
+        if isinstance(kit.testpmd.installer, PackageManagerInstall):
+            raise SkippedException(
+                "The multiple port send/receive test requires a dpdk source "
+                "build which supports the per-port --tx-ip flag."
+            )
+        if not kit.testpmd.has_multi_port_tx_ip_flag():
+            raise UnsupportedPackageVersionException(
+                kit.node.os,
+                "dpdk",
+                kit.testpmd.get_dpdk_version(),
+                "--tx-ip=[port:]src,dst flag for per-port ip addresses",
             )
 
 
@@ -983,7 +1140,7 @@ def verify_dpdk_send_receive(
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
-    
+
     for node in environment.nodes.list():
         if isinstance(node, RemoteNode):
             external_ips += node.connection_info[
@@ -999,20 +1156,25 @@ def verify_dpdk_send_receive(
     reset_environment_netvsc_binding(environment, log)
 
     # pick specific nics for each node.
-    nic_list: Dict[Node,List[NicInfo]] = {}
+    nic_list: Dict[Node, List[NicInfo]] = {}
     for node in environment.nodes.list():
         nic_list[node] = [node.nics.get_nic_by_subnet("10.0.1.0/24")]
-        
+
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     test_duration: int = variables.get("dpdk_test_duration", 15)
     test_kits = init_nodes_concurrent(
-        environment, log, variables, pmd, hugepage_size=hugepage_size, specific_pairings=nic_list
+        environment,
+        log,
+        variables,
+        pmd,
+        hugepage_size=hugepage_size,
+        specific_pairings=nic_list,
     )
 
     check_send_receive_compatibility(test_kits)
     sender, receiver = test_kits
-    
+
     # annotate test result before starting
     if result is not None:
         annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
@@ -1100,6 +1262,185 @@ def verify_dpdk_send_receive(
     annotate_packet_drops(log, result, receiver)
 
     return sender, receiver
+
+
+def verify_dpdk_send_receive_multi_port(
+    environment: Environment,
+    log: Logger,
+    variables: Dict[str, Any],
+    pmd: Pmd,
+    hugepage_size: HugePageSize,
+    nic_count: int = 2,
+    use_service_cores: int = 1,
+    multiple_queues: bool = False,
+    result: Optional[TestResult] = None,
+    set_mtu: int = 0,
+    check_sender_packet_drops: bool = False,
+) -> Tuple[DpdkTestResources, DpdkTestResources]:
+    """
+    Sender/receiver test which uses more than one port on each VM.
+
+    Each VM has one test nic per subnet, so port N on the sender has a
+    matching peer port N on the receiver. Every sender port transmits to
+    the address of its own peer port using the per-port form of --tx-ip,
+    and every port is graded individually.
+    """
+    assert_that(nic_count).described_as(
+        "Test bug: multiple port send/receive needs at least two test nics."
+    ).is_greater_than(1)
+
+    # the devname helper app is used to resolve dpdk port ids and it only
+    # reports netvsc pmd ports.
+    if pmd != Pmd.NETVSC:
+        raise SkippedException(
+            "The multiple port send/receive test is only implemented "
+            "for the netvsc pmd."
+        )
+
+    # helpful to have the public ips labeled for debugging
+    external_ips = []
+    for node in environment.nodes.list():
+        if isinstance(node, RemoteNode):
+            external_ips += node.connection_info[
+                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
+            ]
+        else:
+            raise SkippedException()
+
+    log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
+
+    reset_environment_netvsc_binding(environment, log)
+
+    # pick one nic per subnet on each node, the index of the nic in the
+    # list is the same on both nodes since the subnet list is shared.
+    subnets = get_dpdk_test_subnets(nic_count)
+    nic_list: Dict[Node, List[NicInfo]] = dict()
+    for node in environment.nodes.list():
+        try:
+            nic_list[node] = [node.nics.get_nic_by_subnet(subnet) for subnet in subnets]
+        except LisaException as err:
+            raise SkippedException(
+                f"Node {node.name} is missing a test nic, this test needs "
+                f"one nic on each of the subnets: {', '.join(subnets)}. {str(err)}"
+            )
+
+    # get test duration variable if set
+    # enables long-running tests to shake out QoS and SLB issues
+    test_duration: int = variables.get("dpdk_test_duration", 15)
+    test_kits = init_nodes_concurrent(
+        environment,
+        log,
+        variables,
+        pmd,
+        hugepage_size=hugepage_size,
+        specific_pairings=nic_list,
+    )
+
+    check_multi_port_send_receive_compatibility(test_kits)
+    sender, receiver = test_kits
+
+    # annotate test result before starting
+    if result is not None:
+        annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
+
+    kit_cmd_pairs, port_maps = generate_multi_port_send_receive_run_info(
+        pmd,
+        sender,
+        receiver,
+        nic_list[sender.node],
+        nic_list[receiver.node],
+        use_service_cores=use_service_cores,
+        multiple_queues=multiple_queues,
+        set_mtu=set_mtu,
+    )
+
+    receiver_proc = receiver.node.execute_async(
+        kit_cmd_pairs[receiver],
+        sudo=True,
+    )
+    receiver_proc.wait_output("start packet forwarding")
+
+    sender_proc = sender.node.execute_async(
+        kit_cmd_pairs[sender],
+        sudo=True,
+    )
+    sender_proc.wait_output("start packet forwarding")
+
+    sleep(test_duration)
+
+    sender.testpmd.kill_previous_testpmd_command()
+    receiver.testpmd.kill_previous_testpmd_command()
+
+    sleep(5)
+
+    results = dict()
+    results[sender] = sender.testpmd.process_testpmd_output(sender_proc.wait_result())
+    results[receiver] = receiver.testpmd.process_testpmd_output(
+        receiver_proc.wait_result()
+    )
+
+    # helpful to have the outputs labeled
+    log.debug(f"\nSENDER:\n{results[sender]}")
+    log.debug(f"\nRECEIVER:\n{results[receiver]}")
+
+    sender.dmesg.check_kernel_errors(force_run=True)
+    receiver.dmesg.check_kernel_errors(force_run=True)
+
+    # grade each port on its own, an aggregate would hide a port
+    # which sent or received nothing at all.
+    port_stats = {
+        sender: sender.testpmd.get_stats_by_port(),
+        receiver: receiver.testpmd.get_stats_by_port(),
+    }
+    for kit, direction in [(sender, "TX"), (receiver, "RX")]:
+        for port_id, nic in sorted(port_maps[kit].items()):
+            stats = port_stats[kit].get(port_id, None)
+            assert_that(stats).described_as(
+                f"No statistics were found for dpdk port {port_id} "
+                f"({nic.name}) on {kit.node.name}."
+            ).is_not_none()
+            assert stats is not None  # appease the type checker
+            # disparity between ports is an important debugging clue,
+            # so log the full stats for every port.
+            log.info(f"{kit.node.name} {nic.name}/{nic.ip_addr} {str(stats)}")
+            port_pps = stats.get_mean_pps(direction)
+            if result is not None:
+                result.information[f"{direction.lower()}_port_{port_id}_pps"] = str(
+                    port_pps
+                )
+            assert_that(port_pps).described_as(
+                f"Throughput for {direction} on port {port_id} "
+                f"({nic.name}) was below the correct order-of-magnitude"
+            ).is_greater_than(DPDK_PPS_THRESHOLD)
+
+    # verify the receiver didn't drop most of the packets on any one port
+    for port_id, nic in sorted(port_maps[receiver].items()):
+        drop_rate = port_stats[receiver][port_id].get_packet_drop_rate("RX")
+        assert_that(drop_rate).described_as(
+            f"More than 1% of the packets received on port {port_id} "
+            f"({nic.name}) were dropped!"
+        ).is_close_to(0, 0.01)
+
+    # sender packet drops are common when network bandwidth is
+    # artificially throttled by the sku, so checking sender
+    # is optional
+    if check_sender_packet_drops:
+        for port_id, nic in sorted(port_maps[sender].items()):
+            drop_rate = port_stats[sender][port_id].get_packet_drop_rate("TX")
+            assert_that(drop_rate).described_as(
+                f"More than 33% of the packets sent on port {port_id} "
+                f"({nic.name}) were dropped!"
+            ).is_close_to(0, 0.33)
+
+    # check the aggregate receive drop rate as well, this populates the
+    # packet drop rate used to annotate the test result.
+    receiver.testpmd.check_rx_packet_drops()
+
+    # annotate the amount of dropped packets on the receiver
+    annotate_packet_drops(log, result, receiver)
+
+    return sender, receiver
+
 
 def reset_environment_netvsc_binding(environment: Environment, log: Logger) -> None:
     # rebind any uio_hv_generic devices to hv_netvsc on all nodes in parallel.
@@ -1277,7 +1618,7 @@ def do_parallel_cleanup(environment: Environment) -> None:
         # if we are using the ready environment, don't touch anything.
         if isinstance(environment.platform, ReadyPlatform):
             return
-        
+
         interface = node.features[NetworkInterface]
         if not interface.is_enabled_sriov():
             interface.switch_sriov(enable=True, wait=False, reset_connections=False)
@@ -1676,10 +2017,13 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         # The VF may be paired with a different netdev after the rescan,
         # seeing the same pci device added back is enough.
         listener.wait_for_events(
-            [UeventListener.device_criteria(slot, _PCI_ADD_TAG) for slot in fwd_vf_slots],
+            [
+                UeventListener.device_criteria(slot, _PCI_ADD_TAG)
+                for slot in fwd_vf_slots
+            ],
             timeout=60,
         )
-        
+
         _receiver_after = ntttcp[receiver].run_as_server_async(
             subnet_b_nics[receiver].name,
             run_time_seconds=ntttcp_run_time,
@@ -1952,7 +2296,7 @@ class DpdkDevnameInfo:
             # mana needs a vdev argument of pci info
             # followed by kv pairs for mac addresses.
             # https://doc.dpdk.org/guides/nics/mana.html
-            nic_includes = [ f"-a {nic.dev_uuid}" for nic in nics ]
+            nic_includes = [f"-a {nic.dev_uuid}" for nic in nics]
             vdev_args = [
                 ",".join(
                     [f'--vdev="{nics[0].pci_slot}']
@@ -1960,9 +2304,9 @@ class DpdkDevnameInfo:
                 )
                 + '" '
             ]
-            
+
             nic_args = " ".join(nic_includes + vdev_args)
-            
+
         else:
             # mlx nics; we get to cheat and just disallow the SSH interface.
             # the driver and EAL handles the rest.
@@ -2005,10 +2349,8 @@ class DpdkDevnameInfo:
 
 # Output line format from azure_uevent_listener:
 # [HH:MM:SS.mmm] TAG subsystem=X pci=... driver=... ifname=... name=... ...
-_uevent_line_regex = re.compile( 
-    r"\[(?P<timestamp>[\d:.]+)\]\s+"
-    r"(?P<tag>\S+)\s+"
-    r"(?P<properties>.*)"
+_uevent_line_regex = re.compile(
+    r"\[(?P<timestamp>[\d:.]+)\]\s+" r"(?P<tag>\S+)\s+" r"(?P<properties>.*)"
 )
 
 # a criteria value is either an exact string or a regex to search for

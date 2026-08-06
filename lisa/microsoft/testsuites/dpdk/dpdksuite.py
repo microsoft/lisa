@@ -32,6 +32,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_multiple_ports,
     verify_dpdk_send_receive,
+    verify_dpdk_send_receive_multi_port,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
 from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
@@ -1105,6 +1106,51 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.NETVSC,
                 HugePageSize.HUGE_1GB,
+                result=result,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Tests a sender/receiver setup which uses multiple ports on
+            each VM with the netvsc pmd.
+            Each VM has one test nic per subnet, so every sender port has a
+            matching peer port on the receiver. Each sender port transmits to
+            the address of its own peer port and each port is graded on its
+            own, so a single port failing to send or receive fails the test.
+
+            NOTE: this test requires a dpdk build which supports assigning
+            an ip address pair per port with --tx-ip=[port:]src,dst.
+            That flag is not upstream yet, use a dpdk_source which carries
+            the patch, ex:
+            dpdk_source: https://github.com/mcgov/dpdk-next-net.git
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            min_count=2,
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_multi_port_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        try:
+            verify_dpdk_send_receive_multi_port(
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                HugePageSize.HUGE_2MB,
+                nic_count=2,
+                multiple_queues=True,
                 result=result,
             )
         except UnsupportedPackageVersionException as err:
