@@ -139,10 +139,10 @@ def _perform_hibernation_cycle(
 
     # The hibernation-setup tool writes resume=/resume_offset= to the
     # bootloader, which only take effect after a reboot; without it the VM
-    # accepts the hibernate uevent but never suspends (seen on Debian 13).
-    # A sleep(100) also works, but we are unsure of the exact time required.
-    # So it is safer to reboot the VM.
-    if type(node.os) in (Redhat, AlmaLinux, SLES, Debian):
+    # accepts the hibernate uevent but never suspends (seen on Debian and
+    # Ubuntu). A sleep(100) also works, but we are unsure of the exact time
+    # required. So it is safer to reboot the VM.
+    if type(node.os) in (Redhat, AlmaLinux, SLES, Debian, Ubuntu):
         node.reboot()
 
     startstop = node.features[StartStop]
