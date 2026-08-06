@@ -4,7 +4,7 @@ import json
 import re
 import time
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Pattern, Type, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Pattern, Type, cast
 
 from retry import retry
 
@@ -19,7 +19,14 @@ from lisa.messages import (
 )
 from lisa.operating_system import Posix
 from lisa.tools import Cat
-from lisa.util import LisaException, check_till_timeout, constants, get_matched_str
+from lisa.util import (
+    LisaException,
+    LisaVersionInfo,
+    check_till_timeout,
+    constants,
+    get_matched_str,
+    parse_version,
+)
 from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process
 
@@ -69,7 +76,20 @@ IPERF_UDP_CONCURRENCY = [
 
 class Iperf3(Tool):
     _repo = "https://github.com/esnet/iperf"
-    _branch = "3.10.1"
+    # iperf 3.16 introduced a multi-threaded (thread-per-stream) model that
+    # regressed UDP mode: with high stream counts (e.g. -P 64) the client
+    # segfaults instead of emitting the JSON report the perf tests parse,
+    # which makes the tests fail (Ubuntu 24.04 ships the affected 3.16). Those
+    # threading crashes were fixed upstream in 3.18, so only 3.16-3.17 are
+    # affected. Such a version is replaced by building a vetted, fixed release
+    # (``_branch``) from source, which keeps the multi-threaded throughput
+    # gains. Older single-threaded versions (< 3.16) and already-fixed ones
+    # (>= 3.18) are kept as-is, so a source build only happens where needed.
+    _first_multithreaded_version = "3.16.0"
+    _first_fixed_version = "3.18.0"
+    _branch = "3.21"
+    # Matches the version in ``iperf 3.16 (cJSON 1.7.15)``.
+    _version_pattern = re.compile(r"iperf\s+(\d+\.\d+(?:\.\d+)?)")
     _sender_pattern = re.compile(
         r"(([\w\W]*?)[SUM].* (?P<bandwidth>[0-9]+.[0-9]+)"
         r" Gbits/sec.*sender([\w\W]*?))",
@@ -100,6 +120,32 @@ class Iperf3(Tool):
     def help(self) -> ExecutableResult:
         return self.run("-h", force_run=True)
 
+    def get_version(self) -> Optional[LisaVersionInfo]:
+        # ``iperf3 --version`` prints e.g. ``iperf 3.16 (cJSON 1.7.15)``.
+        output = self.run("--version", force_run=True).stdout
+        version_string = get_matched_str(output, self._version_pattern)
+        if not version_string:
+            return None
+        return parse_version(version_string)
+
+    def _is_buggy_multithreaded_version(self) -> bool:
+        version = self.get_version()
+        if version is None:
+            # Could not determine the version; rebuild from source to be safe.
+            self._log.debug(
+                "Could not parse installed iperf3 version; "
+                "installing a fixed build from source."
+            )
+            return True
+        # Only 3.16-3.17 have the UDP threading segfault; 3.18+ fixed it
+        # upstream, so a distro shipping a fixed release keeps its package and
+        # no source build is triggered.
+        return bool(
+            parse_version(self._first_multithreaded_version)
+            <= version
+            < parse_version(self._first_fixed_version)
+        )
+
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         try:
@@ -109,6 +155,10 @@ class Iperf3(Tool):
         install_from_src = False
         if self._check_exists():
             if "--logfile" not in self.help().stdout:
+                install_from_src = True
+            elif self._is_buggy_multithreaded_version():
+                # The packaged iperf3 has the UDP multi-threading regression;
+                # replace it with a known-good release built from source.
                 install_from_src = True
         else:
             install_from_src = True
@@ -589,7 +639,9 @@ class Iperf3(Tool):
     def _install_from_src(self) -> None:
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
-        git.clone(self._repo, tool_path)
+        # Pin to a fixed upstream release so the built binary does not have the
+        # UDP multi-threading segfault regression.
+        git.clone(self._repo, tool_path, ref=self._branch)
         code_path = tool_path.joinpath("iperf")
         make = self.node.tools[Make]
         self.node.execute("./configure", cwd=code_path).assert_exit_code()
@@ -609,5 +661,10 @@ class Iperf3(Tool):
     def _pre_handle(self, result: str) -> str:
         result = result.replace("-nan", "0")
         result_matched = get_matched_str(result, self._json_pattern)
-        assert result_matched, "fail to find json format results"
+        if not result_matched:
+            raise LisaException(
+                "failed to find JSON in iperf3 output; the client may have "
+                "crashed (e.g. segmentation fault) instead of reporting "
+                f"results: {result}"
+            )
         return result_matched
