@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
@@ -533,11 +533,11 @@ class Dpdk(TestSuite):
         # losing the connection when AN is disabled on it....
         # unless we really want to stress things.
         if stress:
-            extra_args=""
-            mq_args=True
+            extra_args : Union[str,Tuple[str,str]] = ""
+            mq_args: Union[bool,Tuple[bool,bool]] = True
         else:
             extra_args = ("--burst=5", "")
-            mq_args=(False, True)
+            mq_args = (False, True)
 
         # generate the run info
         kit_cmd_pairs = generate_send_receive_run_info(
