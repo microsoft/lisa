@@ -17,6 +17,7 @@ from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
+    DpdkHotplugTarget,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
     do_parallel_cleanup,
@@ -32,6 +33,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_multiple_ports,
     verify_dpdk_send_receive,
+    verify_dpdk_send_receive_multi_port,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
 from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
@@ -572,7 +574,7 @@ class Dpdk(TestSuite):
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
         testpmd = test_kit.testpmd
-        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd)
+        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd, stats_period=5)
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }
@@ -1105,6 +1107,98 @@ class Dpdk(TestSuite):
                 Pmd.NETVSC,
                 HugePageSize.HUGE_1GB,
                 result=result,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Tests a sender/receiver setup which uses multiple ports on
+            each VM with the netvsc pmd.
+            Each VM has one test nic per subnet, so every sender port has a
+            matching peer port on the receiver. Each sender port transmits to
+            the address of its own peer port and each port is graded on its
+            own, so a single port failing to send or receive fails the test.
+
+            NOTE: this test requires a dpdk build which supports assigning
+            an ip address pair per port with --tx-ip=[port:]src,dst.
+            That flag is not upstream yet, use a dpdk_source which carries
+            the patch, ex:
+            dpdk_source: https://github.com/mcgov/dpdk-next-net.git
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            min_count=2,
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_multi_port_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        try:
+            verify_dpdk_send_receive_multi_port(
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                HugePageSize.HUGE_2MB,
+                nic_count=2,
+                multiple_queues=True,
+                result=result,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Multi-port sender/receiver test which removes and restores the
+            sender's VFs while traffic is running.
+            Each port is checked for the device removal event, for continued
+            forwarding on the synthetic path while the VF is gone, and for a
+            return to full throughput once the VF is restored. The receiver
+            is checked for the throughput it reached while its peer was
+            being hotplugged.
+
+            NOTE: this test requires a dpdk build which supports assigning
+            an ip address pair per port with --tx-ip=[port:]src,dst.
+            That flag is not upstream yet, use a dpdk_source which carries
+            the patch, ex:
+            dpdk_source: https://github.com/mcgov/dpdk-next-net.git
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            min_count=2,
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_multi_port_hotplug_sender_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        try:
+            verify_dpdk_send_receive_multi_port(
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                HugePageSize.HUGE_2MB,
+                nic_count=2,
+                multiple_queues=True,
+                result=result,
+                hotplug=DpdkHotplugTarget.SENDER,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)

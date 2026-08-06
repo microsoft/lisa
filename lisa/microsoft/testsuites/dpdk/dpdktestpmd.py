@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, List, Tuple, Type
+from typing import Any, Dict, List, Optional, Pattern, Tuple, Type
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
@@ -418,6 +418,49 @@ class DpdkTestpmd(Tool):
         _tx_bps_key: r"Tx-bps:\s+([0-9]+)",
         _rx_bps_key: r"Rx-bps:\s+([0-9]+)",
     }
+
+    # testpmd prints a banner before each per-port statistics block, then
+    # the values for that port. DPDK log messages (EAL, pmd debug logs, etc)
+    # can be written in between those lines, so the output is walked
+    # line-by-line and anything which is not a recognized banner or
+    # key/value pair is discarded.
+    #
+    #   ######################## NIC statistics for port 0  ##############
+    #     RX-packets: 12345    RX-missed: 0    RX-bytes: 123456
+    #     Throughput (since last show)
+    #     Rx-pps:      1234567         Rx-bps:    12345678
+    #   ---------------------- Forward statistics for port 0  ------------
+    #     RX-packets: 12345    RX-dropped: 0    RX-total: 12345
+    #   +++++++++++ Accumulated forward statistics for all ports ++++++++++
+    _stats_banner_nic = "nic_stats_port"
+    _stats_banner_fwd = "fwd_stats_port"
+    _stats_banner_all = "accumulated_stats"
+    _stats_event_regex = re.compile(
+        r"(?:NIC statistics for port\s+(?P<nic_stats_port>[0-9]+))"
+        r"|(?:Forward statistics for port\s+(?P<fwd_stats_port>[0-9]+))"
+        r"|(?P<accumulated_stats>Accumulated forward statistics for all ports)"
+        r"|(?:(?P<key>Rx-pps|Tx-pps|Rx-bps|Tx-bps|RX-packets|TX-packets"
+        r"|RX-dropped|TX-dropped):\s+(?P<value>[0-9]+))"
+    )
+
+    # testpmd's ethdev event callback prints "Port <id>: <desc> event" for
+    # every event it gets, so both hotplug boundaries can be located by
+    # port id without depending on any pmd's own logging.
+    #   Port 0: device removal event
+    #   Port 0: device probed event
+    _device_removal_events = ["device removal", "error recovering"]
+    _device_recovery_events = ["device probed", "error recovery successful"]
+
+    @classmethod
+    def _port_event_regex(cls, port_id: int, events: List[str]) -> Pattern[str]:
+        descriptions = "|".join(re.escape(event) for event in events)
+        return re.compile(rf"Port\s+{port_id}:\s+(?:{descriptions})\s+event")
+
+    # testpmd --help entry for the --tx-ip flag, the per-port form
+    # (--tx-ip=[port:]src,dst) is not upstream yet.
+    _tx_ip_help_regex = re.compile(r"--tx-ip=")
+    _multi_port_tx_ip_help_regex = re.compile(r"--tx-ip=\[\s*port\s*:\s*\]")
+
     _source_build_dest_dir = "/usr/local/bin"
 
     @property
@@ -447,6 +490,41 @@ class DpdkTestpmd(Tool):
 
         # black doesn't like to direct return VersionInfo comparison
         return bool(self.get_dpdk_version() >= "19.11.0")
+
+    def has_multi_port_tx_ip_flag(self) -> bool:
+        # The per-port form of --tx-ip (--tx-ip=[port:]src,dst) is not
+        # available in upstream DPDK yet. It allows a distinct src/dst
+        # address pair to be assigned to each DPDK port, which is required
+        # to run a txonly test with more than one port.
+        # see https://github.com/mcgov/dpdk-next-net
+        #   commit cf3a5d459a9484a5cd055f1552a456bc8ce1e45e
+        if not hasattr(self, "_has_multi_port_tx_ip"):
+            # NOTE: '--help' before the '--' separator is consumed by the EAL,
+            # which may exit before testpmd prints its own usage. If the
+            # testpmd usage is not in the output, ask for it again after the
+            # separator so the application argument parser prints it.
+            help_output = self._get_testpmd_usage(f"{self.command} --help")
+            if self._tx_ip_help_regex.search(help_output) is None:
+                help_output = self._get_testpmd_usage(
+                    f"{self.command} -- --help", sudo=True
+                )
+            assert_that(self._tx_ip_help_regex.search(help_output)).described_as(
+                "Could not find the --tx-ip flag in the testpmd usage output. "
+                "The testpmd usage information is needed to check whether this "
+                "dpdk build supports assigning an ip address pair per port."
+            ).is_not_none()
+            self._has_multi_port_tx_ip = bool(
+                self._multi_port_tx_ip_help_regex.search(help_output)
+            )
+        return bool(self._has_multi_port_tx_ip)
+
+    def _get_testpmd_usage(self, command: str, sudo: bool = False) -> str:
+        # testpmd prints usage to stdout and the EAL prints to stderr,
+        # the caller just wants whatever usage text was produced.
+        usage_output = self.node.execute(
+            command, sudo=sudo, no_debug_log=True, no_info_log=True
+        )
+        return usage_output.stdout + usage_output.stderr
 
     def use_package_manager_install(self) -> bool:
         assert_that(hasattr(self, "_dpdk_source")).described_as(
@@ -531,7 +609,10 @@ class DpdkTestpmd(Tool):
         service_cores: int = 1,
         mtu: int = 0,
         mbuf_size: int = 0,
-        stats_period: int = 2,
+        eal_device_args: str = "",
+        core_offset: int = 0,
+        extra_eal_args: str = "",
+        stats_period:int = 2,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -558,10 +639,18 @@ class DpdkTestpmd(Tool):
         txd = 256
 
         # generate the flags for which devices to include in the tests
+        # eal_device_args allows a caller which has already resolved the
+        # EAL device arguments (ex: with the devname helper app) to reuse them,
+        # this guarantees the DPDK port ids match the ones the caller resolved.
         nic_include_infos = []
-        for nic in nic_to_include:
-            nic_include_infos += [self.generate_testpmd_include(nic, vdev_id, pmd=pmd)]
-            vdev_id += 1
+        if eal_device_args:
+            nic_include_infos += [eal_device_args]
+        else:
+            for nic in nic_to_include:
+                nic_include_infos += [
+                    self.generate_testpmd_include(nic, vdev_id, pmd=pmd)
+                ]
+                vdev_id += 1
 
         # infer core count to assign based on number of queues
         threads_available = self.node.tools[Lscpu].get_thread_count()
@@ -571,10 +660,12 @@ class DpdkTestpmd(Tool):
 
         queues_and_servicing_core = (queues * len(nic_to_include)) + service_cores
 
-        while queues_and_servicing_core > (threads_available - 2):
+        # core_offset reserves the low cores for another testpmd process on the
+        # same node, so they're not available to this one.
+        while queues_and_servicing_core > (threads_available - 2 - core_offset):
             # if less, split the number of queues
             queues = queues // 2
-            queues_and_servicing_core = queues + service_cores
+            queues_and_servicing_core = (queues * len(nic_to_include)) + service_cores
             txd = 64  # txd has to be >= 64 for MANA.
             assert_that(queues).described_as(
                 "txq value must be greater than 1"
@@ -587,7 +678,7 @@ class DpdkTestpmd(Tool):
         forwarding_cores = max_core_index - service_cores
 
         # core range argument
-        core_list = f"-l 1-{max_core_index}"
+        core_list = f"-l {1 + core_offset}-{max_core_index + core_offset}"
         if extra_args:
             extra_args = extra_args.strip()
         else:
@@ -658,11 +749,13 @@ class DpdkTestpmd(Tool):
             debug_logging += [f"--log-level {lib},debug"]
         debug_log_args = " ".join(debug_logging)
         nic_includes = " ".join(nic_include_infos)
+        eal_args = f"{core_list} {nic_includes} {debug_log_args}"
+        if extra_eal_args:
+            eal_args += f" {extra_eal_args.strip()}"
         return (
-            f"{self._testpmd_install_path} {core_list} "
-            f"{nic_includes} {debug_log_args} -- --forward-mode={mode} "
-            f"-a --stats-period {stats_period} --nb-cores={forwarding_cores}"
-            f" {extra_args}"
+            f"{self._testpmd_install_path} {eal_args} -- --forward-mode={mode} "
+            f"-a --stats-period {stats_period} "
+            f"--nb-cores={forwarding_cores} {extra_args} "
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -819,6 +912,180 @@ class DpdkTestpmd(Tool):
                 self._rx_bps_key, self._last_run_output
             )
 
+    def get_pps_data_by_port(self, rx_or_tx: str) -> Dict[int, List[int]]:
+        """
+        Split the periodic testpmd statistics by DPDK port id.
+
+        testpmd prints one statistics block per port, so a multi-port run
+        needs the samples separated to check each port individually.
+        """
+        rx_or_tx = _check_rx_or_tx(rx_or_tx)
+        return {
+            port_id: getattr(stats, f"{rx_or_tx.lower()}_pps")
+            for port_id, stats in self.get_stats_by_port().items()
+        }
+
+    def get_mean_pps_by_port(self, rx_or_tx: str) -> Dict[int, int]:
+        # apply the same sample filtering used for the aggregate pps data
+        # to each port's samples, then return the mean for each port.
+        return {
+            port_id: stats.get_mean_pps(rx_or_tx)
+            for port_id, stats in self.get_stats_by_port().items()
+        }
+
+    def get_stats_by_port(self, testpmd_output: str = "") -> Dict[int, "DpdkPortStats"]:
+        """
+        Parse the testpmd output into a per-port statistics record.
+
+        Raises if no per-port statistics could be found at all, use
+        _parse_stats_by_port directly when parsing a fragment of a run
+        which may legitimately contain no statistics blocks.
+        """
+        if not testpmd_output:
+            testpmd_output = self._last_run_output
+        assert_that(testpmd_output).described_as(
+            "Could not find output from last testpmd run."
+        ).is_not_equal_to("")
+
+        stats_by_port = self._parse_stats_by_port(testpmd_output)
+        assert_that(stats_by_port).described_as(
+            "Could not find any per-port statistics in the testpmd output."
+        ).is_not_empty()
+        return stats_by_port
+
+    def _parse_stats_by_port(self, testpmd_output: str) -> Dict[int, "DpdkPortStats"]:
+        """
+        Walk the testpmd output one line at a time and collect the values
+        in each per-port statistics block.
+
+        A state machine is used rather than a search of the whole output
+        because DPDK log messages (EAL, vmbus, netvsc, mlx5, ...) are
+        interleaved with the statistics blocks, and can be flushed into
+        the middle of a statistics line. Anything which is not a
+        recognized banner or key/value pair is discarded.
+        """
+        stats_by_port: Dict[int, DpdkPortStats] = dict()
+        # the port and block type the values being parsed belong to.
+        # None means the values are not attributable to a single port
+        # (ex: the accumulated statistics for all ports) and are skipped.
+        current_port: Optional[int] = None
+        in_forward_stats = False
+        for line in testpmd_output.splitlines():
+            # a log message can be flushed into the middle of a stats line,
+            # so scan each line for every event it contains, in order.
+            for match in self._stats_event_regex.finditer(line):
+                nic_stats_port = match.group(self._stats_banner_nic)
+                fwd_stats_port = match.group(self._stats_banner_fwd)
+                if nic_stats_port is not None:
+                    current_port = int(nic_stats_port)
+                    in_forward_stats = False
+                    stats_by_port.setdefault(current_port, DpdkPortStats(current_port))
+                    continue
+                if fwd_stats_port is not None:
+                    current_port = int(fwd_stats_port)
+                    in_forward_stats = True
+                    stats_by_port.setdefault(current_port, DpdkPortStats(current_port))
+                    continue
+                if match.group(self._stats_banner_all) is not None:
+                    # totals for all ports, not attributable to one port.
+                    current_port = None
+                    in_forward_stats = False
+                    continue
+                if current_port is None:
+                    # a value printed before any port banner, ex: the
+                    # port configuration output during testpmd startup.
+                    continue
+                stats_by_port[current_port].add_value(
+                    key=str(match.group("key")),
+                    value=int(match.group("value")),
+                    in_forward_stats=in_forward_stats,
+                )
+        return stats_by_port
+
+    def split_testpmd_output(
+        self, port_id: int = 0, testpmd_output: str = ""
+    ) -> Tuple["DpdkPortStats", "DpdkPortStats", "DpdkPortStats"]:
+        """
+        Split a testpmd run into the statistics for one dpdk port before,
+        during, and after its VF was hotplugged.
+
+        Both boundaries are the port-tagged ethdev event messages testpmd
+        prints itself, so the split does not depend on any pmd's logging.
+        The caller passes the dpdk port id it wants, DpdkDevnameInfo
+        resolves those from the nic mac addresses.
+
+        Raises if the port never reported a removal or never got a device
+        back, so a hotplug which did not reach the port is a failure
+        rather than a silently empty set of samples.
+        """
+        if not testpmd_output:
+            testpmd_output = self._last_run_output
+        assert_that(testpmd_output).described_as(
+            "Could not find output from last testpmd run."
+        ).is_not_equal_to("")
+
+        removal = self._port_event_regex(port_id, self._device_removal_events).search(
+            testpmd_output
+        )
+        assert_that(removal).described_as(
+            f"Could not locate a device removal event for port {port_id} in the "
+            "testpmd output. The hotplug either did not reach this port or "
+            "testpmd did not report it. Expected one of the events: "
+            f"{self._device_removal_events}"
+        ).is_not_none()
+        assert removal is not None  # appease the type checker
+        self.node.log.info(
+            f"Identified hotplug removal for port {port_id}: {removal.group(0)}"
+        )
+
+        before_removal = testpmd_output[: removal.start()]
+        after_removal = testpmd_output[removal.end() :]
+
+        # take the last recovery event so a port which reports the recovery
+        # more than once does not cut the 'after' window short. The pmd
+        # specific messages are still checked as a fallback for testpmd
+        # builds which do not forward the ethdev event.
+        recovery = self._find_last_match(
+            after_removal,
+            [self._port_event_regex(port_id, self._device_recovery_events)]
+            + self._hotplug_search_regexes,
+        )
+        if recovery is None:
+            if "timeout: the monitored command dumped core" in testpmd_output:
+                raise LisaException("Testpmd crashed after device removal.")
+            raise LisaException(
+                f"Port {port_id} lost its device but never got one back. "
+                "Check the output to verify whether a PPS drop occurred and "
+                "the device add message matches the expected forms."
+            )
+        self.node.log.info(
+            f"Identified hotplug recovery for port {port_id}: {recovery.group(0)}"
+        )
+
+        # a window with no statistics block for this port yields an empty
+        # record, which grades as zero pps instead of raising here.
+        windows = [
+            before_removal,
+            after_removal[: recovery.start()],
+            after_removal[recovery.end() :],
+        ]
+        stats = [
+            self._parse_stats_by_port(window).get(port_id, DpdkPortStats(port_id))
+            for window in windows
+        ]
+        return stats[0], stats[1], stats[2]
+
+    @staticmethod
+    def _find_last_match(
+        haystack: str, patterns: List[Pattern[str]]
+    ) -> Optional["re.Match[str]"]:
+        matches = [
+            match for pattern in patterns for match in pattern.finditer(haystack)
+        ]
+        if not matches:
+            return None
+        return max(matches, key=lambda match: match.end())
+
     def get_mean_rx_pps(self) -> int:
         self._check_pps_data("RX")
         return _mean(self.rx_pps_data)
@@ -873,11 +1140,11 @@ class DpdkTestpmd(Tool):
             "packets were dropped!"
         ).is_close_to(0, allowable_drop_rate)
 
-    def get_mean_tx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
-        return self._get_pps_sriov_hotplug(self._tx_pps_key)
+    def get_mean_tx_pps_sriov_hotplug(self, port_id: int = 0) -> Tuple[int, int, int]:
+        return self._get_pps_sriov_hotplug("TX", port_id=port_id)
 
-    def get_mean_rx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
-        return self._get_pps_sriov_hotplug(self._rx_pps_key)
+    def get_mean_rx_pps_sriov_hotplug(self, port_id: int = 0) -> Tuple[int, int, int]:
+        return self._get_pps_sriov_hotplug("RX", port_id=port_id)
 
     def get_example_app_path(self, app_name: str) -> PurePath:
         source_path = self.node.get_pure_path(
@@ -1007,9 +1274,6 @@ class DpdkTestpmd(Tool):
         return gbps
 
     def _install(self) -> bool:
-        self._testpmd_output_after_reenable = ""
-        self._testpmd_output_before_hotplug = ""
-        self._testpmd_output_during_hotplug = ""
         self._last_run_output = ""
         node = self.node
         if not isinstance(node.os, (Debian, Fedora, Suse)):
@@ -1124,77 +1388,115 @@ class DpdkTestpmd(Tool):
             self._testpmd_install_path = ""
         return path_check
 
-    def _split_testpmd_output(self) -> None:
-        search_str = "Port 0: device removal event"
-
-        device_removal_index = self._last_run_output.find(search_str)
-        assert_that(device_removal_index).described_as(
-            "Could not locate SRIOV hotplug event in testpmd output"
-        ).is_not_equal_to(-1)
-
-        self._testpmd_output_before_hotplug = self._last_run_output[
-            :device_removal_index
-        ]
-        after_hotplug = self._last_run_output[device_removal_index:]
-        # Identify the device add event using the hotplug search regexes
-        for pattern in self._hotplug_search_regexes:
-            hotplug_match = pattern.finditer(after_hotplug)
-            matches_list = list(hotplug_match)
-            if not list(matches_list):
-                command_dumped = "timeout: the monitored command dumped core"
-                if command_dumped in self._last_run_output:
-                    raise LisaException("Testpmd crashed after device removal.")
-
-        # pick the last match
-
-        if len(matches_list) > 0:
-            last_match = matches_list[-1]
-        else:
-            raise LisaException(
-                "Found no vf hotplug events in testpmd output. "
-                "Check output to verify if PPS drop occurred and port removal "
-                "event message matches the expected forms."
-            )
-
-        self.node.log.info(f"Identified hotplug event: {last_match.group(0)}")
-
-        before_reenable = after_hotplug[: last_match.start()]
-        after_reenable = after_hotplug[last_match.end() :]
-        self._testpmd_output_during_hotplug = before_reenable
-        self._testpmd_output_after_reenable = after_reenable
-
     def _get_pps_sriov_hotplug(
         self,
-        key_constant: str,
+        rx_or_tx: str,
+        port_id: int = 0,
     ) -> Tuple[int, int, int]:
-        if not all(
-            [
-                self._testpmd_output_during_hotplug,
-                self._testpmd_output_after_reenable,
-                self._testpmd_output_before_hotplug,
-            ]
-        ):
-            self._split_testpmd_output()
-
-        before_hotplug = self.get_data_from_testpmd_output(
-            key_constant,
-            self._testpmd_output_before_hotplug,
+        # mean pps before the VF was removed, while running on the
+        # synthetic path, and after the VF was restored.
+        before, during, after = self.split_testpmd_output(port_id=port_id)
+        return (
+            before.get_mean_pps(rx_or_tx),
+            during.get_mean_pps(rx_or_tx),
+            after.get_mean_pps(rx_or_tx),
         )
-        during_hotplug = self.get_data_from_testpmd_output(
-            key_constant,
-            self._testpmd_output_during_hotplug,
-        )
-        after_reenable = self.get_data_from_testpmd_output(
-            key_constant,
-            self._testpmd_output_after_reenable,
-        )
-        before, during, after = map(
-            _mean, [before_hotplug, during_hotplug, after_reenable]
-        )
-        return before, during, after
 
 
-# filter functions for processing testpmd data
+# helpers for processing testpmd data
+def _check_rx_or_tx(rx_or_tx: str) -> str:
+    rx_or_tx = rx_or_tx.upper()
+    if rx_or_tx not in ["RX", "TX"]:
+        fail(
+            "Identifier passed to testpmd data lookup was not recognized, "
+            f"must be RX or TX. Found {rx_or_tx}"
+        )
+    return rx_or_tx
+
+
+class DpdkPortStats:
+    """
+    Statistics for a single DPDK port over one window of a testpmd run.
+
+    pps/bps values are the periodic samples printed by --stats-period,
+    the packet totals and drops are taken from the per-port forward
+    statistics summary testpmd prints when it shuts down.
+
+    This holds no hotplug state. A run which needs the before/during/after
+    breakdown is split into three windows by DpdkTestpmd.split_testpmd_output
+    and each window is parsed into its own record.
+    """
+
+    # map the testpmd output keys to the attribute they are stored in.
+    # NOTE: the periodic NIC statistics block and the forward statistics
+    # summary share the RX/TX-packets keys, only the summary is recorded
+    # since the periodic block reports a running total instead.
+    _sample_keys = {
+        "Rx-pps": "rx_pps",
+        "Tx-pps": "tx_pps",
+        "Rx-bps": "rx_bps",
+        "Tx-bps": "tx_bps",
+    }
+    _forward_stats_keys = {
+        "RX-packets": "rx_total_packets",
+        "TX-packets": "tx_total_packets",
+        "RX-dropped": "rx_packet_drops",
+        "TX-dropped": "tx_packet_drops",
+    }
+
+    def __init__(self, port_id: int) -> None:
+        self.port_id = port_id
+        self.rx_pps: List[int] = []
+        self.tx_pps: List[int] = []
+        self.rx_bps: List[int] = []
+        self.tx_bps: List[int] = []
+        self.rx_total_packets = 0
+        self.tx_total_packets = 0
+        self.rx_packet_drops = 0
+        self.tx_packet_drops = 0
+
+    def add_value(self, key: str, value: int, in_forward_stats: bool) -> None:
+        if key in self._sample_keys:
+            getattr(self, self._sample_keys[key]).append(value)
+        elif in_forward_stats and key in self._forward_stats_keys:
+            setattr(self, self._forward_stats_keys[key], value)
+
+    def get_mean_pps(self, rx_or_tx: str) -> int:
+        samples = getattr(self, f"{_check_rx_or_tx(rx_or_tx).lower()}_pps")
+        return _mean(_discard_first_and_last_sample(_discard_first_zeroes(samples)))
+
+    def get_peak_pps(self, rx_or_tx: str) -> int:
+        # the best sample seen in the run. Used when part of the run is
+        # known to be degraded (ex: the peer's VF was hotplugged) so the
+        # mean would understate what the port is capable of.
+        samples: List[int] = getattr(self, f"{_check_rx_or_tx(rx_or_tx).lower()}_pps")
+        if not samples:
+            return 0
+        return max(samples)
+
+    def get_packet_drop_rate(self, rx_or_tx: str) -> float:
+        rx_or_tx = _check_rx_or_tx(rx_or_tx).lower()
+        total = getattr(self, f"{rx_or_tx}_total_packets")
+        if not total:
+            return 0.0
+        drops = getattr(self, f"{rx_or_tx}_packet_drops")
+        if not drops:
+            return 0.0
+        return float(drops) / float(total)
+
+    def __str__(self) -> str:
+        return (
+            f"port {self.port_id}: "
+            f"rx-pps(mean): {self.get_mean_pps('RX')} "
+            f"tx-pps(mean): {self.get_mean_pps('TX')} "
+            f"rx-packets: {self.rx_total_packets} "
+            f"tx-packets: {self.tx_total_packets} "
+            f"rx-dropped: {self.rx_packet_drops} "
+            f"tx-dropped: {self.tx_packet_drops} "
+            f"samples: {len(self.rx_pps)}"
+        )
+
+
 def _discard_first_zeroes(data: List[int]) -> List[int]:
     # NOTE: we occasionally get a 0 for the first pps result sample,
     # it's annoying to factor it into the average when
