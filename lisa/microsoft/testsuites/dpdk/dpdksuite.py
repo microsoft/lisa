@@ -686,7 +686,7 @@ class Dpdk(TestSuite):
                 "DPDK ring_ping test is not implemented for "
                 " package manager installation."
             )
-
+        testpmd.installer.do_installation()
         # grab a nic and run testpmd
         git = node.tools[Git]
         make = node.tools[Make]

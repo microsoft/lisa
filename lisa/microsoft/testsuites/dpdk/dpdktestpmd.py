@@ -483,7 +483,10 @@ class DpdkTestpmd(Tool):
         else:
             include_flag = "-w"
 
-        include_flag = f' {include_flag} "{node_nic.pci_slot}"'
+        if self.is_mana:
+            include_flag = f'{include_flag} {node_nic.dev_uuid}'
+        else:
+            include_flag = f' {include_flag} "{node_nic.pci_slot}"'
 
         # build pmd argument
         if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
@@ -492,7 +495,7 @@ class DpdkTestpmd(Tool):
         elif self.is_mana:
             # MANA netvsc mode selects by mac.
             if pmd == Pmd.NETVSC:
-                return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
+                return f' {include_flag} --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
             # if mana_ib is present, use mana friendly args
             elif self.node.tools[Modprobe].module_exists("mana_ib"):
                 return (
@@ -637,16 +640,16 @@ class DpdkTestpmd(Tool):
         # but netvsc are useful for identifying hotplugs on azure
         debug_logging=[]
         for lib in [
-            "mlx5"
-            "mana"
-            "vmbus"
-            "netvsc"
-            "vmbus"
-            "mbuf"
-            "ring"
-            "eal"
-            "app"
-            "ethdev"
+            "mlx5",
+            "mana",
+            "vmbus",
+            "netvsc",
+            "vmbus",
+            "mbuf",
+            "ring",
+            "eal",
+            "app",
+            "ethdev",
         ]:
             debug_logging += [f"--log-level {lib},debug"]
         debug_log_args = " ".join(debug_logging)
@@ -1005,7 +1008,8 @@ class DpdkTestpmd(Tool):
         ):
             raise SkippedException("MANA DPDK test is not supported on this OS")
 
-        self.installer.do_installation()
+        if not self.installer._check_if_installed():
+            self.installer.do_installation()
         self._dpdk_version_info = self.installer.get_installed_version()
         self._load_drivers_for_dpdk()
         self.find_testpmd_binary(check_path=self._expected_install_path)

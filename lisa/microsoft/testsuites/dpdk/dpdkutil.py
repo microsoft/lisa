@@ -52,6 +52,7 @@ from lisa.executable import Process
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.testsuite import TestResult
 from lisa.tools import (
     Cp,
@@ -278,6 +279,7 @@ def generate_send_receive_run_info(
     snd_nic, rcv_nic = [
         x.node.nics.get_nic_by_subnet("10.0.1.0/24") for x in [sender, receiver]
     ]
+
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
         run_in_parallel(
@@ -609,6 +611,61 @@ def do_pmd_driver_setup(
             if test_nic.lower and not ip.is_device_up(test_nic.lower):
                 ip.up(test_nic.lower)
 
+def get_vmbus_network_device_ids(node:Node, filter_driver:str) -> List[str]:
+    # get vmbus device id guids for network devices that match a specific driver.
+    # the guid for synthetic network devices is well-known and unlikely to change.
+    # https://github.com/torvalds/linux/blob/0d839570765118029aa8bf4a95444c6a11aacf85/tools/hv/lsvmbus#L34
+
+    # shell command filters for files that contain a specific device id,
+    # then filters for files that are bound to a specific driver by their sysfs entries.
+    device_ids = node.execute(
+        "grep -l f8615163-df3e-46c5-913f-f2d2f965ed0e /sys/bus/vmbus/devices/*/class_id "
+        "| cut -f 1-6 -d / ",
+        shell=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message=f"Shell check for vmbus devices bound to driver {filter_driver} returned an error."
+        ).stdout.splitlines()
+    drivers = node.execute(f"for i in {' '.join(device_ids)}; do readlink -f $i/driver; done",shell=True).stdout.splitlines()
+    devices = []
+    for pair in zip(drivers,device_ids):
+        driver, dev_id = pair
+        if driver == f"/sys/bus/vmbus/drivers/{filter_driver}":
+            devices += [PurePath(dev_id).name]
+    # example output:
+    # /sys/bus/vmbus/devices/f8615163-0001-1000-2000-7ced8d7e7866
+    # /sys/bus/vmbus/devices/f8615163-0002-1000-2000-7ced8d7e7a17
+
+    return devices
+
+
+def check_if_testpmd_is_running(node:Node, sample_apps:Optional[List[str]] = None) -> bool:
+    check_processes = [ "testpmd" ]
+    if sample_apps:
+        for app in sample_apps:
+            check_processes += [ app ]
+    check_processes = check_processes + [ f"dpdk-{app}" for app in check_processes ]
+    check = node.execute(f"pidof { ' '.join(check_processes)}", shell=True)
+    return check.exit_code == 0 and bool(check.stdout)
+
+def rebind_uio_devices_to_hv_netvsc(node: Node, devices: List[str]) -> None:
+    # unbind any uio_hv_generic devices and re-bind them to hv_netvsc
+    device_ids = get_vmbus_network_device_ids(node, filter_driver="uio_hv_generic")
+    if not device_ids:
+        # there were no devices bound to uio_hv_generic, so we can
+        return
+
+    for id in device_ids:
+        node.nics.unbind(id, "/sys/bus/vmbus/drivers/uio_hv_generic")
+        node.nics.bind(id, "/sys/bus/vmbus/drivers/hv_netvsc")
+    
+    node.nics.reload()
+
+
+def _rebind_uio_devices_on_node(node: Node) -> None:
+    uio_hv_generic_devices = get_vmbus_network_device_ids(node, "uio_hv_generic")
+    if uio_hv_generic_devices:
+        rebind_uio_devices_to_hv_netvsc(node, uio_hv_generic_devices)
+        node.nics.reload()
 
 
 def initialize_node_resources(
@@ -632,27 +689,22 @@ def initialize_node_resources(
         "Dpdk initialize_node_resources running "
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
     )
-    
-    # Check SRIOV/AN from inside the guest instead of asking the platform.
-    # node.nics walks /sys/class/net/*/lower_* and the pci slot for each
-    # interface, so this works on the ready platform as well.
-    node.nics.reload()
-    sriov_is_enabled = node.nics.is_pci_module_enabled()
-    # check whether we can switch sriov on, if it's off. 
+
+    # check whether we can switch sriov on, if it's off.
     # Some platforms (ReadyPlatform) don't support this feature.
-    if not sriov_is_enabled and node.features.is_supported(NetworkInterface):
-        network_interface_feature = node.features[NetworkInterface]
-        network_interface_feature.switch_sriov(enable=True, wait=True)
-    else:
-        raise SkippedException(
-            "SRIOV was not active and platform "
-            "does not support NetworkInterface feature")
-
-    log.info(f"Node[{node.name}] Verify SRIOV is enabled: {sriov_is_enabled}")
-    assert_that(sriov_is_enabled).described_as(
-        f"SRIOV was not enabled for this test node ({node.name})"
-    ).is_true()
-
+    # check on the platform if possible
+    try:
+        sriov_is_enabled = node.features[NetworkInterface].is_enabled_sriov()
+        if not sriov_is_enabled:
+            node.features[NetworkInterface].switch_sriov(enable=True, wait=True)
+    except NotImplementedError as err:
+        # else, check on the guest.
+        node.nics.reload()
+        if not node.nics.is_pci_module_enabled():
+            raise SkippedException(
+                "SRIOV was not active and platform "
+                "does not support NetworkInterface feature")
+        
     # dump some info about the pci devices before we start
     lspci = node.tools[Lspci]
     log.info(f"Node[{node.name}] LSPCI Info:\n{lspci.run().stdout}\n")
@@ -686,7 +738,7 @@ def initialize_node_resources(
     # *type* of installation is already installed,
     # taking it's creation arguments into account.
     testpmd.install()
-
+    
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
@@ -698,7 +750,7 @@ def initialize_node_resources(
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
-
+    
     test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
 
     # check an assumption that our nics are bound to hv_netvsc
@@ -713,7 +765,7 @@ def initialize_node_resources(
 
     # Allow user to pass in an explicit list of nics to use for the test.
     if test_nics is None:
-        test_nics = [node.nics.get_secondary_nic()]
+        test_nics = [test_nic]
 
     do_pmd_driver_setup(node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd)
 
@@ -845,6 +897,7 @@ def verify_dpdk_send_receive(
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
+    
     for node in environment.nodes.list():
         if isinstance(node, RemoteNode):
             external_ips += node.connection_info[
@@ -852,19 +905,36 @@ def verify_dpdk_send_receive(
             ]
         else:
             raise SkippedException()
+        # if len(node.nics.nics.values()) != 2:
+        #     raise SkippedException("This environment has more NICs than expected!")
 
     log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
 
+    # rebind any uio_hv_generic devices to hv_netvsc on all nodes in parallel.
+    # this is unlikely in Azure testing but likely in Ready environment testing.
+    run_in_parallel(
+        [
+            partial(_rebind_uio_devices_on_node, node)
+            for node in environment.nodes.list()
+        ],
+        log,
+    )
+
+    # pick specific nics for each node.
+    nic_list: Dict[Node,List[NicInfo]] = {}
+    for node in environment.nodes.list():
+        nic_list[node] = [node.nics.get_nic_by_subnet("10.0.1.0/24")]
+        
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     test_duration: int = variables.get("dpdk_test_duration", 15)
     test_kits = init_nodes_concurrent(
-        environment, log, variables, pmd, hugepage_size=hugepage_size
+        environment, log, variables, pmd, hugepage_size=hugepage_size, specific_pairings=nic_list
     )
 
     check_send_receive_compatibility(test_kits)
     sender, receiver = test_kits
-
+    
     # annotate test result before starting
     if result is not None:
         annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
@@ -1115,6 +1185,10 @@ def verify_dpdk_multiple_ports(
 
 def do_parallel_cleanup(environment: Environment) -> None:
     def _parallel_cleanup(node: Node) -> None:
+        # if we are using the ready environment, don't touch anything.
+        if isinstance(environment.platform, ReadyPlatform):
+            return
+        
         interface = node.features[NetworkInterface]
         if not interface.is_enabled_sriov():
             interface.switch_sriov(enable=True, wait=False, reset_connections=False)
