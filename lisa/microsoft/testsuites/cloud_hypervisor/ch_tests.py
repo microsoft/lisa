@@ -3,8 +3,6 @@
 from pathlib import Path
 from typing import Any, Dict
 
-from microsoft.testsuites.cloud_hypervisor.ch_tests_tool import CloudHypervisorTests
-
 from lisa import (
     Logger,
     Node,
@@ -19,6 +17,8 @@ from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Dmesg, Journalctl, Ls, Lscpu, Modprobe, Usermod
 from lisa.util import SkippedException
+
+from .ch_tests_tool import CloudHypervisorTests
 
 
 @TestSuiteMetadata(
@@ -83,6 +83,13 @@ class CloudHypervisorTestSuite(TestSuite):
     ) -> None:
         hypervisor = self._get_hypervisor_param(node)
         ref = variables.get("cloudhypervisor_ref", "")
+        integration_test_type = variables.get(
+            "ch_integration_test_type",
+            CloudHypervisorTests.INTEGRATION_TEST_TYPE,
+        )
+        CloudHypervisorTests.validate_integration_test_type(
+            integration_test_type, hypervisor
+        )
         # below variable expects a comma separated list of full testnames
         include_list, exclude_list = get_test_list(
             variables, "ch_integration_tests_included", "ch_integration_tests_excluded"
@@ -90,7 +97,7 @@ class CloudHypervisorTestSuite(TestSuite):
         ch_tests: CloudHypervisorTests = node.tools[CloudHypervisorTests]
         ch_tests.run_tests(
             result,
-            "integration",
+            integration_test_type,
             hypervisor,
             log_path,
             ref,
