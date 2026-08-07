@@ -53,7 +53,7 @@ from lisa import (
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.nic import NicInfo
-from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
+from lisa.operating_system import BSD, CBLMariner, Redhat, Ubuntu, Windows
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lscpu, Lsmod, Make, Modprobe
 from lisa.tools.hugepages import HugePageSize
@@ -1161,7 +1161,7 @@ class Dpdk(TestSuite):
         ),
         priority=3,
         requirement=simple_requirement(
-            supported_os=[Ubuntu],
+            supported_os=[Ubuntu,Redhat],
             min_core_count=8,
             min_count=3,
             min_nic_count=3,

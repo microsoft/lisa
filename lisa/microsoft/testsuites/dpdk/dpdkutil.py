@@ -285,20 +285,33 @@ def run_testpmd_hotplug(
         # gather the VF pci slot up front, the uevent match criteria are
         # built from it. The slot is stable across a remove/rescan cycle.
         test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
-        pci_slots = get_vf_pci_slots(node, [test_nic])
+        switch_sriov_for_nic(node, test_nic)
 
-        # start the uevent listener before triggering hotplug
-        listener = UeventListener(node)
-        listener.start()
+    # let it run for a bit
+    sleep(30)
+    # kill testpmd and process the output
+    for kit in all_kits:
+        kit.testpmd.kill_previous_testpmd_command()
+        # allow time for SIGINT/SIGKILL shutdown and stats flush
+        kit.testpmd.process_testpmd_output(
+            processes[kit].wait_result(timeout=120)
+        )
 
-        # let testpmd run for a bit before triggering hotplug
-        sleep(10)
+def switch_sriov_for_nic(node:Node, test_nic:NicInfo):
+    pci_slots = get_vf_pci_slots(node, [test_nic])
 
-        # remove the VF via sysfs instead of asking azure to disable
-        # accelerated networking, it's faster and doesn't touch the platform.
-        remove_pci_devices(node, pci_slots)
-        # wait for uevent listener to see each VF pci device go away
-        listener.wait_for_events(
+    # start the uevent listener before triggering hotplug
+    listener = UeventListener(node)
+    listener.start()
+
+    # let testpmd run for a bit before triggering hotplug
+    sleep(10)
+
+    # remove the VF via sysfs instead of asking azure to disable
+    # accelerated networking, it's faster and doesn't touch the platform.
+    remove_pci_devices(node, pci_slots)
+    # wait for uevent listener to see each VF pci device go away
+    listener.wait_for_events(
             [
                 UeventListener.device_criteria(slot, _PCI_REMOVE_TAG)
                 for slot in pci_slots
@@ -306,51 +319,40 @@ def run_testpmd_hotplug(
             timeout=60,
         )
 
-        # let it run on synthetic path before restoring the VF
-        sleep(10)
+    # let it run on synthetic path before restoring the VF
+    sleep(10)
 
-        rescan_pci_bus(node)
-        # wait for uevent listener to see each VF pci device come back.
-        # The VF may be paired with a different netdev after the rescan,
-        # seeing the same pci device added back is enough.
-        listener.wait_for_events(
+    rescan_pci_bus(node)
+    # wait for uevent listener to see each VF pci device come back.
+    # The VF may be paired with a different netdev after the rescan,
+    # seeing the same pci device added back is enough.
+    listener.wait_for_events(
             [UeventListener.device_criteria(slot, _PCI_ADD_TAG) for slot in pci_slots],
             timeout=60,
         )
 
-        # stop the listener and validate that we saw the expected uevents
-        events = listener.stop()
-        node.log.debug(f"uevent listener captured {len(events)} events: {events}")
-        for slot in pci_slots:
-            removes = [
+    # stop the listener and validate that we saw the expected uevents
+    events = listener.stop()
+    node.log.debug(f"uevent listener captured {len(events)} events: {events}")
+    for slot in pci_slots:
+        removes = [
                 e
                 for e in events
                 if e.matches(UeventListener.device_criteria(slot, _PCI_REMOVE_TAG))
             ]
-            adds = [
+        adds = [
                 e
                 for e in events
                 if e.matches(UeventListener.device_criteria(slot, _PCI_ADD_TAG))
             ]
-            assert_that(removes).described_as(
+        assert_that(removes).described_as(
                 f"Expected a removal uevent for VF {slot} after sysfs remove"
             ).is_not_empty()
-            assert_that(adds).described_as(
+        assert_that(adds).described_as(
                 f"Expected an add uevent for VF {slot} after pci rescan"
             ).is_not_empty()
-
-        # the nic/VF pairing may have changed, refresh the cached info
-        node.nics.reload()
-
-    # let it run for a bit
-    sleep(30)
-    # kill testpmd and process the output
-    for kit in all_kits:
-        kit.testpmd.kill_previous_testpmd_command()
-        kit.testpmd.process_testpmd_output(
-            processes[kit].wait_result(timeout=120)
-        )  # allow time for SIGINT/SIGKILL shutdown and stats flush
-
+            # the nic/VF pairing may have changed, refresh the cached info
+    node.nics.reload()
 
 def generate_send_receive_run_info(
     pmd: Pmd,
@@ -743,7 +745,7 @@ def rebind_uio_devices_to_hv_netvsc(node: Node, devices: List[str]) -> None:
     for id in device_ids:
         node.nics.unbind(id, "/sys/bus/vmbus/drivers/uio_hv_generic")
         node.nics.bind(id, "/sys/bus/vmbus/drivers/hv_netvsc")
-    
+
     node.nics.reload()
 
 
@@ -790,7 +792,7 @@ def initialize_node_resources(
             raise SkippedException(
                 "SRIOV was not active and platform "
                 "does not support NetworkInterface feature")
-        
+
     # dump some info about the pci devices before we start
     lspci = node.tools[Lspci]
     log.info(f"Node[{node.name}] LSPCI Info:\n{lspci.run().stdout}\n")
@@ -824,7 +826,7 @@ def initialize_node_resources(
     # *type* of installation is already installed,
     # taking it's creation arguments into account.
     testpmd.install()
-    
+
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
@@ -836,7 +838,7 @@ def initialize_node_resources(
     assert_that(len(node.nics)).described_as(
         "Test needs at least 1 NIC on the test node."
     ).is_greater_than_or_equal_to(1)
-    
+
     test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
 
     # check an assumption that our nics are bound to hv_netvsc
@@ -950,7 +952,7 @@ def verify_dpdk_build(
     if result is not None:
         annotate_dpdk_test_result(test_kit, test_result=result, log=log)
     # grab a nic and run testpmd
-    test_nic = node.nics.get_secondary_nic()
+    test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
 
     testpmd_cmd = testpmd.generate_testpmd_command(
         [test_nic], 0, "txonly", pmd=pmd, multiple_queues=multiple_queues
@@ -983,7 +985,7 @@ def verify_dpdk_send_receive(
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
-    
+
     for node in environment.nodes.list():
         if isinstance(node, RemoteNode):
             external_ips += node.connection_info[
@@ -1002,7 +1004,7 @@ def verify_dpdk_send_receive(
     nic_list: Dict[Node,List[NicInfo]] = {}
     for node in environment.nodes.list():
         nic_list[node] = [node.nics.get_nic_by_subnet("10.0.1.0/24")]
-        
+
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     test_duration: int = variables.get("dpdk_test_duration", 15)
@@ -1012,7 +1014,7 @@ def verify_dpdk_send_receive(
 
     check_send_receive_compatibility(test_kits)
     sender, receiver = test_kits
-    
+
     # annotate test result before starting
     if result is not None:
         annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
@@ -1277,7 +1279,7 @@ def do_parallel_cleanup(environment: Environment) -> None:
         # if we are using the ready environment, don't touch anything.
         if isinstance(environment.platform, ReadyPlatform):
             return
-        
+
         interface = node.features[NetworkInterface]
         if not interface.is_enabled_sriov():
             interface.switch_sriov(enable=True, wait=False, reset_connections=False)
@@ -1449,12 +1451,12 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         if node.nics.get_primary_nic().ip_addr.endswith("6")
     ][0]
 
-    if not (
-        forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
-        and isinstance(forwarder.os, Ubuntu)
-        and forwarder.os.information.version >= "22.4.0"
-    ):
-        raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
+    # if not (
+    #     forwarder.tools[Lscpu].get_architecture() == CpuArchitecture.X64
+    #     and isinstance(forwarder.os, Ubuntu)
+    #     and forwarder.os.information.version >= "22.4.0"
+    # ):
+    #     raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
 
     # get core count, quick skip if size is too small.
     available_threads = forwarder.tools[Lscpu].get_thread_count()
@@ -1679,7 +1681,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             [UeventListener.device_criteria(slot, _PCI_ADD_TAG) for slot in fwd_vf_slots],
             timeout=60,
         )
-        
+
         _receiver_after = ntttcp[receiver].run_as_server_async(
             subnet_b_nics[receiver].name,
             run_time_seconds=ntttcp_run_time,
@@ -1960,9 +1962,9 @@ class DpdkDevnameInfo:
                 )
                 + '" '
             ]
-            
+
             nic_args = " ".join(nic_includes + vdev_args)
-            
+
         else:
             # mlx nics; we get to cheat and just disallow the SSH interface.
             # the driver and EAL handles the rest.
@@ -2005,7 +2007,7 @@ class DpdkDevnameInfo:
 
 # Output line format from azure_uevent_listener:
 # [HH:MM:SS.mmm] TAG subsystem=X pci=... driver=... ifname=... name=... ...
-_uevent_line_regex = re.compile( 
+_uevent_line_regex = re.compile(
     r"\[(?P<timestamp>[\d:.]+)\]\s+"
     r"(?P<tag>\S+)\s+"
     r"(?P<properties>.*)"
