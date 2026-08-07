@@ -6,4 +6,9 @@
 prune .github
 exclude .git*
 
+# AI training data is large and not needed at runtime; exclude from sdist/wheel.
+# Without pruning, the deeply-nested log paths exceed the Windows 260-char limit
+# during `python -m build` and break sdist creation.
+prune lisa/ai/data
+
 # Everything else tracked by git is include automatically by setuptools-scm
