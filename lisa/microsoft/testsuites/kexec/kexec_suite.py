@@ -56,7 +56,7 @@ class KexecSuite(TestSuite):
         This test verifies the core kexec functionality by performing
         a controlled kernel-to-kernel reboot and validating the transition.
         """,
-        priority=5,
+        priority=3,
     )
     def verify_kexec_reboot_systemd(
         self, node: Node, log: Logger, result: TestResult
@@ -109,7 +109,7 @@ class KexecSuite(TestSuite):
         LSG-LISA can request a four-guest scenario by setting guest_node_count=4
         in the virtstack runbook or pipeline parameters.
         """,
-        priority=5,
+        priority=3,
         timeout=RUNNING_GUESTS_TIMEOUT,
         requirement=simple_requirement(min_count=1),
     )
