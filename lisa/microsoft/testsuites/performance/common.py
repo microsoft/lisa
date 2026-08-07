@@ -1001,9 +1001,7 @@ def _get_azure_sku_capabilities(
         return None
     caps = azure_capability.resource_sku.get("capabilities", [])
     return {
-        cap["name"]: cap["value"]
-        for cap in caps
-        if "name" in cap and "value" in cap
+        cap["name"]: cap["value"] for cap in caps if "name" in cap and "value" in cap
     }
 
 
