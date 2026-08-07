@@ -148,7 +148,7 @@ def get_blocked_vmbus_uuids(test_kit: DpdkTestResources, nic: NicInfo) -> List[s
 def generate_tx_command(
     test_kit: DpdkTestResources, tx_nic: NicInfo, peer_nic: NicInfo
 ) -> str:
-    return test_kit.testpmd.generate_testpmd_command(
+    cmd = test_kit.testpmd.generate_testpmd_command(
         [tx_nic],
         0,
         "txonly",
@@ -156,16 +156,18 @@ def generate_tx_command(
         core_offset=ROLE_CORE_OFFSET[TX_ROLE],
         extra_eal_args=get_eal_args(test_kit, TX_ROLE, tx_nic),
     )
+    return cmd
 
 
 def generate_rx_command(test_kit: DpdkTestResources, rx_nic: NicInfo) -> str:
-    return test_kit.testpmd.generate_testpmd_command(
+    cmd = test_kit.testpmd.generate_testpmd_command(
         [rx_nic],
         0,
         "rxonly",
         core_offset=ROLE_CORE_OFFSET[RX_ROLE],
         extra_eal_args=get_eal_args(test_kit, RX_ROLE, rx_nic),
     )
+    return cmd
 
 
 def get_test_nic_pairs(
