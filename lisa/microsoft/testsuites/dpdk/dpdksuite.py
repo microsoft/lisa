@@ -574,7 +574,7 @@ class Dpdk(TestSuite):
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
         testpmd = test_kit.testpmd
-        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd)
+        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd, stats_period=5)
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }

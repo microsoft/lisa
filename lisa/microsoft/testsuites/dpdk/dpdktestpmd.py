@@ -485,7 +485,7 @@ class DpdkTestpmd(Tool):
         # to run a txonly test with more than one port.
         # see https://github.com/mcgov/dpdk-next-net
         #   commit cf3a5d459a9484a5cd055f1552a456bc8ce1e45e
-        if self._has_multi_port_tx_ip is None:
+        if not hasattr(self, "_has_multi_port_tx_ip"):
             # NOTE: '--help' before the '--' separator is consumed by the EAL,
             # which may exit before testpmd prints its own usage. If the
             # testpmd usage is not in the output, ask for it again after the
@@ -503,7 +503,7 @@ class DpdkTestpmd(Tool):
             self._has_multi_port_tx_ip = bool(
                 self._multi_port_tx_ip_help_regex.search(help_output)
             )
-        return self._has_multi_port_tx_ip
+        return bool(self._has_multi_port_tx_ip)
 
     def _get_testpmd_usage(self, command: str, sudo: bool = False) -> str:
         # testpmd prints usage to stdout and the EAL prints to stderr,
@@ -596,6 +596,7 @@ class DpdkTestpmd(Tool):
         eal_device_args: str = "",
         core_offset: int = 0,
         extra_eal_args: str = "",
+        stats_period:int = 2,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -737,7 +738,8 @@ class DpdkTestpmd(Tool):
             eal_args += f" {extra_eal_args.strip()}"
         return (
             f"{self._testpmd_install_path} {eal_args} -- --forward-mode={mode} "
-            f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
+            f"-a --stats-period {stats_period} "
+            f"--nb-cores={forwarding_cores} {extra_args} "
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -1045,7 +1047,6 @@ class DpdkTestpmd(Tool):
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
         self._expected_install_path = ""
-        self._has_multi_port_tx_ip: Optional[bool] = None
         self._determine_network_hardware()
         if self.use_package_manager_install():
             self.installer: Installer = DpdkPackageManagerInstall(
@@ -1400,7 +1401,10 @@ class DpdkPortStats:
         total = getattr(self, f"{rx_or_tx}_total_packets")
         if not total:
             return 0.0
-        return getattr(self, f"{rx_or_tx}_packet_drops") / total
+        drops = getattr(self, f"{rx_or_tx}_packet_drops")
+        if not drops:
+            return 0.0
+        return float(drops) / float(total)
 
     def __str__(self) -> str:
         return (

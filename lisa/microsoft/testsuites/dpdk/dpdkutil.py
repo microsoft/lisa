@@ -415,8 +415,8 @@ def generate_send_receive_run_info(
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
-        stats_period=stats_period,
         extra_args=rcv_args,
+        stats_period=stats_period,
     )
 
     kit_cmd_pairs = {
@@ -528,8 +528,8 @@ def generate_multi_port_send_receive_run_info(
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
-        stats_period=stats_period,
         eal_device_args=eal_args[sender],
+        stats_period=5,
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         receiver_nics,
@@ -540,8 +540,8 @@ def generate_multi_port_send_receive_run_info(
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
-        stats_period=stats_period,
         eal_device_args=eal_args[receiver],
+        stats_period=5,
     )
 
     return {sender: snd_cmd, receiver: rcv_cmd}, port_maps
@@ -702,6 +702,7 @@ def generate_testpmd_multiple_port_command(
             service_cores=use_service_cores,
             mtu=set_mtu,
             mbuf_size=maxmtu_int,
+            stats_period=5,
         )
         # store this senders command
         kit_cmd_pairs[sender] = snd_cmd
@@ -722,6 +723,7 @@ def generate_testpmd_multiple_port_command(
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
+        stats_period=5,
     )
 
     kit_cmd_pairs[receiver] = rcv_cmd
@@ -851,18 +853,13 @@ def get_vmbus_network_device_ids(node: Node, filter_driver: str) -> List[str]:
 def get_dpdk_pids(node: Node) -> List[str]:
     apps = ["testpmd", "l3fwd", "devname", "symmetric_mp"]
     apps += map(lambda x: f"dpdk-{x}", apps)
-    check = node.tools[Pidof].get_pids(" ".join(apps), sudo=True)
+    check = node.execute(f"pidof { ' '.join(apps)}", shell=True).stdout.split()
     return check
 
 
-def check_dpdk_is_running(node: Node, sample_apps: Optional[List[str]] = None) -> bool:
-    check_processes = ["testpmd"]
-    if sample_apps:
-        for app in sample_apps:
-            check_processes += [app]
-    check_processes = check_processes + [f"dpdk-{app}" for app in check_processes]
-    check = node.execute(f"pidof { ' '.join(check_processes)}", shell=True)
-    return check.exit_code == 0 and bool(check.stdout)
+def check_dpdk_is_running(node: Node) -> bool:
+    check = get_dpdk_pids(node)
+    return len(check) != 0
 
 
 def rebind_uio_devices_to_hv_netvsc(node: Node, devices: List[str]) -> None:
