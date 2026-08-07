@@ -3,7 +3,7 @@
 
 from datetime import datetime, timedelta
 from unittest import TestCase
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from lisa.tools import Date, Reboot
 
@@ -22,9 +22,7 @@ class RebootTestCase(TestCase):
 
     def test_reconnects_before_remote_operation_after_uptime_wait(self) -> None:
         events = []
-        boot_times = iter(
-            [self.boot_time, self.boot_time, self.boot_time + timedelta(minutes=2)]
-        )
+        boot_times = iter([self.boot_time, self.boot_time + timedelta(minutes=2)])
         current_times = iter(
             [
                 self.boot_time + timedelta(seconds=20),
@@ -59,54 +57,7 @@ class RebootTestCase(TestCase):
                 "date_current",
                 "sleep",
                 "close",
-                "get_last_boot_time",
                 "date_current",
             ],
-            events[:6],
+            events[:5],
         )
-
-    def test_does_not_reboot_when_host_reboots_during_uptime_wait(self) -> None:
-        refreshed_boot_time = self.boot_time + timedelta(minutes=2)
-        self.date.current.side_effect = [
-            self.boot_time + timedelta(seconds=20),
-            self.boot_time + timedelta(seconds=61),
-        ]
-
-        with patch.object(
-            self.reboot,
-            "_get_last_boot_time",
-            side_effect=[self.boot_time, refreshed_boot_time],
-        ), patch.object(self.reboot, "_wait_ssh_session_stable") as (
-            wait_ssh_session_stable
-        ), patch(
-            "lisa.tools.reboot.sleep"
-        ):
-            self.reboot.reboot()
-
-        self.reboot.node.close.assert_called_once_with()
-        self.reboot.node.execute.assert_not_called()
-        wait_ssh_session_stable.assert_called_once()
-
-    def test_reboots_once_when_host_stays_up_during_uptime_wait(self) -> None:
-        refreshed_boot_time = self.boot_time + timedelta(minutes=2)
-        self.date.current.side_effect = [
-            self.boot_time + timedelta(seconds=20),
-            self.boot_time + timedelta(seconds=61),
-        ]
-
-        with patch.object(
-            self.reboot,
-            "_get_last_boot_time",
-            side_effect=[self.boot_time, self.boot_time, refreshed_boot_time],
-        ), patch.object(self.reboot, "_wait_ssh_session_stable"), patch(
-            "lisa.tools.reboot.sleep"
-        ):
-            self.reboot.reboot()
-
-        reboot_call = call(
-            "systemctl reboot -i",
-            shell=True,
-            sudo=True,
-            timeout=10,
-        )
-        self.assertEqual(1, self.reboot.node.execute.call_args_list.count(reboot_call))

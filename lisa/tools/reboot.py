@@ -18,7 +18,7 @@ from lisa.util import (
     TcpConnectionException,
     constants,
 )
-from lisa.util.perf_timer import Timer, create_timer
+from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
 from .date import Date
@@ -106,32 +106,6 @@ class Reboot(Tool):
             self._command = command_result.stdout.strip()
         self.run(force_run=True, sudo=True, timeout=10)
 
-    def _wait_for_minimum_uptime(
-        self, last_boot_time: datetime, time_out: int, timer: Timer
-    ) -> bool:
-        current_boot_time = last_boot_time
-        date = self.node.tools[Date]
-        # Boot time has no tzinfo, so remove it from the date result to avoid
-        # TypeError when subtracting offset-naive and offset-aware datetimes.
-        current_delta = date.current().replace(tzinfo=None) - current_boot_time
-        self._log.debug(f"delta time since last boot: {current_delta}")
-        while current_delta < timedelta(minutes=1):
-            wait_seconds = 60 - current_delta.seconds + 1
-            self._log.debug(f"waiting {wait_seconds} seconds before rebooting")
-            sleep(wait_seconds)
-
-            self.node.close()
-            current_boot_time = self._get_last_boot_time()
-            if last_boot_time < current_boot_time:
-                remaining_stability_wait = max(0, time_out - int(timer.elapsed(False)))
-                if remaining_stability_wait > 0:
-                    self._wait_ssh_session_stable(remaining_stability_wait)
-                return True
-
-            current_delta = date.current().replace(tzinfo=None) - current_boot_time
-
-        return False
-
     def reboot_and_check_panic(self, log_path: Path) -> None:
         try:
             self.reboot()
@@ -158,8 +132,19 @@ class Reboot(Tool):
         # so if the node rebooted in one minute, the who -b is not changed.
         # The reboot will wait forever.
         # in this case, verify the time is wait enough to prevent this problem.
-        if self._wait_for_minimum_uptime(last_boot_time, time_out, timer):
-            return
+        date = self.node.tools[Date]
+        # boot time has no tzinfo, so remove from date result to avoid below error.
+        # TypeError: can't subtract offset-naive and offset-aware datetimes
+        current_delta = date.current().replace(tzinfo=None) - current_boot_time
+        self._log.debug(f"delta time since last boot: {current_delta}")
+        while current_delta < timedelta(minutes=1):
+            # wait until one minute
+            wait_seconds = 60 - current_delta.seconds + 1
+            self._log.debug(f"waiting {wait_seconds} seconds before rebooting")
+            sleep(wait_seconds)
+            # Reconnect because the SSH session may become inactive during the wait.
+            self.node.close()
+            current_delta = date.current().replace(tzinfo=None) - current_boot_time
 
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
         try:
