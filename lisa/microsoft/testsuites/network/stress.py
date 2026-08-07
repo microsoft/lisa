@@ -36,7 +36,7 @@ from lisa.tools import Cat, Iperf3
     area="sriov",
     category="stress",
     description="""
-    This test suite uses to verify accelerated network functionality under stress.
+    This test suite is used to verify accelerated network functionality under stress.
     """,
 )
 class Stress(TestSuite):
@@ -147,114 +147,6 @@ class Stress(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max synthetic nics.
-
-        Steps,
-        1. Provision VM with max network interfaces with synthetic network.
-        2. Check each nic has an ip address.
-        3. Reboot VM from guest.
-        4. Check each nic has an ip address.
-        5. Repeat step 3 and 4 for 10 times.
-        """,
-        priority=2,
-        # Each of the 10 reboot cycles can take several minutes on large VMs
-        # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
-        timeout=7200,
-        requirement=simple_requirement(
-            network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=IntRange(min=2, choose_max_value=True),
-                data_path=schema.NetworkDataPath.Synthetic,
-            ),
-        ),
-    )
-    def stress_synthetic_provision_with_max_nics_reboot(
-        self, environment: Environment
-    ) -> None:
-        # Skip test if no synthetic NICs are available on any node
-        for node in environment.nodes.list():
-            skip_if_no_synthetic_nics(node)
-
-        initialize_nic_info(environment, is_sriov=False)
-        for _ in range(10):
-            for node in environment.nodes.list():
-                node.reboot()
-            initialize_nic_info(environment, is_sriov=False)
-
-    @TestCaseMetadata(
-        description="""
-        This case verify VM works well when provison with max synthetic nics.
-
-        Steps,
-        1. Provision VM with max network interfaces with synthetic network.
-        2. Check each nic has an ip address.
-        3. Reboot VM from API.
-        4. Check each nic has an ip address.
-        5. Repeat step 3 and 4 for 10 times.
-        """,
-        priority=2,
-        # Each of the 10 restart cycles can take several minutes on large VMs
-        # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
-        timeout=7200,
-        requirement=simple_requirement(
-            network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=IntRange(min=2, choose_max_value=True),
-                data_path=schema.NetworkDataPath.Synthetic,
-            ),
-        ),
-    )
-    def stress_synthetic_with_max_nics_reboot_from_platform(
-        self, environment: Environment
-    ) -> None:
-        # Skip test if no synthetic NICs are available on any node
-        for node in environment.nodes.list():
-            skip_if_no_synthetic_nics(node)
-
-        initialize_nic_info(environment, is_sriov=False)
-        for _ in range(10):
-            for node in environment.nodes.list():
-                start_stop = node.features[StartStop]
-                start_stop.restart()
-            initialize_nic_info(environment, is_sriov=False)
-
-    @TestCaseMetadata(
-        description="""
-        This case verify VM works well when provison with max synthetic nics.
-
-        Steps,
-        1. Provision VM with max network interfaces with synthetic network.
-        2. Check each nic has an ip address.
-        3. Stop and Start VM from API.
-        4. Check each nic has an ip address.
-        5. Repeat step 3 and 4 for 10 times.
-        """,
-        priority=2,
-        # Each of the 10 stop/start cycles can take several minutes on large VMs
-        # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
-        timeout=7200,
-        requirement=simple_requirement(
-            network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=IntRange(min=2, choose_max_value=True),
-                data_path=schema.NetworkDataPath.Synthetic,
-            ),
-        ),
-    )
-    def stress_synthetic_with_max_nics_stop_start_from_platform(
-        self, environment: Environment
-    ) -> None:
-        # Skip test if no synthetic NICs are available on any node
-        for node in environment.nodes.list():
-            skip_if_no_synthetic_nics(node)
-
-        initialize_nic_info(environment, is_sriov=False)
-        for _ in range(10):
-            for node in environment.nodes.list():
-                start_stop = node.features[StartStop]
-                start_stop.stop()
-                start_stop.start()
-            initialize_nic_info(environment, is_sriov=False)
-
-    @TestCaseMetadata(
-        description="""
         This case verify VM works well when provisioning with max sriov nics.
 
         Steps,
@@ -275,7 +167,7 @@ class Stress(TestSuite):
     def stress_sriov_with_max_nics_reboot(self, environment: Environment) -> None:
         initialize_nic_info(environment)
         sriov_basic_test(environment)
-        for _ in range(10):
+        for _ in range(10):  # repeat reboot cycles to stress NIC stability
             for node in environment.nodes.list():
                 node.reboot()
             initialize_nic_info(environment)
@@ -305,7 +197,7 @@ class Stress(TestSuite):
     ) -> None:
         initialize_nic_info(environment)
         sriov_basic_test(environment)
-        for _ in range(10):
+        for _ in range(10):  # repeat platform restart cycles to stress NIC stability
             for node in environment.nodes.list():
                 start_stop = node.features[StartStop]
                 start_stop.restart()
@@ -336,7 +228,7 @@ class Stress(TestSuite):
     ) -> None:
         initialize_nic_info(environment)
         sriov_basic_test(environment)
-        for _ in range(10):
+        for _ in range(10):  # repeat platform stop/start cycles to stress NIC stability
             for node in environment.nodes.list():
                 start_stop = node.features[StartStop]
                 start_stop.stop()
@@ -347,3 +239,120 @@ class Stress(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         cleanup_iperf3(environment)
+
+
+@TestSuiteMetadata(
+    area="synthetic",
+    category="stress",
+    description="""
+    This test suite is used to verify synthetic network functionality under stress.
+    """,
+)
+class StressSynthetic(TestSuite):
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provisioning with max synthetic nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with synthetic network.
+        2. Check each nic has an ip address.
+        3. Reboot VM from guest.
+        4. Check each nic has an ip address.
+        5. Repeat step 3 and 4 for 10 times.
+        """,
+        priority=2,
+        # Each of the 10 reboot cycles can take several minutes on large VMs
+        # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
+        timeout=7200,
+        requirement=simple_requirement(
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=IntRange(min=2, choose_max_value=True),
+                data_path=schema.NetworkDataPath.Synthetic,
+            ),
+        ),
+    )
+    def stress_synthetic_provision_with_max_nics_reboot(
+        self, environment: Environment
+    ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
+        initialize_nic_info(environment, is_sriov=False)
+        for _ in range(10):  # repeat reboot cycles to stress NIC stability
+            for node in environment.nodes.list():
+                node.reboot()
+            initialize_nic_info(environment, is_sriov=False)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provisioning with max synthetic nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with synthetic network.
+        2. Check each nic has an ip address.
+        3. Reboot VM from API.
+        4. Check each nic has an ip address.
+        5. Repeat step 3 and 4 for 10 times.
+        """,
+        priority=2,
+        # Each of the 10 restart cycles can take several minutes on large VMs
+        # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
+        timeout=7200,
+        requirement=simple_requirement(
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=IntRange(min=2, choose_max_value=True),
+                data_path=schema.NetworkDataPath.Synthetic,
+            ),
+        ),
+    )
+    def stress_synthetic_with_max_nics_reboot_from_platform(
+        self, environment: Environment
+    ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
+        initialize_nic_info(environment, is_sriov=False)
+        for _ in range(10):  # repeat platform restart cycles to stress NIC stability
+            for node in environment.nodes.list():
+                start_stop = node.features[StartStop]
+                start_stop.restart()
+            initialize_nic_info(environment, is_sriov=False)
+
+    @TestCaseMetadata(
+        description="""
+        This case verify VM works well when provisioning with max synthetic nics.
+
+        Steps,
+        1. Provision VM with max network interfaces with synthetic network.
+        2. Check each nic has an ip address.
+        3. Stop and Start VM from API.
+        4. Check each nic has an ip address.
+        5. Repeat step 3 and 4 for 10 times.
+        """,
+        priority=2,
+        # Each of the 10 stop/start cycles can take several minutes on large VMs
+        # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
+        timeout=7200,
+        requirement=simple_requirement(
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=IntRange(min=2, choose_max_value=True),
+                data_path=schema.NetworkDataPath.Synthetic,
+            ),
+        ),
+    )
+    def stress_synthetic_with_max_nics_stop_start_from_platform(
+        self, environment: Environment
+    ) -> None:
+        # Skip test if no synthetic NICs are available on any node
+        for node in environment.nodes.list():
+            skip_if_no_synthetic_nics(node)
+
+        initialize_nic_info(environment, is_sriov=False)
+        for _ in range(10):  # repeat platform stop/start cycles to stress NIC stability
+            for node in environment.nodes.list():
+                start_stop = node.features[StartStop]
+                start_stop.stop()
+                start_stop.start()
+            initialize_nic_info(environment, is_sriov=False)
