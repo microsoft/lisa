@@ -220,22 +220,25 @@ class KdumpBase(Tool):
     @classmethod
     def create(cls, node: "Node", *args: Any, **kwargs: Any) -> Tool:
         # FreeBSD image doesn't support kdump since the kernel has no DDB option
+        kdump_type: Type[KdumpBase]
         if isinstance(node.os, Redhat):
-            return KdumpRedhat(node)
+            kdump_type = KdumpRedhat
         elif isinstance(node.os, Debian):
-            return KdumpDebian(node)
+            kdump_type = KdumpDebian
         elif isinstance(node.os, Suse):
-            return KdumpSuse(node)
+            kdump_type = KdumpSuse
         elif isinstance(node.os, CBLMariner):
             if node.os.information.version.major >= 4:
-                return KdumpFedora(node)
-            return KdumpCBLMariner(node)
+                kdump_type = KdumpFedora
+            else:
+                kdump_type = KdumpCBLMariner
         elif type(node.os) is Fedora:
-            return KdumpFedora(node)
+            kdump_type = KdumpFedora
         elif isinstance(node.os, OpenEuler):
-            return KdumpOpenEuler(node)
+            kdump_type = KdumpOpenEuler
         else:
             raise UnsupportedDistroException(os=node.os)
+        return kdump_type(node)
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
