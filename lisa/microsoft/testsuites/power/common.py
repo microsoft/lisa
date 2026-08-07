@@ -1,6 +1,5 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
-import time
 from decimal import Decimal
 from typing import Any, List, cast
 
@@ -151,33 +150,14 @@ def _perform_hibernation_cycle(
 
     boot_time_before_hibernation = who.last_boot()
 
-    # Azure may return a transient "VMHibernateFailed" internal error; the
-    # platform guidance is to retry. Retry only that exact error, and only
-    # while the VM is still running.
-    max_hibernate_attempts = 3
-    hibernate_retry_delay = 30
-    for attempt in range(1, max_hibernate_attempts + 1):
+    try:
+        startstop.stop(state=features.StopState.Hibernate)
+    except Exception as ex:
         try:
-            startstop.stop(state=features.StopState.Hibernate)
-            break
-        except Exception as ex:
-            transient = "VMHibernateFailed" in str(ex)
-            if (
-                transient
-                and attempt < max_hibernate_attempts
-                and startstop.get_status() == VMStatus.Running
-            ):
-                log.info(
-                    f"transient VMHibernateFailed on attempt {attempt}; "
-                    f"retrying in {hibernate_retry_delay}s"
-                )
-                time.sleep(hibernate_retry_delay)
-                continue
-            try:
-                dmesg.get_output(force_run=True)
-            except Exception as e:
-                log.debug(f"error on get dmesg output: {e}")
-            raise LisaException(f"fail to hibernate: {ex}")
+            dmesg.get_output(force_run=True)
+        except Exception as e:
+            log.debug(f"error on get dmesg output: {e}")
+        raise LisaException(f"fail to hibernate: {ex}")
 
     is_ready = True
     timeout = 900
@@ -402,16 +382,20 @@ def run_network_workload(environment: Environment) -> Decimal:
 
     iperf3_server = server_node.tools[Iperf3]
     iperf3_client = client_node.tools[Iperf3]
-    iperf3_server.run_as_server_async()
-    iperf3_client_result = iperf3_client.run_as_client_async(
-        server_ip=server_node.internal_address,
-        parallel_number=8,
-        run_time_seconds=120,
+    iperf3_server_process = iperf3_server.run_as_server_async(
+        port=5201, daemon=False
     )
-    result_before_hb = iperf3_client_result.wait_result()
-    kill = server_node.tools[Kill]
-    kill.by_name("iperf3")
-    return iperf3_client.get_sender_bandwidth(result_before_hb.stdout)
+    try:
+        iperf3_client_result = iperf3_client.run_as_client_async(
+            server_ip=server_node.internal_address,
+            parallel_number=8,
+            run_time_seconds=120,
+        )
+        result_before_hb = iperf3_client_result.wait_result()
+        return iperf3_client.get_sender_bandwidth(result_before_hb.stdout)
+    finally:
+        iperf3_server_process.kill()
+        server_node.tools[Kill].by_name("iperf3")
 
 
 def verify_hibernation(
