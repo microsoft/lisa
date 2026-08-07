@@ -6,7 +6,7 @@ import re
 import shlex
 import xml.etree.ElementTree as ETree  # noqa: N817
 from dataclasses import dataclass
-from pathlib import Path, PurePath
+from pathlib import Path, PurePath, PurePosixPath
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, cast
 
 from assertpy.assertpy import assert_that, fail
@@ -62,6 +62,13 @@ class CloudHypervisorTests(Tool):
     PERF_CASE_TIME_OUT = 21600 + 2400
     PERF_CMD_TIME_OUT = 1200
     METRICS_REPORT_FILE = "lisa_metrics_report.json"
+    INTEGRATION_TEST_TYPE = "integration"
+    CVM_INTEGRATION_TEST_TYPE = "integration-cvm"
+    SUPPORTED_INTEGRATION_TEST_TYPES = (
+        INTEGRATION_TEST_TYPE,
+        CVM_INTEGRATION_TEST_TYPE,
+    )
+    CVM_IGVM_FILES_PATH = PurePosixPath("/usr/share/cloud-hypervisor/cvm")
 
     upstream_repo = "https://github.com/cloud-hypervisor/cloud-hypervisor.git"
     env_vars = {
@@ -148,6 +155,46 @@ class CloudHypervisorTests(Tool):
         """Sanitize names for filenames: keep alphanumeric, dot, dash, underscore."""
         return re.sub(r"[^A-Za-z0-9_.-]", "_", s)
 
+    @classmethod
+    def validate_integration_test_type(cls, test_type: str, hypervisor: str) -> None:
+        if test_type not in cls.SUPPORTED_INTEGRATION_TEST_TYPES:
+            supported_values = ", ".join(cls.SUPPORTED_INTEGRATION_TEST_TYPES)
+            raise LisaException(
+                f"Unsupported Cloud Hypervisor integration test type "
+                f"'{test_type}'. Supported values: {supported_values}."
+            )
+        if test_type == cls.CVM_INTEGRATION_TEST_TYPE and hypervisor != "mshv":
+            raise LisaException(
+                "Cloud Hypervisor integration-cvm is supported only with the "
+                f"mshv hypervisor, but '{hypervisor}' was selected."
+            )
+
+    def _ensure_cvm_integration_assets(self) -> None:
+        if not self.node.shell.exists(self.CVM_IGVM_FILES_PATH):
+            raise LisaException(
+                "Cloud Hypervisor integration-cvm requires IGVM assets at "
+                f"{self.CVM_IGVM_FILES_PATH}, but the directory is unavailable."
+            )
+
+    @classmethod
+    def _build_tests_command(
+        cls,
+        test_type: str,
+        hypervisor: str,
+        skip_args: str = "",
+        test_script_args: str = "",
+    ) -> str:
+        if test_type == cls.CVM_INTEGRATION_TEST_TYPE:
+            command = f"tests --integration-cvm --hypervisor {hypervisor}"
+        else:
+            command = f"tests --hypervisor {hypervisor} --{test_type}"
+
+        if test_script_args:
+            return f"{command} -- {test_script_args}"
+        if test_type == cls.CVM_INTEGRATION_TEST_TYPE and not skip_args:
+            return command
+        return f"{command} -- -- {skip_args}"
+
     @staticmethod
     def _escape_nextest_filter_matcher(matcher: str) -> str:
         return matcher.replace("\\", "\\\\").replace(")", "\\)")
@@ -186,6 +233,13 @@ class CloudHypervisorTests(Tool):
         # Store the ordered list for diagnostic purposes
         self._ordered_subtests = subtests.copy()
 
+        if test_type == self.CVM_INTEGRATION_TEST_TYPE:
+            discovered_subtests = set(subtests)
+            if only is not None:
+                only = [test for test in only if test in discovered_subtests]
+            if skip is not None:
+                skip = [test for test in skip if test in discovered_subtests]
+
         if only is not None:
             if not skip:
                 skip = []
@@ -196,6 +250,13 @@ class CloudHypervisorTests(Tool):
             skip_args = " ".join(map(lambda t: f"--skip {t}", skip))
         else:
             skip_args = ""
+
+        if test_type == self.CVM_INTEGRATION_TEST_TYPE and not subtests:
+            raise LisaException(
+                "No common_cvm subtests remain after applying the Cloud Hypervisor "
+                "integration include and exclude filters."
+            )
+
         self._log.debug(f"Final Subtests list to run: {subtests}")
 
         return {"subtest_set": set(subtests), "skip_args": skip_args}
@@ -484,6 +545,10 @@ class CloudHypervisorTests(Tool):
         skip: Optional[List[str]] = None,
         cli_test_filter: Optional[str] = None,
     ) -> None:
+        self.validate_integration_test_type(test_type, hypervisor)
+        if test_type == self.CVM_INTEGRATION_TEST_TYPE:
+            self._ensure_cvm_integration_assets()
+
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
@@ -506,6 +571,7 @@ class CloudHypervisorTests(Tool):
 
         # Use enhanced diagnostics for better debugging and monitoring
         skip_args = subtests["skip_args"]
+        test_script_args = ""
         if cli_test_filter:
             nextest_filter = self._build_nextest_filterset(
                 cli_test_filter,
@@ -513,14 +579,12 @@ class CloudHypervisorTests(Tool):
                 skip,
             )
             test_script_args = f"--test-filter {shlex.quote(nextest_filter)}"
-            cmd_args = (
-                f"tests --hypervisor {hypervisor} --{test_type} -- "
-                f"{test_script_args}"
-            )
-        else:
-            cmd_args = (
-                f"tests --hypervisor {hypervisor} --{test_type} -- -- " f"{skip_args}"
-            )
+        cmd_args = self._build_tests_command(
+            test_type,
+            hypervisor,
+            skip_args,
+            test_script_args,
+        )
         # normalize name so artifacts are predictable (no spaces/colons/slashes)
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
         test_name = self._sanitize_name(f"ch_{safe_test_type}_{hypervisor}")
@@ -1497,12 +1561,24 @@ exit $ec
         # quoting, so RUSTFLAGS must be a single space-free token: the
         # "--cfg=<name>" form is used instead of "--cfg <name>" so the
         # devcli_testenv cfg the integration test scripts build with is still
-        # applied. The "mshv" feature mirrors the MSHV build.
-        test_features = "--features mshv" if hypervisor == "mshv" else ""
-        nextest_list_cmd = (
-            "RUSTFLAGS=--cfg=devcli_testenv cargo nextest list "
-            f"-p cloud-hypervisor {test_features} --message-format json"
-        )
+        # applied. MSHV CVM discovery mirrors the dedicated upstream runner's
+        # feature set and nextest profile instead of enumerating regular tests.
+        nextest_args = [
+            "RUSTFLAGS=--cfg=devcli_testenv",
+            "cargo nextest list",
+            "-p cloud-hypervisor",
+        ]
+        if test_type == self.CVM_INTEGRATION_TEST_TYPE:
+            nextest_args.extend(
+                [
+                    "--features mshv,igvm,sev_snp",
+                    "--profile common_cvm",
+                ]
+            )
+        elif hypervisor == "mshv":
+            nextest_args.append("--features mshv")
+        nextest_args.append("--message-format json")
+        nextest_list_cmd = " ".join(nextest_args)
         cmd_args = f"shell -- {nextest_list_cmd}"
         # Use enhanced environment variables for consistency
         enhanced_env_vars = self.env_vars.copy()
@@ -1522,7 +1598,28 @@ exit $ec
             shell=True,
             update_envs=enhanced_env_vars,
         )
-        subtests = self._parse_nextest_subtest_list(result.stdout)
+        discovery_output = f"{result.stdout}\n{result.stderr}".strip()
+        if test_type == self.CVM_INTEGRATION_TEST_TYPE and result.exit_code != 0:
+            raise LisaException(
+                "Cloud Hypervisor integration-cvm discovery failed with exit "
+                f"code {result.exit_code}: {discovery_output[-1000:]}"
+            )
+
+        subtests = self._parse_nextest_subtest_list(discovery_output)
+        if test_type == self.CVM_INTEGRATION_TEST_TYPE:
+            subtests = [
+                test_name
+                for test_name in subtests
+                if test_name.startswith("common_cvm::")
+            ]
+            if not subtests:
+                raise LisaException(
+                    "Cloud Hypervisor integration-cvm discovery found no "
+                    "common_cvm tests. Verify that the selected Cloud Hypervisor "
+                    "ref supports the common_cvm nextest profile and the "
+                    "mshv,igvm,sev_snp feature set."
+                )
+
         self._log.debug(f"Subtests list: {subtests}")
         return subtests
 
