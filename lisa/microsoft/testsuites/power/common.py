@@ -382,20 +382,16 @@ def run_network_workload(environment: Environment) -> Decimal:
 
     iperf3_server = server_node.tools[Iperf3]
     iperf3_client = client_node.tools[Iperf3]
-    iperf3_server_process = iperf3_server.run_as_server_async(
-        port=5201, daemon=False
+    iperf3_server.run_as_server_async()
+    iperf3_client_result = iperf3_client.run_as_client_async(
+        server_ip=server_node.internal_address,
+        parallel_number=8,
+        run_time_seconds=120,
     )
-    try:
-        iperf3_client_result = iperf3_client.run_as_client_async(
-            server_ip=server_node.internal_address,
-            parallel_number=8,
-            run_time_seconds=120,
-        )
-        result_before_hb = iperf3_client_result.wait_result()
-        return iperf3_client.get_sender_bandwidth(result_before_hb.stdout)
-    finally:
-        iperf3_server_process.kill()
-        server_node.tools[Kill].by_name("iperf3")
+    result_before_hb = iperf3_client_result.wait_result()
+    kill = server_node.tools[Kill]
+    kill.by_name("iperf3")
+    return iperf3_client.get_sender_bandwidth(result_before_hb.stdout)
 
 
 def verify_hibernation(
