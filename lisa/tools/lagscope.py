@@ -13,7 +13,7 @@ from lisa.messages import (
     create_perf_message,
     send_unified_perf_message,
 )
-from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, OpenEuler, Posix, Redhat, Suse
 from lisa.util import LisaException, constants, find_groups_in_lines, get_datetime_path
 from lisa.util.process import ExecutableResult, Process
 
@@ -505,6 +505,15 @@ class Lagscope(Tool, KillableMixin):
                 "glibc-devel",
                 "zlib-devel",
                 "cmake",
+            ]
+        elif isinstance(self.node.os, OpenEuler):
+            package_list = [
+                "libaio",
+                "sysstat",
+                "bc",
+                "wget",
+                "cmake",
+                "libarchive",
             ]
         else:
             raise LisaException(

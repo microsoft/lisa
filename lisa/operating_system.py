@@ -2245,6 +2245,20 @@ class AlmaLinux(Redhat):
         return re.compile("^AlmaLinux")
 
 
+class OpenEuler(RPMDistro):
+    """
+    openEuler is an open source, dnf-based RPM Linux distribution. It is detected
+    via NAME/ID "openEuler" in /etc/os-release. It extends RPMDistro to reuse the
+    dnf-based package and repository handling, and relies on the base
+    Linux._get_information to parse /etc/os-release, since openEuler does not
+    provide /etc/fedora-release.
+    """
+
+    @classmethod
+    def name_pattern(cls) -> Pattern[str]:
+        return re.compile("^openEuler|openeuler$")
+
+
 class CBLMariner(RPMDistro):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
