@@ -1,0 +1,35 @@
+name: azure_security_linux_agent
+# Runbook to run only the Azure Security Linux Agent VM extension boot
+# validation test:
+#   Microsoft.Azure.Security.Monitoring.AzureSecurityLinuxAgent
+#
+# Usage (from the repo root, with the venv activated and Azure auth set up):
+#   lisa -r lisa/microsoft/runbook/azure_security_linux_agent.yml \
+#        -v subscription_id:<your-sub-id> \
+#        -v azure_security_linux_agent_version:2.0
+#
+# The version variable is REQUIRED; the test is skipped when it is empty.
+include:
+  - path: ./azure.yml
+variable:
+  # ---- Fill these in (or override on the command line with -v) --------------
+  - name: subscription_id
+    value: ""
+  - name: azure_security_linux_agent_version
+    value: "2.0"
+  # ---- Deployment defaults ---------------------------------------------------
+  - name: location
+    value: "westus3"
+  - name: marketplace_image
+    value: "canonical ubuntu-24_04-lts server latest"
+  - name: keep_environment
+    value: "no"
+  - name: auth_type
+    value: "default"
+testcase:
+  - criteria:
+      name: microsoft_azure_security_monitoring_azuresecuritylinuxagent_boot_validation_test
+      # The case starts at 'experimental' maturity per the VM extension
+      # onboarding guidance; the explicit maturity criterion approves it past
+      # LISA's implicit stable gate so it is actually selected.
+      maturity: experimental
