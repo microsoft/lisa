@@ -1,0 +1,38 @@
+2024-06-15 14:00:01 INFO  lisa_runner: Starting LISA test run
+2024-06-15 14:00:02 INFO  lisa_runner: Platform: azure
+2024-06-15 14:00:03 INFO  lisa_runner: Runbook: sriov_tests.yml
+2024-06-15 14:00:10 INFO  environment[0]: Provisioning environment
+2024-06-15 14:00:50 INFO  environment[0]: Environment deployed successfully
+2024-06-15 14:00:51 INFO  node[0]: Connected to 10.0.0.10:22
+2024-06-15 14:00:52 INFO  node[0]: OS: RHEL 9.5
+2024-06-15 14:01:00 INFO  test_runner: Running test case: smoke_test
+2024-06-15 14:01:01 INFO  smoke_test: SSH port 22 is opened, connecting and rebooting 'node-0'
+2024-06-15 14:01:35 INFO  smoke_test: Reboot completed in 34.2s
+smoke_test | PASSED | completed in 35s
+2024-06-15 14:01:40 INFO  test_runner: Running test case: verify_sriov_basic
+2024-06-15 14:01:41 INFO  verify_sriov_basic: Checking SRIOV device presence
+2024-06-15 14:01:42 DEBUG verify_sriov_basic: lspci output: 0002:00:02.0 Ethernet controller: Mellanox MT27710
+2024-06-15 14:01:43 INFO  verify_sriov_basic: Found 1 SRIOV VF device(s)
+2024-06-15 14:01:44 ERROR verify_sriov_basic: AssertionError: Expected 2 SRIOV VF devices but found 1
+Traceback (most recent call last):
+  File "lisa/microsoft/testsuites/network/sriov.py", line 142, in verify_sriov_basic
+    assert_that(vf_count).described_as(
+  File "assertpy/assertpy.py", line 234, in is_equal_to
+    raise AssertionError(self.description)
+AssertionError: Expected 2 SRIOV VF devices to match NIC count, but found 1. Check if accelerated networking is enabled on all NICs.
+verify_sriov_basic | FAILED | Expected 2 SRIOV VF devices but found 1
+2024-06-15 14:02:00 INFO  test_runner: Running test case: verify_gpu_driver
+2024-06-15 14:02:01 INFO  verify_gpu_driver: Checking GPU presence
+2024-06-15 14:02:02 INFO  verify_gpu_driver: No GPU devices found on this VM size
+verify_gpu_driver | SKIPPED | No GPU found — VM size does not support GPU
+2024-06-15 14:02:10 INFO  test_runner: Running test case: verify_reboot_in_platform
+2024-06-15 14:02:11 INFO  verify_reboot_in_platform: Initiating platform reboot
+2024-06-15 14:02:12 WARNING verify_reboot_in_platform: Reboot taking longer than expected
+2024-06-15 14:07:12 ERROR verify_reboot_in_platform: TcpConnectionException: failed to connect to 10.0.0.10:22 after 300s
+2024-06-15 14:07:13 INFO  verify_reboot_in_platform: Checking serial console for kernel panic
+2024-06-15 14:07:14 ERROR verify_reboot_in_platform: Serial console shows: Kernel panic - not syncing: VFS: Unable to mount root fs on unknown-block(0,0)
+2024-06-15 14:07:15 ERROR verify_reboot_in_platform: Call Trace: [<ffffffff81234567>] mount_block_root+0x1a3/0x2b0
+verify_reboot_in_platform | FAILED | Kernel panic during reboot - unable to mount root filesystem
+2024-06-15 14:07:20 INFO  test_runner: Test run completed
+2024-06-15 14:07:20 INFO  lisa_runner: Results: 1 passed, 2 failed, 1 skipped
+2024-06-15 14:07:21 INFO  lisa_runner: Total elapsed: 440 seconds
