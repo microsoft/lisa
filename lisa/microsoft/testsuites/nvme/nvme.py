@@ -1,6 +1,8 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
+
 from assertpy import assert_that
 
 from lisa import (
@@ -17,7 +19,57 @@ from lisa.search_space import IntRange
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import Cat, Df, Echo, Fdisk, Lspci, Mkfs, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem
+from lisa.util import LisaException, LisaTimeoutException, check_till_timeout
 from lisa.util.constants import DEVICE_TYPE_NVME, DEVICE_TYPE_SRIOV
+
+_FSTRIM_TRIMMED_BYTES_PATTERN = re.compile(r"\((?P<bytes>\d+) bytes\) trimmed")
+
+
+def _get_fstrim_trimmed_bytes(node: Node, mount_point: str) -> int:
+    fstrim_result = node.execute(f"fstrim {mount_point} -v", shell=True, sudo=True)
+    fstrim_result.assert_exit_code(
+        message=f"fstrim failed on [{mount_point}]. Verify the mount point exists "
+        "and the underlying device supports discard."
+    )
+    matched = _FSTRIM_TRIMMED_BYTES_PATTERN.search(fstrim_result.stdout)
+    if not matched:
+        raise LisaException(
+            f"cannot parse trimmed bytes from fstrim output on [{mount_point}]: "
+            f"[{fstrim_result.stdout}]. Verify the util-linux version on this distro "
+            "supports the verbose output of 'fstrim -v'."
+        )
+    return int(matched.group("bytes"))
+
+
+def _wait_for_trimmable_space(
+    node: Node,
+    mount_point: str,
+    expected_trimmed_bytes: int,
+    timeout: int,
+    interval: int,
+) -> int:
+    observed_trimmed_bytes = 0
+
+    def _is_space_reclaimed() -> bool:
+        nonlocal observed_trimmed_bytes
+        observed_trimmed_bytes = _get_fstrim_trimmed_bytes(node, mount_point)
+        return observed_trimmed_bytes >= expected_trimmed_bytes
+
+    try:
+        check_till_timeout(
+            _is_space_reclaimed,
+            timeout_message=f"[{mount_point}] reclaimed only "
+            f"{observed_trimmed_bytes} trimmable bytes, expected at least "
+            f"{expected_trimmed_bytes}",
+            timeout=timeout,
+            interval=interval,
+        )
+    except LisaTimeoutException:
+        node.log.debug(
+            f"[{mount_point}] stopped at {observed_trimmed_bytes} trimmable bytes "
+            f"after waiting {timeout} seconds"
+        )
+    return observed_trimmed_bytes
 
 
 def _format_mount_disk(
@@ -51,6 +103,13 @@ def _format_mount_disk(
 )
 class NvmeTestSuite(TestSuite):
     TIME_OUT = 300
+    # Freeing the blocks of a large file is deferred to background workers on xfs,
+    # so the space is not trimmable the instant `rm` returns.
+    FSTRIM_RECLAIM_TIMEOUT = 300
+    FSTRIM_RECLAIM_INTERVAL = 5
+    # A deleted file leaves some metadata (inode chunks, btree blocks) allocated,
+    # so the reclaimed space never returns to exactly the initial value.
+    FSTRIM_RECLAIM_RATIO = 0.99
 
     @TestCaseMetadata(
         description="""
@@ -138,8 +197,9 @@ class NvmeTestSuite(TestSuite):
         3. Create a 300 gb file 'data' using dd command in the partition.
         4. Check how much the mountpoint is trimmed after creating the file.
         5. Delete the file 'data'.
-        6. Check how much the mountpoint is trimmed after deleting the file,
-         and compare the final fstrim status with initial fstrim status.
+        6. Wait until the mountpoint reports the same trimmable space as the
+         initial fstrim status, since freeing the blocks of a large file is
+         deferred by the file system.
         """,
         priority=3,
         requirement=simple_requirement(
@@ -162,13 +222,7 @@ class NvmeTestSuite(TestSuite):
             _format_mount_disk(node, namespace, FileSystem.xfs)
 
             # 2. Check how much the mountpoint is trimmed before operations.
-            initial_fstrim = node.execute(
-                f"fstrim {mount_point} -v", shell=True, sudo=True
-            )
-            initial_fstrim.assert_exit_code(
-                message=f"{mount_point} not exist or fstrim command enounter "
-                "unexpected error."
-            )
+            initial_trimmed_bytes = _get_fstrim_trimmed_bytes(node, mount_point)
             # Use 80% of free space to create a test file.
             free_space_gb = int(df.get_filesystem_available_space(mount_point) * 0.8)
             # limit the free space to 300GB to avoid long time operation.
@@ -186,31 +240,39 @@ class NvmeTestSuite(TestSuite):
             )
 
             # 4. Check how much the mountpoint is trimmed after creating the file.
-            intermediate_fstrim = node.execute(
-                f"fstrim {mount_point} -v", shell=True, sudo=True
-            )
-            intermediate_fstrim.assert_exit_code(
-                message=f"{mount_point} not exist or fstrim command enounter "
-                "unexpected error."
-            )
+            _get_fstrim_trimmed_bytes(node, mount_point)
 
             # 5. Delete the file 'data'.
             node.execute(f"rm {mount_point}/data", shell=True, sudo=True)
-
-            # 6. Check how much the mountpoint is trimmed after deleting the file,
-            #  and compare the final fstrim status with initial fstrim status.
+            node.execute("sync", shell=True, sudo=True)
             node.tools[Echo].write_to_file(
                 "2", node.get_pure_path("/proc/sys/vm/drop_caches"), sudo=True
             )
-            final_fstrim = node.execute(
-                f"fstrim {mount_point} -v", shell=True, sudo=True
+
+            # 6. Wait until the deleted blocks are back in the trimmable pool.
+            expected_trimmed_bytes = int(
+                initial_trimmed_bytes * self.FSTRIM_RECLAIM_RATIO
             )
-            mount.umount(disk_name=namespace, point=mount_point)
+            node.log.info(
+                f"waiting for [{mount_point}] to reclaim the space of the deleted "
+                f"file, expecting at least {expected_trimmed_bytes} trimmable bytes"
+            )
+            try:
+                final_trimmed_bytes = _wait_for_trimmable_space(
+                    node,
+                    mount_point,
+                    expected_trimmed_bytes,
+                    self.FSTRIM_RECLAIM_TIMEOUT,
+                    self.FSTRIM_RECLAIM_INTERVAL,
+                )
+            finally:
+                mount.umount(disk_name=namespace, point=mount_point)
             assert_that(
-                final_fstrim.stdout,
-                "initial_fstrim should equal to final_fstrim after operations "
-                "after umount and re-mount.",
-            ).is_equal_to(initial_fstrim.stdout)
+                final_trimmed_bytes,
+                "trimmable space after deleting the test file should return to the "
+                "initial level, otherwise the freed blocks were not discarded on the "
+                "nvme device.",
+            ).is_greater_than_or_equal_to(expected_trimmed_bytes)
 
     @TestCaseMetadata(
         description="""
