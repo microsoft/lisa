@@ -23,7 +23,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import Fedora
-from lisa.tools import Cat, Journalctl, Reboot
+from lisa.tools import Cat, Journalctl, Reboot, Usermod
 from lisa.util import check_till_timeout
 
 
@@ -53,6 +53,27 @@ class FedoraCloudValidation(TestSuite):
                 f"{node.os.information.full_version} is not supported; "
                 "this suite runs on Fedora only (excluding subclasses)."
             )
+
+    def _check_journal_corruption(self, node: Node, boot_id: str = "") -> None:
+        """Scan journalctl for filesystem corruption or recovery errors."""
+        corruption_keywords = [
+            "corrupt",
+            "run fsck",
+            "recovery",
+            "recovering",
+            "tree-log replay",
+        ]
+        journalctl = node.tools[Journalctl]
+        boot_logs = journalctl.first_n_logs_from_boot(boot_id=boot_id, no_of_lines=0)
+        matches = [
+            line
+            for line in boot_logs.splitlines()
+            if any(kw in line.lower() for kw in corruption_keywords)
+            and "recovery algorithm" not in line.lower()
+        ]
+        assert_that(matches).described_as(
+            "No filesystem corruption or recovery errors should appear in journalctl"
+        ).is_empty()
 
     @TestCaseMetadata(
         description="""
@@ -291,34 +312,275 @@ class FedoraCloudValidation(TestSuite):
         Reboot and assert no filesystem corruption or recovery errors
         in the journal.
         """
-        corruption_keywords = [
-            "corrupt",
-            "run fsck",
-            "recovery",
-            "recovering",
-            "tree-log replay",
-        ]
-
-        def check_unmount_errors(boot_id: str = "") -> None:
-            journalctl = node.tools[Journalctl]
-            boot_logs = journalctl.first_n_logs_from_boot(
-                boot_id=boot_id, no_of_lines=0
-            )
-            matches = [
-                line
-                for line in boot_logs.splitlines()
-                if any(kw in line.lower() for kw in corruption_keywords)
-                and "recovery algorithm" not in line.lower()
-            ]
-            assert_that(matches).described_as(
-                "No filesystem corruption or recovery errors"
-                " should appear in journalctl"
-            ).is_empty()
-
-        check_unmount_errors()
+        self._check_journal_corruption(node)
 
         reboot = node.tools[Reboot]
         reboot.reboot()
 
-        check_unmount_errors(boot_id="-1")
-        check_unmount_errors()  # check again after reboot to ensure no new errors
+        self._check_journal_corruption(node, boot_id="-1")
+        self._check_journal_corruption(
+            node
+        )  # check again after reboot to ensure no new errors
+
+    @TestCaseMetadata(
+        description="""
+        Base startup smoke test after machine startup.
+
+        Validates baseline cloud image readiness: dmidecode retrieves system
+        info, pciutils installs and lspci -nn enumerates PCI devices, and
+        SELinux is in Enforcing mode with working mode switching.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_os=[Fedora]),
+        use_new_environment=True,
+    )
+    def verify_startup_and_selinux(self, node: Node) -> None:
+        """
+        Startup smoke test: validates dmidecode, pciutils/lspci, and SELinux.
+
+        Verifies:
+        - dmidecode retrieves system product name
+        - pciutils is removed then reinstalled to exercise a full install cycle
+        - lspci -nn succeeds after fresh install
+        - SELinux is Enforcing by default and can toggle to Permissive and back
+        """
+        node.os.install_packages("dmidecode")  # type: ignore[attr-defined]
+        node.mark_dirty()
+        dmidecode = node.execute("dmidecode -s system-product-name", sudo=True)
+        assert_that(dmidecode.exit_code).described_as(
+            "dmidecode must retrieve system product name"
+        ).is_equal_to(0)
+        node.log.info(f"System product: {dmidecode.stdout.strip()}")
+
+        # Remove pciutils before reinstalling to exercise a full install cycle
+        node.execute("dnf remove -y pciutils", sudo=True, no_error_log=True)
+        install_pciutils = node.execute(
+            "dnf install -y pciutils",
+            sudo=True,
+            timeout=120,  # 2 min: DNF resolves deps + downloads
+        )
+        assert_that(install_pciutils.exit_code).described_as(
+            "pciutils must install successfully after removal"
+        ).is_equal_to(0)
+
+        lspci = node.execute("lspci -nn")
+        assert_that(lspci.exit_code).described_as(
+            "lspci -nn must succeed after fresh pciutils install"
+        ).is_equal_to(0)
+
+        # SELinux mode toggle
+        getenforce = node.execute("getenforce")
+        assert_that(getenforce.stdout.strip()).described_as(
+            "SELinux must be Enforcing before setenforce test"
+        ).is_equal_to("Enforcing")
+
+        try:
+            setenforce_ret = node.execute("setenforce 0", sudo=True)
+            assert_that(setenforce_ret.exit_code).described_as(
+                "setenforce 0 must succeed"
+            ).is_equal_to(0)
+            permissive_check = node.execute("getenforce")
+            assert_that(permissive_check.stdout.strip()).described_as(
+                "SELinux must be Permissive after setenforce 0"
+            ).is_equal_to("Permissive")
+        finally:
+            # Always restore Enforcing to avoid leaving SELinux in Permissive
+            ret = node.execute("setenforce 1", sudo=True, no_error_log=True)
+            if ret.exit_code != 0:
+                node.log.warning(
+                    f"setenforce 1 failed during cleanup (exit {ret.exit_code}): "
+                    f"{ret.stderr}"
+                )
+
+    @TestCaseMetadata(
+        description="""
+        Verify system logging via journalctl is working.
+
+        Tests that journald captures boot logs, audit entries, and
+        validates no filesystem corruption errors before/after reboot.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_os=[Fedora]),
+        use_new_environment=True,
+    )
+    def verify_system_logging(self, node: Node) -> None:
+        """
+        Validate system logging functionality.
+
+        Verifies journalctl has log entries, audit records, and rsyslog
+        writes to /var/log/secure when installed.
+        """
+        # journalctl current boot must not be empty and must contain audit entries
+        journalctl = node.tools[Journalctl]
+        boot_logs = journalctl.first_n_logs_from_boot(boot_id="", no_of_lines=0)
+        assert_that(boot_logs).described_as(
+            "journalctl must return log content"
+        ).is_not_empty()
+
+        assert_that(boot_logs).described_as(
+            "journalctl must contain audit entries"
+        ).contains("audit")
+
+        # If rsyslog is installed, /var/log/secure must exist
+        if node.os.package_exists("rsyslog"):  # type: ignore[attr-defined]
+            secure_log = node.execute("test -e /var/log/secure", sudo=True)
+            assert_that(secure_log.exit_code).described_as(
+                "/var/log/secure must exist when rsyslog is installed"
+            ).is_equal_to(0)
+
+        # Corruption scan before reboot
+        self._check_journal_corruption(node)
+
+        # Reboot and re-scan
+        reboot = node.tools[Reboot]
+        reboot.reboot()
+
+        self._check_journal_corruption(node, boot_id="-1")
+        self._check_journal_corruption(node)
+
+    @TestCaseMetadata(
+        description="""
+        Verify user management operations (create, modify, delete).
+
+        Tests useradd, usermod, chpasswd, account locking/unlocking,
+        and userdel for complete user lifecycle management.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_os=[Fedora]),
+        use_new_environment=True,
+    )
+    def verify_user_management(self, node: Node) -> None:
+        test_user = "lisatestuser"
+        test_group = "lisatestgroup"
+        test_group2 = (
+            "lisatestgroup2"  # separate group to meaningfully test add_user_to_group
+        )
+
+        try:
+            node.mark_dirty()
+            # Create test group
+            result = node.execute(f"groupadd {test_group}", sudo=True)
+            assert_that(result.exit_code).described_as(
+                f"Creating group {test_group} must succeed"
+            ).is_equal_to(0)
+
+            result = node.execute(f"groupadd {test_group2}", sudo=True)
+            assert_that(result.exit_code).described_as(
+                f"Creating group {test_group2} must succeed"
+            ).is_equal_to(0)
+
+            # Create test user
+            result = node.execute(
+                f"useradd -m -s /bin/bash -G {test_group} {test_user}",
+                sudo=True,
+            )
+            assert_that(result.exit_code).described_as(
+                f"Creating user {test_user} must succeed"
+            ).is_equal_to(0)
+
+            # Set password via chpasswd
+            chpasswd = node.execute(
+                f'echo "{test_user}:L1saTestPass!" | chpasswd',
+                shell=True,
+                sudo=True,
+            )
+            assert_that(chpasswd.exit_code).described_as(
+                f"chpasswd for {test_user} must succeed"
+            ).is_equal_to(0)
+
+            # Verify user exists via id
+            id_result = node.execute(f"id {test_user}")
+            assert_that(id_result.exit_code).described_as(
+                f"id {test_user} must succeed"
+            ).is_equal_to(0)
+
+            # Verify groups — confirm test_group was assigned at useradd time
+            groups_result = node.execute(f"groups {test_user}")
+            assert_that(groups_result.exit_code).described_as(
+                f"groups {test_user} must succeed"
+            ).is_equal_to(0)
+            assert_that(groups_result.stdout).described_as(
+                f"{test_user} must be a member of {test_group} after useradd"
+            ).contains(test_group)
+
+            node.os.install_packages("zsh")  # type: ignore[attr-defined]
+            usermod_shell = node.execute(f"usermod -s /bin/zsh {test_user}", sudo=True)
+            assert_that(usermod_shell.exit_code).described_as(
+                f"usermod -s /bin/zsh for {test_user} must succeed"
+            ).is_equal_to(0)
+
+            # Modify: add user to test_group2 using Usermod tool
+            # (test_group was already assigned at useradd time; use a different group
+            # so add_user_to_group is actually exercised)
+            node.tools[Usermod].add_user_to_group(
+                group=test_group2, user=test_user, sudo=True
+            )
+
+            # Verify user appears in /etc/passwd using Cat tool
+            passwd_content = node.tools[Cat].read("/etc/passwd", force_run=True)
+            assert_that(passwd_content).described_as(
+                f"{test_user} must appear in /etc/passwd"
+            ).contains(test_user)
+
+            # Verify groups again — both groups must appear in output
+            groups_result2 = node.execute(f"groups {test_user}")
+            assert_that(groups_result2.exit_code).described_as(
+                f"groups {test_user} must succeed after modifications"
+            ).is_equal_to(0)
+            assert_that(groups_result2.stdout).described_as(
+                f"{test_user} must be a member of {test_group2} after add_user_to_group"
+            ).contains(test_group2)
+
+            # Lock user account
+            lock_result = node.execute(f"usermod -L {test_user}", sudo=True)
+            assert_that(lock_result.exit_code).described_as(
+                "Locking user account must succeed"
+            ).is_equal_to(0)
+
+            # Verify account is locked — check second field of passwd -S output
+            passwd_status = node.execute(f"passwd -S {test_user}", sudo=True)
+            assert_that(passwd_status.exit_code).described_as(
+                f"passwd -S {test_user} must succeed"
+            ).is_equal_to(0)
+            passwd_fields = passwd_status.stdout.split()
+            assert_that(len(passwd_fields)).described_as(
+                f"passwd -S output must have at least 2 fields for {test_user}"
+            ).is_greater_than_or_equal_to(2)
+            assert_that(passwd_fields[1]).described_as(
+                "passwd -S second field must be 'L' when account is locked"
+            ).is_equal_to("L")
+
+            # Unlock user account
+            unlock_result = node.execute(f"usermod -U {test_user}", sudo=True)
+            assert_that(unlock_result.exit_code).described_as(
+                "Unlocking user account must succeed"
+            ).is_equal_to(0)
+
+            # Verify unlock — check second field of passwd -S output
+            unlock_status = node.execute(f"passwd -S {test_user}", sudo=True)
+            assert_that(unlock_status.exit_code).described_as(
+                f"passwd -S {test_user} must succeed after unlock"
+            ).is_equal_to(0)
+            unlock_fields = unlock_status.stdout.split()
+            assert_that(len(unlock_fields)).described_as(
+                f"passwd -S output must have at least 2 fields for {test_user}"
+            ).is_greater_than_or_equal_to(2)
+            assert_that(unlock_fields[1]).described_as(
+                "passwd -S second field must be 'P' when account is unlocked"
+            ).is_equal_to("P")
+
+            # Remove user and verify deletion
+            userdel_result = node.execute(f"userdel -r {test_user}", sudo=True)
+            assert_that(userdel_result.exit_code).described_as(
+                f"userdel -r {test_user} must succeed"
+            ).is_equal_to(0)
+
+            id_after = node.execute(f"id {test_user}", no_error_log=True)
+            assert_that(id_after.exit_code).described_as(
+                f"id {test_user} must fail after userdel"
+            ).is_not_equal_to(0)
+
+        finally:
+            node.execute(f"userdel -r {test_user}", sudo=True, no_error_log=True)
+            node.execute(f"groupdel {test_group}", sudo=True, no_error_log=True)
+            node.execute(f"groupdel {test_group2}", sudo=True, no_error_log=True)
