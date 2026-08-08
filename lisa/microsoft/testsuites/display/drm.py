@@ -18,7 +18,7 @@ from lisa.base_tools import Cat
 from lisa.features.security_profile import CvmDisabled
 from lisa.operating_system import BSD, Fedora, Suse, Ubuntu, Windows
 from lisa.sut_orchestrator import AZURE, READY
-from lisa.tools import Dmesg, Echo, KernelConfig, Lsmod, Reboot, Sed
+from lisa.tools import Dmesg, Echo, FileSystem, KernelConfig, Lsmod, Mount, Reboot, Sed
 from lisa.util import SkippedException, get_matched_str
 
 GRUB_CMDLINE_LINUX_DEFAULT_PATTERN = re.compile(
@@ -78,6 +78,7 @@ class Drm(TestSuite):
         ),
     )
     def verify_dri_node(self, node: Node, log: Logger) -> None:
+        self._ensure_debugfs_mounted(node)
         cat = node.tools[Cat]
         dri_path = "/sys/kernel/debug/dri/*/name"
         dri_name = cat.read(dri_path, sudo=True, force_run=True)
@@ -124,6 +125,35 @@ class Drm(TestSuite):
         assert_that(is_status_connected).described_as(
             "dri connector status should be 'connected'"
         ).is_true()
+
+    def _ensure_debugfs_mounted(self, node: Node) -> None:
+        mount_tool = node.tools[Mount]
+        debugfs_point = "/sys/kernel/debug"
+
+        def _is_debugfs_mounted() -> bool:
+            return any(
+                partition.type == FileSystem.debugfs.name
+                for partition in mount_tool.get_partition_info(mountpoint=debugfs_point)
+            )
+
+        if _is_debugfs_mounted():
+            return
+        try:
+            mount_tool.mount(
+                name="debugfs",
+                point=debugfs_point,
+                fs_type=FileSystem.debugfs,
+            )
+        except AssertionError as e:
+            raise SkippedException(
+                f"Debugfs could not be mounted, cannot access the dri debugfs"
+                f" node: {e}"
+            )
+        if not _is_debugfs_mounted():
+            raise SkippedException(
+                "Debugfs is not mounted after mount attempt; "
+                "cannot access the dri debugfs node"
+            )
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
