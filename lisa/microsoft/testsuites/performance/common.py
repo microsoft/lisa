@@ -251,12 +251,16 @@ def perf_tcp_latency(test_result: TestResult) -> List[NetworkLatencyPerformanceM
     server = cast(RemoteNode, environment.nodes[1])
     client_lagscope = client.tools[Lagscope]
     server_lagscope = server.tools[Lagscope]
+    # lagscope builds IPv4-style CLI args (-s<ip>/-r<ip>) with no IPv6 bracket
+    # handling. On dual-stack (use_ipv6) environments server.internal_address is
+    # IPv6, so resolve the server's internal IPv4 to bind/connect over instead.
+    server_comm_address = server.nics.get_internal_ipv4_address()
     try:
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
-        server_lagscope.run_as_server_async(ip=server.internal_address)
+        server_lagscope.run_as_server_async(ip=server_comm_address)
         latency_perf_messages = client_lagscope.create_latency_performance_messages(
-            client_lagscope.run_as_client(server_ip=server.internal_address),
+            client_lagscope.run_as_client(server_ip=server_comm_address),
             inspect.stack()[1][3],
             test_result,
         )
@@ -303,17 +307,21 @@ def perf_tcp_pps(
         ]
     )
 
+    # netperf builds IPv4-style CLI args with no IPv6 bracket handling. On a
+    # dual-stack (use_ipv6) environment internal_address is IPv6, so resolve
+    # the internal IPv4 to bind/target instead.
+    server_comm_ip = server_node.nics.get_internal_ipv4_address()
     server_interface_ip: str = ""
     client_interface_ip: str = ""
     if use_internal_address:
-        assert_that(server_node.internal_address).described_as(
+        server_interface_ip = server_comm_ip
+        client_interface_ip = client_node.nics.get_internal_ipv4_address()
+        assert_that(server_interface_ip).described_as(
             "Server Node: internal address is not set"
         ).is_not_empty()
-        assert_that(client_node.internal_address).described_as(
+        assert_that(client_interface_ip).described_as(
             "Client Node: internal address is not set"
         ).is_not_empty()
-        server_interface_ip = server_node.internal_address
-        client_interface_ip = client_node.internal_address
 
     cpu = client_node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
@@ -326,10 +334,10 @@ def perf_tcp_pps(
     for port in ports:
         server_netperf.run_as_server(port, interface_ip=server_interface_ip)
     for port in ports:
-        # Use server.internal_address as target since netperf client needs
+        # Use the server's internal IPv4 as target since netperf client needs
         # the server's IP (which may differ from the interface it binds to)
         client_netperf.run_as_client_async(
-            server_ip=server_node.internal_address,
+            server_ip=server_comm_ip,
             core_count=thread_count,
             port=port,
             interface_ip=client_interface_ip,
@@ -380,6 +388,11 @@ def perf_ntttcp(  # noqa: C901
     if not test_case_name:
         # if it's not filled, assume it's called by case directly.
         test_case_name = inspect.stack()[1][3]
+
+    # ntttcp and lagscope run over IPv4. On dual-stack (use_ipv6) environments
+    # server.internal_address is IPv6, so resolve the server's internal IPv4 to
+    # use as the ntttcp/lagscope target.
+    server_comm_address = server.nics.get_internal_ipv4_address()
 
     if connections is None:
         if udp_mode:
@@ -535,7 +548,7 @@ def perf_ntttcp(  # noqa: C901
                         ip=(
                             lagscope_server_ip
                             if lagscope_server_ip is not None
-                            else server.internal_address
+                            else server_comm_address
                         ),
                         no_debug_log=True,
                     )
@@ -545,9 +558,7 @@ def perf_ntttcp(  # noqa: C901
                     server_result = server_ntttcp.run_as_server_async(
                         server_nic_name,
                         server_ip=(
-                            server.internal_address
-                            if isinstance(server.os, BSD)
-                            else ""
+                            server_comm_address if isinstance(server.os, BSD) else ""
                         ),
                         ports_count=num_threads_p,
                         buffer_size=buffer_size,
@@ -562,7 +573,7 @@ def perf_ntttcp(  # noqa: C901
                     # Start lagscope client to measure latency during the
                     # ntttcp test
                     client_lagscope_process = client_lagscope.run_as_client_async(
-                        server_ip=server.internal_address,
+                        server_ip=server_comm_address,
                         ping_count=0,
                         run_time_seconds=(
                             run_time_seconds
@@ -582,7 +593,7 @@ def perf_ntttcp(  # noqa: C901
                     # Use daemon mode to run in background, then monitor process
                     client_ntttcp_result = client_ntttcp.run_as_client(
                         client_nic_name,
-                        server.internal_address,
+                        server_comm_address,
                         buffer_size=buffer_size,
                         threads_count=num_threads_n,
                         ports_count=num_threads_p,
@@ -781,11 +792,15 @@ def perf_iperf(
     )
     test_case_name = inspect.stack()[1][3]
     iperf3_messages_list: List[Any] = []
+    # iperf3 is invoked with ip_version="4"; on a dual-stack (use_ipv6)
+    # environment internal_address is IPv6, so resolve the server's internal
+    # IPv4 to use as the client target / bind interface.
+    server_comm_ip = server.nics.get_internal_ipv4_address()
     server_interface_ip = ""
     client_interface_ip = ""
     if run_with_internal_address:
-        server_interface_ip = server.internal_address
-        client_interface_ip = client.internal_address
+        server_interface_ip = server_comm_ip
+        client_interface_ip = client.nics.get_internal_ipv4_address()
         assert server_interface_ip, "Server Node: internal address is not set"
         assert client_interface_ip, "Client Node: internal address is not set"
 
@@ -831,7 +846,7 @@ def perf_iperf(
                 current_client_iperf_instances += 1
                 client_iperf3_process_list.append(
                     client_iperf3.run_as_client_async(
-                        server.internal_address,
+                        server_comm_ip,
                         output_json=True,
                         report_periodic=1,
                         report_unit="g",
@@ -905,7 +920,9 @@ def perf_sockperf(
             "sockperf: Warmup stage",
             timeout=30,
         )
-        client_output = client.tools[Sockperf].run_client(mode, server.internal_address)
+        client_output = client.tools[Sockperf].run_client(
+            mode, server.nics.get_internal_ipv4_address()
+        )
         client.tools[Sockperf].create_latency_performance_message(
             client_output, test_case_name, test_result
         )
