@@ -1750,20 +1750,43 @@ class Criteria:
         default=None,
         metadata=field_metadata(validate=ListableValidator(str), allow_none=True),
     )
-    # maturity filters tests by lifecycle stage.
+    # maturity filters tests by lifecycle stage. It accepts a single value, a
+    # list, or a single comma/space separated string (e.g. from a "-v" override
+    # or a pipeline), which is normalized to a list in __post_init__. Each value
+    # is validated there against the known maturity levels.
     maturity: Optional[Union[str, List[str]]] = field(
         default=None,
         metadata=field_metadata(
-            validate=ListableValidator(
-                str,
-                validate.OneOf(constants.TESTCASE_MATURITY_LEVELS),
-            ),
+            validate=ListableValidator(str),
             allow_none=True,
         ),
     )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        strip_strs(self, ["name", "area", "category", "tags", "maturity"])
+        strip_strs(self, ["name", "area", "category", "tags"])
+        self.maturity = self._normalize_maturity(self.maturity)
+
+    @staticmethod
+    def _normalize_maturity(
+        maturity: Optional[Union[str, List[str]]],
+    ) -> Optional[Union[str, List[str]]]:
+        if maturity is None:
+            return None
+        # split a single "stable,preview" (or space separated) string into a
+        # list, so a single command-line/pipeline value can select multiple.
+        if isinstance(maturity, str):
+            parts = [p for p in maturity.replace(",", " ").split() if p]
+            if not parts:
+                return None
+            maturity = parts[0] if len(parts) == 1 else parts
+        values = maturity if isinstance(maturity, list) else [maturity]
+        for value in values:
+            if value not in constants.TESTCASE_MATURITY_LEVELS:
+                raise LisaException(
+                    f"invalid maturity '{value}', must be one of "
+                    f"{constants.TESTCASE_MATURITY_LEVELS}"
+                )
+        return maturity
 
 
 @dataclass_json()
