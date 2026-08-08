@@ -366,6 +366,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             is_allow_set=True,
             items=[
                 schema.FeatureSettings.create(SerialConsole.name()),
+                schema.FeatureSettings.create(StartStop.name()),
                 security_profile_setting,
             ],
         )
@@ -584,7 +585,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             return
 
         if node_context.console_logger is not None:
-            node_context.console_logger.wait_for_close()
+            # A destroyed domain may not emit the stream hangup event, so abort
+            # the stale console stream before starting the domain again.
+            node_context.console_logger.close()
             node_context.console_logger = None
 
         self._create_domain_and_attach_logger(node_context)

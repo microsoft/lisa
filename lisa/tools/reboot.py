@@ -54,6 +54,8 @@ class Reboot(Tool):
     def _get_last_boot_time(self) -> datetime:
         try:
             last_boot_time = cast(datetime, _who_last(self.node.tools[Who]))
+        except FunctionTimedOut:
+            last_boot_time = self.node.tools[Uptime].since_time()
         except Exception:
             last_boot_time = self.node.tools[Uptime].since_time()
         return last_boot_time
