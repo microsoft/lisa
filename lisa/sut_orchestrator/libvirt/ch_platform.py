@@ -144,6 +144,19 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         assert isinstance(node.capability.core_count, int)
         vcpu_count = node.capability.core_count
         vcpu.text = str(vcpu_count)
+        node_runbook = node.capability.get_extended_runbook(
+            CloudHypervisorNodeSchema, CLOUD_HYPERVISOR
+        )
+        network_queue_count = (
+            node_runbook.network_queue_count
+            if node_runbook.network_queue_count is not None
+            else vcpu_count
+        )
+        disk_queue_count = (
+            node_runbook.disk_queue_count
+            if node_runbook.disk_queue_count is not None
+            else vcpu_count
+        )
 
         os = ET.SubElement(domain, "os")
 
@@ -206,21 +219,21 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         network_model.attrib["type"] = "virtio"
 
         network_driver = ET.SubElement(network_interface, "driver")
-        network_driver.attrib["queues"] = str(vcpu_count)
-        network_driver.attrib["iommu"] = "on"
+        network_driver.attrib["queues"] = str(network_queue_count)
+        network_driver.attrib["iommu"] = "on" if node_runbook.enable_iommu else "off"
 
         self._add_virtio_disk_xml(
             node_context,
             devices,
             node_context.os_disk_file_path,
-            vcpu_count,
+            disk_queue_count,
         )
 
         self._add_virtio_disk_xml(
             node_context,
             devices,
             node_context.cloud_init_file_path,
-            vcpu_count,
+            disk_queue_count,
         )
 
         xml = ET.tostring(domain, "unicode")
