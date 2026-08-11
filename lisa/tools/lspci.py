@@ -196,6 +196,7 @@ class Lspci(Tool):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "lspci"
         self._pci_devices: List[PciDevice] = []
+        self._pciids_initialized: bool = False
 
     def _install(self) -> bool:
         if isinstance(self.node.os, Posix):
@@ -293,10 +294,12 @@ class Lspci(Tool):
     @retry(KeyError, tries=30, delay=2)  # type: ignore
     def get_devices(self, force_run: bool = False) -> List[PciDevice]:
         if (not self._pci_devices) or force_run:
+            if not self._pciids_initialized:
+                # Ensure pci device ids and name mappings are updated.
+                self.node.execute("update-pciids", sudo=True, shell=True)
+                self._pciids_initialized = True
             self._pci_devices = []
             self._pci_ids = {}
-            # Ensure pci device ids and name mappings are updated.
-            self.node.execute("update-pciids", sudo=True, shell=True)
 
             # Fetching the id information using 'lspci -nnm' is not reliable
             # due to inconsistencies in device id patterns.
