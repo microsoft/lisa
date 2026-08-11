@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import time
 from typing import Any, Dict, Optional
 
 from microsoft.testsuites.vm_extensions.vm_extension_base import VmExtensionTestBase
@@ -84,9 +85,14 @@ class AzureSecurityLinuxAgentTests(VmExtensionTestBase):  # type: ignore[misc]
                 f"Handler '{publisher}.{type_}' is already installed as "
                 f"'{existing_name}'; validating the existing instance in place."
             )
-            detail = extension.get(name=existing_name)
+            # An auto-provisioned instance may still be mid-provisioning
+            # ('Creating'/'Updating') when discovered. Wait for a terminal
+            # state before asserting so the check is not racing the platform.
+            provisioning_state = self._wait_for_terminal_provisioning_state(
+                extension, existing_name, log
+            )
             self._assert_provisioned(
-                {"provisioning_state": str(detail.provisioning_state)}, variables
+                {"provisioning_state": provisioning_state}, variables
             )
             installed_version = extension.get_installed_type_handler_version(
                 existing_name
@@ -117,3 +123,37 @@ class AzureSecurityLinuxAgentTests(VmExtensionTestBase):  # type: ignore[misc]
                 if name:
                     return name
         return None
+
+    def _wait_for_terminal_provisioning_state(
+        self,
+        extension: AzureExtension,
+        name: str,
+        log: Logger,
+        timeout: int = 600,
+        interval: int = 20,
+    ) -> str:
+        """
+        Poll the extension instance until its provisioning state is terminal
+        ('Succeeded' or 'Failed'), then return that state. Transient states such
+        as 'Creating'/'Updating' happen while the platform is still provisioning
+        an auto-installed instance. Returns the last observed state on timeout.
+        """
+        transient_states = {"creating", "updating", "deleting", ""}
+        deadline = time.monotonic() + timeout
+        provisioning_state = ""
+        while True:
+            detail = extension.get(name=name)
+            provisioning_state = str(detail.provisioning_state or "")
+            if provisioning_state.lower() not in transient_states:
+                return provisioning_state
+            if time.monotonic() >= deadline:
+                log.info(
+                    f"Extension '{name}' still in transient state "
+                    f"'{provisioning_state}' after {timeout}s; proceeding."
+                )
+                return provisioning_state
+            log.info(
+                f"Extension '{name}' provisioning state is "
+                f"'{provisioning_state}'; waiting {interval}s for it to settle."
+            )
+            time.sleep(interval)
