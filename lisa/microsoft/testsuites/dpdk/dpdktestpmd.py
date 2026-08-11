@@ -375,10 +375,13 @@ class DpdkTestpmd(Tool):
         r"Found matching MAC address, adding device"
     )
 
+    _search_hotplug_regex_fallback = re.compile(r"Port [0-9]+: device removal event")
+
     _hotplug_search_regexes = [
         _search_hotplug_regex,
         _search_hotplug_regex_alt,
         _search_hotplug_regex_netvsc,
+        _search_hotplug_regex_fallback
     ]
 
     # ex v19.11-rc3 or 19.11
