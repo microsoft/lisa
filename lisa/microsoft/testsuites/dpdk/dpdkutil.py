@@ -739,7 +739,7 @@ def check_if_testpmd_is_running(
         for app in sample_apps:
             check_processes += [app]
     check_processes = check_processes + [f"dpdk-{app}" for app in check_processes]
-    check = node.execute(f"pidof { ' '.join(check_processes)}", shell=True)
+    check = node.execute(f"pidof {' '.join(check_processes)}", shell=True)
     return check.exit_code == 0 and bool(check.stdout)
 
 
