@@ -176,6 +176,7 @@ class WindowsWget(Wget):
         sudo: bool = False,
         force_run: bool = False,
         timeout: int = 600,
+        skip_exists: bool = False,
     ) -> str:
         cached_filename = self._url_file_cache.get(url, None)
         if cached_filename:
