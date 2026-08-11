@@ -7,6 +7,30 @@ from pathlib import PurePath
 from typing import Any, Dict, List, Mapping, Optional, Pattern, Sequence, Tuple, Union
 
 from assertpy import assert_that, fail
+from microsoft.testsuites.dpdk.common import (
+    AZ_ROUTE_ALL_TRAFFIC,
+    DPDK_PPS_THRESHOLD,
+    DPDK_STABLE_GIT_REPO,
+    Downloader,
+    DpdkGradeMetric,
+    GitDownloader,
+    Installer,
+    PackageManagerInstall,
+    Pmd,
+    TarDownloader,
+    check_dpdk_support,
+    is_url_for_git_repo,
+    is_url_for_tarball,
+    update_kernel_from_repo,
+)
+from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
+from microsoft.testsuites.dpdk.rdmacore import (
+    RDMA_CORE_MANA_DEFAULT_SOURCE,
+    RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES,
+    RDMA_CORE_SOURCE_DEPENDENCIES,
+    RdmaCorePackageManagerInstall,
+    RdmaCoreSourceInstaller,
+)
 from semver import VersionInfo
 
 from lisa import (
@@ -53,30 +77,6 @@ from lisa.tools.hugepages import HugePageSize
 from lisa.util import sleep
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import run_in_parallel
-from microsoft.testsuites.dpdk.common import (
-    AZ_ROUTE_ALL_TRAFFIC,
-    DPDK_PPS_THRESHOLD,
-    DPDK_STABLE_GIT_REPO,
-    Downloader,
-    DpdkGradeMetric,
-    GitDownloader,
-    Installer,
-    PackageManagerInstall,
-    Pmd,
-    TarDownloader,
-    check_dpdk_support,
-    is_url_for_git_repo,
-    is_url_for_tarball,
-    update_kernel_from_repo,
-)
-from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
-from microsoft.testsuites.dpdk.rdmacore import (
-    RDMA_CORE_MANA_DEFAULT_SOURCE,
-    RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES,
-    RDMA_CORE_SOURCE_DEPENDENCIES,
-    RdmaCorePackageManagerInstall,
-    RdmaCoreSourceInstaller,
-)
 
 
 # DPDK added new flags in 19.11 that some tests rely on for send/recv

@@ -6,6 +6,20 @@ from pathlib import PurePath, PurePosixPath
 from typing import Any, List, Tuple, Type
 
 from assertpy import assert_that, fail
+from microsoft.testsuites.dpdk.common import (
+    DependencyInstaller,
+    Downloader,
+    GitDownloader,
+    Installer,
+    OsPackageDependencies,
+    PackageManagerInstall,
+    Pmd,
+    TarDownloader,
+    get_debian_backport_repo_args,
+    is_url_for_git_repo,
+    is_url_for_tarball,
+    unsupported_os_thrower,
+)
 from semver import VersionInfo
 
 from lisa.executable import ExecutableResult, Tool
@@ -38,20 +52,6 @@ from lisa.util import (
     parse_version,
 )
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
-from microsoft.testsuites.dpdk.common import (
-    DependencyInstaller,
-    Downloader,
-    GitDownloader,
-    Installer,
-    OsPackageDependencies,
-    PackageManagerInstall,
-    Pmd,
-    TarDownloader,
-    get_debian_backport_repo_args,
-    is_url_for_git_repo,
-    is_url_for_tarball,
-    unsupported_os_thrower,
-)
 
 PACKAGE_MANAGER_SOURCE = "package_manager"
 
