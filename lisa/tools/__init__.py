@@ -146,7 +146,6 @@ from .timedatectl import Timedatectl
 from .timeout import Timeout
 from .tpm2 import Tpm2
 from .tpm2_pcrread import Tpm2Pcrread
-from .udevadm import Udevadm
 from .unzip import Unzip
 from .uptime import Uptime
 from .usermod import Usermod
@@ -318,7 +317,6 @@ __all__ = [
     "Tpm2",
     "Tpm2Pcrread",
     "Uname",
-    "Udevadm",
     "Unzip",
     "Uptime",
     "Usermod",
