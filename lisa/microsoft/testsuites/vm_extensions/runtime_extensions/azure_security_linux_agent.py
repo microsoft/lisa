@@ -52,6 +52,11 @@ class AzureSecurityLinuxAgentTests(VmExtensionTestBase):  # type: ignore[misc]
         """,
         priority=1,
         maturity="experimental",
+        requirement=simple_requirement(
+            supported_features=[AzureExtension],
+            supported_platform_type=[AZURE],
+            unsupported_os=[BSD],
+        ),
     )
     def microsoft_azure_security_monitoring_azuresecuritylinuxagent_boot_validation_test(  # noqa: E501
         self, log: Logger, node: Node, variables: Dict[str, Any]

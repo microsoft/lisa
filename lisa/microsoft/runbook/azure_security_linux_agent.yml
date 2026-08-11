@@ -15,8 +15,12 @@ variable:
   # ---- Fill these in (or override on the command line with -v) --------------
   - name: subscription_id
     value: ""
+  # REQUIRED: pass on the command line with
+  #   -v azure_security_linux_agent_version:<version>
+  # (or the generic -v extension_version:<version>). The case is skipped
+  # when neither is set.
   - name: azure_security_linux_agent_version
-    value: "2.0"
+    value: ""
   # ---- Deployment defaults ---------------------------------------------------
   - name: location
     value: "westus3"
