@@ -356,7 +356,7 @@ class DpdkGitDownloader(GitDownloader):  # type: ignore[misc]
                 self.asset_path, filter_=r"^v.*"  # starts w 'v'
             )
             git.checkout(self._git_ref, cwd=self.asset_path)
-        return PurePath(self.asset_path)
+        return self.asset_path
 
 
 class DpdkTestpmd(Tool):
