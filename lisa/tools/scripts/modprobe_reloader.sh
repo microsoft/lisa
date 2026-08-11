@@ -5,18 +5,8 @@ log_file="${1:-$HOME/modprobe_reloader.log}"    # Default log file path in the h
 pid_file="${2:-$HOME/modprobe_reloader.pid}"    # Default PID file path in the home directory
 module_name="${3:-hv_netvsc}"                   # Default module name
 times="${4:-1}"                                 # Default number of iterations
-verbose="${5:-true}"                            # Default verbosity (true)
-dhclient_command="${6:-dhclient}"               # Default DHCP client command
-interface="${7:-eth0}"                          # Default network interface
-
-
-
-# Convert verbose parameter to a flag
-if [ "$verbose" = "true" ]; then
-    v="-v"
-else
-    v=""
-fi
+dhclient_command="${5:-dhclient}"               # Default DHCP client command
+interface="${6:-eth0}"                          # Default network interface
 
 if [ "$dhclient_command" = "dhcpcd" ]; then
     dhcp_stop_command="dhcpcd -k $interface"
@@ -30,7 +20,7 @@ if [ "$module_name" = "hv_netvsc" ]; then
   (
     j=1
     while [ $j -le "$times" ]; do
-      { modprobe -r $v "$module_name"; modprobe $v "$module_name"; } >> "$log_file" 2>&1
+      { modprobe -r -v "$module_name"; modprobe -v "$module_name"; } >> "$log_file" 2>&1
       j=$((j + 1))
     done
     sleep 1
@@ -52,7 +42,7 @@ else
   (
     j=1
     while [ $j -le "$times" ]; do
-      { modprobe -r $v "$module_name"; modprobe $v "$module_name"; } >> "$log_file" 2>&1
+      { modprobe -r -v "$module_name"; modprobe -v "$module_name"; } >> "$log_file" 2>&1
       j=$((j + 1))
     done
   ) &
