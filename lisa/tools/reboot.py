@@ -142,6 +142,8 @@ class Reboot(Tool):
             wait_seconds = 60 - current_delta.seconds + 1
             self._log.debug(f"waiting {wait_seconds} seconds before rebooting")
             sleep(wait_seconds)
+            # Reconnect because the SSH session may become inactive during the wait.
+            self.node.close()
             current_delta = date.current().replace(tzinfo=None) - current_boot_time
 
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
