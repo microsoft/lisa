@@ -59,7 +59,6 @@ from lisa.tools import (
     Dmesg,
     Echo,
     Firewall,
-    Gcc,
     Hugepages,
     Ip,
     KernelConfig,
@@ -72,6 +71,7 @@ from lisa.tools import (
     Ping,
     Tee,
     Timeout,
+    Udevadm,
 )
 from lisa.tools.hugepages import HugePageSize
 from lisa.util import sleep
@@ -2025,18 +2025,90 @@ class DpdkDevnameInfo:
         return self.port_mask
 
 
-# Output line format from azure_uevent_listener:
-# [HH:MM:SS.mmm] TAG subsystem=X pci=... driver=... ifname=... name=... ...
-_uevent_line_regex = re.compile(
-    r"\[(?P<timestamp>[\d:.]+)\]\s+" r"(?P<tag>\S+)\s+" r"(?P<properties>.*)"
+# "udevadm monitor --kernel --property" emits one record per event:
+#   KERNEL[1234.567890] add      /devices/.../0001:00:02.0 (pci)
+#   ACTION=add
+#   DEVPATH=/devices/.../0001:00:02.0
+#   SUBSYSTEM=pci
+#   ...
+#   <blank line>
+_udev_header_regex = re.compile(
+    r"^(?P<source>KERNEL|UDEV)\[(?P<timestamp>[\d.]+)\]\s+"
+    r"(?P<action>\S+)\s+"
+    r"(?P<devpath>\S+)"
+    r"(?:\s+\((?P<subsystem>[^)]+)\))?\s*$"
 )
+_udev_property_regex = re.compile(r"^(?P<key>[A-Z][A-Z0-9_]*)=(?P<value>.*)$")
+
+# 8-4-4-4-12 hex guid, a vmbus device directory in DEVPATH. On Azure an
+# accelerated networking VF is enumerated behind the pci-hyperv bridge, so its
+# devpath always contains a vmbus guid segment, a plain pci device never does.
+_vmbus_guid_regex = re.compile(
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}" r"-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
+
+# netvsc vmbus class guid, from dpdk hn_ethdev.c hn_net_ids[], as it appears
+# in the MODALIAS property.
+_NETVSC_MODALIAS = "vmbus:f8615163df3e46c5913ff2d2f965ed0e"
+
+# subsystems that matter for a dpdk app using the mlx5, mana or netvsc pmds.
+_MONITORED_SUBSYSTEMS = ["pci", "net", "infiniband", "infiniband_verbs", "vmbus"]
+
+# uevent properties are exposed under shorter names, matching the udev keys
+# to the criteria used by the tests.
+_UEVENT_PROPERTY_NAMES = {
+    "SUBSYSTEM": "subsystem",
+    "DEVPATH": "devpath",
+    "DRIVER": "driver",
+    "PCI_SLOT_NAME": "pci",
+    "INTERFACE": "ifname",
+    "NAME": "name",
+    "DEVNAME": "devnode",
+    "MODALIAS": "modalias",
+    "DEVTYPE": "devtype",
+    "ACTION": "action",
+}
 
 # a criteria value is either an exact string or a regex to search for
 UeventCriteria = Mapping[str, Union[str, Pattern[str]]]
 
 
+def _is_azure_vf(devpath: str) -> bool:
+    """True when the device is enumerated behind the azure pci-hyperv bridge."""
+    return any(_vmbus_guid_regex.match(segment) for segment in devpath.split("/"))
+
+
+def _classify_uevent(properties: Dict[str, str]) -> str:
+    """Map an event onto a short tag, "OTHER" when it isn't a nic hotplug."""
+    action = properties.get("action", "")
+    subsystem = properties.get("subsystem", "")
+    if action == "add":
+        add = True
+    elif action == "remove":
+        add = False
+    else:
+        # change/bind/unbind/move are not hotplug
+        return "OTHER"
+
+    if subsystem == "pci":
+        if properties.get("azure_vf") == "yes":
+            return "VF_PCI_ADD" if add else "VF_PCI_REMOVE"
+        return "PCI_ADD" if add else "PCI_REMOVE"
+    if subsystem == "infiniband_verbs":
+        return "UVERBS_ADD" if add else "UVERBS_REMOVE"
+    if subsystem == "infiniband":
+        return "IBDEV_ADD" if add else "IBDEV_REMOVE"
+    if subsystem == "net":
+        return "NETDEV_ADD" if add else "NETDEV_REMOVE"
+    if subsystem == "vmbus":
+        if properties.get("modalias") == _NETVSC_MODALIAS:
+            return "VMBUS_NETVSC_ADD" if add else "VMBUS_NETVSC_REMOVE"
+        return "VMBUS_ADD" if add else "VMBUS_REMOVE"
+    return "OTHER"
+
+
 class UeventEntry:
-    """One parsed event from the uevent listener output."""
+    """One parsed event from the udevadm monitor output."""
 
     def __init__(self, timestamp: str, tag: str, properties: Dict[str, str]) -> None:
         self.timestamp = timestamp
@@ -2089,51 +2161,79 @@ class UeventEntry:
         return f"UeventEntry({self.tag}, {self.properties})"
 
 
-class UeventListener:
-    """
-    Wrapper around the azure_uevent_listener C program.
-    Compiles and runs the uevent listener in the background, then
-    provides methods to stop it and parse captured hotplug events.
+class UeventParser:
+    """Incremental parser for "udevadm monitor --property" output.
+
+    A record ends at the blank line udevadm prints after each event, or when
+    the next event header arrives, so feed() returns the completed event one
+    line after its last property.
     """
 
-    _SOURCE_FILE = "azure_uevent_listener.c"
-    _BINARY_NAME = "azure-uevent-listener"
-    _LOCAL_DIR = PurePath(__file__).parent / "uevent_listener"
+    def __init__(self, show_all: bool = False) -> None:
+        self._show_all = show_all
+        self._timestamp = ""
+        self._properties: Dict[str, str] = {}
+        self._in_record = False
+
+    def feed(self, line: str) -> Optional[UeventEntry]:
+        """Consume one output line, returning an event when one completes."""
+        line = line.strip()
+        header = _udev_header_regex.match(line)
+        entry = None
+        if header or not line:
+            entry = self.flush()
+        if header:
+            self._timestamp = header.group("timestamp")
+            self._properties = {
+                "devpath": header.group("devpath"),
+                "action": header.group("action"),
+            }
+            if header.group("subsystem"):
+                self._properties["subsystem"] = header.group("subsystem")
+            self._in_record = True
+        elif self._in_record:
+            prop = _udev_property_regex.match(line)
+            if prop:
+                name = _UEVENT_PROPERTY_NAMES.get(prop.group("key"))
+                if name:
+                    self._properties[name] = prop.group("value")
+        return entry
+
+    def flush(self) -> Optional[UeventEntry]:
+        """Close the record in progress, if any, and return it."""
+        if not self._in_record:
+            return None
+        properties = self._properties
+        self._properties = {}
+        self._in_record = False
+        if _is_azure_vf(properties.get("devpath", "")):
+            properties["azure_vf"] = "yes"
+        tag = _classify_uevent(properties)
+        if tag == "OTHER" and not self._show_all:
+            return None
+        return UeventEntry(timestamp=self._timestamp, tag=tag, properties=properties)
+
+
+class UeventListener:
+    """
+    Wrapper around "udevadm monitor", the udev system tool.
+    Runs the kernel uevent monitor in the background, then provides methods
+    to stop it and parse the captured hotplug events.
+    """
 
     def __init__(self, node: Node) -> None:
         self._node = node
         self._process: Optional[Process] = None
-        self._remote_binary = node.working_path.joinpath(self._BINARY_NAME)
-        self._compiled = False
+        self._parser = UeventParser()
+        self._show_all = False
 
-    def compile(self) -> None:
-        """Copy source to the node and compile it."""
-        if self._compiled:
-            return
-        remote_src = self._node.working_path.joinpath(self._SOURCE_FILE)
-        self._node.shell.copy(
-            self._LOCAL_DIR / self._SOURCE_FILE,
-            remote_src,
+    def start(self, show_all: bool = False) -> None:
+        """Start the monitor in the background. Requires root."""
+        self._show_all = show_all
+        self._parser = UeventParser(show_all=show_all)
+        self._process = self._node.tools[Udevadm].monitor_async(
+            subsystems=None if show_all else _MONITORED_SUBSYSTEMS,
         )
-        self._node.tools[Gcc].compile(
-            str(remote_src),
-            output_name=str(self._remote_binary),
-            arguments="-O2 -Wall",
-        )
-        self._compiled = True
-
-    def start(self, show_all: bool = False, verbose: bool = False) -> None:
-        """Start the listener in the background. Requires root."""
-        self.compile()
-        flags = ""
-        if show_all:
-            flags += " -a"
-        if verbose:
-            flags += " -v"
-        cmd = f"{str(self._remote_binary)}{flags}"
-        self._process = self._node.execute_async(cmd, sudo=True, shell=True)
-        # wait for the "watching kernel uevents" banner
-        self._process.wait_output("watching kernel uevents", timeout=10)
 
     def wait_for_event(
         self,
@@ -2185,7 +2285,7 @@ class UeventListener:
         matched: List[UeventEntry] = []
 
         def _is_match(line: str) -> bool:
-            entry = self.parse_line(line)
+            entry = self._parser.feed(line)
             if entry is None:
                 return False
             for criteria in pending:
@@ -2208,12 +2308,10 @@ class UeventListener:
         """Send SIGINT, collect output, and return parsed events."""
         if self._process is None:
             return []
-        self._node.tools[Kill].by_name(
-            self._BINARY_NAME, signum=SIGINT, ignore_not_exist=True
-        )
+        self._node.tools[Kill].by_name("udevadm", signum=SIGINT, ignore_not_exist=True)
         result = self._process.wait_result(timeout=timeout)
         self._process = None
-        return self.parse_output(result.stdout)
+        return self.parse_output(result.stdout, show_all=self._show_all)
 
     @staticmethod
     def device_criteria(
@@ -2228,38 +2326,22 @@ class UeventListener:
         return {"tag": tag, "devpath": re.compile(re.escape(pci_slot))}
 
     @staticmethod
-    def parse_line(line: str) -> Optional[UeventEntry]:
-        """Parse a single uevent listener output line, None if it's not one."""
-        match = _uevent_line_regex.match(line.strip())
-        if not match:
-            return None
-        props: Dict[str, str] = {}
-        for token in match.group("properties").split():
-            if "=" in token:
-                key, value = token.split("=", 1)
-                props[key] = value
-        if not props:
-            # banner and other non-event output
-            return None
-        return UeventEntry(
-            timestamp=match.group("timestamp"),
-            tag=match.group("tag"),
-            properties=props,
-        )
-
-    @staticmethod
-    def parse_output(output: str) -> List[UeventEntry]:
-        """Parse uevent listener stdout into a list of UeventEntry."""
+    def parse_output(output: str, show_all: bool = False) -> List[UeventEntry]:
+        """Parse udevadm monitor stdout into a list of UeventEntry."""
+        parser = UeventParser(show_all=show_all)
         entries: List[UeventEntry] = []
         for line in output.splitlines():
-            entry = UeventListener.parse_line(line)
+            entry = parser.feed(line)
             if entry is not None:
                 entries.append(entry)
+        entry = parser.flush()
+        if entry is not None:
+            entries.append(entry)
         return entries
 
     def get_events_by_tag(self, output: str, tag: str) -> List[UeventEntry]:
         """Filter parsed events by tag (e.g. VF_PCI_ADD, NETDEV_REMOVE)."""
-        return [e for e in self.parse_output(output) if e.tag == tag]
+        return [e for e in self.parse_output(output, show_all=True) if e.tag == tag]
 
 
 # TODO: remove this method in 2028 when all updated versions are LTS
