@@ -274,6 +274,33 @@ class Nics(InitializableMixin):
     def get_primary_nic(self) -> NicInfo:
         return self.get_nic_by_index(0)
 
+    def get_internal_ipv4_address(self) -> str:
+        # Return an IPv4 address usable for intra-VM communication. Prefer the
+        # node's internal_address when it is a valid IPv4. On a dual-stack
+        # (use_ipv6) environment it is IPv6, and some node types (e.g.
+        # LocalNode) don't define internal_address at all -- in both cases fall
+        # back to the primary NIC's internal IPv4, since tools that bind/connect
+        # over IPv4 only (ntttcp/lagscope/netperf/sockperf) need an IPv4 target.
+        address: str = getattr(self._node, "internal_address", "") or ""
+        try:
+            is_ipv4 = ipaddress.ip_address(address).version == 4
+        except ValueError:
+            is_ipv4 = False
+        if is_ipv4:
+            return address
+        ipv4_address: str = self.get_primary_nic().ip_addr
+        if not ipv4_address:
+            raise LisaException(
+                f"internal address '{address}' is not a usable IPv4 and the "
+                f"primary NIC '{self.get_primary_nic().name}' has no IPv4 "
+                f"address to fall back to."
+            )
+        self._node.log.debug(
+            f"internal address '{address}' is not IPv4; using the node's "
+            f"internal IPv4 {ipv4_address} instead."
+        )
+        return ipv4_address
+
     def get_secondary_nic(self) -> NicInfo:
         # get a nic which isn't servicing the SSH connection with lisa.
         # will assert if none is present.
