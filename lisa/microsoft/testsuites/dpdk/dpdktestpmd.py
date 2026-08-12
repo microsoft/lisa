@@ -13,6 +13,7 @@ from microsoft.testsuites.dpdk.common import (
     Installer,
     OsPackageDependencies,
     PackageManagerInstall,
+    Pmd,
     TarDownloader,
     get_debian_backport_repo_args,
     is_url_for_git_repo,
@@ -253,20 +254,6 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
         self._node.tools[Ninja].run(
             "uninstall", shell=True, sudo=True, cwd=self.dpdk_build_path
         )
-        working_path = str(self._node.get_working_path())
-        assert_that(str(self.dpdk_build_path)).described_as(
-            "DPDK Installer source path was empty during attempted cleanup!"
-        ).is_not_empty()
-        assert_that(str(self.dpdk_build_path)).described_as(
-            "DPDK Installer source path was set to root dir "
-            "'/' during attempted cleanup!"
-        ).is_not_equal_to("/")
-        assert_that(str(self.dpdk_build_path)).described_as(
-            f"DPDK Installer source path {self.dpdk_build_path} was set to "
-            f"working path '{working_path}' during attempted cleanup!"
-        ).is_not_equal_to(working_path)
-        # remove build path only since we may want the repo again.
-        self._node.execute(f"rm -rf {str(self.dpdk_build_path)}", shell=True)
 
     def get_installed_version(self) -> VersionInfo:
         version: VersionInfo = self._node.tools[Pkgconfig].get_package_version(
@@ -293,11 +280,12 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
             sample_apps = f"-Dexamples={','.join(self._sample_applications)}"
         else:
             sample_apps = ""
+        meson_args = f"-Dbuildtype=debug {sample_apps}"
         node = self._node
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=sample_apps, build_dir="build", cwd=self.asset_path
+            args=meson_args, build_dir="build", cwd=self.asset_path
         )
         install_result = node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
@@ -471,10 +459,11 @@ class DpdkTestpmd(Tool):
             return False
 
     def generate_testpmd_include(
-        self, node_nic: NicInfo, vdev_id: int, force_netvsc: bool = False
+        self,
+        node_nic: NicInfo,
+        vdev_id: int,
+        pmd: Pmd,
     ) -> str:
-        # handle generating different flags for pmds/device combos for testpmd
-
         # MANA and mlnx both don't require these arguments if all VFs are in use.
         # We have a primary nic to exclude in our tests, so we include the
         # test nic by either bus address and mac (MANA)
@@ -494,16 +483,22 @@ class DpdkTestpmd(Tool):
         else:
             include_flag = "-w"
 
-        include_flag = f' {include_flag} "{node_nic.pci_slot}"'
+        if self.is_mana:
+            include_flag = f"{include_flag} {node_nic.dev_uuid}"
+        else:
+            include_flag = f' {include_flag} "{node_nic.pci_slot}"'
 
         # build pmd argument
         if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
             pmd_name = "net_failsafe"
             pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
         elif self.is_mana:
-            # mana selects by mac, just return the vdev info directly
-            if node_nic.module_name == "uio_hv_generic" or force_netvsc:
-                return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
+            # MANA netvsc mode selects by mac.
+            if pmd == Pmd.NETVSC:
+                return (
+                    f" {include_flag} "
+                    f'--vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
+                )
             # if mana_ib is present, use mana friendly args
             elif self.node.tools[Modprobe].module_exists("mana_ib"):
                 return (
@@ -518,39 +513,25 @@ class DpdkTestpmd(Tool):
                 # reset include flag for MANA since there is only one interface
                 include_flag = ""
         else:
+            if pmd == Pmd.NETVSC:
+                return include_flag
             # mlnx setup for failsafe
             pmd_name = "net_vdev_netvsc"
             pmd_flags = f"iface={node_nic.name},force=1"
-        if node_nic.module_name == "hv_netvsc":
-            # primary/upper/master nic is bound to hv_netvsc
-            # when using net_failsafe implicitly or explicitly.
-            # Set up net_failsafe/net_vdev_netvsc args here
-            return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + include_flag
-        elif node_nic.module_name == "uio_hv_generic":
-            # if using netvsc pmd, just let -w or -a select
-            # which device to use. No other args are needed.
-            return include_flag
-        else:
-            # if we're all the way through and haven't picked a pmd, something
-            # has gone wrong. fail fast
-            raise LisaException(
-                (
-                    f"Unknown driver({node_nic.module_name}) bound to "
-                    f"{node_nic.name}/{node_nic.lower}."
-                    "Cannot generate testpmd include arguments."
-                )
-            )
+        return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + include_flag
 
     def generate_testpmd_command(
         self,
         nic_to_include: List[NicInfo],
         vdev_id: int,
         mode: str,
+        pmd: Pmd = Pmd.FAILSAFE,
         extra_args: str = "",
         multiple_queues: bool = False,
         service_cores: int = 1,
         mtu: int = 0,
         mbuf_size: int = 0,
+        stats_period: int = 2,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -579,7 +560,7 @@ class DpdkTestpmd(Tool):
         # generate the flags for which devices to include in the tests
         nic_include_infos = []
         for nic in nic_to_include:
-            nic_include_infos += [self.generate_testpmd_include(nic, vdev_id)]
+            nic_include_infos += [self.generate_testpmd_include(nic, vdev_id, pmd=pmd)]
             vdev_id += 1
 
         # infer core count to assign based on number of queues
@@ -642,7 +623,7 @@ class DpdkTestpmd(Tool):
             and bool(self.get_dpdk_version() > "23.7.0")
         ):
             extra_args += " --txonly-multi-flow"
-        else:
+        elif mode == "txonly":
             self.node.log.debug(
                 "note: skipping use of testpmd txonly-multi-flow flag "
                 "before dpdk 24.11. perf on receive side may be suboptimal."
@@ -660,12 +641,24 @@ class DpdkTestpmd(Tool):
         ).is_not_empty()
         # add debug logging args, EAL ones are very verbose
         # but netvsc are useful for identifying hotplugs on azure
-        debug_logging = "--log-level netvsc,debug"
+        debug_logging = []
+        # omitting eal even though it's good for debugging some issues.
+        # it's extremely verbose.
+        for lib in [
+            "mlx5",
+            "mana",
+            "vmbus",
+            "netvsc",
+            "ethdev",
+        ]:
+            debug_logging += [f"--log-level {lib},debug"]
+        debug_log_args = " ".join(debug_logging)
         nic_includes = " ".join(nic_include_infos)
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_includes} {debug_logging} -- --forward-mode={mode} "
-            f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
+            f"{nic_includes} {debug_log_args} -- --forward-mode={mode} "
+            f"-a --stats-period {stats_period} --nb-cores={forwarding_cores}"
+            f" {extra_args}"
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -743,7 +736,7 @@ class DpdkTestpmd(Tool):
 
             # reset node connections (quicker and less risky than netvsc reset)
             self.node.close()
-            if not self.check_testpmd_is_running():
+            if not self.check_testpmd_is_running(tries=10, want_dead=True):
                 return
 
             self.node.log.debug(
@@ -751,7 +744,7 @@ class DpdkTestpmd(Tool):
             )
             # if this somehow didn't kill it, reset netvsc
             self.node.tools[Modprobe].reload("hv_netvsc")
-            if self.check_testpmd_is_running():
+            if self.check_testpmd_is_running(tries=10, want_dead=True):
                 raise LisaException("Testpmd has hung, killing the test.")
             else:
                 self.node.log.debug(
@@ -861,10 +854,20 @@ class DpdkTestpmd(Tool):
             raise AssertionError(
                 "Test bug: rx packet data was 0 could not check dropped packets."
             )
+        core_count = self.node.tools[Lscpu].get_core_count()
+        # tag of 'isolated resource' is being deprecated,
+        # so best effort to gauge this is going to be core count.
+        # we'll assume e192 or above is isolated,
+        # may need to adjust in the future.
+        if core_count >= 192:
+            allowable_drop_rate = 0.2
+        else:
+            allowable_drop_rate = 0.5
         self.packet_drop_rate = self.rx_packet_drops / self.rx_total_packets
         assert_that(self.packet_drop_rate).described_as(
-            "More than 1% of the received packets were dropped!"
-        ).is_close_to(0, 0.01)
+            f"More than {allowable_drop_rate * 100}% of the received "
+            "packets were dropped!"
+        ).is_close_to(0, allowable_drop_rate)
 
     def get_mean_tx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
         return self._get_pps_sriov_hotplug(self._tx_pps_key)
@@ -1015,7 +1018,8 @@ class DpdkTestpmd(Tool):
         ):
             raise SkippedException("MANA DPDK test is not supported on this OS")
 
-        self.installer.do_installation()
+        if not self.installer._check_if_installed():
+            self.installer.do_installation()
         self._dpdk_version_info = self.installer.get_installed_version()
         self._load_drivers_for_dpdk()
         self.find_testpmd_binary(check_path=self._expected_install_path)
