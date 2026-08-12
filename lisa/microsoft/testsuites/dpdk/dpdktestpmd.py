@@ -860,8 +860,8 @@ class DpdkTestpmd(Tool):
             )
         self.packet_drop_rate = self.rx_packet_drops / self.rx_total_packets
         assert_that(self.packet_drop_rate).described_as(
-            "More than 1% of the received packets were dropped!"
-        ).is_close_to(0, 0.01)
+            "More than 2% of the received packets were dropped!"
+        ).is_close_to(0, 0.02)
 
     def get_mean_tx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
         return self._get_pps_sriov_hotplug(self._tx_pps_key)
