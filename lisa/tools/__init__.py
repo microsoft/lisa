@@ -158,6 +158,7 @@ from .who import Who
 from .whoami import Whoami
 from .windows_feature import WindowsFeatureManagement
 from .wsl import Wsl
+from .zstd import Zstd
 
 __all__ = [
     "AptAddRepository",
@@ -333,6 +334,7 @@ __all__ = [
     "WindowsFeatureManagement",
     "Wsl",
     "YumConfigManager",
+    "Zstd",
     "Conntrack",
     "Ipset",
 ]
