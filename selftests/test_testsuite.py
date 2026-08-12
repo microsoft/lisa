@@ -238,7 +238,7 @@ class TestSuiteTestCase(TestCase):
     def test_expected_vf_driver_empty_is_noop(self) -> None:
         # When expected_vf_driver is not set, the gate must not inspect the node.
         test_suite = self.generate_suite_instance()
-        test_suite._metadata.area = "network"
+        test_suite._metadata.area = "sriov"
         node = MagicMock()
         test_suite._check_expected_vf_driver(
             {"variables": {"expected_vf_driver": ""}, "node": node},
@@ -246,8 +246,8 @@ class TestSuiteTestCase(TestCase):
         )
         node.nics.reload.assert_not_called()
 
-    def test_expected_vf_driver_non_network_area_is_noop(self) -> None:
-        # The gate only applies to network/sriov areas; other areas are ignored
+    def test_expected_vf_driver_non_sriov_area_is_noop(self) -> None:
+        # The gate only applies to the sriov area; other areas are ignored
         # even when the variable is set.
         test_suite = self.generate_suite_instance()
         test_suite._metadata.area = "provisioning"
@@ -271,7 +271,7 @@ class TestSuiteTestCase(TestCase):
 
     def test_expected_vf_driver_present_passes(self) -> None:
         test_suite = self.generate_suite_instance()
-        test_suite._metadata.area = "network"
+        test_suite._metadata.area = "sriov"
         node = MagicMock()
         node.os = MagicMock(spec=Posix)
         node.nics.has_vf_driver.return_value = True
@@ -283,22 +283,24 @@ class TestSuiteTestCase(TestCase):
         )
         node.nics.reload.assert_called_once()
 
-    def test_expected_vf_driver_absent_skips(self) -> None:
+    def test_expected_vf_driver_absent_fails(self) -> None:
         test_suite = self.generate_suite_instance()
         test_suite._metadata.area = "sriov"
         node = MagicMock()
         node.os = MagicMock(spec=Posix)
         node.nics.has_vf_driver.return_value = False
         node.nics.get_used_modules.return_value = []
-        with self.assertRaises(SkippedException):
+        # A missing VF must fail rather than skip, so it is not hidden in a run.
+        with self.assertRaises(LisaException) as cm:
             test_suite._check_expected_vf_driver(
                 {"variables": {"expected_vf_driver": "mana"}, "node": node},
                 get_logger("test"),
             )
+        self.assertNotIsInstance(cm.exception, SkippedException)
 
     def test_expected_vf_driver_windows_skips(self) -> None:
         test_suite = self.generate_suite_instance()
-        test_suite._metadata.area = "network"
+        test_suite._metadata.area = "sriov"
         node = MagicMock()
         node.os = MagicMock(spec=Windows)
         with self.assertRaises(SkippedException):
