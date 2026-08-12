@@ -899,10 +899,18 @@ class DpdkTestpmd(Tool):
         super().__init__(*args, **kwargs)
         self._dpdk_source = kwargs.pop("dpdk_source", PACKAGE_MANAGER_SOURCE)
         self._dpdk_branch = kwargs.pop("dpdk_branch", "main")
+        self._allow_other_distros = kwargs.pop("dpdk_allow_other_distros", False)
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
         self._expected_install_path = ""
+        if not isinstance(self.node.os, Ubuntu) and not self._allow_other_distros:
+            raise SkippedException(
+                "DPDK testing uses a single distro (Ubuntu) by default to avoid noise "
+                "in general pu test runs. To test with other distros, "
+                "set environment variable LISA_CV_DPDK_ALLOW_OTHER_DISTROS=true "
+                "or add a case visible variable dpdk_allow_other_distros "
+                "to your runbook.")
         self._determine_network_hardware()
         if self.use_package_manager_install():
             self.installer: Installer = DpdkPackageManagerInstall(
