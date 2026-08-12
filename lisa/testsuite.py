@@ -44,6 +44,7 @@ from lisa.util.perf_timer import Timer, create_timer
 
 _all_suites: Dict[str, TestSuiteMetadata] = {}
 _all_cases: Dict[str, TestCaseMetadata] = {}
+_EXPECTED_VF_DRIVER_CASE_NAME_MARKERS = ("sriov", "vf")
 
 
 def _call_with_timeout(
@@ -868,6 +869,9 @@ class TestSuite:
 
         timer = create_timer()
         try:
+            self._check_expected_vf_driver(
+                case_result.runtime_data.name, test_kwargs, log
+            )
             _call_with_timeout(
                 self.before_case,
                 timeout=timeout,
@@ -879,6 +883,81 @@ class TestSuite:
 
         log.debug(f"before_case end in {timer}")
         return result
+
+    def _check_expected_vf_driver(
+        self, case_name: str, test_kwargs: Dict[str, Any], log: Logger
+    ) -> None:
+        """Fail the case if the VM does not expose the required VF driver.
+
+        The requirement is opt-in through the case-visible runbook variable
+        ``expected_vf_driver`` (e.g. 'mlx' or 'mana'). When the variable is
+        absent or empty, no check is performed. When set, the created VM's NICs
+        are inspected and the case fails if the required VF driver is not
+        present.
+
+        The gate only applies to test cases with ``sriov`` or ``vf`` in their
+        names; other cases are ignored.
+        """
+        normalized_case_name = case_name.lower()
+        if not any(
+            marker in normalized_case_name
+            for marker in _EXPECTED_VF_DRIVER_CASE_NAME_MARKERS
+        ):
+            return
+
+        variables = test_kwargs.get("variables") or {}
+        expected_vf_driver = (
+            str(variables.get("expected_vf_driver", "")).strip().lower()
+        )
+        # No requirement configured, so the gate is a no-op.
+        if not expected_vf_driver:
+            return
+
+        # Import here to avoid a circular import at module load time.
+        from lisa.nic import get_supported_vf_driver_types
+
+        supported = get_supported_vf_driver_types()
+        if expected_vf_driver not in supported:
+            raise LisaException(
+                f"Invalid 'expected_vf_driver' value '{expected_vf_driver}'. "
+                f"Expected one of {supported}."
+            )
+
+        node = test_kwargs.get("node")
+        if node is None:
+            raise SkippedException(
+                "'expected_vf_driver' is set but no node is available to inspect "
+                "for a VF driver. Verify the environment has a deployed node."
+            )
+
+        if isinstance(node.os, Windows):
+            raise SkippedException(
+                f"'expected_vf_driver' check for '{expected_vf_driver}' is only "
+                f"supported on Linux nodes, but node '{node.name}' runs Windows."
+            )
+
+        try:
+            node.nics.reload()
+            has_vf = node.nics.has_vf_driver(expected_vf_driver)
+        except Exception as e:
+            # An unreadable NIC state is a real failure, not an unmet precondition.
+            raise LisaException(
+                f"Could not determine the VF driver on node '{node.name}' to verify "
+                f"the required '{expected_vf_driver}' VF driver. Investigate node "
+                f"connectivity or NIC state. Error: {e}"
+            ) from e
+
+        if not has_vf:
+            used_modules = node.nics.get_used_modules(["hv_netvsc"])
+            raise LisaException(
+                f"Required VF/VF driver '{expected_vf_driver}' was not found on node "
+                f"'{node.name}'. Detected VF driver modules: {used_modules or 'none'}."
+            )
+
+        log.info(
+            f"expected_vf_driver check passed: '{expected_vf_driver}' VF driver "
+            f"present on node '{node.name}'."
+        )
 
     def __after_case(
         self,
