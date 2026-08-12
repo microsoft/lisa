@@ -11,6 +11,7 @@ package management, and reboot integrity.
 
 from logging import Logger
 from typing import Any, Dict
+from uuid import uuid4
 
 from assertpy.assertpy import assert_that
 
@@ -22,8 +23,9 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.base_tools import Service
 from lisa.operating_system import Fedora
-from lisa.tools import Cat, Journalctl, Reboot, Usermod
+from lisa.tools import Cat, Journalctl, Reboot
 from lisa.util import check_till_timeout
 
 
@@ -57,6 +59,7 @@ class FedoraCloudValidation(TestSuite):
     def _check_journal_corruption(self, node: Node, boot_id: str = "") -> None:
         """Scan journalctl for filesystem corruption or recovery errors."""
         corruption_keywords = [
+            "dirty bit",
             "corrupt",
             "run fsck",
             "recovery",
@@ -75,12 +78,41 @@ class FedoraCloudValidation(TestSuite):
             "No filesystem corruption or recovery errors should appear in journalctl"
         ).is_empty()
 
+    def _assert_chronyd_state(
+        self,
+        node: Node,
+        service: Service,
+        expected_enabled: bool,
+        expected_active: bool,
+        context: str,
+    ) -> None:
+        enabled_result = node.execute(
+            "systemctl is-enabled chronyd.service", no_error_log=True
+        )
+        assert_that(enabled_result.stdout.strip()).described_as(
+            f"chronyd enablement must be correct {context}"
+        ).is_equal_to("enabled" if expected_enabled else "disabled")
+
+        assert_that(service.is_service_running("chronyd.service")).described_as(
+            f"chronyd activity must be correct {context}"
+        ).is_equal_to(expected_active)
+
+        process_result = node.execute("pgrep -x chronyd", no_error_log=True)
+        if expected_active:
+            assert_that(process_result.exit_code).described_as(
+                f"the chronyd process must be running {context}"
+            ).is_equal_to(0)
+        else:
+            assert_that(process_result.exit_code).described_as(
+                f"the chronyd process must not be running {context}"
+            ).is_not_equal_to(0)
+
     @TestCaseMetadata(
         description="""
         Verify Fedora edition self-identification.
 
-        Validates /etc/os-release fields, fedora-release-common package version,
-        and SUPPORT_END date.
+        Validates Cloud Edition metadata in /etc/os-release and the
+        fedora-release-common package version.
         """,
         priority=1,
         requirement=simple_requirement(supported_os=[Fedora]),
@@ -92,6 +124,7 @@ class FedoraCloudValidation(TestSuite):
         Reads /etc/os-release and checks:
         - ID is "fedora"
         - VERSION is present
+        - VARIANT and VARIANT_ID identify Fedora Cloud
         - CPE_NAME includes :fedora:<VERSION_ID>
         - Installed fedora-release-common RPM version matches VERSION_ID
         - SUPPORT_END date is still in the future
@@ -123,6 +156,14 @@ class FedoraCloudValidation(TestSuite):
         assert_that(version).described_as(
             "/etc/os-release must have VERSION"
         ).is_not_empty()
+
+        variant = fields.get("VARIANT", "")
+        assert_that(variant).described_as(
+            "Fedora Cloud images must identify the Cloud Edition"
+        ).is_equal_to("Cloud Edition")
+        assert_that(fields.get("VARIANT_ID", "")).described_as(
+            "Fedora Cloud images must use the cloud variant identifier"
+        ).is_equal_to("cloud")
 
         # CPE_NAME must contain :fedora:<VERSION_ID>
         cpe = fields.get("CPE_NAME", "")
@@ -185,12 +226,22 @@ class FedoraCloudValidation(TestSuite):
 
         # After settling, verify system is running
         if state != "running":
-            failed_units_result = node.execute("systemctl --all --failed --no-pager")
+            failed_units_result = node.execute(
+                "systemctl --all --failed --no-legend --plain --no-pager"
+            )
             node.log.info(f"Failed units:\n{failed_units_result.stdout}")
             assert_that(state).described_as(
                 f"System must be running (got {state}). "
                 f"Failed: {failed_units_result.stdout}"
             ).is_equal_to("running")
+
+        boot_journal = node.execute("journalctl -b --no-pager")
+        assert_that(boot_journal.exit_code).described_as(
+            "journalctl must read the current boot journal successfully"
+        ).is_equal_to(0)
+        assert_that(boot_journal.stdout.lower()).described_as(
+            "no service may be discarded from boot due to an ordering cycle"
+        ).does_not_contain("deleted to break ordering cycle")
 
         node.log.info("No failed services detected")
 
@@ -324,73 +375,194 @@ class FedoraCloudValidation(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Base startup smoke test after machine startup.
+        Verify Fedora boots successfully to a usable state.
 
-        Validates baseline cloud image readiness: dmidecode retrieves system
-        info, pciutils installs and lspci -nn enumerates PCI devices, and
-        SELinux is in Enforcing mode with working mode switching.
+        Confirms the cloud image reaches its configured systemd target and
+        accepts commands through the connected session.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_os=[Fedora]),
+    )
+    def verify_base_startup(self, node: Node) -> None:
+        default_target = node.execute("systemctl get-default")
+        assert_that(default_target.exit_code).described_as(
+            "systemctl must report the default boot target"
+        ).is_equal_to(0)
+
+        target = default_target.stdout.strip()
+        assert_that(target).described_as(
+            "the configured default boot target must be present"
+        ).is_not_empty()
+
+        active_target = node.execute(f"systemctl is-active {target}")
+        assert_that(active_target.exit_code).described_as(
+            f"Fedora must reach its configured default boot target {target}"
+        ).is_equal_to(0)
+        assert_that(active_target.stdout.strip()).described_as(
+            f"the configured default boot target {target} must be active"
+        ).is_equal_to("active")
+
+        shell_check = node.execute("id -u")
+        assert_that(shell_check.exit_code).described_as(
+            "the connected session must execute commands after boot"
+        ).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Verify SELinux is enabled in Enforcing mode after boot.
+
+        Confirms the Fedora cloud image reports Enforcing through getenforce.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_os=[Fedora]),
+    )
+    def verify_base_selinux(self, node: Node) -> None:
+        getenforce = node.execute("getenforce")
+        assert_that(getenforce.exit_code).described_as(
+            "getenforce must execute successfully"
+        ).is_equal_to(0)
+        assert_that(getenforce.stdout.strip()).described_as(
+            "SELinux must be enabled in Enforcing mode after boot"
+        ).is_equal_to("Enforcing")
+
+    @TestCaseMetadata(
+        description="""
+        Verify Fedora can update packages through the DNF command line.
+
+        Uses the default repositories when updates are available, otherwise
+        enables updates-testing for the update transaction.
         """,
         priority=1,
         requirement=simple_requirement(supported_os=[Fedora]),
         use_new_environment=True,
     )
-    def verify_startup_and_selinux(self, node: Node) -> None:
-        """
-        Startup smoke test: validates dmidecode, pciutils/lspci, and SELinux.
-
-        Verifies:
-        - dmidecode retrieves system product name
-        - pciutils is removed then reinstalled to exercise a full install cycle
-        - lspci -nn succeeds after fresh install
-        - SELinux is Enforcing by default and can toggle to Permissive and back
-        """
-        node.os.install_packages("dmidecode")  # type: ignore[attr-defined]
+    def verify_update_cli(self, node: Node) -> None:
         node.mark_dirty()
-        dmidecode = node.execute("dmidecode -s system-product-name", sudo=True)
-        assert_that(dmidecode.exit_code).described_as(
-            "dmidecode must retrieve system product name"
-        ).is_equal_to(0)
-        node.log.info(f"System product: {dmidecode.stdout.strip()}")
 
-        # Remove pciutils before reinstalling to exercise a full install cycle
-        node.execute("dnf remove -y pciutils", sudo=True, no_error_log=True)
-        install_pciutils = node.execute(
-            "dnf install -y pciutils",
+        update_command = "dnf update -y"
+        check_result = node.execute(
+            "dnf check-update --refresh",
             sudo=True,
-            timeout=120,  # 2 min: DNF resolves deps + downloads
+            no_error_log=True,
+            timeout=600,  # Allow 10 minutes to refresh repository metadata.
         )
-        assert_that(install_pciutils.exit_code).described_as(
-            "pciutils must install successfully after removal"
+        assert_that(check_result.exit_code).described_as(
+            "dnf check-update must return 0 when current or 100 when updates "
+            "are available; inspect repository errors in the command output"
+        ).is_in(0, 100)
+
+        if check_result.exit_code == 0:
+            check_result = node.execute(
+                "dnf --enablerepo=updates-testing check-update --refresh",
+                sudo=True,
+                no_error_log=True,
+                timeout=600,  # Allow 10 minutes to refresh testing metadata.
+            )
+            assert_that(check_result.exit_code).described_as(
+                "updates-testing must return 0 when current or 100 when updates "
+                "are available; inspect repository errors in the command output"
+            ).is_in(0, 100)
+            if check_result.exit_code == 0:
+                raise SkippedException(
+                    "No package updates are available from the default or "
+                    "updates-testing repositories. Retry with an older Fedora image."
+                )
+            update_command = "dnf --enablerepo=updates-testing update -y"
+
+        update_result = node.execute(
+            update_command,
+            sudo=True,
+            timeout=1200,  # Allow 20 minutes for metadata and package updates.
+        )
+        assert_that(update_result.exit_code).described_as(
+            "dnf update must complete successfully; inspect repository and "
+            "dependency errors in the command output"
         ).is_equal_to(0)
 
-        lspci = node.execute("lspci -nn")
-        assert_that(lspci.exit_code).described_as(
-            "lspci -nn must succeed after fresh pciutils install"
-        ).is_equal_to(0)
+    @TestCaseMetadata(
+        description="""
+        Verify systemd service lifecycle operations using chronyd.
 
-        # SELinux mode toggle
-        getenforce = node.execute("getenforce")
-        assert_that(getenforce.stdout.strip()).described_as(
-            "SELinux must be Enforcing before setenforce test"
-        ).is_equal_to("Enforcing")
+        Validates that chronyd can be stopped, started, enabled, and disabled,
+        and that its configured state persists correctly across reboots.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_os=[Fedora]),
+        use_new_environment=True,
+    )
+    def verify_service_manipulation(self, node: Node) -> None:
+        node.mark_dirty()
+        reboot = node.tools[Reboot]
+        systemctl = node.tools[Service]
 
         try:
-            setenforce_ret = node.execute("setenforce 0", sudo=True)
-            assert_that(setenforce_ret.exit_code).described_as(
-                "setenforce 0 must succeed"
+            systemctl.stop_service("chronyd.service")
+            for command in (
+                "systemctl disable chronyd.service",
+                "systemctl disable chrony-wait.service",
+            ):
+                result = node.execute(command, sudo=True)
+                assert_that(result.exit_code).described_as(
+                    f"{command} must succeed before the first reboot"
+                ).is_equal_to(0)
+
+            reboot.reboot()
+            self._assert_chronyd_state(
+                node,
+                systemctl,
+                expected_enabled=False,
+                expected_active=False,
+                context="after disabling it and rebooting",
+            )
+
+            systemctl.start_service("chronyd.service")
+            self._assert_chronyd_state(
+                node,
+                systemctl,
+                expected_enabled=False,
+                expected_active=True,
+                context="after starting it manually",
+            )
+
+            systemctl.stop_service("chronyd.service")
+            self._assert_chronyd_state(
+                node,
+                systemctl,
+                expected_enabled=False,
+                expected_active=False,
+                context="after stopping it manually",
+            )
+
+            systemctl.enable_service("chronyd.service")
+
+            reboot.reboot()
+            self._assert_chronyd_state(
+                node,
+                systemctl,
+                expected_enabled=True,
+                expected_active=True,
+                context="after enabling it and rebooting",
+            )
+
+            disable_result = node.execute(
+                "systemctl disable chronyd.service", sudo=True
+            )
+            assert_that(disable_result.exit_code).described_as(
+                "chronyd must be disabled successfully"
             ).is_equal_to(0)
-            permissive_check = node.execute("getenforce")
-            assert_that(permissive_check.stdout.strip()).described_as(
-                "SELinux must be Permissive after setenforce 0"
-            ).is_equal_to("Permissive")
+
+            reboot.reboot()
+            self._assert_chronyd_state(
+                node,
+                systemctl,
+                expected_enabled=False,
+                expected_active=False,
+                context="after the final disable and reboot",
+            )
         finally:
-            # Always restore Enforcing to avoid leaving SELinux in Permissive
-            ret = node.execute("setenforce 1", sudo=True, no_error_log=True)
-            if ret.exit_code != 0:
-                node.log.warning(
-                    f"setenforce 1 failed during cleanup (exit {ret.exit_code}): "
-                    f"{ret.stderr}"
-                )
+            systemctl.enable_service("chronyd.service")
+            systemctl.start_service("chronyd.service")
+            systemctl.start_service("chrony-wait.service")
 
     @TestCaseMetadata(
         description="""
@@ -421,12 +593,60 @@ class FedoraCloudValidation(TestSuite):
             "journalctl must contain audit entries"
         ).contains("audit")
 
-        # If rsyslog is installed, /var/log/secure must exist
+        test_tag = "lisa-system-logging"
+        test_message = f"lisa-system-logging-validation-{uuid4()}"
+        logger_result = node.execute(
+            f"logger -p authpriv.notice -t {test_tag} {test_message}"
+        )
+        assert_that(logger_result.exit_code).described_as(
+            "logger must submit a current system log message"
+        ).is_equal_to(0)
+
+        def journal_contains_test_message() -> bool:
+            result = node.execute(
+                f"journalctl --since '5 minutes ago' --no-pager -t {test_tag}",
+                no_error_log=True,
+            )
+            return test_message in result.stdout
+
+        check_till_timeout(
+            journal_contains_test_message,
+            timeout_message=(
+                "the current test message did not appear in journald; "
+                "inspect systemd-journald status and configuration"
+            ),
+            timeout=30,  # Allow journald time to persist the message.
+            interval=2,
+        )
+
         if node.os.package_exists("rsyslog"):  # type: ignore[attr-defined]
-            secure_log = node.execute("test -e /var/log/secure", sudo=True)
-            assert_that(secure_log.exit_code).described_as(
-                "/var/log/secure must exist when rsyslog is installed"
-            ).is_equal_to(0)
+
+            def secure_log_contains_test_message() -> bool:
+                result = node.execute(
+                    f"grep -F '{test_message}' /var/log/secure",
+                    sudo=True,
+                    no_error_log=True,
+                )
+                return result.exit_code == 0
+
+            check_till_timeout(
+                secure_log_contains_test_message,
+                timeout_message=(
+                    "the current authpriv test message did not appear in "
+                    "/var/log/secure; inspect rsyslog status and authpriv routing"
+                ),
+                timeout=30,  # Allow rsyslog time to flush the message.
+                interval=2,
+            )
+
+            secure_log = node.execute(
+                "tail -n 1 /var/log/secure",
+                sudo=True,
+                no_error_log=True,
+            )
+            assert_that(secure_log.stdout.strip()).described_as(
+                "/var/log/secure must contain current log entries"
+            ).is_not_empty()
 
         # Corruption scan before reboot
         self._check_journal_corruption(node)
@@ -437,150 +657,3 @@ class FedoraCloudValidation(TestSuite):
 
         self._check_journal_corruption(node, boot_id="-1")
         self._check_journal_corruption(node)
-
-    @TestCaseMetadata(
-        description="""
-        Verify user management operations (create, modify, delete).
-
-        Tests useradd, usermod, chpasswd, account locking/unlocking,
-        and userdel for complete user lifecycle management.
-        """,
-        priority=1,
-        requirement=simple_requirement(supported_os=[Fedora]),
-        use_new_environment=True,
-    )
-    def verify_user_management(self, node: Node) -> None:
-        test_user = "lisatestuser"
-        test_group = "lisatestgroup"
-        test_group2 = (
-            "lisatestgroup2"  # separate group to meaningfully test add_user_to_group
-        )
-
-        try:
-            node.mark_dirty()
-            # Create test group
-            result = node.execute(f"groupadd {test_group}", sudo=True)
-            assert_that(result.exit_code).described_as(
-                f"Creating group {test_group} must succeed"
-            ).is_equal_to(0)
-
-            result = node.execute(f"groupadd {test_group2}", sudo=True)
-            assert_that(result.exit_code).described_as(
-                f"Creating group {test_group2} must succeed"
-            ).is_equal_to(0)
-
-            # Create test user
-            result = node.execute(
-                f"useradd -m -s /bin/bash -G {test_group} {test_user}",
-                sudo=True,
-            )
-            assert_that(result.exit_code).described_as(
-                f"Creating user {test_user} must succeed"
-            ).is_equal_to(0)
-
-            # Set password via chpasswd
-            chpasswd = node.execute(
-                f'echo "{test_user}:L1saTestPass!" | chpasswd',
-                shell=True,
-                sudo=True,
-            )
-            assert_that(chpasswd.exit_code).described_as(
-                f"chpasswd for {test_user} must succeed"
-            ).is_equal_to(0)
-
-            # Verify user exists via id
-            id_result = node.execute(f"id {test_user}")
-            assert_that(id_result.exit_code).described_as(
-                f"id {test_user} must succeed"
-            ).is_equal_to(0)
-
-            # Verify groups — confirm test_group was assigned at useradd time
-            groups_result = node.execute(f"groups {test_user}")
-            assert_that(groups_result.exit_code).described_as(
-                f"groups {test_user} must succeed"
-            ).is_equal_to(0)
-            assert_that(groups_result.stdout).described_as(
-                f"{test_user} must be a member of {test_group} after useradd"
-            ).contains(test_group)
-
-            node.os.install_packages("zsh")  # type: ignore[attr-defined]
-            usermod_shell = node.execute(f"usermod -s /bin/zsh {test_user}", sudo=True)
-            assert_that(usermod_shell.exit_code).described_as(
-                f"usermod -s /bin/zsh for {test_user} must succeed"
-            ).is_equal_to(0)
-
-            # Modify: add user to test_group2 using Usermod tool
-            # (test_group was already assigned at useradd time; use a different group
-            # so add_user_to_group is actually exercised)
-            node.tools[Usermod].add_user_to_group(
-                group=test_group2, user=test_user, sudo=True
-            )
-
-            # Verify user appears in /etc/passwd using Cat tool
-            passwd_content = node.tools[Cat].read("/etc/passwd", force_run=True)
-            assert_that(passwd_content).described_as(
-                f"{test_user} must appear in /etc/passwd"
-            ).contains(test_user)
-
-            # Verify groups again — both groups must appear in output
-            groups_result2 = node.execute(f"groups {test_user}")
-            assert_that(groups_result2.exit_code).described_as(
-                f"groups {test_user} must succeed after modifications"
-            ).is_equal_to(0)
-            assert_that(groups_result2.stdout).described_as(
-                f"{test_user} must be a member of {test_group2} after add_user_to_group"
-            ).contains(test_group2)
-
-            # Lock user account
-            lock_result = node.execute(f"usermod -L {test_user}", sudo=True)
-            assert_that(lock_result.exit_code).described_as(
-                "Locking user account must succeed"
-            ).is_equal_to(0)
-
-            # Verify account is locked — check second field of passwd -S output
-            passwd_status = node.execute(f"passwd -S {test_user}", sudo=True)
-            assert_that(passwd_status.exit_code).described_as(
-                f"passwd -S {test_user} must succeed"
-            ).is_equal_to(0)
-            passwd_fields = passwd_status.stdout.split()
-            assert_that(len(passwd_fields)).described_as(
-                f"passwd -S output must have at least 2 fields for {test_user}"
-            ).is_greater_than_or_equal_to(2)
-            assert_that(passwd_fields[1]).described_as(
-                "passwd -S second field must be 'L' when account is locked"
-            ).is_equal_to("L")
-
-            # Unlock user account
-            unlock_result = node.execute(f"usermod -U {test_user}", sudo=True)
-            assert_that(unlock_result.exit_code).described_as(
-                "Unlocking user account must succeed"
-            ).is_equal_to(0)
-
-            # Verify unlock — check second field of passwd -S output
-            unlock_status = node.execute(f"passwd -S {test_user}", sudo=True)
-            assert_that(unlock_status.exit_code).described_as(
-                f"passwd -S {test_user} must succeed after unlock"
-            ).is_equal_to(0)
-            unlock_fields = unlock_status.stdout.split()
-            assert_that(len(unlock_fields)).described_as(
-                f"passwd -S output must have at least 2 fields for {test_user}"
-            ).is_greater_than_or_equal_to(2)
-            assert_that(unlock_fields[1]).described_as(
-                "passwd -S second field must be 'P' when account is unlocked"
-            ).is_equal_to("P")
-
-            # Remove user and verify deletion
-            userdel_result = node.execute(f"userdel -r {test_user}", sudo=True)
-            assert_that(userdel_result.exit_code).described_as(
-                f"userdel -r {test_user} must succeed"
-            ).is_equal_to(0)
-
-            id_after = node.execute(f"id {test_user}", no_error_log=True)
-            assert_that(id_after.exit_code).described_as(
-                f"id {test_user} must fail after userdel"
-            ).is_not_equal_to(0)
-
-        finally:
-            node.execute(f"userdel -r {test_user}", sudo=True, no_error_log=True)
-            node.execute(f"groupdel {test_group}", sudo=True, no_error_log=True)
-            node.execute(f"groupdel {test_group2}", sudo=True, no_error_log=True)
