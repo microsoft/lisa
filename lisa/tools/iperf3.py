@@ -31,6 +31,7 @@ from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process
 
 from .firewall import Firewall
+from .gcc import Gcc
 from .git import Git
 from .ls import Ls
 from .lsof import Lsof
@@ -115,7 +116,7 @@ class Iperf3(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Git, Make]
+        return [Git, Make, Gcc]
 
     def help(self) -> ExecutableResult:
         return self.run("-h", force_run=True)
@@ -146,7 +147,7 @@ class Iperf3(Tool):
             < parse_version(self._first_fixed_version)
         )
 
-    def install(self) -> bool:
+    def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         try:
             posix_os.install_packages("iperf3")
