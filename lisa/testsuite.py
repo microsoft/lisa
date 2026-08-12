@@ -888,18 +888,17 @@ class TestSuite:
     def _check_expected_vf_driver(
         self, test_kwargs: Dict[str, Any], log: Logger
     ) -> None:
-        """Skip the case if the VM does not expose the required VF driver.
+        """Fail the case if the VM does not expose the required VF driver.
 
         The requirement is opt-in through the case-visible runbook variable
         ``expected_vf_driver`` (e.g. 'mlx' or 'mana'). When the variable is
         absent or empty, no check is performed. When set, the created VM's NICs
-        are inspected and the case is skipped if the required VF driver is not
+        are inspected and the case fails if the required VF driver is not
         present.
 
-        The gate only applies to SR-IOV test areas
-        (see ``_EXPECTED_VF_DRIVER_AREAS``); cases in other areas are ignored.
+        The gate only applies to the areas in ``_EXPECTED_VF_DRIVER_AREAS``;
+        cases in other areas are ignored.
         """
-        # Limit the gate to the sriov based area where a VF driver is relevant.
         if self._metadata.area.lower() not in _EXPECTED_VF_DRIVER_AREAS:
             return
 
@@ -928,18 +927,15 @@ class TestSuite:
                 "for a VF driver. Verify the environment has a deployed node."
             )
 
+        if isinstance(node.os, Windows):
+            raise SkippedException(
+                f"'expected_vf_driver' check for '{expected_vf_driver}' is only "
+                f"supported on Linux nodes, but node '{node.name}' runs Windows."
+            )
+
         try:
-            if isinstance(node.os, Windows):
-                raise SkippedException(
-                    f"'expected_vf_driver' check for '{expected_vf_driver}' is only "
-                    f"supported on Linux nodes, but node '{node.name}' runs Windows."
-                )
             node.nics.reload()
             has_vf = node.nics.has_vf_driver(expected_vf_driver)
-            used_modules = node.nics.get_used_modules(["hv_netvsc"])
-        except LisaException:
-            # SkippedException and validation errors flow through unchanged.
-            raise
         except Exception as e:
             # An unreadable NIC state is a real failure, not an unmet precondition.
             raise LisaException(
@@ -949,10 +945,10 @@ class TestSuite:
             ) from e
 
         if not has_vf:
+            used_modules = node.nics.get_used_modules(["hv_netvsc"])
             raise LisaException(
                 f"Required VF/VF driver '{expected_vf_driver}' was not found on node "
-                f"'{node.name}'. Detected VF driver modules: "
-                f"{used_modules or 'none'}."
+                f"'{node.name}'. Detected VF driver modules: {used_modules or 'none'}."
             )
 
         log.info(
