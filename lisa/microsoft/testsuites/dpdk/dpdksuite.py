@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple, Union
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
@@ -24,11 +24,13 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     generate_send_receive_run_info,
     init_nodes_concurrent,
     initialize_node_resources,
+    reset_environment_netvsc_binding,
+    reset_node_netvsc_bindings,
     run_dpdk_symmetric_mp,
-    run_testpmd_concurrent,
+    run_testpmd_hotplug,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
-    verify_dpdk_mutliple_ports,
+    verify_dpdk_multiple_ports,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
@@ -50,6 +52,7 @@ from lisa import (
     search_space,
 )
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
+from lisa.nic import NicInfo
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lscpu, Lsmod, Make, Modprobe
@@ -498,13 +501,20 @@ class Dpdk(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
         pmd: Pmd = Pmd.FAILSAFE,
+        stress: bool = False,
     ) -> None:
+        reset_environment_netvsc_binding(environment, log)
+        nic_pairs: Dict[Node, List[NicInfo]] = {}
+        for node in environment.nodes.list():
+            nic_pairs[node] = [node.nics.get_nic_by_subnet("10.0.1.0/24")]
+
         test_kits = init_nodes_concurrent(
             environment,
             log,
             variables,
             pmd,
             HugePageSize.HUGE_2MB,
+            specific_pairings=nic_pairs,
         )
 
         try:
@@ -518,10 +528,29 @@ class Dpdk(TestSuite):
         receiver.switch_sriov = True
         sender.switch_sriov = False
 
-        kit_cmd_pairs = generate_send_receive_run_info(pmd, sender, receiver)
+        # use multiple queues on receiver only to avoid
+        # losing the connection when AN is disabled on it....
+        # unless we really want to stress things.
+        if stress:
+            extra_args: Union[str, Tuple[str, str]] = ""
+            mq_args: Union[bool, Tuple[bool, bool]] = True
+        else:
+            extra_args = ("--burst=5", "")
+            mq_args = (False, True)
 
-        run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
+        # generate the run info
+        kit_cmd_pairs = generate_send_receive_run_info(
+            pmd,
+            sender,
+            receiver,
+            multiple_queues=mq_args,
+            extra_args=extra_args,
+            stats_period=5,
+        )
+        run_testpmd_hotplug(
+            kit_cmd_pairs=kit_cmd_pairs,
+            sender=sender,
+            receiver=receiver,
         )
 
         hotplug_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_hotplug()
@@ -534,22 +563,21 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
         pmd: Pmd = Pmd.FAILSAFE,
     ) -> None:
+        reset_node_netvsc_bindings(node)
+        test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
         try:
             test_kit = initialize_node_resources(
-                node, log, variables, pmd, HugePageSize.HUGE_2MB
+                node, log, variables, pmd, HugePageSize.HUGE_2MB, test_nics=[test_nic]
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
         testpmd = test_kit.testpmd
-        test_nic = node.nics.get_secondary_nic()
-        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly")
+        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd)
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }
 
-        run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
-        )
+        run_testpmd_hotplug(kit_cmd_pairs=kit_cmd_pairs, sender=test_kit)
 
         hotplug_pps_set = testpmd.get_mean_tx_pps_sriov_hotplug()
         self._check_rx_or_tx_pps_sriov_hotplug("TX", hotplug_pps_set)
@@ -678,7 +706,7 @@ class Dpdk(TestSuite):
                 "DPDK ring_ping test is not implemented for "
                 " package manager installation."
             )
-
+        testpmd.installer.do_installation()
         # grab a nic and run testpmd
         git = node.tools[Git]
         make = node.tools[Make]
@@ -859,7 +887,7 @@ class Dpdk(TestSuite):
         # allow configuring for different platforms
         mtu_size = 4000
         try:
-            snd, rcv = verify_dpdk_send_receive_multi_txrx_queue(
+            verify_dpdk_send_receive_multi_txrx_queue(
                 environment,
                 log,
                 variables,
@@ -1108,7 +1136,7 @@ class Dpdk(TestSuite):
     ) -> None:
         force_dpdk_default_source(variables)
         pmd = Pmd.NETVSC
-        verify_dpdk_mutliple_ports(
+        verify_dpdk_multiple_ports(
             environment,
             log,
             variables,
