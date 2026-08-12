@@ -810,6 +810,11 @@ class Dpdk(TestSuite):
     ) -> None:
         # allow configuring 'max' for adhoc runs on different platforms
         mtu_size = variables.get("dpdk_mtu_size", 9000)
+        node = list(environment.nodes.list())[0]
+        if node.tools[Lscpu].get_core_count() < 192:
+            raise SkippedException(
+                "Max mtu test should be run on sizes > 192 cores"
+                )
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
                 environment,
