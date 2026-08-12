@@ -32,7 +32,6 @@ Runbook Reference
    -  `variable <#variable>`__
 
       -  `is_case_visible <#is-case-visible>`__
-      -  `expected_vf_driver <#expected-vf-driver>`__
       -  `is_secret <#is-secret>`__
       -  `file <#file>`__
       -  `name <#name-2>`__
