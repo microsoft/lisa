@@ -48,6 +48,7 @@ class Wget(Tool):
         sudo: bool = False,
         force_run: bool = False,
         timeout: int = 600,
+        skip_exists: bool = False,
     ) -> str:
         cached_filename = self._url_file_cache.get(url, None)
         if cached_filename:
@@ -66,8 +67,12 @@ class Wget(Tool):
 
         # remove existing file and dir to download again.
         download_pure_path = self.node.get_pure_path(download_path)
-        if overwrite and self.node.shell.exists(download_pure_path):
-            self.node.shell.remove(download_pure_path, recursive=True)
+        if self.node.shell.exists(download_pure_path):
+            if skip_exists:
+                return download_path
+            elif overwrite:
+                self.node.shell.remove(download_pure_path, recursive=True)
+
         command = f"'{url}' --no-check-certificate"
         if filename:
             command = f"{command} -O {download_path}"
@@ -171,6 +176,7 @@ class WindowsWget(Wget):
         sudo: bool = False,
         force_run: bool = False,
         timeout: int = 600,
+        skip_exists: bool = False,
     ) -> str:
         cached_filename = self._url_file_cache.get(url, None)
         if cached_filename:
