@@ -17,20 +17,22 @@ class ZstdTestCase(TestCase):
 
         zstd.node.os.install_packages.assert_called_once_with("zstd")
 
-    def test_decompress_checks_command_and_returns_output_path(self) -> None:
+    def test_decompress_runs_expected_command_and_returns_output_path(self) -> None:
         zstd = Zstd.__new__(Zstd)
         zstd.run = MagicMock()
 
-        output_file = zstd.decompress("/tmp/hv_netvsc.ko.zst")
+        output_file = zstd.decompress("/tmp/lisa work/hv_netvsc.ko.zst")
 
-        self.assertEqual("/tmp/hv_netvsc.ko", output_file)
+        self.assertEqual("/tmp/lisa work/hv_netvsc.ko", output_file)
         zstd.run.assert_called_once_with(
-            "-d -f -o /tmp/hv_netvsc.ko /tmp/hv_netvsc.ko.zst",
-            shell=True,
+            "-d -f -o '/tmp/lisa work/hv_netvsc.ko' "
+            "'/tmp/lisa work/hv_netvsc.ko.zst'",
+            shell=False,
             force_run=True,
             sudo=False,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
-                "Failed to decompress /tmp/hv_netvsc.ko.zst to /tmp/hv_netvsc.ko."
+                "Failed to decompress /tmp/lisa work/hv_netvsc.ko.zst "
+                "to /tmp/lisa work/hv_netvsc.ko."
             ),
         )

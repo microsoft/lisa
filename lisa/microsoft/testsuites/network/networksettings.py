@@ -3,6 +3,7 @@
 
 import re
 import time
+from shlex import quote
 from typing import Any, Dict, List, Tuple, Union, cast
 
 from assertpy import assert_that
@@ -752,11 +753,14 @@ class NetworkSettings(TestSuite):
             # remove any escape character at the end of string
             netvsc_module = netvsc_module.strip()
             if netvsc_module.endswith((".xz", ".zst")):
-                module_file_name = netvsc_module.rsplit("/", 1)[-1]
-                copied_module = f"{node.working_path}/{module_file_name}"
-                decompressed_module = copied_module.rsplit(".", 1)[0]
+                module_path = node.get_pure_path(netvsc_module)
+                copied_module_path = node.working_path / module_path.name
+                decompressed_module_path = copied_module_path.with_suffix("")
+                copied_module = node.get_str_path(copied_module_path)
+                decompressed_module = node.get_str_path(decompressed_module_path)
                 node.execute(
-                    f"cp {netvsc_module} {node.working_path}/",
+                    f"cp {quote(netvsc_module)} "
+                    f"{quote(node.get_str_path(node.working_path))}",
                     cwd=node.working_path,
                     expected_exit_code=0,
                     expected_exit_code_failure_message=(
@@ -765,7 +769,7 @@ class NetworkSettings(TestSuite):
                 )
                 if netvsc_module.endswith(".xz"):
                     node.execute(
-                        f"xz -d -f {copied_module}",
+                        f"xz -d -f {quote(copied_module)}",
                         cwd=node.working_path,
                         expected_exit_code=0,
                         expected_exit_code_failure_message=(

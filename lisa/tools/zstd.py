@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from shlex import quote
 from typing import cast
 
 from lisa.executable import Tool
@@ -31,8 +32,8 @@ class Zstd(Tool):
             output_file = file[:-4]
 
         self.run(
-            f"-d -f -o {output_file} {file}",
-            shell=True,
+            f"-d -f -o {quote(output_file)} {quote(file)}",
+            shell=False,
             force_run=True,
             sudo=sudo,
             expected_exit_code=0,
