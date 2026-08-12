@@ -615,7 +615,10 @@ class Process:
 
         message = description or "matching line"
         if error_on_missing:
-            raise LisaException(f"{message} not found in stdout in {timeout} seconds")
+            raise LisaException(
+                f"{message} not found in process output within {timeout} seconds. "
+                "Check the command output and consider increasing the timeout."
+            )
         self._log.debug(f"not found '{message}' in {timeout} seconds, but ignore it.")
         return None
 
