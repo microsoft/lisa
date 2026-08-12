@@ -46,8 +46,8 @@ _all_suites: Dict[str, TestSuiteMetadata] = {}
 _all_cases: Dict[str, TestCaseMetadata] = {}
 
 # Test suite areas the ``expected_vf_driver`` gate applies to. The VF driver
-# requirement is only meaningful for networking-focused test areas.
-_EXPECTED_VF_DRIVER_AREAS = frozenset({"network", "sriov"})
+# requirement is only meaningful for SR-IOV test areas.
+_EXPECTED_VF_DRIVER_AREAS = frozenset({"sriov"})
 
 
 def _call_with_timeout(
@@ -896,10 +896,10 @@ class TestSuite:
         are inspected and the case is skipped if the required VF driver is not
         present.
 
-        The gate only applies to networking-focused test areas
+        The gate only applies to SR-IOV test areas
         (see ``_EXPECTED_VF_DRIVER_AREAS``); cases in other areas are ignored.
         """
-        # Limit the gate to network/sriov areas where a VF driver is relevant.
+        # Limit the gate to the sriov based area where a VF driver is relevant.
         if self._metadata.area.lower() not in _EXPECTED_VF_DRIVER_AREAS:
             return
 
