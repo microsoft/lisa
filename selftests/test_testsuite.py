@@ -240,7 +240,18 @@ class TestSuiteTestCase(TestCase):
         test_suite = self.generate_suite_instance()
         node = MagicMock()
         test_suite._check_expected_vf_driver(
+            "verify_sriov",
             {"variables": {"expected_vf_driver": ""}, "node": node},
+            get_logger("test"),
+        )
+        node.nics.reload.assert_not_called()
+
+    def test_expected_vf_driver_unrelated_case_is_noop(self) -> None:
+        test_suite = self.generate_suite_instance()
+        node = MagicMock()
+        test_suite._check_expected_vf_driver(
+            "verify_synthetic",
+            {"variables": {"expected_vf_driver": "foo"}, "node": node},
             get_logger("test"),
         )
         node.nics.reload.assert_not_called()
@@ -249,11 +260,13 @@ class TestSuiteTestCase(TestCase):
         # An unsupported value is a runbook misconfiguration, not a skip.
         test_suite = self.generate_suite_instance()
         node = MagicMock()
-        with self.assertRaises(LisaException):
-            test_suite._check_expected_vf_driver(
-                {"variables": {"expected_vf_driver": "foo"}, "node": node},
-                get_logger("test"),
-            )
+        for case_name in ["verify_sriov", "verify_vf_connection"]:
+            with self.subTest(case_name=case_name), self.assertRaises(LisaException):
+                test_suite._check_expected_vf_driver(
+                    case_name,
+                    {"variables": {"expected_vf_driver": "foo"}, "node": node},
+                    get_logger("test"),
+                )
 
     def test_expected_vf_driver_present_passes(self) -> None:
         test_suite = self.generate_suite_instance()
@@ -263,19 +276,21 @@ class TestSuiteTestCase(TestCase):
         node.nics.get_used_modules.return_value = ["mlx5_core"]
         # A matching VF driver must not raise and must refresh NIC state.
         test_suite._check_expected_vf_driver(
+            "verify_sriov",
             {"variables": {"expected_vf_driver": "mlx"}, "node": node},
             get_logger("test"),
         )
         node.nics.reload.assert_called_once()
 
-    def test_expected_vf_driver_absent_skips(self) -> None:
+    def test_expected_vf_driver_absent_fails(self) -> None:
         test_suite = self.generate_suite_instance()
         node = MagicMock()
         node.os = MagicMock(spec=Posix)
         node.nics.has_vf_driver.return_value = False
         node.nics.get_used_modules.return_value = []
-        with self.assertRaises(SkippedException):
+        with self.assertRaises(LisaException):
             test_suite._check_expected_vf_driver(
+                "verify_sriov",
                 {"variables": {"expected_vf_driver": "mana"}, "node": node},
                 get_logger("test"),
             )
@@ -286,6 +301,7 @@ class TestSuiteTestCase(TestCase):
         node.os = MagicMock(spec=Windows)
         with self.assertRaises(SkippedException):
             test_suite._check_expected_vf_driver(
+                "verify_sriov",
                 {"variables": {"expected_vf_driver": "mlx"}, "node": node},
                 get_logger("test"),
             )

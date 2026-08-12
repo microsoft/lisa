@@ -44,10 +44,7 @@ from lisa.util.perf_timer import Timer, create_timer
 
 _all_suites: Dict[str, TestSuiteMetadata] = {}
 _all_cases: Dict[str, TestCaseMetadata] = {}
-
-# Test suite areas the ``expected_vf_driver`` gate applies to. The VF driver
-# requirement is only meaningful for SR-IOV test areas.
-_EXPECTED_VF_DRIVER_AREAS = frozenset({"sriov"})
+_EXPECTED_VF_DRIVER_CASE_NAME_MARKERS = ("sriov", "vf")
 
 
 def _call_with_timeout(
@@ -872,7 +869,9 @@ class TestSuite:
 
         timer = create_timer()
         try:
-            self._check_expected_vf_driver(test_kwargs, log)
+            self._check_expected_vf_driver(
+                case_result.runtime_data.name, test_kwargs, log
+            )
             _call_with_timeout(
                 self.before_case,
                 timeout=timeout,
@@ -886,7 +885,7 @@ class TestSuite:
         return result
 
     def _check_expected_vf_driver(
-        self, test_kwargs: Dict[str, Any], log: Logger
+        self, case_name: str, test_kwargs: Dict[str, Any], log: Logger
     ) -> None:
         """Fail the case if the VM does not expose the required VF driver.
 
@@ -896,10 +895,14 @@ class TestSuite:
         are inspected and the case fails if the required VF driver is not
         present.
 
-        The gate only applies to the areas in ``_EXPECTED_VF_DRIVER_AREAS``;
-        cases in other areas are ignored.
+        The gate only applies to test cases with ``sriov`` or ``vf`` in their
+        names; other cases are ignored.
         """
-        if self._metadata.area.lower() not in _EXPECTED_VF_DRIVER_AREAS:
+        normalized_case_name = case_name.lower()
+        if not any(
+            marker in normalized_case_name
+            for marker in _EXPECTED_VF_DRIVER_CASE_NAME_MARKERS
+        ):
             return
 
         variables = test_kwargs.get("variables") or {}
