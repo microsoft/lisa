@@ -32,6 +32,7 @@ Runbook Reference
    -  `variable <#variable>`__
 
       -  `is_case_visible <#is-case-visible>`__
+    -  `expected_vf_driver <#expected-vf-driver>`__
       -  `is_secret <#is-secret>`__
       -  `file <#file>`__
       -  `name <#name-2>`__
@@ -569,6 +570,31 @@ type: bool, optional, default is False.
 When set to True, the value of this variable will be passed to the testcases,
 such as ``perf_nested_kvm_storage_singledisk`` which requires information
 about nested image.
+
+expected_vf_driver
+^^^^^^^^^^^^^^^^^^
+
+type: str, optional, default is empty
+
+Requires a specific SR-IOV virtual function (VF) driver to be present on the
+created Linux VM. Supported values are ``mlx`` and ``mana``. An empty value
+disables the check.
+
+The check applies only to test cases with ``sriov`` or ``vf`` in their names,
+matched case-insensitively. The variable must set ``is_case_visible`` to True
+so the test case can access it.
+
+.. code:: yaml
+
+   variable:
+     - name: expected_vf_driver
+       value: mana
+       is_case_visible: true
+
+Before an applicable test case runs, LISA refreshes the VM's network interface
+information and verifies that the requested VF driver is loaded. The test case
+fails if the driver is missing or the NIC state cannot be inspected. The check
+is skipped when no node is available or the node runs Windows.
 
 is_secret
 ^^^^^^^^^
