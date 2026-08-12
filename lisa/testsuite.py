@@ -941,19 +941,18 @@ class TestSuite:
             # SkippedException and validation errors flow through unchanged.
             raise
         except Exception as e:
-            raise SkippedException(
+            # An unreadable NIC state is a real failure, not an unmet precondition.
+            raise LisaException(
                 f"Could not determine the VF driver on node '{node.name}' to verify "
                 f"the required '{expected_vf_driver}' VF driver. Investigate node "
                 f"connectivity or NIC state. Error: {e}"
-            )
+            ) from e
 
         if not has_vf:
-            raise SkippedException(
-                f"Required VF driver '{expected_vf_driver}' was not found on node "
+            raise LisaException(
+                f"Required VF/VF driver '{expected_vf_driver}' was not found on node "
                 f"'{node.name}'. Detected VF driver modules: "
-                f"{used_modules or 'none'}. Verify the VM size and image expose a "
-                f"'{expected_vf_driver}' VF, or update the 'expected_vf_driver' "
-                f"runbook variable."
+                f"{used_modules or 'none'}."
             )
 
         log.info(
