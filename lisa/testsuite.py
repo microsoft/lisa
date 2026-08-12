@@ -918,8 +918,7 @@ class TestSuite:
         if expected_vf_driver not in supported:
             raise LisaException(
                 f"Invalid 'expected_vf_driver' value '{expected_vf_driver}'. "
-                f"Expected one of {supported}. Update the runbook variable to a "
-                f"supported VF driver type."
+                f"Expected one of {supported}."
             )
 
         node = test_kwargs.get("node")
