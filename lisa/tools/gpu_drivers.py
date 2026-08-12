@@ -379,7 +379,18 @@ class NvidiaCudaDriver(GpuDriver):
             ]
         # CBL-Mariner dependencies
         elif isinstance(self.node.os, CBLMariner):
-            dependencies = ["build-essential", "binutils", "kernel-devel"]
+            if self.node.os.information.version >= "4.0.0":
+                # build-essential not available on Azure Linux 4.0
+                dependencies = [
+                    "kernel-headers",
+                    "binutils",
+                    "glibc-devel",
+                    "gcc",
+                    "make",
+                    "kernel-devel",
+                ]
+            else:
+                dependencies = ["build-essential", "binutils", "kernel-devel"]
 
         if not dependencies:
             return
