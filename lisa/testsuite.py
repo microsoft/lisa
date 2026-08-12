@@ -47,7 +47,7 @@ _all_cases: Dict[str, TestCaseMetadata] = {}
 
 # Test suite areas the ``expected_vf_driver`` gate applies to. The VF driver
 # requirement is only meaningful for networking-focused test areas.
-_EXPECTED_VF_DRIVER_AREAS = frozenset({"network", "sriov"})
+_EXPECTED_VF_DRIVER_AREAS = frozenset({"sriov"})
 
 
 def _call_with_timeout(
