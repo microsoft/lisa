@@ -642,8 +642,9 @@ class Process:
 
             # check if buffer contains the keyword
             find_pos = self.log_buffer_offset if delta_only else 0
-            found_at_index = self.log_buffer.getvalue().find(keyword, find_pos)
-            last_search_len = len(self.log_buffer.getvalue())
+            buffer = self.log_buffer.getvalue()
+            found_at_index = buffer.find(keyword, find_pos)
+            last_search_len = len(buffer)
             if found_at_index >= 0:
                 next_chunk = found_at_index + len(keyword)
                 self.log_buffer_offset = next_chunk
