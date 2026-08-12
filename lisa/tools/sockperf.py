@@ -114,7 +114,11 @@ class Sockperf(Tool):
 
             # mariner needs headers and -dev packages
             if isinstance(posix_os, CBLMariner):
-                packages.append("build-essential")
+                if posix_os.information.version >= "4.0.0":
+                    # build-essential not available on Azure Linux 4.0
+                    packages.extend(["kernel-headers", "binutils", "glibc-devel"])
+                else:
+                    packages.append("build-essential")
 
             # install and pick build dir
             posix_os.install_packages(packages)
