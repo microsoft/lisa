@@ -135,7 +135,6 @@ class Modprobe(Tool):
         self,
         mod_name: str,
         times: int = 1,
-        verbose: bool = False,
         timeout: int = 60,
         interface: str = "eth0",
         cleanup_logs: bool = True,
@@ -161,11 +160,6 @@ class Modprobe(Tool):
             f"/home/{username}/loop_process_pid_{mod_name}_{str(unique_id)}.pid"
         )
 
-        if verbose:
-            verbose_flag = "true"
-        else:
-            verbose_flag = "false"
-
         modprobe_reloader_tool = CustomScriptBuilder(
             Path(__file__).parent.joinpath("scripts"), ["modprobe_reloader.sh"]
         )
@@ -180,7 +174,6 @@ class Modprobe(Tool):
         # loop_process_pid_file_name: file to store the pid of the loop process
         # mod_name: name of the module to be reloaded e.g. hv_netvsc
         # times: number of times to reload the module
-        # verbose_flag: whether to run the script in verbose mode or not
         # dhclient_command: command to run dhclient, e.g. dhclient or dhcpcd
         # interface: network interface to run dhclient on, e.g. eth0
         # The nohup_output_log_file_name and loop_process_pid_file_name are
@@ -188,7 +181,7 @@ class Modprobe(Tool):
 
         parameters = (
             f"{nohup_output_log_file_name} {loop_process_pid_file_name} "
-            f"{mod_name} {times} {verbose_flag} {dhclient_command} {interface}"
+            f"{mod_name} {times} {dhclient_command} {interface}"
         )
         self._log.debug(f"running with parameters: {parameters}")
         modprobe_reloader_script: CustomScript = self.node.tools[modprobe_reloader_tool]

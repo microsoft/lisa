@@ -283,7 +283,6 @@ class HvModule(TestSuite):
             result = modprobe.reload(
                 mod_name=module,
                 times=loop_count,
-                verbose=True,
                 timeout=1800,
             )
             if not result:

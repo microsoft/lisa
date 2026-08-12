@@ -1180,7 +1180,15 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 
     def reload_module(self) -> None:
         modprobe_tool = self._node.tools[Modprobe]
-        modprobe_tool.reload("hv_netvsc")
+        result = modprobe_tool.reload("hv_netvsc")
+        rmmod_count = result.get("rmmod_count", 0)
+        insmod_count = result.get("insmod_count", 0)
+        if not result.get("module_exists") or rmmod_count != 1 or insmod_count != 1:
+            raise LisaException(
+                "Module hv_netvsc was not reloaded once. "
+                f"rmmod count: {rmmod_count}, insmod count: {insmod_count}. "
+                f"Reload result: {result}"
+            )
 
     # Subroutine for applying route table to subnet.
     # We don't want to retry the entire routine if we
