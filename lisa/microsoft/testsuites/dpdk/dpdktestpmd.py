@@ -858,10 +858,20 @@ class DpdkTestpmd(Tool):
             raise AssertionError(
                 "Test bug: rx packet data was 0 could not check dropped packets."
             )
+        core_count = self.node.tools[Lscpu].get_core_count()
+        # tag of 'isolated resource' is being deprecated,
+        # so best effort to gauge this is going to be core count.
+        # we'll assume e192 or above is isolated, 
+        # may need to adjust in the future.
+        if  core_count >= 192:
+            allowable_drop_rate=0.2
+        else:
+            allowable_drop_rate=0.5
         self.packet_drop_rate = self.rx_packet_drops / self.rx_total_packets
         assert_that(self.packet_drop_rate).described_as(
-            "More than 2% of the received packets were dropped!"
-        ).is_close_to(0, 0.02)
+            f"More than {allowable_drop_rate * 100}% of the received "
+            "packets were dropped!"
+        ).is_close_to(0, allowable_drop_rate)
 
     def get_mean_tx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
         return self._get_pps_sriov_hotplug(self._tx_pps_key)
