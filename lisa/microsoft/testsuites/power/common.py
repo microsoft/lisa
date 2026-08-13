@@ -40,9 +40,13 @@ def _is_fips_kernel(node: Node) -> bool:
     # Azure hibernation is unsupported on the certified FIPS kernel (e.g. Ubuntu
     # Pro *-azure-fips): it returns VMHibernateFailed on every attempt, so this
     # is an unmet precondition rather than a test failure.
-    fips_enabled = (
-        node.tools[Cat].read("/proc/sys/crypto/fips_enabled", force_run=True).strip()
-    )
+    fips_enabled = "0"
+    if node.tools[Ls].path_exists("/proc/sys/crypto/fips_enabled"):
+        fips_enabled = (
+            node.tools[Cat]
+            .read("/proc/sys/crypto/fips_enabled", force_run=True)
+            .strip()
+        )
     kernel_version = node.execute("uname -r", shell=True).stdout.strip()
     return fips_enabled == "1" or "fips" in kernel_version.lower()
 
@@ -161,7 +165,7 @@ def _perform_hibernation_cycle(
     """
 
     # The hibernation-setup tool writes resume=/resume_offset= to the
-    # bootloader, which only take effect after a reboot; without it the VM
+    # bootloader, which only takes effect after a reboot; without it the VM
     # accepts the hibernate uevent but never suspends (seen on Debian and
     # Ubuntu). A sleep(100) also works, but we are unsure of the exact time
     # required. So it is safer to reboot the VM.
