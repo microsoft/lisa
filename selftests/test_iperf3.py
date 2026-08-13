@@ -22,4 +22,6 @@ class Iperf3TestCase(TestCase):
             parent.attach_mock(install, "install")
             self.assertTrue(iperf3.install())
 
-        parent.assert_has_calls([call.get(Git), call.get(Make), call.get(Gcc), call.install()])
+        parent.assert_has_calls(
+            [call.get(Git), call.get(Make), call.get(Gcc), call.install()]
+        )
