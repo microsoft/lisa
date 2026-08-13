@@ -15,8 +15,11 @@ class Iperf3TestCase(TestCase):
         iperf3.node = MagicMock(tools=tools)
         iperf3._log = MagicMock()
 
+        parent = MagicMock()
+        parent.attach_mock(tools.get, "get")
+
         with patch.object(iperf3, "_install", return_value=True) as install:
+            parent.attach_mock(install, "install")
             self.assertTrue(iperf3.install())
 
-        tools.get.assert_has_calls([call(Git), call(Make), call(Gcc)])
-        install.assert_called_once_with()
+        parent.assert_has_calls([call.get(Git), call.get(Make), call.get(Gcc), call.install()])
