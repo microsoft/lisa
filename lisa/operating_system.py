@@ -2256,7 +2256,7 @@ class OpenEuler(RPMDistro):
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
-        return re.compile("^openEuler|openeuler$")
+        return re.compile("^(openEuler|openeuler)")
 
 
 class CBLMariner(RPMDistro):
