@@ -48,7 +48,9 @@ class LibvirtTckSuite(TestSuite):
         )
         if fips_result.exit_code == 0 and (fips_result.stdout or "").strip() == "1":
             raise SkippedException(
-                "The libvirt TCK suite is not supported on FIPS-enabled kernels."
+                "FIPS mode is enabled (/proc/sys/crypto/fips_enabled=1); the libvirt "
+                "TCK community suite is not FIPS-aware. Use a non-FIPS image/kernel "
+                "to run this suite."
             )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
