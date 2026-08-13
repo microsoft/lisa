@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from pathlib import PurePath
 from typing import Any, Dict, List, Optional, Set, Type, cast
 
 from lisa.executable import Tool
@@ -11,9 +12,10 @@ from lisa.util import (
     find_groups_in_lines,
 )
 
-from .find import Find
 from .ip import Ip
+from .ls import Ls
 from .lscpu import Lscpu
+from .readlink import Readlink
 
 # Few ethtool device settings follow similar pattern like -
 #   ethtool device channel info from "ethtool -l eth0"
@@ -525,23 +527,16 @@ class Ethtool(Tool):
         if (not force_run) and self._device_set:
             return self._device_set
 
-        find_tool = self.node.tools[Find]
-        netdirs = find_tool.find_files(
-            self.node.get_pure_path("/sys/devices"),
-            name_pattern="net",
-            path_pattern=["*vmbus*", "*MSFT*"],
-            ignore_case=True,
-        )
-        for netdir in netdirs:
-            if not netdir:
-                continue
-            cmd_result = self.node.execute(f"ls {netdir}")
-            cmd_result.assert_exit_code(message="Could not find the network device.")
-            for result in cmd_result.stdout.split():
-                # add only the network devices with netvsc driver
-                driver = self.get_device_driver(result)
-                if "hv_netvsc" in driver:
-                    self._device_set.add(result)
+        self._device_set.clear()
+        readlink = self.node.tools[Readlink]
+        for interface_path in self.node.tools[Ls].list_dir("/sys/class/net"):
+            interface = PurePath(interface_path).name
+            driver_path = readlink.get_canonical_path(
+                f"/sys/class/net/{interface}/device/driver",
+                no_error_log=True,
+            )
+            if PurePath(driver_path).name == "hv_netvsc":
+                self._device_set.add(interface)
 
         if not self._device_set:
             raise LisaException("Did not find any synthetic network interface.")
