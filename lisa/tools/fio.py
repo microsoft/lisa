@@ -420,7 +420,6 @@ class Fio(Tool):
         elif isinstance(self.node.os, CBLMariner):
             package_list = [
                 "wget",
-                "build-essential",
                 "sysstat",
                 "blktrace",
                 "libaio",
@@ -431,8 +430,11 @@ class Fio(Tool):
                 "kernel-headers",
                 "binutils",
                 "glibc-devel",
-                "zlib-devel",
             ]
+            if self.node.os.information.version >= "4.0.0":
+                package_list.extend(["zlib-ng-compat-devel", "make"])
+            else:
+                package_list.extend(["build-essential", "zlib-devel"])
         else:
             raise LisaException(
                 f"tool {self.command} can't be installed in distro {self.node.os.name}."
