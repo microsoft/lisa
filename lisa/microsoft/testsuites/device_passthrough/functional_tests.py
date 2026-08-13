@@ -194,41 +194,6 @@ class DevicePassthroughFunctionalTests(TestSuite):
             return get_openvmm_node_context(node)
 
         if platform_name == CLOUD_HYPERVISOR:
-            from lisa.sut_orchestrator.libvirt.context import (
-                get_node_context as get_libvirt_node_context,
-            )
-
-            return get_libvirt_node_context(node)
-
-        if platform_name == HYPERV:
-            from lisa.sut_orchestrator.hyperv.context import (
-                get_node_context as get_hyperv_node_context,
-            )
-
-            return get_hyperv_node_context(node)
-
-        raise SkippedException(
-            f"Device passthrough validation is not supported on '{platform_name}'"
-        )
-
-    @staticmethod
-    def _get_platform_name(platform: Platform, node: Node) -> str:
-        node_type = node.type_name()
-        if node_type == OPENVMM:
-            return node_type
-
-        return platform.type_name()
-
-    @staticmethod
-    def _get_passthrough_context(node: Node, platform_name: str) -> Any:
-        if platform_name == OPENVMM:
-            from lisa.sut_orchestrator.openvmm.context import (
-                get_node_context as get_openvmm_node_context,
-            )
-
-            return get_openvmm_node_context(node)
-
-        if platform_name == CLOUD_HYPERVISOR:
             # Import at runtime to avoid libvirt dependency on other platforms.
             from lisa.sut_orchestrator.libvirt.context import (
                 get_node_context as get_libvirt_node_context,

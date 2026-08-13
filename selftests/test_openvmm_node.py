@@ -263,6 +263,10 @@ class OpenVmmNodeTestCase(TestCase):
             runbook=SimpleNamespace(
                 openvmm_binary="/usr/local/bin/openvmm",
                 hypervisor=OPENVMM_HYPERVISOR_KVM,
+                disk_device=OPENVMM_DISK_DEVICE_SCSI,
+                iommu=OPENVMM_IOMMU_NONE,
+                vps_per_socket=None,
+                smt="off",
                 serial=SimpleNamespace(mode="file"),
                 extra_args=[],
             ),
@@ -326,6 +330,10 @@ class OpenVmmNodeTestCase(TestCase):
             runbook=SimpleNamespace(
                 openvmm_binary="/usr/local/bin/openvmm",
                 hypervisor=OPENVMM_HYPERVISOR_KVM,
+                disk_device=OPENVMM_DISK_DEVICE_SCSI,
+                iommu=OPENVMM_IOMMU_NONE,
+                vps_per_socket=None,
+                smt="off",
                 serial=SimpleNamespace(mode="file"),
                 extra_args=[],
             ),

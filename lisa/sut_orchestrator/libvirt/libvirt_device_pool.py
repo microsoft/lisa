@@ -88,9 +88,11 @@ class LibvirtDevicePool(BaseDevicePool):
         best_groups_by_count: Dict[int, Tuple[int, ...]] = {0: ()}
         for key_index, key in enumerate(keys):
             device_count = len(pool.get(key, []))
-            for selected_count, selected_indices in list(best_groups_by_count.items()):
+            for selected_count, selected_group_indices in list(
+                best_groups_by_count.items()
+            ):
                 candidate_count = selected_count + device_count
-                candidate_indices = selected_indices + (key_index,)
+                candidate_indices = selected_group_indices + (key_index,)
                 current_indices = best_groups_by_count.get(candidate_count)
                 if current_indices is None or (
                     len(candidate_indices),

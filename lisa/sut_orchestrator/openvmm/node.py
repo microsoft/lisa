@@ -749,9 +749,13 @@ fi
 
         root_complex_name = "rc0" if use_existing_root_complex else "lisa_vfio_rc0"
         args: List[str] = []
-        use_iommufd = bool(devices) and prefer_iommufd and self._supports_iommufd(
-            devices,
-            openvmm_binary,
+        use_iommufd = (
+            bool(devices)
+            and prefer_iommufd
+            and self._supports_iommufd(
+                devices,
+                openvmm_binary,
+            )
         )
         if use_iommufd:
             args.extend(["--iommu", f"id={OPENVMM_IOMMU_ID}"])
@@ -778,10 +782,7 @@ fi
     ) -> bool:
         checks = [
             "test -c /dev/iommu",
-            (
-                f"{shlex.quote(openvmm_binary)} --help 2>&1 | "
-                "grep -q -- '--iommu'"
-            ),
+            (f"{shlex.quote(openvmm_binary)} --help 2>&1 | " "grep -q -- '--iommu'"),
         ]
         for device in devices:
             device_path = (
@@ -804,9 +805,7 @@ fi
             expected_exit_code=None,
         )
         if result.exit_code == 0:
-            self._log.info(
-                "Using OpenVMM iommufd/cdev for ARM PCI passthrough."
-            )
+            self._log.info("Using OpenVMM iommufd/cdev for ARM PCI passthrough.")
             return True
 
         self._log.debug(
@@ -2416,7 +2415,6 @@ fi
                 return
 
             host_interface = _get_tap_host_interface_name(network)
-            forwarding_interface = node_context.forwarding_interface
             quoted_guest_address = shlex.quote(guest_address)
             guest_port = network.ssh_port
             forwarded_port = network.forwarded_port
@@ -2425,13 +2423,13 @@ fi
 
             commands = [
                 (
-                    "iptables -C FORWARD -i "
-                    f"{shlex.quote(forwarding_interface)} -o "
+                    "iptables -C FORWARD ! -i "
+                    f"{shlex.quote(host_interface)} -o "
                     f"{shlex.quote(host_interface)} -p tcp -d "
                     f"{quoted_guest_address} --dport {guest_port} -j ACCEPT "
                     "|| "
-                    "iptables -I FORWARD -i "
-                    f"{shlex.quote(forwarding_interface)} -o "
+                    "iptables -I FORWARD ! -i "
+                    f"{shlex.quote(host_interface)} -o "
                     f"{shlex.quote(host_interface)} -p tcp -d "
                     f"{quoted_guest_address} --dport {guest_port} -j ACCEPT"
                 ),
@@ -2610,12 +2608,11 @@ fi
                 guest_address = shlex.quote(node_context.guest_address)
                 guest_port = node_context.ssh_port
                 forwarded_port = node_context.forwarded_port
-                forwarding_interface = node_context.forwarding_interface
                 host_interface = _get_tap_host_interface_name(network)
                 commands = [
                     (
-                        "iptables -D FORWARD -i "
-                        f"{shlex.quote(forwarding_interface)} -o "
+                        "iptables -D FORWARD ! -i "
+                        f"{shlex.quote(host_interface)} -o "
                         f"{shlex.quote(host_interface)} -p tcp -d "
                         f"{guest_address} --dport {guest_port} -j ACCEPT || true"
                     ),
