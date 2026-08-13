@@ -3,6 +3,7 @@
 
 import re
 import time
+from shlex import quote
 from typing import Any, Dict, List, Tuple, Union, cast
 
 from assertpy import assert_that
@@ -27,7 +28,7 @@ from lisa import (
 )
 from lisa.base_tools import Uname
 from lisa.operating_system import BSD, Debian, Redhat, Suse, Ubuntu, Windows
-from lisa.tools import Ethtool, Iperf3, KernelConfig, Ls, Modinfo, Nm
+from lisa.tools import Ethtool, Iperf3, KernelConfig, Ls, Modinfo, Nm, Zstd
 from lisa.util import parse_version
 
 # section sizes for netvsc buffers in bytes (from netvsc driver)
@@ -751,29 +752,33 @@ class NetworkSettings(TestSuite):
             netvsc_module = modinfo.get_filename("hv_netvsc")
             # remove any escape character at the end of string
             netvsc_module = netvsc_module.strip()
-            decompress_tool = ""
-            # if the module is archived as xz, extract it to check symbols
-            if netvsc_module.endswith(".xz"):
-                decompress_tool = "xz"
-            # if the module is archived as zst, extract it to check symbols
-            if netvsc_module.endswith(".zst"):
-                decompress_tool = "zstd"
-            if decompress_tool:
+            if netvsc_module.endswith((".xz", ".zst")):
+                module_path = node.get_pure_path(netvsc_module)
+                copied_module_path = node.working_path / module_path.name
+                decompressed_module_path = copied_module_path.with_suffix("")
+                copied_module = node.get_str_path(copied_module_path)
+                decompressed_module = node.get_str_path(decompressed_module_path)
                 node.execute(
-                    f"cp {netvsc_module} {node.working_path}/", cwd=node.working_path
-                )
-                node.execute(
-                    (
-                        f"{decompress_tool} -d {node.working_path}/"
-                        f"{netvsc_module.rsplit('/', 1)[-1]}"
+                    f"cp {quote(netvsc_module)} "
+                    f"{quote(node.get_str_path(node.working_path))}",
+                    cwd=node.working_path,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        f"Failed to copy kernel module {netvsc_module}."
                     ),
-                    cwd=node.working_path,
                 )
-                netvsc_module = node.execute(
-                    f"ls {node.working_path}/hv_netvsc.ko",
-                    shell=True,
-                    cwd=node.working_path,
-                ).stdout
+                if netvsc_module.endswith(".xz"):
+                    node.execute(
+                        f"xz -d -f {quote(copied_module)}",
+                        cwd=node.working_path,
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message=(
+                            f"Failed to decompress kernel module {copied_module}."
+                        ),
+                    )
+                else:
+                    node.tools[Zstd].decompress(copied_module, decompressed_module)
+                netvsc_module = decompressed_module
 
             ls = node.tools[Ls]
             assert ls.path_exists(
