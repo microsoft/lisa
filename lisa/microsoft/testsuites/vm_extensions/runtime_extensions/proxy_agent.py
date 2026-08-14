@@ -34,7 +34,6 @@ class ProxyAgentTests(VmExtensionTestBase):  # type: ignore[misc]
     PUBLISHER = "Microsoft.Cplat.ProxyAgent"
     EXTENSION_TYPE = "ProxyAgentLinux"
     EXTENSION_KEY = "proxy_agent"
-    DEFAULT_VERSION = ""
 
     @TestCaseMetadata(
         description="""
