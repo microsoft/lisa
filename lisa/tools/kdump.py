@@ -17,6 +17,7 @@ from lisa.operating_system import (
     CBLMariner,
     Debian,
     Fedora,
+    OpenEuler,
     Oracle,
     Posix,
     Redhat,
@@ -219,20 +220,25 @@ class KdumpBase(Tool):
     @classmethod
     def create(cls, node: "Node", *args: Any, **kwargs: Any) -> Tool:
         # FreeBSD image doesn't support kdump since the kernel has no DDB option
+        kdump_type: Type[KdumpBase]
         if isinstance(node.os, Redhat):
-            return KdumpRedhat(node)
+            kdump_type = KdumpRedhat
         elif isinstance(node.os, Debian):
-            return KdumpDebian(node)
+            kdump_type = KdumpDebian
         elif isinstance(node.os, Suse):
-            return KdumpSuse(node)
+            kdump_type = KdumpSuse
         elif isinstance(node.os, CBLMariner):
             if node.os.information.version.major >= 4:
-                return KdumpFedora(node)
-            return KdumpCBLMariner(node)
+                kdump_type = KdumpFedora
+            else:
+                kdump_type = KdumpCBLMariner
         elif type(node.os) is Fedora:
-            return KdumpFedora(node)
+            kdump_type = KdumpFedora
+        elif isinstance(node.os, OpenEuler):
+            kdump_type = KdumpOpenEuler
         else:
             raise UnsupportedDistroException(os=node.os)
+        return kdump_type(node)
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
@@ -587,6 +593,19 @@ class KdumpRedhat(KdumpBase):
             sudo=True,
         )
         sed.append(f"path {self.dump_path}", kdump_conf, sudo=True)
+
+
+class KdumpOpenEuler(KdumpRedhat):
+    # openEuler is an RPMDistro (not a Redhat subclass) but is RHEL-derived: it
+    # ships the kdump service via the "kexec-tools" package (providing kdumpctl)
+    # and uses grubby to manage the crashkernel boot argument, the same as
+    # Redhat 8+. Only the install step needs its own OS assertion; the
+    # crashkernel config is inherited from KdumpRedhat (openEuler version 24 >= 8
+    # selects the grubby path).
+    def _install(self) -> bool:
+        assert isinstance(self.node.os, OpenEuler)
+        self.node.os.install_packages("kexec-tools")
+        return self._check_exists()
 
 
 class KdumpFedora(KdumpBase):

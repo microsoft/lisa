@@ -36,33 +36,25 @@ class KernelConfig(Tool):
     def can_install(self) -> bool:
         return False
 
+    def _grep_config(self, pattern: str) -> bool:
+        # /proc/config.gz is gzip-compressed and must be read with zcat, while
+        # the /boot/config-* files are plain text and can be grepped directly.
+        if self.config_path.endswith(".gz"):
+            command = f"zcat {self.config_path} | grep {pattern}"
+        else:
+            command = f"grep {pattern} {self.config_path}"
+        return self.node.execute(command, sudo=True, shell=True).exit_code == 0
+
     def is_kernel_config_set_to(
         self, config_name: str, config_value: ModulesType
     ) -> bool:
-        return (
-            self.node.execute(
-                f"grep ^{config_name}={config_value.value} {self.config_path}",
-                sudo=True,
-                shell=True,
-            ).exit_code
-            == 0
-        )
+        return self._grep_config(f"^{config_name}={config_value.value}")
 
     def is_built_in(self, config_name: str) -> bool:
-        return (
-            self.node.execute(
-                f"grep ^{config_name}=y {self.config_path}", sudo=True, shell=True
-            ).exit_code
-            == 0
-        )
+        return self._grep_config(f"^{config_name}=y")
 
     def is_built_as_module(self, config_name: str) -> bool:
-        return (
-            self.node.execute(
-                f"grep ^{config_name}=m {self.config_path}", sudo=True, shell=True
-            ).exit_code
-            == 0
-        )
+        return self._grep_config(f"^{config_name}=m")
 
     def is_enabled(self, config_name: str) -> bool:
         return self.is_built_as_module(config_name) or self.is_built_in(config_name)
@@ -77,9 +69,17 @@ class KernelConfig(Tool):
         uname_tool = self.node.tools[Uname]
         kernel_ver = uname_tool.get_linux_information().kernel_version_raw
         if isinstance(self.node.os, CoreOs):
-            self.config_path = f"/usr/boot/config-{kernel_ver}"
+            boot_config_path = f"/usr/boot/config-{kernel_ver}"
         else:
-            self.config_path = f"/boot/config-{kernel_ver}"
+            boot_config_path = f"/boot/config-{kernel_ver}"
+        # Some kernels (e.g. locally built ones with a version suffix like
+        # "6.6.0+") don't ship a matching /boot/config-<kernel_ver> file. Fall
+        # back to /proc/config.gz, which is exposed when CONFIG_IKCONFIG_PROC is
+        # enabled, so kernel config lookups still work.
+        if self.node.execute(f"ls -lt {boot_config_path}", sudo=True).exit_code == 0:
+            self.config_path = boot_config_path
+        else:
+            self.config_path = "/proc/config.gz"
 
 
 class KernelConfigFreeBSD(KernelConfig):

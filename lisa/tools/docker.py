@@ -6,7 +6,16 @@ from retry import retry
 
 from lisa.base_tools import Service, Wget
 from lisa.executable import Tool
-from lisa.operating_system import BSD, CBLMariner, CentOs, Debian, Fedora, Redhat, Suse
+from lisa.operating_system import (
+    BSD,
+    CBLMariner,
+    CentOs,
+    Debian,
+    Fedora,
+    OpenEuler,
+    Redhat,
+    Suse,
+)
 from lisa.util import (
     LisaException,
     ReleaseEndOfLifeException,
@@ -224,6 +233,12 @@ class Docker(Tool):
                 )
         elif isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["moby-engine", "moby-cli"])
+        elif isinstance(self.node.os, OpenEuler):
+            # openEuler ships a native moby-based "docker" package in its update
+            # repository that provides both the daemon and CLI along with a
+            # docker systemd service. OpenEuler is an RPMDistro (not a Redhat
+            # subclass), so it needs its own branch here.
+            self.node.os.install_packages(["docker"])
         elif isinstance(self.node.os, Suse) or isinstance(self.node.os, Fedora):
             self.node.os.install_packages(["docker"])
         elif isinstance(self.node.os, BSD):

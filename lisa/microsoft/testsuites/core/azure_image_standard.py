@@ -526,7 +526,10 @@ class AzureImageStandard(TestSuite):
                     f"networking=yes should be present in {network_file_path}",
                 ).contains("networking=yes".upper())
         elif isinstance(node.os, CBLMariner):
-            network_file_path = "/etc/systemd/networkd.conf"
+            if node.os.information.version >= "4.0.0":
+                network_file_path = "/usr/lib/systemd/networkd.conf"
+            else:
+                network_file_path = "/etc/systemd/networkd.conf"
             file_exists = node.shell.exists(PurePosixPath(network_file_path))
             assert_that(
                 file_exists,
@@ -668,7 +671,10 @@ class AzureImageStandard(TestSuite):
                 f"file {dhcp_file_path}",
             ).contains('DHCLIENT_SET_HOSTNAME="no"')
         elif isinstance(node.os, CBLMariner):
-            if node.os.information.version.major == 3:
+            if (
+                node.os.information.version.major == 3
+                or node.os.information.version.major == 4
+            ):
                 dhcp_file_path = "/etc/dhcpcd.conf"
                 dhcp_file_content = "option host_name"
             else:
@@ -767,11 +773,14 @@ class AzureImageStandard(TestSuite):
             if len(running_processes) == 0:
                 raise PassedException("hv_kvp_daemon is not installed")
         elif isinstance(node.os, CBLMariner):
-            running_processes = node.tools[Pgrep].get_processes("hypervkvpd")
+            kvp_daemon_name = "hypervkvpd"
+            if node.os.information.version >= "4.0.0":
+                kvp_daemon_name = "hv_kvp_daemon"
+            running_processes = node.tools[Pgrep].get_processes(kvp_daemon_name)
             assert_that(running_processes, "Expected one running process").is_length(1)
             assert_that(
-                running_processes[0].name, "Expected name 'hypervkvpd'"
-            ).is_equal_to("hypervkvpd")
+                running_processes[0].name, f"Expected name '{kvp_daemon_name}'"
+            ).is_equal_to(kvp_daemon_name)
         else:
             raise SkippedException(f"Unsupported distro type : {type(node.os)}")
 
