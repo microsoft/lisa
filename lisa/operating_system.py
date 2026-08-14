@@ -2257,7 +2257,7 @@ class OpenEuler(RPMDistro):
        VERSION="24.03 (LTS)"
        ID="openEuler"
        VERSION_ID="24.03"
-       PRETTY_NAME="openEuler 24.03 (LTS)"    
+       PRETTY_NAME="openEuler 24.03 (LTS)"
     """
 
     @classmethod
