@@ -161,9 +161,11 @@ class StoragePerformance(TestSuite):
             ),
         ),
     )
-    def perf_premium_datadisks_4k(self, node: Node, result: TestResult) -> None:
+    def perf_premium_datadisks_4k(
+        self, node: Node, result: TestResult, variables: Dict[str, Any]
+    ) -> None:
         perf_messages = perf_premium_datadisks(node, result)
-        check_premium_datadisks_performance(result, perf_messages)
+        check_premium_datadisks_performance(result, perf_messages, variables)
 
     @TestCaseMetadata(
         description="""
@@ -181,9 +183,11 @@ class StoragePerformance(TestSuite):
             ),
         ),
     )
-    def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
+    def perf_premium_datadisks_1024k(
+        self, node: Node, result: TestResult, variables: Dict[str, Any]
+    ) -> None:
         perf_messages = perf_premium_datadisks(node, result, block_size=1024)
-        check_premium_datadisks_performance(result, perf_messages)
+        check_premium_datadisks_performance(result, perf_messages, variables)
 
     @TestCaseMetadata(
         description="""
@@ -202,7 +206,7 @@ class StoragePerformance(TestSuite):
         ),
     )
     def perf_premium_datadisks_4k_io_uring(
-        self, node: Node, result: TestResult
+        self, node: Node, result: TestResult, variables: Dict[str, Any]
     ) -> None:
         # Check if io_uring is available in kernel configuration
         kernel_config = node.tools[KernelConfig]
@@ -211,7 +215,7 @@ class StoragePerformance(TestSuite):
         perf_messages = perf_premium_datadisks(
             node, ioengine=IoEngine.IO_URING, test_result=result, max_iodepth=1024
         )
-        check_premium_datadisks_performance(result, perf_messages)
+        check_premium_datadisks_performance(result, perf_messages, variables)
 
     @TestCaseMetadata(
         description="""
@@ -230,7 +234,7 @@ class StoragePerformance(TestSuite):
         ),
     )
     def perf_premium_datadisks_1024k_io_uring(
-        self, node: Node, result: TestResult
+        self, node: Node, result: TestResult, variables: Dict[str, Any]
     ) -> None:
         # Check if io_uring is available in kernel configuration
         kernel_config = node.tools[KernelConfig]
@@ -243,7 +247,7 @@ class StoragePerformance(TestSuite):
             max_iodepth=1024,
             block_size=1024,
         )
-        check_premium_datadisks_performance(result, perf_messages)
+        check_premium_datadisks_performance(result, perf_messages, variables)
 
     @TestCaseMetadata(
         description="""

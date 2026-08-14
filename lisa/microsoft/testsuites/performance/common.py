@@ -56,7 +56,7 @@ from lisa.tools.ntttcp import (
     NTTTCP_TCP_CONCURRENCY_BSD,
     NTTTCP_UDP_CONCURRENCY,
 )
-from lisa.util import LisaException
+from lisa.util import LisaException, to_bool
 from lisa.util.process import ExecutableResult, Process
 
 # NTTTCP may need extra time after the requested run duration to emit totals.
@@ -982,6 +982,10 @@ PREMIUM_DATADISK_PASS_RATIO = 0.95
 # Block sizes at or above this value (in KiB) are bandwidth-bound rather than
 # IOPS-bound, so they are validated against the rated disk throughput.
 PREMIUM_DATADISK_BANDWIDTH_BLOCK_SIZE_KB = 1024
+# Runbook variable shared by storage and network performance validations to turn
+# the expected-value checks on or off.
+PERF_CHECK_VARIABLE = "enable_perf_check"
+PERF_CHECK_DEFAULT = True
 
 
 def _get_azure_sku_capabilities(
@@ -1022,11 +1026,34 @@ def _get_azure_sku_capabilities(
     }
 
 
+def is_perf_check_enabled(variables: Optional[Dict[str, Any]]) -> bool:
+    """Return whether performance validation checks are enabled in the runbook.
+
+    Shared by storage and network performance validations so a single runbook
+    variable controls all of them:
+
+    - name: enable_perf_check
+      value: false
+    """
+    raw_value = (variables or {}).get(PERF_CHECK_VARIABLE, PERF_CHECK_DEFAULT)
+    try:
+        return to_bool(raw_value)
+    except (ValueError, TypeError) as identifier:
+        raise LisaException(
+            f"runbook variable '{PERF_CHECK_VARIABLE}' has invalid "
+            f"value '{raw_value}'. Set it to a boolean value such as true or false."
+        ) from identifier
+
+
 def check_premium_datadisks_performance(
     test_result: TestResult,
     perf_messages: List[DiskPerformanceMessage],
+    variables: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Validate premium data-disk random-read performance against the rated max.
+
+    The validation can be turned off from the runbook with the shared
+    ``enable_perf_check`` variable.
 
     Rules:
     - Only IO depths greater than ``PREMIUM_DATADISK_MIN_IODEPTH`` are considered;
@@ -1045,6 +1072,13 @@ def check_premium_datadisks_performance(
     assert environment, "fail to get environment from testresult"
     node = cast(RemoteNode, environment.nodes[0])
     log = node.log
+
+    if not is_perf_check_enabled(variables):
+        log.info(
+            f"skipping premium data-disk performance validation on {node.name}: "
+            f"runbook variable '{PERF_CHECK_VARIABLE}' is disabled."
+        )
+        return
 
     sku_caps = _get_azure_sku_capabilities(test_result, node)
     if sku_caps is None:
