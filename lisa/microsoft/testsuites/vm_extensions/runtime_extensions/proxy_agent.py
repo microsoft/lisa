@@ -34,7 +34,7 @@ class ProxyAgentTests(VmExtensionTestBase):  # type: ignore[misc]
     PUBLISHER = "Microsoft.Cplat.ProxyAgent"
     EXTENSION_TYPE = "ProxyAgentLinux"
     EXTENSION_KEY = "proxy_agent"
-    DEFAULT_VERSION = "1.0"
+    DEFAULT_VERSION = ""
 
     @TestCaseMetadata(
         description="""
@@ -54,7 +54,7 @@ class ProxyAgentTests(VmExtensionTestBase):  # type: ignore[misc]
         priority=5,
         maturity="preview",
     )
-    def MICROSOFT_CPLAT_PROXYAGENT_PROXYAGENTLINUX_boot_validation_test(  # noqa: N802
+    def microsoft_cplat_proxyagent_proxyagentlinux_boot_validation_test(
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
         self._boot_validation(
