@@ -86,12 +86,9 @@ class FedoraCloudValidation(TestSuite):
         expected_active: bool,
         context: str,
     ) -> None:
-        enabled_result = node.execute(
-            "systemctl is-enabled chronyd.service", no_error_log=True
-        )
-        assert_that(enabled_result.stdout.strip()).described_as(
+        assert_that(service.is_service_enabled("chronyd.service")).described_as(
             f"chronyd enablement must be correct {context}"
-        ).is_equal_to("enabled" if expected_enabled else "disabled")
+        ).is_equal_to(expected_enabled)
 
         assert_that(service.is_service_running("chronyd.service")).described_as(
             f"chronyd activity must be correct {context}"
