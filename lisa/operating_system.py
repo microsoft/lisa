@@ -2252,6 +2252,12 @@ class OpenEuler(RPMDistro):
     dnf-based package and repository handling, and relies on the base
     Linux._get_information to parse /etc/os-release, since openEuler does not
     provide /etc/fedora-release.
+    # cat /etc/os-release
+       NAME="openEuler"
+       VERSION="24.03 (LTS)"
+       ID="openEuler"
+       VERSION_ID="24.03"
+       PRETTY_NAME="openEuler 24.03 (LTS)"    
     """
 
     @classmethod
