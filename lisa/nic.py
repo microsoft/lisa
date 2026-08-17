@@ -351,45 +351,39 @@ class Nics(InitializableMixin):
                 return nic
         raise LisaException(f"Could not find a nic for requested subnet: {subnet}")
 
-    def unbind(
-        self,
-        nic: "Union[NicInfo, str]",
-        driver_module_path: str = "",
-    ) -> None:
-        tee = self._node.tools[Tee]
+    def unbind(self, nic: "NicInfo") -> None:
         ip = self._node.tools[Ip]
-        if isinstance(nic, str):
-            dev_uuid = nic
-            driver_sysfs_path = PurePosixPath(driver_module_path)
-        else:
-            # if sysfs path is not set, fetch the current driver
-            if not nic.driver_sysfs_path:
-                self.get_nic_driver(nic.name)
-            dev_uuid = nic.dev_uuid
-            driver_sysfs_path = nic.driver_sysfs_path
-            # if the device is active, set to down before unbind
-            if ip.nic_exists(nic.name):
-                ip.down(nic.name)
-        unbind_path = driver_sysfs_path.joinpath("unbind")
+        if not nic.driver_sysfs_path:
+            self.get_nic_driver(nic.name)
+        # if the device is active, set to down before unbind
+        if ip.nic_exists(nic.name):
+            ip.down(nic.name)
+        self.unbind_by_uuid(nic.dev_uuid, str(nic.driver_sysfs_path))
+
+    def unbind_by_uuid(self, dev_uuid: str, driver_module_path: str) -> None:
+        tee = self._node.tools[Tee]
+        ls = self._node.tools[Ls]
+        unbind_path = PurePosixPath(driver_module_path) / "unbind"
+        assert_that(ls.path_exists(str(unbind_path), sudo=True)).described_as(
+            f"Unbind path {unbind_path} does not exist."
+        ).is_true()
         tee.write_to_file(dev_uuid, unbind_path, sudo=True)
 
-    def bind(
-        self,
-        nic: "Union[NicInfo, str]",
-        driver_module_path: str,
-    ) -> None:
+    def bind(self, nic: "NicInfo", driver_module_path: str) -> None:
+        nic.driver_sysfs_path = PurePosixPath(driver_module_path)
+        nic.module_name = nic.driver_sysfs_path.name
+        self.bind_by_uuid(nic.dev_uuid, driver_module_path)
+
+    def bind_by_uuid(self, dev_uuid: str, driver_module_path: str) -> None:
         tee = self._node.tools[Tee]
-        driver_sysfs_path = PurePosixPath(driver_module_path)
-        bind_path = driver_sysfs_path.joinpath("bind")
-        if isinstance(nic, str):
-            dev_uuid = nic
-        else:
-            dev_uuid = nic.dev_uuid
-            nic.driver_sysfs_path = driver_sysfs_path
-            nic.module_name = driver_sysfs_path.name
+        ls = self._node.tools[Ls]
+        bind_path = PurePosixPath(driver_module_path) / "bind"
+        assert_that(ls.path_exists(str(bind_path), sudo=True)).described_as(
+            f"Bind path {bind_path} does not exist."
+        ).is_true()
         tee.write_to_file(
             dev_uuid,
-            self._node.get_pure_path(f"{str(bind_path)}"),
+            self._node.get_pure_path(str(bind_path)),
             sudo=True,
         )
 
