@@ -255,7 +255,11 @@ class Ip(Tool):
 
     def get_mtu(self, nic_name: str) -> int:
         cat = self.node.tools[Cat]
-        return int(cat.read(f"/sys/class/net/{nic_name}/mtu", force_run=True))
+        mtu_file=f"/sys/class/net/{nic_name}/mtu"
+        if self.node.shell.exists(self.node.get_pure_path(mtu_file)):
+            return int(cat.read(mtu_file, force_run=True))
+        else:
+            return int(self.get_detail(nic_name, "mtu"))
 
     def set_mtu(self, nic_name: str, mtu: int, assert_success: bool = True) -> None:
         # Check if mtu is integer
