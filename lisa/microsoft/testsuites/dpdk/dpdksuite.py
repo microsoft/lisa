@@ -18,6 +18,8 @@ from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
     UnsupportedPackageVersionException,
+    assert_mana_pmd_environment,
+    assert_mana_pmd_node,
     check_send_receive_compatibility,
     do_parallel_cleanup,
     enable_uio_hv_generic,
@@ -110,6 +112,40 @@ class Dpdk(TestSuite):
     ) -> None:
         verify_dpdk_build(
             node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_2MB, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            mana pmd version.
+            This test case checks DPDK can be built and installed correctly
+            when the MANA interfaces are bound directly to the mana driver
+            instead of being paired with a synthetic hv_netvsc device.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            NOTE: this test is skipped unless the node has MANA devices,
+            select it explicitly instead of the netvsc test cases when
+            testing a MANA direct environment.
+            More details refer https://doc.dpdk.org/guides/nics/mana.html # noqa: E501
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_build_mana(
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        assert_mana_pmd_node(node)
+        verify_dpdk_build(
+            node, log, variables, Pmd.MANA, HugePageSize.HUGE_2MB, result=result
         )
 
     @TestCaseMetadata(
@@ -1072,6 +1108,48 @@ class Dpdk(TestSuite):
                 log,
                 variables,
                 Pmd.NETVSC,
+                HugePageSize.HUGE_2MB,
+                result=result,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for the mana pmd.
+            This is the 'MANA direct' configuration, where the test
+            interfaces are bound to the mana driver itself instead of
+            being paired with a synthetic hv_netvsc device.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+            NOTE: this test is skipped unless the node has MANA devices,
+            select it explicitly instead of the netvsc test cases when
+            testing a MANA direct environment.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_mana(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        assert_mana_pmd_environment(environment)
+        try:
+            verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                Pmd.MANA,
                 HugePageSize.HUGE_2MB,
                 result=result,
             )

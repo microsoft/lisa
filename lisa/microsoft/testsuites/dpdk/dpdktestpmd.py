@@ -15,6 +15,7 @@ from microsoft.testsuites.dpdk.common import (
     PackageManagerInstall,
     Pmd,
     TarDownloader,
+    generate_mana_vdev_args,
     get_debian_backport_repo_args,
     is_url_for_git_repo,
     is_url_for_tarball,
@@ -474,6 +475,13 @@ class DpdkTestpmd(Tool):
         # there is 1 shared bus address (MANA)
         # NOTE: I keep running into weird special cases of this.
         # 21.11 on ubuntu has -a even though 20.11+ shouldn't...
+        if pmd == Pmd.MANA:
+            # MANA direct: the mana driver owns the pci device, the vports
+            # are selected by mac address on the pci bus address.
+            # generate_testpmd_command groups these by pci device, so a
+            # single nic is all that is handled here.
+            # https://doc.dpdk.org/guides/nics/mana.html
+            return " ".join(generate_mana_vdev_args([node_nic]))
         help_output = self.node.execute(
             f"{self.command} --help", no_debug_log=True, no_info_log=True
         )
@@ -559,9 +567,16 @@ class DpdkTestpmd(Tool):
 
         # generate the flags for which devices to include in the tests
         nic_include_infos = []
-        for nic in nic_to_include:
-            nic_include_infos += [self.generate_testpmd_include(nic, vdev_id, pmd=pmd)]
-            vdev_id += 1
+        if pmd == Pmd.MANA:
+            # MANA vports share a pci device, group the mac address devargs
+            # by pci slot so we don't emit a duplicate --vdev for a device.
+            nic_include_infos = generate_mana_vdev_args(nic_to_include)
+        else:
+            for nic in nic_to_include:
+                nic_include_infos += [
+                    self.generate_testpmd_include(nic, vdev_id, pmd=pmd)
+                ]
+                vdev_id += 1
 
         # infer core count to assign based on number of queues
         threads_available = self.node.tools[Lscpu].get_thread_count()

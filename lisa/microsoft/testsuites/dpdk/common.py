@@ -1,9 +1,20 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from collections import OrderedDict
 from enum import Enum
 from pathlib import PurePath
-from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Type,
+    Union,
+)
 from urllib.parse import urlparse
 
 from assertpy import assert_that
@@ -16,6 +27,9 @@ from lisa.operating_system import Debian, Fedora, Oracle, Posix, Suse, Ubuntu
 from lisa.tools import Git, Lscpu, Tar, Wget
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import UnsupportedDistroException
+
+if TYPE_CHECKING:
+    from lisa.nic import NicInfo
 
 DPDK_STABLE_GIT_REPO = "https://github.com/dpdk/dpdk-stable.git"
 
@@ -510,6 +524,39 @@ class Pmd(str, Enum):
     # librte_net_netvsc
     # https://doc.dpdk.org/guides/nics/netvsc.html
     NETVSC = "netvsc"
+    # librte_net_mana
+    # https://doc.dpdk.org/guides/nics/mana.html
+    # Used when the MANA interfaces are bound directly to the mana
+    # kernel driver, without a synthetic hv_netvsc device to pair with.
+    MANA = "mana"
+
+
+def generate_mana_vdev_args(nics: List["NicInfo"]) -> List[str]:
+    """Create the MANA device inclusion args for a list of test nics.
+
+    MANA exposes multiple vports (network interfaces) on each of its
+    PCI devices, so a device is selected by its bus address and the
+    mac addresses of the vports to probe:
+        --vdev="<pci_slot>,mac=<mac_0>,mac=<mac_1>"
+    Nics are grouped by pci slot, there is no guarantee that every MANA
+    interface on the node lives on the same PCI device.
+    https://doc.dpdk.org/guides/nics/mana.html
+    """
+    slots: Dict[str, List[str]] = OrderedDict()
+    for nic in nics:
+        assert_that(nic.pci_slot).described_as(
+            f"MANA nic {nic.name} has no pci slot, "
+            "DPDK cannot select the device without one."
+        ).is_not_empty()
+        assert_that(nic.mac_addr).described_as(
+            f"MANA nic {nic.name} has no mac address, "
+            "DPDK cannot select the vport without one."
+        ).is_not_empty()
+        slots.setdefault(nic.pci_slot, []).append(nic.mac_addr)
+    return [
+        '--vdev="' + ",".join([slot] + [f"mac={mac}" for mac in macs]) + '"'
+        for slot, macs in slots.items()
+    ]
 
 
 # set a threshold for an expected PPS minimum with DPDK.

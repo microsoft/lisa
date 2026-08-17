@@ -19,6 +19,7 @@ from microsoft.testsuites.dpdk.common import (
     Pmd,
     TarDownloader,
     check_dpdk_support,
+    generate_mana_vdev_args,
     is_url_for_git_repo,
     is_url_for_tarball,
     update_kernel_from_repo,
@@ -50,7 +51,7 @@ from lisa import (
 from lisa.base_tools.uname import Uname
 from lisa.executable import Process
 from lisa.features import NetworkInterface
-from lisa.nic import NicInfo
+from lisa.nic import MANA_DRIVER_NAME, NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
 from lisa.sut_orchestrator.ready import ReadyPlatform
 from lisa.testsuite import TestResult
@@ -454,10 +455,20 @@ def validate_mtu_size_for_nic_type(node: Node, mtu: int) -> None:
     # then verify the MTU size is supported
     for nic in node.tools[Lspci].get_devices_by_type(DEVICE_TYPE_SRIOV, force_run=True):
         # verify mtu is not too large for the NIC
-        # there should only be a single item in this list
-        ethdev = [
-            dev.lower for dev in node.nics.nics.values() if dev.pci_slot == nic.slot
-        ][0]
+        # MANA shares a pci slot between its vports, so there can be more
+        # than one interface for a device. They share the same limits,
+        # so checking the first one found is enough.
+        ethdevs = [
+            dev.pci_device_name
+            for dev in node.nics.nics.values()
+            if dev.pci_slot == nic.slot and dev.pci_device_name
+        ]
+        if not ethdevs:
+            raise SkippedException(
+                "Could not find a network interface for pci device "
+                f"{nic.slot} when checking maxmtu for the DPDK mtu test."
+            )
+        ethdev = ethdevs[0]
         maxmtu = node.tools[Ip].get_detail(ethdev, "maxmtu")
         if not maxmtu:
             raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
@@ -669,6 +680,30 @@ def set_mtu_for_nics(node: Node, nics: List[NicInfo], mtu: int) -> None:
 def do_pmd_driver_setup(
     node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: Pmd = Pmd.FAILSAFE
 ) -> None:
+    if pmd == Pmd.MANA:
+        # The mana pmd is a bifurcated driver, the mana kernel driver stays
+        # bound to the device and provides the netdev. There is nothing to
+        # unbind or rebind, DPDK selects the vports by mac address.
+        # It reaches the device through the rdma verbs interface, so mana_ib
+        # is required. It's installed as part of the dpdk installation on
+        # distros which package it separately, so check for it here rather
+        # than in check_pmd_support.
+        # https://doc.dpdk.org/guides/nics/mana.html
+        modprobe = node.tools[Modprobe]
+        if not (
+            modprobe.module_exists("mana_ib")
+            or node.tools[KernelConfig].is_built_in("CONFIG_MANA_INFINIBAND")
+        ):
+            raise SkippedException(
+                "MANA pmd test is not supported without the mana_ib module."
+            )
+        # The interfaces are left up so the kernel keeps the routes which
+        # were used to reach them before the test started.
+        ip = node.tools[Ip]
+        for test_nic in test_nics:
+            if ip.is_device_up(test_nic.name):
+                ip.down(test_nic.name)
+        return
     if pmd == Pmd.NETVSC:
         # setup system for netvsc pmd
         # https://doc.dpdk.org/guides/nics/netvsc.html
@@ -705,17 +740,21 @@ def get_vmbus_network_device_ids(node: Node, filter_driver: str) -> List[str]:
     # shell command filters for files that contain a specific device id,
     # then filters for files that are bound to a specific driver by their
     # sysfs entries.
-    device_ids = node.execute(
+    # NOTE: grep exits non-zero when there are no synthetic network devices
+    # at all (ie MANA direct), which is not an error for our purposes.
+    device_id_result = node.execute(
         "grep -l f8615163-df3e-46c5-913f-f2d2f965ed0e "
         "/sys/bus/vmbus/devices/*/class_id "
         "| cut -f 1-6 -d / ",
         shell=True,
-        expected_exit_code=0,
-        expected_exit_code_failure_message=(
-            f"Shell check for vmbus devices bound to driver {filter_driver} "
-            "returned an error."
-        ),
-    ).stdout.splitlines()
+    )
+    device_ids = device_id_result.stdout.splitlines()
+    if not device_ids:
+        node.log.debug(
+            "No synthetic vmbus network devices were found on this node "
+            f"when checking for devices bound to {filter_driver}."
+        )
+        return []
     drivers = node.execute(
         f"for i in {' '.join(device_ids)}; do readlink -f $i/driver; done", shell=True
     ).stdout.splitlines()
@@ -776,6 +815,12 @@ def initialize_node_resources(
     _set_forced_source_by_distro(node, variables)
     check_pmd_support(node, pmd)
 
+    # MANA direct: every interface is a vport bound straight to the mana
+    # driver, there is no synthetic hv_netvsc device paired with a VF.
+    # Most of the DPDK setup below assumes the synthetic/VF pairing, so
+    # detect the scenario up front and skip the checks which don't apply.
+    is_mana_direct = node.nics.is_mana_direct_mode()
+
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
     rdma_source = variables.get("rdma_source", "")
@@ -789,18 +834,28 @@ def initialize_node_resources(
     # check whether we can switch sriov on, if it's off.
     # Some platforms (ReadyPlatform) don't support this feature.
     # check on the platform if possible
-    try:
-        sriov_is_enabled = node.features[NetworkInterface].is_enabled_sriov()
-        if not sriov_is_enabled:
-            node.features[NetworkInterface].switch_sriov(enable=True, wait=True)
-    except NotImplementedError:
-        # else, check on the guest.
-        node.nics.reload()
-        if not node.nics.is_pci_module_enabled():
-            raise SkippedException(
-                "SRIOV was not active and platform "
-                "does not support NetworkInterface feature"
-            )
+    if is_mana_direct:
+        # accelerated networking can't be toggled in this configuration,
+        # the interfaces _are_ the pci device. Toggling it would also take
+        # the management interface with it, since the vports are shared.
+        log.info(
+            "MANA direct configuration detected, MANA pci devices: "
+            f"{node.nics.get_mana_pci_slots()}. "
+            "Skipping the SRIOV enablement check."
+        )
+    else:
+        try:
+            sriov_is_enabled = node.features[NetworkInterface].is_enabled_sriov()
+            if not sriov_is_enabled:
+                node.features[NetworkInterface].switch_sriov(enable=True, wait=True)
+        except NotImplementedError:
+            # else, check on the guest.
+            node.nics.reload()
+            if not node.nics.is_pci_module_enabled():
+                raise SkippedException(
+                    "SRIOV was not active and platform "
+                    "does not support NetworkInterface feature"
+                )
 
     # dump some info about the pci devices before we start
     lspci = node.tools[Lspci]
@@ -850,13 +905,14 @@ def initialize_node_resources(
 
     test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
 
-    # check an assumption that our nics are bound to hv_netvsc
-    # at test start.
-
+    # check an assumption that our nics are bound to the expected driver
+    # at test start. MANA direct interfaces are bound to 'mana' itself,
+    # everything else is expected to start on the synthetic device.
+    expected_driver = MANA_DRIVER_NAME if is_mana_direct else "hv_netvsc"
     assert_that(test_nic.module_name).described_as(
         f"Error: Expected test nic {test_nic.name} to be "
-        f"bound to hv_netvsc. Found {test_nic.module_name}."
-    ).is_equal_to("hv_netvsc")
+        f"bound to {expected_driver}. Found {test_nic.module_name}."
+    ).is_equal_to(expected_driver)
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
 
@@ -871,7 +927,25 @@ def initialize_node_resources(
 
 def check_pmd_support(node: Node, pmd: Pmd) -> None:
     # Check environment (kernel, drivers, etc) supports selected PMD.
-    if pmd == Pmd.FAILSAFE and node.nics.is_mana_device_present():
+    is_mana = node.nics.is_mana_device_present()
+    if pmd == Pmd.MANA:
+        if not is_mana:
+            raise SkippedException(
+                "MANA pmd test requires a MANA network device on the test node."
+            )
+        # NOTE: the mana_ib requirement is checked in do_pmd_driver_setup,
+        # the module is packaged separately on some distros and is installed
+        # as part of the dpdk/rdma-core installation.
+        return
+    if node.nics.is_mana_direct_mode():
+        # netvsc/failsafe both need a synthetic device to pair with,
+        # there isn't one when MANA is bound directly to the interfaces.
+        raise SkippedException(
+            f"{pmd.value} pmd test is not supported when the MANA interfaces "
+            "are bound directly to the mana driver. Use the mana pmd test "
+            "cases for this configuration."
+        )
+    if pmd == Pmd.FAILSAFE and is_mana:
         raise SkippedException("Failsafe PMD test on MANA is not supported.")
     if pmd == Pmd.NETVSC and not (
         node.tools[Modprobe].load("uio_hv_generic", dry_run=True)
@@ -1973,15 +2047,16 @@ class DpdkDevnameInfo:
         if self._node.nics.is_mana_device_present():
             # mana needs a vdev argument of pci info
             # followed by kv pairs for mac addresses.
+            # nics are grouped by pci slot, MANA vports can be spread
+            # across more than one pci device.
             # https://doc.dpdk.org/guides/nics/mana.html
-            nic_includes = [f"-a {nic.dev_uuid}" for nic in nics]
-            vdev_args = [
-                ",".join(
-                    [f'--vdev="{nics[0].pci_slot}']
-                    + [f"mac={nic.mac_addr}" for nic in nics],
-                )
-                + '" '
-            ]
+            vdev_args = generate_mana_vdev_args(nics)
+            if self._node.nics.is_mana_direct_mode():
+                # there is no synthetic vmbus device to allow,
+                # the vdev args select the vports on the pci device.
+                nic_includes = []
+            else:
+                nic_includes = [f"-a {nic.dev_uuid}" for nic in nics]
 
             nic_args = " ".join(nic_includes + vdev_args)
 
@@ -2537,3 +2612,14 @@ def run_dpdk_symmetric_mp(
     assert_that(process_data[2]["rx"]).described_as(
         "process 1 port_0_tx and port_1_rx should match"
     ).is_equal_to(process_data[3]["tx"])
+
+def assert_mana_pmd_node(node:Node) -> None:
+    if not node.nics.is_mana_direct_mode():
+        raise SkippedException(
+            "MANA PMD tests are designed for environment "
+            "without upper/lower bond."
+        )
+
+def assert_mana_pmd_environment(environement: Environment) -> None:
+    nodes = environement.nodes.list()
+    run_in_parallel([partial(assert_mana_pmd_node, node) for node in nodes])
