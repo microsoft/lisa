@@ -19,6 +19,9 @@ from lisa.util import InitializableMixin, LisaException, constants, find_groups_
 if TYPE_CHECKING:
     from lisa import Node
 
+# kernel driver name for the Microsoft Azure Network Adapter
+MANA_DRIVER_NAME = "mana"
+
 
 class NicInfo:
     # Class for info about an single nic/pci device pair.
@@ -88,6 +91,15 @@ class NicInfo:
         synthetic NIC pairing.
         """
         return not self.lower and self.is_pci_device and self.module_name != "hv_netvsc"
+
+    @property
+    def is_mana_direct(self) -> bool:
+        """
+        Check if this interface is a MANA vport bound directly to the mana
+        driver. In this configuration there is no synthetic hv_netvsc device
+        paired with a VF, the interface _is_ the pci device.
+        """
+        return self.is_pci_only_nic and self.module_name == MANA_DRIVER_NAME
 
     @property
     def pci_device_name(self) -> str:
@@ -653,6 +665,39 @@ class Nics(InitializableMixin):
 
     def is_mana_driver_enabled(self) -> bool:
         return self._node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA")
+
+    def get_mana_direct_nics(self) -> List[NicInfo]:
+        """Get the interfaces which are bound directly to the mana driver.
+
+        In 'MANA direct' configurations there is no synthetic hv_netvsc
+        device paired with a VF, each interface is a vport on a MANA pci
+        device and is bound to the mana driver itself.
+        """
+        return [nic for nic in self.nics.values() if nic.is_mana_direct]
+
+    def is_mana_direct_mode(self) -> bool:
+        """Check whether this node uses MANA interfaces without netvsc pairing."""
+        mana_direct_nics = self.get_mana_direct_nics()
+        if not mana_direct_nics:
+            return False
+        self._node.log.debug(
+            "Found MANA interfaces bound directly to the mana driver: "
+            f"{[nic.name for nic in mana_direct_nics]}"
+        )
+        return True
+
+    def get_mana_pci_slots(self) -> List[str]:
+        """Get the unique pci slots used by the MANA interfaces on this node.
+
+        MANA exposes multiple vports on a single pci device, but more than
+        one MANA pci device can be present. Don't assume there's only one.
+        """
+        slots: List[str] = []
+        for nic in self.nics.values():
+            if MANA_DRIVER_NAME in [nic.module_name, nic.lower_module_name]:
+                if nic.pci_slot and nic.pci_slot not in slots:
+                    slots.append(nic.pci_slot)
+        return slots
 
     def _discover_standalone_pci_nics(self, lspci: Lspci) -> None:
         """
