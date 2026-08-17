@@ -910,7 +910,8 @@ class DpdkTestpmd(Tool):
                 "in general pu test runs. To test with other distros, "
                 "set environment variable LISA_CV_DPDK_ALLOW_OTHER_DISTROS=true "
                 "or add a case visible variable dpdk_allow_other_distros "
-                "to your runbook.")
+                "to your runbook."
+            )
         self._determine_network_hardware()
         if self.use_package_manager_install():
             self.installer: Installer = DpdkPackageManagerInstall(
