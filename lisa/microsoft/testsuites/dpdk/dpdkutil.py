@@ -717,12 +717,16 @@ def get_vmbus_network_device_ids(node: Node, filter_driver: str) -> List[str]:
         "/sys/bus/vmbus/devices/*/class_id "
         "| cut -f 1-6 -d / ",
         shell=True,
-        expected_exit_code=0,
+        expected_exit_code=[0, 1],
         expected_exit_code_failure_message=(
             f"Shell check for vmbus devices bound to driver {filter_driver} "
             "returned an error."
         ),
     ).stdout.splitlines()
+
+    if not device_ids:
+        return []
+
     drivers = node.execute(
         f"for i in {' '.join(device_ids)}; do readlink -f $i/driver; done", shell=True
     ).stdout.splitlines()
