@@ -68,9 +68,10 @@ class Wget(Tool):
         # remove existing file and dir to download again.
         download_pure_path = self.node.get_pure_path(download_path)
         if self.node.shell.exists(download_pure_path):
-            if skip_exists:
+            if skip_exists or not overwrite:
+                self._url_file_cache[url] = download_path
                 return download_path
-            elif overwrite:
+            else:
                 self.node.shell.remove(download_pure_path, recursive=True)
 
         command = f"'{url}' --no-check-certificate"
@@ -193,11 +194,10 @@ class WindowsWget(Wget):
 
         file_path, download_path = self._ensure_download_path(file_path, filename)
 
-        # return if file exists and not overwrite
-        if ls.path_exists(file_path, sudo=sudo) and not overwrite:
-            self._log.debug(
-                f"File {download_path} already exists and rewrite is set to False"
-            )
+        # return early if file exists and caller doesn't want to overwrite
+        if ls.path_exists(download_path, sudo=sudo) and (skip_exists or not overwrite):
+            self._url_file_cache[url] = download_path
+            return download_path
 
         # create directory if it doesn't exist
         self.node.tools[Mkdir].create_directory(file_path, sudo=sudo)
