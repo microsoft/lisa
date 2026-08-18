@@ -755,7 +755,7 @@ def check_if_testpmd_is_running(
     return check.exit_code == 0 and bool(check.stdout)
 
 
-def rebind_uio_devices_to_hv_netvsc(node: Node, devices: List[str]) -> None:
+def rebind_uio_devices_to_hv_netvsc(node: Node) -> None:
     # unbind any uio_hv_generic devices and re-bind them to hv_netvsc
     device_ids = get_vmbus_network_device_ids(node, filter_driver="uio_hv_generic")
     if not device_ids:
@@ -766,14 +766,10 @@ def rebind_uio_devices_to_hv_netvsc(node: Node, devices: List[str]) -> None:
         node.nics.unbind_by_uuid(id, "/sys/bus/vmbus/drivers/uio_hv_generic")
         node.nics.bind_by_uuid(id, "/sys/bus/vmbus/drivers/hv_netvsc")
 
-    node.nics.reload()
-
 
 def reset_node_netvsc_bindings(node: Node) -> None:
-    uio_hv_generic_devices = get_vmbus_network_device_ids(node, "uio_hv_generic")
-    if uio_hv_generic_devices:
-        rebind_uio_devices_to_hv_netvsc(node, uio_hv_generic_devices)
-        node.nics.reload()
+    rebind_uio_devices_to_hv_netvsc(node)
+    node.nics.reload()
 
 
 def initialize_node_resources(
