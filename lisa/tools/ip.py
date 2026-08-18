@@ -283,20 +283,20 @@ class Ip(Tool):
                     " skipping assertion since assert_success was False. "
                 )
                 return
-        
+
         self.run(f"link set dev {nic_name} mtu {mtu}", force_run=True, sudo=True)
-        
+
         new_mtu = self.get_mtu(nic_name=nic_name)
         if new_mtu != mtu:
             if assert_success:
                 raise LisaException(f"set mtu failed, wanted {mtu} and got {new_mtu}")
             else:
-                 # warn if assertion is turned off. 
+                 # warn if assertion is turned off.
                  # Weird enough situation to justify log.warning
-                 self.node.log.warning(
-                        f"set_mtu: expected new mtu {mtu}, got {new_mtu} instead. "
-                    )
-                
+                self.node.log.warning(
+                    f"set_mtu: expected new mtu {mtu}, got {new_mtu} instead. "
+                )
+
 
     def nic_exists(self, nic_name: str) -> bool:
         result = self.run(f"link show {nic_name}", force_run=True, sudo=True)
