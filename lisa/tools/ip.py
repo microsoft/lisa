@@ -267,6 +267,18 @@ class Ip(Tool):
             mtu = int(mtu)
         except ValueError:
             raise LisaException(f"MTU value is not an integer: {mtu}")
+        # check if the device exists
+        exists = self.run(f"link show {nic_name}", force_run=True).exit_code
+        if not exists:
+            if assert_success:
+                raise LisaException(f"MTU set failed, could not find interface {nic_name}.")
+            else:
+                self.node.log.debug(
+                    "set_mtu: skipping since device does not exist "
+                    "and assert_success was False."
+                )
+                return
+        
         self.run(f"link set dev {nic_name} mtu {mtu}", force_run=True, sudo=True)
         
         new_mtu = self.get_mtu(nic_name=nic_name)
