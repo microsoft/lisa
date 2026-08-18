@@ -712,18 +712,19 @@ def get_vmbus_network_device_ids(node: Node, filter_driver: str) -> List[str]:
     # shell command filters for files that contain a specific device id,
     # then filters for files that are bound to a specific driver by their
     # sysfs entries.
-    device_ids = node.execute(
+    result = node.execute(
         "grep -l f8615163-df3e-46c5-913f-f2d2f965ed0e "
         "/sys/bus/vmbus/devices/*/class_id "
         "| cut -f 1-6 -d / ",
         shell=True,
-        expected_exit_code=[0, 1],
-        expected_exit_code_failure_message=(
+    )
+    if result.exit_code not in [0,1]:
+        raise AssertionError(
             f"Shell check for vmbus devices bound to driver {filter_driver} "
             "returned an error."
-        ),
-    ).stdout.splitlines()
-
+        )
+                
+    device_ids = result.stdout.splitlines()
     if not device_ids:
         return []
 
