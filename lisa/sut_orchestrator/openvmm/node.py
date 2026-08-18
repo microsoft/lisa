@@ -310,31 +310,15 @@ class OpenVmmController:
 
         # Per-guest copy is done outside the lock so multiple guests on the same
         # host can proceed in parallel once the shared cache is warm.
-        # Try copy-on-write (reflink) first; fall back to a plain copy when the
-        # filesystem does not support it (e.g. ext4 without reflink patches).
-        result = self.host_node.execute(
-            f"cp --reflink=auto "
-            f"{shlex.quote(cached_path)} "
-            f"{shlex.quote(str(destination))}",
+        self.host_node.execute(
+            f"cp -f " f"{shlex.quote(cached_path)} " f"{shlex.quote(str(destination))}",
             shell=True,
-            expected_exit_code=None,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"failed to copy OpenVMM artifact '{source.name}' from host "
+                f"cache to '{destination}'"
+            ),
         )
-        if result.exit_code != 0:
-            self._log.debug(
-                f"cp --reflink=auto failed (exit {result.exit_code}), "
-                f"attempting plain copy fallback: {result.stderr or result.stdout}"
-            )
-            self.host_node.execute(
-                f"cp -f "
-                f"{shlex.quote(cached_path)} "
-                f"{shlex.quote(str(destination))}",
-                shell=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    f"failed to clone OpenVMM artifact '{source.name}' from host "
-                    f"cache to '{destination}'"
-                ),
-            )
         self._log.info(
             f"Copied OpenVMM artifact '{source.name}' to host path "
             f"'{destination}' in {copy_timer.elapsed_text()}."

@@ -101,6 +101,14 @@ class OpenVmmNodeTestCase(TestCase):
 
         self.assertNotEqual(first_destination, second_destination)
         self.assertEqual(1, shell_copy.call_count)
+        host_execute = cast(MagicMock, controller.host_node.execute)
+        copy_commands = [
+            call.args[0]
+            for call in host_execute.call_args_list
+            if call.args[0].startswith("cp ")
+        ]
+        self.assertEqual(2, len(copy_commands))
+        self.assertTrue(all(command.startswith("cp -f ") for command in copy_commands))
 
     def test_stop_node_kills_process_after_wait_timeout(self) -> None:
         controller, _, kill_by_pid, guest_log = self._create_controller()
