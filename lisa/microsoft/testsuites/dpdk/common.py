@@ -232,7 +232,7 @@ class Installer:
             f"Test bug: Installer source path {asset_path} was set to working path "
             f"'{working_path}' during attempted cleanup!"
         ).is_not_equal_to(working_path)
-        self._node.execute(f"rm -rf {str(asset_path)}", shell=True)
+        self._node.shell.remove(asset_path, recursive=True)
 
     def _rollback_installation(self) -> None:
         try:
@@ -244,7 +244,8 @@ class Installer:
                 f"Installer cleanup failed; marking node dirty. {str(err)}"
             )
             self._node.mark_dirty()
-            raise err
+            self._node.log.debug("")
+            raise AssertionError(err, "Test bug: rollback of installation failed")
 
     # install the dependencies
     def _install_dependencies(self) -> None:
