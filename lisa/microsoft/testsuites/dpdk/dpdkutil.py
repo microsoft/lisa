@@ -450,14 +450,19 @@ def _validate_and_set_mtu_for_kit(
 def validate_mtu_size_for_nic_type(node: Node, mtu: int) -> None:
     if mtu == 0:
         return
-
+    validated = False
+    vendor = ""
+    info = ""
     # then verify the MTU size is supported
     for nic in node.tools[Lspci].get_devices_by_type(DEVICE_TYPE_SRIOV, force_run=True):
         # verify mtu is not too large for the NIC
         # there should only be a single item in this list
-        ethdev = [
+        ethdevs = [
             dev.lower for dev in node.nics.nics.values() if dev.pci_slot == nic.slot
-        ][0]
+        ]
+        if not ethdevs:
+            break
+        ethdev = ethdevs[0]
         maxmtu = node.tools[Ip].get_detail(ethdev, "maxmtu")
         if not maxmtu:
             raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
@@ -498,9 +503,11 @@ def validate_mtu_size_for_nic_type(node: Node, mtu: int) -> None:
             validated = mtu >= 1400 and mtu <= maxmtu_int
     # if there is an unknown nic, we should skip the mtu tests until it's added
     if not validated:
-        raise SkippedException(
-            f"This MTU test size ({mtu}) is not supported for this nic: {vendor, info}"
-        )
+        if vendor and info:
+            err_msg = f"This MTU test size ({mtu}) is not supported for this nic: {vendor, info}"
+        else:
+            err_msg = "Could not locate MTU information on this node, skipping..."
+        raise SkippedException(err_msg)
 
 
 def generate_testpmd_multiple_port_command(
