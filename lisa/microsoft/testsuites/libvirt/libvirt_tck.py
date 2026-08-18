@@ -8,7 +8,7 @@ from microsoft.testsuites.libvirt.libvirt_tck_tool import LibvirtTck
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import Dmesg, Journalctl, Lscpu
+from lisa.tools import Cat, Dmesg, Journalctl, Lscpu
 from lisa.util import SkippedException
 
 
@@ -37,6 +37,21 @@ class LibvirtTckSuite(TestSuite):
         virtualization_enabled = node.tools[Lscpu].is_virtualization_enabled()
         if not virtualization_enabled:
             raise SkippedException("Virtualization is not enabled in hardware")
+
+        # The libvirt TCK community suite is not FIPS-aware. On FIPS-enabled
+        # kernels the suite is unreliable (tests either time out or report
+        # spurious failures), so skip it rather than fail on FIPS images.
+        fips_result = node.tools[Cat].run(
+            "/proc/sys/crypto/fips_enabled",
+            force_run=True,
+            no_error_log=True,
+        )
+        if fips_result.exit_code == 0 and (fips_result.stdout or "").strip() == "1":
+            raise SkippedException(
+                "FIPS mode is enabled (/proc/sys/crypto/fips_enabled=1); the libvirt "
+                "TCK community suite is not FIPS-aware. Use a non-FIPS image/kernel "
+                "to run this suite."
+            )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
