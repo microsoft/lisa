@@ -1045,7 +1045,9 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             nic_info = network_client.network_interfaces.get(
                 self._resource_group_name, nic_name
             )
-            sriov_enabled &= nic_info.enable_accelerated_networking
+            accelnet_setting = nic_info.enable_accelerated_networking
+            # check if all nics have accelnet enabled
+            sriov_enabled &= accelnet_setting if isinstance(accelnet_setting, bool) else False
         return sriov_enabled
 
     @retry(ResourceExistsError, tries=5, delay=2, backoff=1.5)  # type: ignore
