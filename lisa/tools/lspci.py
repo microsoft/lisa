@@ -296,8 +296,11 @@ class Lspci(Tool):
         if (not self._pci_devices) or force_run:
             if not self._pciids_initialized:
                 # Ensure pci device ids and name mappings are updated.
-                self.node.execute("update-pciids", sudo=True, shell=True)
-                self._pciids_initialized = True
+                exit_code = self.node.execute("update-pciids", sudo=True, shell=True).exit_code
+                if exit_code == 0:
+                    self._pciids_initialized = True
+                else:
+                    self.node.log.debug(f"update-pciids failed, returned code {exit_code}")
             self._pci_devices = []
             self._pci_ids = {}
 
