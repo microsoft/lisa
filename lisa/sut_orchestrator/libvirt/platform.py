@@ -822,7 +822,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         log.debug(f"Clearing port forwarding rules for environment {environment.name}")
         environment_context = get_environment_context(environment)
         for port, address in environment_context.port_forwarding_list:
-            self.host_node.tools[Iptables].stop_forwarding(port, address, 22)
+            self.host_node.tools[Iptables].stop_forwarding(
+                port, address, 22, force_run=True
+            )
 
     # Retrieve the VMs' dynamic properties (e.g. IP address).
     def _fill_nodes_metadata(self, environment: Environment, log: Logger) -> None:
@@ -862,7 +864,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                         self._next_available_port += 1
 
                 self.host_node.tools[Iptables].start_forwarding(
-                    node_port, local_address, 22
+                    node_port, local_address, 22, force_run=True
                 )
 
                 environment_context.port_forwarding_list.append(

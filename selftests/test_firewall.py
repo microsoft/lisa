@@ -13,9 +13,9 @@ class IptablesTestCase(TestCase):
         iptables.run = MagicMock()
         guest_address = "192.168.122.10"
 
-        iptables.start_forwarding(49152, guest_address, 22)
-        iptables.stop_forwarding(49152, guest_address, 22)
-        iptables.start_forwarding(49153, guest_address, 22)
+        iptables.start_forwarding(49152, guest_address, 22, force_run=True)
+        iptables.stop_forwarding(49152, guest_address, 22, force_run=True)
+        iptables.start_forwarding(49153, guest_address, 22, force_run=True)
 
         self.assertEqual(6, iptables.run.call_count)
         self.assertTrue(
