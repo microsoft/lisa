@@ -34,6 +34,12 @@ _COMMAND_NOT_FOUND_MARKERS = (
     "is not recognized as an internal or external command",
 )
 
+_OPENVMM_PID_WAIT_TIMEOUT_SECONDS = 30
+_OPENVMM_PID_WAIT_INTERVAL_SECONDS = 0.1
+_OPENVMM_PID_WAIT_ATTEMPTS = round(
+    _OPENVMM_PID_WAIT_TIMEOUT_SECONDS / _OPENVMM_PID_WAIT_INTERVAL_SECONDS
+)
+
 
 def _new_str_list() -> List[str]:
     return []
@@ -329,31 +335,64 @@ class OpenVmm(Tool):
             return f"nohup {command} > {stdout_path} 2>&1 < /dev/null & echo $!"
         stderr_path = shlex.quote(config.stderr_path)
         pid_path = shlex.quote(f"{config.stdout_path}.pid")
+        stdin_path = shlex.quote(f"{config.stdout_path}.stdin")
         inner_command = shlex.quote(f"echo $$ > {pid_path}; exec {command}")
         wrapped_command = shlex.quote(f"sh -c {inner_command}")
+        diagnostic_hint = shlex.quote(
+            f"Review {config.stdout_path} and {config.stderr_path} on the host."
+        )
         pty_command = shlex.quote(
-            f"tail -f /dev/null | script -qefc {wrapped_command} /dev/null"
+            "script_pid=''; input_pid=''; "
+            "cleanup_launcher() { "
+            'if [ -n "$script_pid" ]; then '
+            'kill "$script_pid" >/dev/null 2>&1 || true; '
+            'wait "$script_pid" 2>/dev/null || true; '
+            "fi; "
+            'if [ -n "$input_pid" ]; then '
+            'kill "$input_pid" >/dev/null 2>&1 || true; '
+            'wait "$input_pid" 2>/dev/null || true; '
+            "fi; "
+            f"rm -f {stdin_path}; "
+            "}; "
+            "trap cleanup_launcher EXIT; "
+            "trap 'exit 1' HUP INT TERM; "
+            f"rm -f {stdin_path}; "
+            f"mkfifo {stdin_path} || exit 1; "
+            f"tail -f /dev/null > {stdin_path} & input_pid=$!; "
+            f"script -qefc {wrapped_command} /dev/null < {stdin_path} & "
+            "script_pid=$!; "
+            "wait \"$script_pid\"; status=$?; script_pid=''; exit $status"
         )
 
         # OpenVMM's management loop expects a tty for its stdio thread. Feed an
-        # always-open empty stream into script so detached launches behave like
-        # an interactive session instead of exiting on immediate stdin EOF. The
-        # script wrapper records the exec'd OpenVMM PID so later liveness checks
-        # and forced cleanup target the VM process rather than the wrapper shell.
+        # always-open FIFO into script so detached launches behave like an
+        # interactive session instead of exiting on immediate stdin EOF. The FIFO
+        # producer is reaped with script so its failure cannot leave the wrapper
+        # alive. The wrapper records the exec'd OpenVMM PID so later liveness
+        # checks and forced cleanup target the VM process rather than the shell.
         return (
             "if command -v script >/dev/null 2>&1; then "
             f"rm -f {pid_path}; "
             f"nohup sh -c {pty_command} > {stdout_path} "
             f"2> {stderr_path} < /dev/null & wrapper_pid=$!; "
             "attempt=0; "
-            "while [ $attempt -lt 100 ]; do "
+            f"while [ $attempt -lt {_OPENVMM_PID_WAIT_ATTEMPTS} ]; do "
             f"if [ -s {pid_path} ]; then cat {pid_path}; exit 0; fi; "
             "if ! kill -0 $wrapper_pid >/dev/null 2>&1; then break; fi; "
             "attempt=$((attempt + 1)); "
-            "sleep 0.1; "
+            f"sleep {_OPENVMM_PID_WAIT_INTERVAL_SECONDS}; "
             "done; "
-            "echo 'OpenVMM launch did not record a child PID from the "
-            "script wrapper.' >&2; "
+            f"if [ -s {pid_path} ]; then cat {pid_path}; exit 0; fi; "
+            "failure_reason='exited before recording the OpenVMM PID'; "
+            "if kill -0 $wrapper_pid >/dev/null 2>&1; then "
+            f"failure_reason='timed out after {_OPENVMM_PID_WAIT_TIMEOUT_SECONDS} "
+            "seconds waiting for the OpenVMM PID'; "
+            "kill $wrapper_pid >/dev/null 2>&1 || true; "
+            "fi; "
+            "wait $wrapper_pid 2>/dev/null || true; "
+            f"if [ -s {stderr_path} ]; then cat {stderr_path} >&2; fi; "
+            "printf '%s\\n' \"OpenVMM launch wrapper $failure_reason.\" "
+            f"{diagnostic_hint} >&2; "
             "exit 1; "
             "else "
             f"nohup {command} > {stdout_path} 2> {stderr_path} < /dev/null & echo $!; "
