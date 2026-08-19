@@ -25,7 +25,7 @@ from lisa import (
 )
 from lisa.base_tools import Service
 from lisa.operating_system import Fedora
-from lisa.tools import Cat, Journalctl, Reboot
+from lisa.tools import Cat, Journalctl, Pgrep, Reboot
 from lisa.util import check_till_timeout
 
 
@@ -94,15 +94,20 @@ class FedoraCloudValidation(TestSuite):
             f"chronyd activity must be correct {context}"
         ).is_equal_to(expected_active)
 
-        process_result = node.execute("pgrep -x chronyd", no_error_log=True)
+        pgrep = node.tools[Pgrep]
+        chronyd_processes = [
+            process
+            for process in pgrep.get_processes("chronyd")
+            if process.name == "chronyd"
+        ]
         if expected_active:
-            assert_that(process_result.exit_code).described_as(
-                f"the chronyd process must be running {context}"
-            ).is_equal_to(0)
+            assert_that(chronyd_processes).described_as(
+                f"chronyd must be running {context}"
+            ).is_not_empty()
         else:
-            assert_that(process_result.exit_code).described_as(
-                f"the chronyd process must not be running {context}"
-            ).is_not_equal_to(0)
+            assert_that(chronyd_processes).described_as(
+                f"chronyd must not be running {context}"
+            ).is_empty()
 
     @TestCaseMetadata(
         description="""
