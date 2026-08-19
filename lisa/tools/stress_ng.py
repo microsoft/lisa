@@ -6,7 +6,7 @@ from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Posix
-from lisa.util import LisaException, RepoNotExistException
+from lisa.util import LisaException, RepoNotExistException, parse_version
 from lisa.util.process import Process
 
 from .git import Git
@@ -15,7 +15,10 @@ from .make import Make
 
 class StressNg(Tool):
     repo = "https://github.com/ColinIanKing/stress-ng"
-    branch = "V0.14.01"
+    # V0.22.00 is the first release that validates AVX-512 CPU features before
+    # selecting target-cloned code, avoiding SIGILL on virtualized CPUs.
+    branch = "V0.22.00"
+    _minimum_safe_version = parse_version("0.22.0")
 
     @property
     def command(self) -> str:
@@ -23,6 +26,38 @@ class StressNg(Tool):
 
     @property
     def can_install(self) -> bool:
+        return True
+
+    def _check_exists(self) -> bool:
+        if not super()._check_exists():
+            return False
+
+        result = self.node.execute(
+            f"{self.command} --version",
+            shell=True,
+            sudo=self._use_sudo,
+            no_error_log=True,
+            no_info_log=True,
+        )
+        if result.exit_code != 0:
+            return False
+
+        version_output = result.stdout.strip().removeprefix("stress-ng, version ")
+        try:
+            installed_version = parse_version(version_output.partition(" ")[0])
+        except LisaException:
+            self._log.debug(
+                f"could not parse the installed {self.command} version; "
+                "installing a fixed build from source"
+            )
+            return False
+
+        if installed_version < self._minimum_safe_version:
+            self._log.debug(
+                f"installed {self.command} version is older than "
+                f"{self.branch}; installing a fixed build from source"
+            )
+            return False
         return True
 
     def install(self) -> bool:
@@ -127,7 +162,7 @@ class StressNg(Tool):
     def _install_from_src(self) -> bool:
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
-        git.clone(self.repo, tool_path, ref=self.branch)
+        git.clone(self.repo, tool_path, ref=self.branch, shallow=True)
 
         make = self.node.tools[Make]
         self._install_required_packages()
