@@ -856,7 +856,7 @@ class Debian(Linux):
     _could_not_connect_pattern = re.compile(
         r"W: Failed to fetch \S+\s+.*("
         r"Could not connect|Unable to connect|connection timed out)",
-        re.IGNORECASE
+        re.IGNORECASE,
     )
 
     @classmethod
@@ -1210,7 +1210,9 @@ class Debian(Linux):
         # retry on transient connection failures,
         # apt warns but does not fail if these occur
         if self._could_not_connect_pattern.search(result.stderr + result.stdout):
-            self._node.log.debug("Apt could not connect to one of the repositories, retrying...")
+            self._node.log.debug(
+                "Apt could not connect to one of the repositories, retrying..."
+            )
             raise LisaRetryableException(operation_type="apt-get update")
 
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
