@@ -21,7 +21,12 @@ from lisa.operating_system import (
     Ubuntu,
     Windows,
 )
-from lisa.testselector import _is_os_compatible, select_testcases
+from lisa.sut_orchestrator import AZURE, HYPERV
+from lisa.testselector import (
+    _is_os_compatible,
+    _is_platform_compatible,
+    select_testcases,
+)
 from lisa.testsuite import TestCaseMetadata, TestSuiteMetadata, simple_requirement
 from lisa.util.os_resolver import (
     _infer_from_image_string,
@@ -47,13 +52,16 @@ def _build_case(
     *,
     supported_os: Any = None,
     unsupported_os: Any = None,
+    supported_platform_type: Any = None,
 ) -> TestCaseMetadata:
     """Construct a TestCaseMetadata with the requested OS requirement,
     bypassing the global registry. The returned object can be passed to
     ``select_testcases(init_cases=[...])`` directly.
     """
     requirement = simple_requirement(
-        supported_os=supported_os, unsupported_os=unsupported_os
+        supported_os=supported_os,
+        unsupported_os=unsupported_os,
+        supported_platform_type=supported_platform_type,
     )
     metadata = TestCaseMetadata(
         description=f"des_{name}", priority=2, requirement=requirement
@@ -337,6 +345,23 @@ class SelectTestcasesPrefilterTestCase(TestCase):
         results = select_testcases(filters=None, init_cases=cases, target_os=CBLMariner)
         names = sorted(r.name for r in results)
         self.assertEqual(names, ["any_linux", "mariner_only", "not_ubuntu"])
+
+    def test_target_azure_drops_hyperv_cases(self) -> None:
+        cases = [
+            _build_case("any_platform"),
+            _build_case("azure_only", supported_platform_type=[AZURE]),
+            _build_case("hyperv_only", supported_platform_type=[HYPERV]),
+        ]
+
+        results = select_testcases(
+            filters=None, init_cases=cases, target_platforms=[AZURE]
+        )
+
+        self.assertEqual(
+            sorted(result.name for result in results),
+            ["any_platform", "azure_only"],
+        )
+        self.assertTrue(_is_platform_compatible(cases[2], [AZURE, HYPERV]))
 
 
 class GlobalRegistryPrefilterTestCase(TestCase):
