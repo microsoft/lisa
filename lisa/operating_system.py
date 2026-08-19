@@ -41,6 +41,7 @@ from lisa.executable import Tool
 from lisa.util import (
     BaseClassMixin,
     LisaException,
+    LisaRetryableException,
     LisaTimeoutException,
     LisaVersionInfo,
     MissingPackagesException,
@@ -850,6 +851,13 @@ class Debian(Linux):
     end_of_life_releases: List[str] = []
     # The following signatures couldn't be verified because the public key is not available: NO_PUBKEY 0E98404D386FA1D9 NO_PUBKEY 6ED0E7B82643E131 # noqa: E501
     _key_not_available_pattern = re.compile(r"NO_PUBKEY (?P<key>[0-9A-F]{16})", re.M)
+    # W: Failed to fetch http://azure.archive.ubuntu.com/ubuntu/dists/noble/InRelease Could not connect to azure.archive.ubuntu.com:80 (20.106.104.242), connection timed out # noqa: E501
+    # W: Failed to fetch http://azure.archive.ubuntu.com/ubuntu/dists/noble-updates/InRelease Unable to connect to azure.archive.ubuntu.com:http:  # noqa: E501
+    _could_not_connect_pattern = re.compile(
+        r"W: Failed to fetch \S+\s+.*("
+        r"Could not connect|Unable to connect|connection timed out)",
+        re.IGNORECASE
+    )
 
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -1199,6 +1207,12 @@ class Debian(Linux):
                     raise ReleaseEndOfLifeException(self._node.os)
                 else:
                     raise RepoNotExistException(self._node.os)
+        # retry on transient connection failures,
+        # apt warns but does not fail if these occur
+        if self._could_not_connect_pattern.search(result.stderr + result.stdout):
+            self._node.log.debug("Apt could not connect to one of the repositories, retrying...")
+            raise LisaRetryableException(operation_type="apt-get update")
+
         result.assert_exit_code(message="\n".join(self.get_apt_error(result.stdout)))
 
     @retry_without_exceptions(
