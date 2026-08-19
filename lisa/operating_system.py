@@ -1179,9 +1179,14 @@ class Debian(Linux):
     def is_end_of_life_release(self) -> bool:
         return self.information.full_version in self.end_of_life_releases
 
+    # adding jitter here to deal with http response errors.
+    # Note: max total wait is ~160 seconds
+    # max delay on last attempt is up to 22.5 seconds
     @retry_without_exceptions(
         tries=10,
         delay=5,
+        jitter=(0.0, 1.25),
+        max_delay=30,
         skipped_exceptions=[ReleaseEndOfLifeException, RepoNotExistException],
     )
     def _initialize_package_installation(self) -> None:
