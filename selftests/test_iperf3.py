@@ -4,6 +4,7 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, call, patch
 
+from lisa.operating_system import CBLMariner
 from lisa.tools import Gcc, Git, Make
 from lisa.tools.iperf3 import Iperf3
 
@@ -24,4 +25,15 @@ class Iperf3TestCase(TestCase):
 
         parent.assert_has_calls(
             [call.get(Git), call.get(Make), call.get(Gcc), call.install()]
+        )
+
+    def test_source_build_installs_cbl_mariner_linker_dependencies(self) -> None:
+        cbl_mariner = MagicMock(spec=CBLMariner)
+        iperf3 = Iperf3.__new__(Iperf3)
+        iperf3.node = MagicMock(os=cbl_mariner)
+
+        iperf3._install_dep_packages()
+
+        cbl_mariner.install_packages.assert_called_once_with(
+            ["binutils", "glibc-devel"]
         )

@@ -17,7 +17,7 @@ from lisa.messages import (
     create_perf_message,
     send_unified_perf_message,
 )
-from lisa.operating_system import Posix
+from lisa.operating_system import CBLMariner, Posix
 from lisa.tools import Cat
 from lisa.util import (
     LisaException,
@@ -637,7 +637,12 @@ class Iperf3(Tool):
         firewall = self.node.tools[Firewall]
         firewall.stop()
 
+    def _install_dep_packages(self) -> None:
+        if isinstance(self.node.os, CBLMariner):
+            self.node.os.install_packages(["binutils", "glibc-devel"])
+
     def _install_from_src(self) -> None:
+        self._install_dep_packages()
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         # Pin to a fixed upstream release so the built binary does not have the
