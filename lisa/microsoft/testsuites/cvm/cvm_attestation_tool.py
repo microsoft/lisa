@@ -102,6 +102,11 @@ class AzureCVMAttestationTests(Tool):
 
     def _install(self) -> bool:
         self._clone_repo()
+        # install.sh calls apt directly, bypassing LISA's package manager
+        # handling, so repair any interrupted dpkg state left by the image
+        # first, otherwise every apt call in the script fails.
+        if isinstance(self.node.os, Ubuntu):
+            self.node.os.wait_running_package_process()
         self.node.execute(
             "sudo ./install.sh",
             shell=True,
