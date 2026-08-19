@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from typing import Dict, List, Tuple, cast
 
 from assertpy import assert_that
@@ -9,7 +10,21 @@ from lisa import Environment, Node, RemoteNode, SkippedException, constants
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import BSD
-from lisa.tools import Dhclient, Ip, IpInfo, Kill, Lspci, Ssh
+from lisa.tools import Dhclient, Dmesg, Ip, IpInfo, Kill, Lspci, Ssh
+from lisa.util import find_patterns_in_lines
+
+_MANA_ERROR_PATTERNS = [
+    # Sample: mana 7870:00:00.0: gdma probe failed
+    re.compile(
+        r"\bmana\s+\S+:\s+gdma probe failed\b",
+        re.IGNORECASE,
+    ),
+    # Sample: mana: probe of 7870:00:00.0 failed with error -71
+    re.compile(
+        r"\bmana:\s+probe of \S+ failed with error\b",
+        re.IGNORECASE,
+    ),
+]
 
 
 @retry(exceptions=AssertionError, tries=30, delay=2)  # type:ignore
@@ -54,10 +69,23 @@ def initialize_nic_info(
             ).is_true()
         if is_sriov:
             pci_nic_count = len(nics_info.get_pci_nics(exclude_ib=True))
+            mana_error = ""
+            if pci_nic_count != sriov_count:
+                dmesg_log = node.tools[Dmesg].get_output(force_run=True)
+                mana_errors = find_patterns_in_lines(dmesg_log, _MANA_ERROR_PATTERNS)
+                mana_error = next(
+                    (match for matches in mana_errors for match in matches), ""
+                )
+                if mana_error:
+                    mana_error = " ".join(mana_error.split())
+            mana_message = (
+                f" MANA error found in dmesg: {mana_error}" if mana_error else ""
+            )
             assert_that(pci_nic_count).described_as(
                 f"Ethernet VF count inside VM (without IB) is {pci_nic_count}, "
                 f"actual sriov nic count is {sriov_count}. "
-                f"Total PCI NICs: {nics_info.get_pci_nics()}"
+                f"Total PCI NICs: {nics_info.get_pci_nics()}."
+                f"{mana_message}"
             ).is_equal_to(sriov_count)
         vm_nics[node.name] = nics_info.nics
 
