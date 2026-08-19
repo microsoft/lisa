@@ -58,6 +58,7 @@ class Git(Tool):
         fail_on_exists: bool = True,
         auth_token: Optional[str] = None,
         timeout: int = 600,
+        shallow: bool = False,
     ) -> pathlib.PurePath:
         self.node.shell.mkdir(cwd, exist_ok=True)
         auth_flag = ""
@@ -65,6 +66,12 @@ class Git(Tool):
             auth_flag = f'-c http.extraheader="AUTHORIZATION: bearer {auth_token}"'
 
         cmd = f"clone {auth_flag} {url} {dir_name} --recurse-submodules"
+        if shallow:
+            cmd += " --depth 1"
+            if ref:
+                # Select the ref while cloning so the depth applies to it. The
+                # checkout below still performs the standard post-clone setup.
+                cmd += f" --branch {ref}"
 
         # git print to stderr for normal info, so set no_error_log to True.
         result = self.run(cmd, cwd=cwd, no_error_log=True, timeout=timeout)
