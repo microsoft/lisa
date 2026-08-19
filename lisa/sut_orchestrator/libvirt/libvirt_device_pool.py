@@ -36,6 +36,7 @@ class LibvirtDevicePool(BaseDevicePool):
         self.available_host_devices: Dict[
             HostDevicePoolType, Dict[str, List[DeviceAddressSchema]]
         ] = {}
+        self._allocated_device_groups: Dict[HostDevicePoolType, Dict[str, str]] = {}
 
         self.supported_pool_type = [
             HostDevicePoolType.PCI_NIC,
@@ -107,8 +108,15 @@ class LibvirtDevicePool(BaseDevicePool):
 
         devices: List[DeviceAddressSchema] = []
         selected_pools = results[0]
+        allocated_device_groups = self._allocated_device_groups.setdefault(
+            pool_type, {}
+        )
         for iommu_grp in selected_pools:
-            devices += pool.pop(iommu_grp)
+            group_devices = pool.pop(iommu_grp)
+            devices += group_devices
+            for device in group_devices:
+                device_id = self._get_pci_address_str(device)
+                allocated_device_groups[device_id] = iommu_grp
         self.available_host_devices[pool_type] = pool
         return devices
 
@@ -121,13 +129,17 @@ class LibvirtDevicePool(BaseDevicePool):
             pool_type = context.pool_type
             devices_list = context.device_list
             pool = self.available_host_devices.get(pool_type, {})
+            allocated_device_groups = self._allocated_device_groups.get(pool_type, {})
             for device in devices_list:
-                iommu_grp = self._get_device_iommu_group(device)
+                device_id = self._get_pci_address_str(device)
+                iommu_grp = allocated_device_groups.pop(device_id)
                 pool_devices = pool.get(iommu_grp, [])
                 if device not in pool_devices:
                     pool_devices.append(device)
                 pool[iommu_grp] = pool_devices
             self.available_host_devices[pool_type] = pool
+            if not allocated_device_groups:
+                self._allocated_device_groups.pop(pool_type, None)
         node_context.passthrough_devices.clear()
 
     def get_primary_nic_iommu_group(self) -> str:
