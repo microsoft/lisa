@@ -60,6 +60,7 @@ from lisa.tools import (
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KernelConfig
+from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
@@ -82,6 +83,9 @@ from lisa.util.perf_timer import create_timer
 class Storage(TestSuite):
     DEFAULT_DISK_SIZE_IN_GB = 20
     TIME_OUT = 12000
+    # A hot-added namespace is enumerated asynchronously by the guest; lags of
+    # up to ~27s are seen on SKUs already carrying 40+ namespaces.
+    DISK_DETECT_TIMEOUT = 60
 
     # Defaults targetpw
     _uncommented_default_targetpw_regex = re.compile(
@@ -1018,6 +1022,7 @@ class Storage(TestSuite):
 
         # get partition info before adding data disk
         partitions_before_adding_disk = lsblk.get_disks(force_run=True)
+        before_names = {d.name for d in partitions_before_adding_disk}
         added_disk_count = 0
         disks_added = []
         # Assuming existing disks added sequentially from lun = 0 to
@@ -1045,14 +1050,20 @@ class Storage(TestSuite):
             log.debug(f"Added managed disk #{added_disk_count} at lun {lun}")
 
             # verify that partition count is increased by 1
-            # and the size of partition is correct
-            partitons_after_adding_disk = lsblk.get_disks(force_run=True)
-            before_names = {d.name for d in partitions_before_adding_disk}
-            added_partitions = [
-                item
-                for item in partitons_after_adding_disk
-                if item.name not in before_names
-            ]
+            # and the size of partition is correct. The attach API returns
+            # before the guest has enumerated the namespace, so poll for it.
+            added_partitions: List[DiskInfo] = []
+            timer = create_timer()
+            while self.DISK_DETECT_TIMEOUT > timer.elapsed(False):
+                added_partitions = [
+                    item
+                    for item in lsblk.get_disks(force_run=True)
+                    if item.name not in before_names
+                ]
+                if len(added_partitions) == added_disk_count:
+                    break
+                log.debug(f"added disks count: {len(added_partitions)}")
+                time.sleep(1)
             log.debug(f"added_partitions: {added_partitions}")
             assert_that(added_partitions, "Data disk should be added").is_length(
                 added_disk_count
@@ -1075,8 +1086,6 @@ class Storage(TestSuite):
                 new_keys = set(linux_device_luns_after) - set(_baseline)
                 return len(new_keys) > 0
 
-            # 30s matches the disk-detection timeout used in
-            # _hot_add_disk_parallel for partition appearance after attach.
             check_till_timeout(
                 _new_lun_detected,
                 timeout_message=(
@@ -1084,7 +1093,7 @@ class Storage(TestSuite):
                     f"luns_before: {linux_device_luns}, "
                     f"luns_after: {linux_device_luns_after}"
                 ),
-                timeout=30,
+                timeout=self.DISK_DETECT_TIMEOUT,
                 interval=1,
             )
             new_device_keys: List[str] = list(
@@ -1161,9 +1170,8 @@ class Storage(TestSuite):
 
         # verify that partition count is increased by disks_to_add
         # and the size of partition is correct
-        timeout = 30
         timer = create_timer()
-        while timeout > timer.elapsed(False):
+        while self.DISK_DETECT_TIMEOUT > timer.elapsed(False):
             partitons_after_adding_disks = lsblk.get_disks(force_run=True)
             before_names = {d.name for d in partitions_before_adding_disks}
             added_partitions = [
