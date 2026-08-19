@@ -53,6 +53,7 @@ def _build_case(
     supported_os: Any = None,
     unsupported_os: Any = None,
     supported_platform_type: Any = None,
+    unsupported_platform_type: Any = None,
 ) -> TestCaseMetadata:
     """Construct a TestCaseMetadata with the requested OS requirement,
     bypassing the global registry. The returned object can be passed to
@@ -62,6 +63,7 @@ def _build_case(
         supported_os=supported_os,
         unsupported_os=unsupported_os,
         supported_platform_type=supported_platform_type,
+        unsupported_platform_type=unsupported_platform_type,
     )
     metadata = TestCaseMetadata(
         description=f"des_{name}", priority=2, requirement=requirement
@@ -351,6 +353,7 @@ class SelectTestcasesPrefilterTestCase(TestCase):
             _build_case("any_platform"),
             _build_case("azure_only", supported_platform_type=[AZURE]),
             _build_case("hyperv_only", supported_platform_type=[HYPERV]),
+            _build_case("not_azure", unsupported_platform_type=[AZURE]),
         ]
 
         results = select_testcases(
@@ -362,6 +365,8 @@ class SelectTestcasesPrefilterTestCase(TestCase):
             ["any_platform", "azure_only"],
         )
         self.assertTrue(_is_platform_compatible(cases[2], [AZURE, HYPERV]))
+        self.assertFalse(_is_platform_compatible(cases[3], [AZURE]))
+        self.assertTrue(_is_platform_compatible(cases[3], [HYPERV]))
 
 
 class GlobalRegistryPrefilterTestCase(TestCase):

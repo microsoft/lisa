@@ -16,7 +16,7 @@ from typing import (
     cast,
 )
 
-from lisa import schema, search_space
+from lisa import schema
 from lisa.operating_system import OperatingSystem
 from lisa.testsuite import TestCaseMetadata, TestCaseRuntimeData, get_cases_metadata
 from lisa.util import LisaException, constants, set_filtered_fields
@@ -89,12 +89,10 @@ def _is_platform_compatible(
     if not platform_type or len(platform_type) == 0:
         return True
 
-    return any(
-        search_space.SetSpace[str](is_allow_set=True, items=[platform])
-        .check(platform_type)
-        .result
-        for platform in target_platforms
-    )
+    if platform_type.is_allow_set:
+        return any(platform in platform_type for platform in target_platforms)
+
+    return all(platform not in platform_type for platform in target_platforms)
 
 
 def _prefilter_by_target_platforms(
