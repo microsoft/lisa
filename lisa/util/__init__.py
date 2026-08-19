@@ -374,6 +374,20 @@ class LisaTimeoutException(LisaException):
     """
 
 
+class LisaRetryableException(LisaException):
+    """
+    This exception is used to indicate that an operation should be retried.
+    Connection issues, http retryable errors, etc.
+    Raise this exception and add it to the retry decorator filter.
+    """
+
+    def __init__(self, operation_type: str = "") -> None:
+        self.message = f"{operation_type} failed but can be retried."
+
+    def __str__(self) -> str:
+        return self.message
+
+
 class KernelPanicException(LisaException):
     """
     This exception is used to indicate kernel panic exception.
