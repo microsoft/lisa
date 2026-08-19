@@ -504,7 +504,10 @@ def validate_mtu_size_for_nic_type(node: Node, mtu: int) -> None:
     # if there is an unknown nic, we should skip the mtu tests until it's added
     if not validated:
         if vendor and info:
-            err_msg = f"This MTU test size ({mtu}) is not supported for this nic: {vendor, info}"
+            err_msg = (
+                f"This MTU test size ({mtu})"
+                f" is not supported for this nic: {vendor, info}"
+            )
         else:
             err_msg = "Could not locate MTU information on this node, skipping..."
         raise SkippedException(err_msg)
