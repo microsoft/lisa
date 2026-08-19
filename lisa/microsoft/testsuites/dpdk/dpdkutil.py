@@ -718,12 +718,12 @@ def get_vmbus_network_device_ids(node: Node, filter_driver: str) -> List[str]:
         "| cut -f 1-6 -d / ",
         shell=True,
     )
-    if result.exit_code not in [0,1]:
+    if result.exit_code not in [0, 1]:
         raise AssertionError(
             f"Shell check for vmbus devices bound to driver {filter_driver} "
             "returned an error."
         )
-                
+
     device_ids = result.stdout.splitlines()
     if not device_ids:
         return []
