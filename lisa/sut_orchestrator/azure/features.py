@@ -988,6 +988,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"into status [{enable}]"
                 ).is_equal_to(enable)
 
+    @retry(HttpResponseError, tries=3, delay=30)  # type: ignore
     def switch_sriov(
         self, enable: bool, wait: bool = True, reset_connections: bool = True
     ) -> None:
@@ -1033,17 +1034,22 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
             self._check_sriov_enabled(enable, reset_connections)
 
     def is_enabled_sriov(self) -> bool:
+        # check whether sriov is enabled on all nics
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
-        sriov_enabled: bool = False
+        sriov_enabled: bool = True
         vm = get_vm(azure_platform, self._node)
-        nic = self._get_primary(vm.network_profile.network_interfaces)
-        assert nic.id, "'nic.id' must not be 'None'"
-        nic_name = nic.id.split("/")[-1]
-        primary_nic = network_client.network_interfaces.get(
-            self._resource_group_name, nic_name
-        )
-        sriov_enabled = primary_nic.enable_accelerated_networking
+        for nic in vm.network_profile.network_interfaces:
+            assert nic.id, "'nic.id' must not be 'None'"
+            nic_name = nic.id.split("/")[-1]
+            nic_info = network_client.network_interfaces.get(
+                self._resource_group_name, nic_name
+            )
+            accelnet_setting = nic_info.enable_accelerated_networking
+            # check if all nics have accelnet enabled
+            sriov_enabled &= (
+                accelnet_setting if isinstance(accelnet_setting, bool) else False
+            )
         return sriov_enabled
 
     @retry(ResourceExistsError, tries=5, delay=2, backoff=1.5)  # type: ignore
