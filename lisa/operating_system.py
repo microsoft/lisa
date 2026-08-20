@@ -2388,7 +2388,7 @@ class CBLMariner(RPMDistro):
     @staticmethod
     def _get_kernel_version_candidates(kernel_version: str) -> List[str]:
         rpm_version_pattern = re.compile(
-            r"^kernel-(?:[^-]+-)*(?P<version>\d+\.\d+\.\d+.*?)" r"\.(x86_64|aarch64)$"
+            r"^kernel-(?:[^-]+-)*(?P<version>\d+\.\d+\.\d+.*?)\.(x86_64|aarch64)$"
         )
         match_result = find_group_in_lines(
             kernel_version, rpm_version_pattern, single_line=True
@@ -2466,7 +2466,7 @@ class CBLMariner(RPMDistro):
             match_result = find_group_in_lines(
                 grub_cfg_result.stdout, menu_entry_pattern, single_line=True
             )
-            menu_entry_name = match_result.get("entry")
+            menu_entry_name = match_result.get("entry", "")
             if menu_entry_name:
                 matched_version = version_candidate
                 break
