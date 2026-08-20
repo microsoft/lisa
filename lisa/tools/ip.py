@@ -255,17 +255,51 @@ class Ip(Tool):
 
     def get_mtu(self, nic_name: str) -> int:
         cat = self.node.tools[Cat]
-        return int(cat.read(f"/sys/class/net/{nic_name}/mtu", force_run=True))
+        mtu_file = f"/sys/class/net/{nic_name}/mtu"
+        if self.node.shell.exists(self.node.get_pure_path(mtu_file)):
+            return int(cat.read(mtu_file, force_run=True))
+        else:
+            mtu = self.get_detail(nic_name, "mtu")
+            if mtu:
+                return int(mtu)
+            else:
+                self.node.log.debug(
+                    f"Could not find mtu information for interface {nic_name}"
+                )
+                return 0
 
-    def set_mtu(self, nic_name: str, mtu: int) -> None:
+    def set_mtu(self, nic_name: str, mtu: int, assert_success: bool = True) -> None:
         # Check if mtu is integer
         try:
             mtu = int(mtu)
         except ValueError:
             raise LisaException(f"MTU value is not an integer: {mtu}")
+        # check if the device exists
+        exists = self.run(f"link show {nic_name}", force_run=True).exit_code == 0
+        if not exists:
+            if assert_success:
+                raise LisaException(
+                    f"MTU set failed, could not find interface {nic_name}."
+                )
+            else:
+                self.node.log.debug(
+                    f"set_mtu: device {nic_name} not found,"
+                    " skipping assertion since assert_success was False. "
+                )
+                return
+
         self.run(f"link set dev {nic_name} mtu {mtu}", force_run=True, sudo=True)
+
         new_mtu = self.get_mtu(nic_name=nic_name)
-        assert_that(new_mtu).described_as("set mtu failed").is_equal_to(mtu)
+        if new_mtu != mtu:
+            if assert_success:
+                raise LisaException(f"set mtu failed, wanted {mtu} and got {new_mtu}")
+            else:
+                # warn if assertion is turned off.
+                # Weird enough situation to justify log.warning
+                self.node.log.warning(
+                    f"set_mtu: expected new mtu {mtu}, got {new_mtu} instead. "
+                )
 
     def nic_exists(self, nic_name: str) -> bool:
         result = self.run(f"link show {nic_name}", force_run=True, sudo=True)
