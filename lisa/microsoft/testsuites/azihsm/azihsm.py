@@ -2,15 +2,11 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
-import os
 import time
-
-from typing import Any, cast
 
 from assertpy import assert_that, contents_of
 
 from lisa import (
-    LisaException,
     Logger,
     Node,
     SkippedException,
@@ -20,15 +16,8 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Uname
-from lisa.util import (
-    NotMeetRequirementException,
-)
-from lisa.environment import Environment
-from lisa.operating_system import OperatingSystem, CBLMariner, Ubuntu
-from lisa.tools import Dmesg, Lsmod, Modinfo, Modprobe
-from lisa.sut_orchestrator import AZURE
-from lisa.sut_orchestrator.azure.common import AzureNodeSchema
-from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
+from lisa.operating_system import CBLMariner, Ubuntu
+from lisa.tools import Lsmod, Modinfo, Modprobe
 
 AZIHSM_DEV = "/dev/azihsm0"
 AZIHSM_NAME = "azihsm"
@@ -36,59 +25,62 @@ AZIHSM_NAME = "azihsm"
 testing_repo_added = False
 packages_installed = False
 
+
 @TestSuiteMetadata(
     area="azihsm",
     category="functional",
     description="""
-    Test suite for the azihsm driver and package. These tests cover package installation and cleanup,
-    functional behavior of the driver, and verification of user space components suck as the SDK API
-    and the OpenSSL engine that uses axihsm.
+    Test suite for the azihsm driver and package. These tests cover package
+    installation and cleanup, functional behavior of the driver, and
+    verification of user space components suck as the SDK API and the OpenSSL
+    engine that uses axihsm.
 
-    These tests assume that the package to be tested is avaiable via testing or preview releases in
-    packages.microsfot.com.  The needed URLs will be added to the system ad the package installed
-    via apt or tdnf.
+    These tests assume that the package to be tested is avaiable via testing
+    or preview releases in packages.microsfot.com.  The needed URLs will be
+    added to the system ad the package installed via apt or tdnf.
     """,
     owner="Microsoft",
     requirement=simple_requirement(
-        supported_os=[CBLMariner,Ubuntu],
-        ),
+        supported_os=[CBLMariner, Ubuntu],
+    ),
 )
-
-
 class AziHsm(TestSuite):
-
     #
     # Make sure the azihsm package repository is configured for this system.
     #
-    def setupPackageRepository(self, node: Node, log: Logger) -> None:
+    def setp_package_repository(self, node: Node, log: Logger) -> None:
         global testing_repo_added
-        if testing_repo_added == True:
+        if testing_repo_added is True:
             return
 
         # Indicate we have done this step already
         testing_repo_added = True
 
-
-        log.info(f"Adding PMC testing repository")
+        log.info("Adding PMC testing repository")
         if isinstance(node.os, Ubuntu):
             node.os.add_repository(
-                    repo=(f"deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/{node.os.information.release}/prod testing main"),
-                    repo_file="microsoft-testing.list",
-                    repo_name="AZIHSM Packages"
-                    )
+                repo=(
+                    "deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg]"
+                    "https://packages.microsoft.com/ubuntu/"
+                    f"{node.os.information.release}/prod testing main"
+                ),
+                repo_file="microsoft-testing.list",
+                repo_name="AZIHSM Packages",
+            )
         if isinstance(node.os, CBLMariner):
             node.os.add_repository(
-                    repo=(f"http://packages.microsoft.com/azurelinux/{node.os.information.release}/preview/ms-oss"),
-                    repo_name="AZIHSM Packages"
-                    )
+                repo=(
+                    "http://packages.microsoft.com/azurelinux/"
+                    f"{node.os.information.release}/preview/ms-oss"
+                ),
+                repo_name="AZIHSM Packages",
+            )
 
         # Get the kernel version so we can build some names used later
         uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information(
-                force_run=True
-                ).kernel_version
+        kernel_version = uname.get_linux_information(force_run=True).kernel_version
 
-        # Store the kernel driver package name in an instance 
+        # Store the kernel driver package name in an instance
         # variable so we can access it throughout the tests
         if isinstance(node.os, Ubuntu):
             self.AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
@@ -101,9 +93,8 @@ class AziHsm(TestSuite):
     # Make sure all of the azihsm package are installed and up-to-date
     #
     def install_azihsm_driver_package(self, node: Node, log: Logger) -> None:
-
         # Make sure we've added the AZIHSM repo
-        self.setupPackageRepository(node=node, log=log)
+        self.setp_package_repository(node=node, log=log)
 
         log.info(f"Installing {self.AziHsmDrvPkgName}")
         node.os.install_packages(self.AziHsmDrvPkgName)
@@ -116,7 +107,9 @@ class AziHsm(TestSuite):
         if not package_exists:
             # Check is package is avaialble is repositories
             if not node.os.is_package_in_repo(self.AziHsmDrvPkgName):
-                raise SkippedException(f"{self.AziHsmDrvPkgName} package not found in repositories")
+                raise SkippedException(
+                    f"{self.AziHsmDrvPkgName} package not found in repositories"
+                )
 
             # Package is available, install it
             log.info(f"Installing package {self.AziHsmDrvPkgName}")
@@ -125,7 +118,7 @@ class AziHsm(TestSuite):
             # Verify package is installed
             package_installed = node.os.package_exists(self.AziHsmDrvPkgName)
             assert_that(package_installed).described_as(
-                    f"{self.AziHsmDrvPkgName} package should be installed"
+                f"{self.AziHsmDrvPkgName} package should be installed"
             ).is_true()
         else:
             # Make sure everything is up-to-date
@@ -134,7 +127,7 @@ class AziHsm(TestSuite):
             # Verify package was installed
             package_installed = node.os.package_exists(self.AziHsmDrvPkgName)
             assert_that(package_installed).described_as(
-                    f"{self.AziHsmDrvPkgName} package should be installed"
+                f"{self.AziHsmDrvPkgName} package should be installed"
             ).is_true()
 
     #
@@ -142,41 +135,35 @@ class AziHsm(TestSuite):
     #
     def install_all_azihsm_packages(self, node: Node, log: Logger) -> None:
         global packages_installed
-        if packages_installed == True:
+        if packages_installed is True:
             return
 
         # Indicate we have done this step already
         packages_installed = True
 
         # Make sure we've added the AZIHSM repo
-        self.setupPackageRepository(node=node, log=log)
-
-        uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information(
-                force_run=True
-                ).kernel_version
+        self.setp_package_repository(node=node, log=log)
 
         if isinstance(node.os, Ubuntu):
-            AziHsmPkgList = [
-                             "azihsm-driver-tests",
-                             "azihsm-sdk-tests",
-                             "azihsm-tools",
-                             "libazihsm",
-                             "libazihsm-dev",
-                             "libengine-azihsm-openssl",
-                             ]
+            azihsm_pkg_list = [
+                "azihsm-driver-tests",
+                "azihsm-sdk-tests",
+                "azihsm-tools",
+                "libazihsm",
+                "libazihsm-dev",
+                "libengine-azihsm-openssl",
+            ]
         if isinstance(node.os, CBLMariner):
-            AziHsmPkgList = [
-                             "azihsm-driver-tests",
-                             "azihsm-sdk-tests",
-                             "azihsm-tools",
-                             "libazihsm",
-                             "libazihsm-devel",
-                             "libengine-azihsm-openssl",
-                             ]
+            azihsm_pkg_list = [
+                "azihsm-driver-tests",
+                "azihsm-sdk-tests",
+                "azihsm-tools",
+                "libazihsm",
+                "libazihsm-devel",
+                "libengine-azihsm-openssl",
+            ]
 
-        for pkg in AziHsmPkgList:
-
+        for pkg in azihsm_pkg_list:
             log.info(f"Checking package {pkg}")
 
             # Check if the package is already installed
@@ -186,15 +173,15 @@ class AziHsm(TestSuite):
                 # Check is package is avaialble is repositories
                 if not node.os.is_package_in_repo(pkg):
                     raise SkippedException(f"{pkg} package not found in repositories")
-    
+
                 # Package is available, install it
                 log.info(f"Installing package {pkg}")
                 node.os.install_packages(pkg)
-    
+
                 # Verify package is installed
                 package_installed = node.os.package_exists(pkg)
                 assert_that(package_installed).described_as(
-                        f"{pkg} package should be installed"
+                    f"{pkg} package should be installed"
                 ).is_true()
             else:
                 # Make sure everything is up-to-date
@@ -203,7 +190,7 @@ class AziHsm(TestSuite):
                 # Verify package was installed
                 package_installed = node.os.package_exists(pkg)
                 assert_that(package_installed).described_as(
-                        f"{pkg} package should be installed"
+                    f"{pkg} package should be installed"
                 ).is_true()
 
     def check_driver_package_contents(self, node: Node, log: Logger) -> None:
@@ -211,19 +198,18 @@ class AziHsm(TestSuite):
         self.install_all_azihsm_packages(node=node, log=log)
 
         uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information(
-                force_run=True
-                ).kernel_version
+        kernel_version = uname.get_linux_information(force_run=True).kernel_version
 
         log.info(f"Checking the driver for kernel version {kernel_version}")
         # Check that the driver exists where we expect it to be
         assert_that(self.kmodpath).is_file()
 
-##
-##
-## Start of Test Cases
-##
-##
+    #
+    #
+    # Start of Test Cases
+    #
+    #
+
     #
     #
     @TestCaseMetadata(
@@ -242,15 +228,12 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def package_installation_tests(self, node: Node, log: Logger) -> None:
-
         # We need the current runing kernel version
         uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information(
-                force_run=True
-                ).kernel_version
+        kernel_version = uname.get_linux_information(force_run=True).kernel_version
 
         # Make sure we've added the AZIHSM repo
-        self.setupPackageRepository(node=node, log=log)
+        self.setp_package_repository(node=node, log=log)
 
         if isinstance(node.os, Ubuntu):
             self.AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
@@ -280,9 +263,9 @@ class AziHsm(TestSuite):
         package_info = node.os.get_package_information(self.AziHsmDrvPkgName)
         log.info(package_info)
         # Skipping this until the operating_system.py framework can be debugged
-        #assert_that(package_installed).described_as(
+        # assert_that(package_installed).described_as(
         #    f"{pkg} package should be installed"
-        #).is_true()
+        # ).is_true()
 
         #
         # Test 3 - Module .ko file exists od disk
@@ -294,9 +277,8 @@ class AziHsm(TestSuite):
 
         #
         # Test 5 - depmod registered the module in modules.dep
-        contents = contents_of(f"/lib/modules/{kernel_version}/modules.dep",'ascii')
+        contents = contents_of(f"/lib/modules/{kernel_version}/modules.dep", "ascii")
         assert_that(contents).contains("updates/azihsm.ko")
-
 
     #
     #
@@ -309,7 +291,6 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def verify_azihsm_modinfo(self, node: Node, log: Logger) -> None:
-
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
 
@@ -319,9 +300,9 @@ class AziHsm(TestSuite):
             modinfo = node.tools[Modinfo]
             info = modinfo.get_info(AZIHSM_NAME)
             assert_that(info).described_as(
-                    "modinfo must return information for the module"
-                    ).is_not_empty()
-            log.info(f"modinfo output:\n{info}");
+                "modinfo must return information for the module"
+            ).is_not_empty()
+            log.info(f"modinfo output:\n{info}")
         finally:
             node.os.uninstall_packages(self.AziHsmDrvPkgName)
 
@@ -341,21 +322,19 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def verify_azihsm_module_load_unload(self, node: Node, log: Logger) -> None:
-
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
 
         # Tools we need
         modprobe = node.tools[Modprobe]
         lsmod = node.tools[Lsmod]
-        dmesg = node.tools[Dmesg]
 
         try:
             try:
                 # ensure the module is unloaded before the test
                 if modprobe.is_module_loaded(
-                        AZIHSM_NAME, force_run=True, no_error_log=True
-                        ):
+                    AZIHSM_NAME, force_run=True, no_error_log=True
+                ):
                     modprobe.remove([AZIHSM_NAME])
                     time.sleep(1)
             finally:
@@ -368,12 +347,9 @@ class AziHsm(TestSuite):
 
             #
             # Test 8 -  module in lsmod
-            assert_that(
-                    lsmod.module_exists(AZIHSM_NAME, force_run=True
-                        )
-                    ).described_as(
-                            f"{AZIHSM_NAME} must appear in lsmod"
-                            ).is_true()
+            assert_that(lsmod.module_exists(AZIHSM_NAME, force_run=True)).described_as(
+                f"{AZIHSM_NAME} must appear in lsmod"
+            ).is_true()
             log.info("Modules visible in lsmod")
 
             #
@@ -383,9 +359,8 @@ class AziHsm(TestSuite):
             #
             # Test 10 -  /proc/modules shows state - Live
             result = node.execute(
-                    f"awk -v mod={AZIHSM_NAME} "
-                    "'$1 == mod {print $5}' /proc/modules",
-                    sudo=True,
+                f"awk -v mod={AZIHSM_NAME} " "'$1 == mod {print $5}' /proc/modules",
+                sudo=True,
             )
 
             assert_that(result.stdout.strip()).described_as(
@@ -400,12 +375,9 @@ class AziHsm(TestSuite):
 
             #
             # Test 12 - module gone from lsmod
-            assert_that(lsmod.module_exists(
-                    mod_name=AZIHSM_NAME, force_run=True
-                )
-            ).described_as(
-                "Module must not appear in lsmod after removal"
-            ).is_false()
+            assert_that(
+                lsmod.module_exists(mod_name=AZIHSM_NAME, force_run=True)
+            ).described_as("Module must not appear in lsmod after removal").is_false()
 
         finally:
             # Clean up
@@ -423,7 +395,6 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def verify_azihsm_module_reload_cycles(self, node: Node, log: Logger) -> None:
-
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
 
@@ -461,20 +432,12 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def verify_azihsm_package_uninstallation(self, node: Node, log: Logger) -> None:
-
-        # We need the current runing kernel version
-        uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information(
-                force_run=True
-                ).kernel_version
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
 
         # Make sure module is unloaded before removal
         modprobe = node.tools[Modprobe]
-        if modprobe.is_module_loaded(
-                AZIHSM_NAME,force_run=True, no_error_log=True
-        ):
+        if modprobe.is_module_loaded(AZIHSM_NAME, force_run=True, no_error_log=True):
             modprobe.remove([AZIHSM_NAME], ignore_error=True)
             time.sleep(1)
 
@@ -503,16 +466,14 @@ class AziHsm(TestSuite):
         #
         # Test 17 - modprobe fails
         try:
-           modprobe.load(AZIHSM_NAME)
-        except Exception as e:
-            log.info(f"modprobe correctly failed")
-        #finally:
-        #    raise AssertionError("modprobe did not fail as expected")
+            modprobe.load(AZIHSM_NAME)
+        except Exception:
+            log.info("modprobe correctly failed")
 
         #
         # Test 18 - no leftover files
-        # Skipping this as it is possible for other drivers to also be installed thus the updates
-        # directory will not alwasy be empty
+        # Skipping this as it is possible for other drivers to also
+        # be installed thus the updates directory will not always be empty
 
     #
     #
@@ -524,7 +485,6 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def run_azihsm_driver_tests(self, node: Node, log: Logger) -> None:
-
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
 
@@ -535,14 +495,14 @@ class AziHsm(TestSuite):
 
         try:
             result = node.execute(
-                    f"/usr/bin/azihsm/driver_tests {params}",
-                    )
+                f"/usr/bin/azihsm/driver_tests {params}",
+            )
             cmd_output = result.stdout.strip()
-        except Exception as e:
+        except Exception:
             log.info("test failed")
         finally:
             cmd_output = result.stdout.strip()
-            assert_that("PASSED" in cmd_output,"Test did not contain PASSED").is_true()
+            assert_that("PASSED" in cmd_output, "Test did not contain PASSED").is_true()
 
     #
     #
@@ -554,7 +514,6 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def run_azihsm_sdk_tests(self, node: Node, log: Logger) -> None:
-
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
 
@@ -562,12 +521,12 @@ class AziHsm(TestSuite):
         self.install_all_azihsm_packages(node=node, log=log)
 
         sdk_test_list = [
-                "azihsm_api",
-                "azihsm_api_cpp_tests",
-                "azihsm_api_native",
-                "azihsm_api_tests",
-                "azihsm_ddi_tests",
-                ]
+            "azihsm_api",
+            "azihsm_api_cpp_tests",
+            "azihsm_api_native",
+            "azihsm_api_tests",
+            "azihsm_ddi_tests",
+        ]
 
         params = "--test-threads 1"
         all_tests_passed = True
@@ -576,22 +535,22 @@ class AziHsm(TestSuite):
             log.info(f"Running {test}")
             try:
                 result = node.execute(
-                        f"/usr/bin/azihsm/{test} {params}",
-                        update_envs={"AZIHSM_USE_TPM":"1"}
-                        #sudo=True,
-                        #expected_exit_code=0,
-                        )
+                    f"/usr/bin/azihsm/{test} {params}",
+                    update_envs={"AZIHSM_USE_TPM": "1"}
+                    # sudo=True,
+                    # expected_exit_code=0,
+                )
                 cmd_output = result.stdout.strip()
             except Exception as e:
-                cmd_output=""
+                cmd_output = ""
                 log.info("Failed:", e)
                 all_tests_passed = False
 
             if "FAILED" in cmd_output:
-                #log.info(cmd_output)
+                # log.info(cmd_output)
                 log.info(f"{test} Failed")
                 all_tests_passed = False
             else:
                 log.info(f"{test} Passed")
 
-        assert_that(all_tests_passed,"Not all SDK tests passed").is_true()
+        assert_that(all_tests_passed, "Not all SDK tests passed").is_true()

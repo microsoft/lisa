@@ -1177,7 +1177,7 @@ class Debian(Linux):
         # able to handle the signed-by option which we need to be useing. Instead,
         # It is trivial to to just create the file directly
         with open("/etc/apt/sources.list.d/" + repo_file, "w") as f:
-            f.write(repo)
+            f.write(f"{repo}\n")
 
         # Go ahead and do an update so we have the latest package lists ready
         self._node.execute("apt-get update", sudo=True)
