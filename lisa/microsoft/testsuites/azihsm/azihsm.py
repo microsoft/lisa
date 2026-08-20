@@ -45,10 +45,12 @@ packages_installed = False
     ),
 )
 class AziHsm(TestSuite):
+    AziHsmDrvPkgName = ""
+    kmodpath = ""
     #
     # Make sure the azihsm package repository is configured for this system.
     #
-    def setp_package_repository(self, node: Node, log: Logger) -> None:
+    def setup_package_repository(self, node: Node, log: Logger) -> None:
         global testing_repo_added
         if testing_repo_added is True:
             return
@@ -60,7 +62,7 @@ class AziHsm(TestSuite):
         if isinstance(node.os, Ubuntu):
             node.os.add_repository(
                 repo=(
-                    "deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg]"
+                    "deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] "
                     "https://packages.microsoft.com/ubuntu/"
                     f"{node.os.information.release}/prod testing main"
                 ),
@@ -83,51 +85,53 @@ class AziHsm(TestSuite):
         # Store the kernel driver package name in an instance
         # variable so we can access it throughout the tests
         if isinstance(node.os, Ubuntu):
-            self.AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
-            self.kmodpath = f"/lib/modules/{kernel_version}/updates/azihsm.ko"
+            AziHsm.AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
+            AziHsm.kmodpath = f"/lib/modules/{kernel_version}/updates/azihsm.ko"
         if isinstance(node.os, CBLMariner):
-            self.AziHsmDrvPkgName = "azihsm-driver"
-            self.kmodpath = f"/lib/modules/{kernel_version}/extra/azihsm.ko"
+            AziHsm.AziHsmDrvPkgName = "azihsm-driver"
+            AziHsm.kmodpath = f"/lib/modules/{kernel_version}/extra/azihsm.ko"
+        log.info(f"Driver Package {AziHsm.AziHsmDrvPkgName}")
+        log.info(f"Driver Path {AziHsm.kmodpath}")
 
     #
     # Make sure all of the azihsm package are installed and up-to-date
     #
     def install_azihsm_driver_package(self, node: Node, log: Logger) -> None:
         # Make sure we've added the AZIHSM repo
-        self.setp_package_repository(node=node, log=log)
+        self.setup_package_repository(node=node, log=log)
 
-        log.info(f"Installing {self.AziHsmDrvPkgName}")
-        node.os.install_packages(self.AziHsmDrvPkgName)
+        log.info(f"Installing {AziHsm.AziHsmDrvPkgName}")
+        node.os.install_packages(AziHsm.AziHsmDrvPkgName)
 
-        log.info(f"Checking package {self.AziHsmDrvPkgName}")
+        log.info(f"Checking package {AziHsm.AziHsmDrvPkgName}")
 
         # Check if the package is already installed
-        package_exists = node.os.package_exists(self.AziHsmDrvPkgName)
+        package_exists = node.os.package_exists(AziHsm.AziHsmDrvPkgName)
 
         if not package_exists:
             # Check is package is avaialble is repositories
-            if not node.os.is_package_in_repo(self.AziHsmDrvPkgName):
+            if not node.os.is_package_in_repo(AziHsm.AziHsmDrvPkgName):
                 raise SkippedException(
-                    f"{self.AziHsmDrvPkgName} package not found in repositories"
+                    f"{AziHsm.AziHsmDrvPkgName} package not found in repositories"
                 )
 
             # Package is available, install it
-            log.info(f"Installing package {self.AziHsmDrvPkgName}")
-            node.os.install_packages(self.AziHsmDrvPkgName)
+            log.info(f"Installing package {AziHsm.AziHsmDrvPkgName}")
+            node.os.install_packages(AziHsm.AziHsmDrvPkgName)
 
             # Verify package is installed
-            package_installed = node.os.package_exists(self.AziHsmDrvPkgName)
+            package_installed = node.os.package_exists(AziHsm.AziHsmDrvPkgName)
             assert_that(package_installed).described_as(
-                f"{self.AziHsmDrvPkgName} package should be installed"
+                f"{AziHsm.AziHsmDrvPkgName} package should be installed"
             ).is_true()
         else:
             # Make sure everything is up-to-date
-            log.info(f"Updating package {self.AziHsmDrvPkgName}")
-            node.os.update_packages(self.AziHsmDrvPkgName)
+            log.info(f"Updating package {AziHsm.AziHsmDrvPkgName}")
+            node.os.update_packages(AziHsm.AziHsmDrvPkgName)
             # Verify package was installed
-            package_installed = node.os.package_exists(self.AziHsmDrvPkgName)
+            package_installed = node.os.package_exists(AziHsm.AziHsmDrvPkgName)
             assert_that(package_installed).described_as(
-                f"{self.AziHsmDrvPkgName} package should be installed"
+                f"{AziHsm.AziHsmDrvPkgName} package should be installed"
             ).is_true()
 
     #
@@ -142,7 +146,7 @@ class AziHsm(TestSuite):
         packages_installed = True
 
         # Make sure we've added the AZIHSM repo
-        self.setp_package_repository(node=node, log=log)
+        self.setup_package_repository(node=node, log=log)
 
         if isinstance(node.os, Ubuntu):
             azihsm_pkg_list = [
@@ -202,7 +206,7 @@ class AziHsm(TestSuite):
 
         log.info(f"Checking the driver for kernel version {kernel_version}")
         # Check that the driver exists where we expect it to be
-        assert_that(self.kmodpath).is_file()
+        assert_that(AziHsm.kmodpath).is_file()
 
     #
     #
@@ -233,34 +237,34 @@ class AziHsm(TestSuite):
         kernel_version = uname.get_linux_information(force_run=True).kernel_version
 
         # Make sure we've added the AZIHSM repo
-        self.setp_package_repository(node=node, log=log)
+        self.setup_package_repository(node=node, log=log)
 
         if isinstance(node.os, Ubuntu):
-            self.AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
+            AziHsm.AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
         if isinstance(node.os, CBLMariner):
-            self.AziHsmDrvPkgName = "azihsm-driver"
+            AziHsm.AziHsmDrvPkgName = "azihsm-driver"
 
         #
         # Remove the driver package so we can explicitely test its install
-        log.info(f"Uninstalling {self.AziHsmDrvPkgName}")
-        node.os.uninstall_packages(self.AziHsmDrvPkgName)
+        log.info(f"Uninstalling {AziHsm.AziHsmDrvPkgName}")
+        node.os.uninstall_packages(AziHsm.AziHsmDrvPkgName)
 
         #
         # Test 1 - Package installs without errors
-        log.info(f"Installing {self.AziHsmDrvPkgName}")
-        node.os.install_packages(self.AziHsmDrvPkgName)
+        log.info(f"Installing {AziHsm.AziHsmDrvPkgName}")
+        node.os.install_packages(AziHsm.AziHsmDrvPkgName)
 
         #
         # Test 2a - Package is registered in the package database
-        log.info(f"Checking {self.AziHsmDrvPkgName}")
-        package_installed = node.os.package_exists(self.AziHsmDrvPkgName)
+        log.info(f"Checking {AziHsm.AziHsmDrvPkgName}")
+        package_installed = node.os.package_exists(AziHsm.AziHsmDrvPkgName)
         assert_that(package_installed).described_as(
-            f"{self.AziHsmDrvPkgName} package should be installed"
+            f"{AziHsm.AziHsmDrvPkgName} package should be installed"
         ).is_true()
 
         #
         # Test 2b - Package version matches expected version
-        package_info = node.os.get_package_information(self.AziHsmDrvPkgName)
+        package_info = node.os.get_package_information(AziHsm.AziHsmDrvPkgName)
         log.info(package_info)
         # Skipping this until the operating_system.py framework can be debugged
         # assert_that(package_installed).described_as(
@@ -269,7 +273,7 @@ class AziHsm(TestSuite):
 
         #
         # Test 3 - Module .ko file exists od disk
-        assert_that(self.kmodpath).is_file()
+        assert_that(AziHsm.kmodpath).is_file()
 
         #
         # Test 4 - rpm -V reports no discrepancies
@@ -304,7 +308,7 @@ class AziHsm(TestSuite):
             ).is_not_empty()
             log.info(f"modinfo output:\n{info}")
         finally:
-            node.os.uninstall_packages(self.AziHsmDrvPkgName)
+            node.os.uninstall_packages(AziHsm.AziHsmDrvPkgName)
 
     #
     #
@@ -382,7 +386,7 @@ class AziHsm(TestSuite):
         finally:
             # Clean up
             modprobe.remove([AZIHSM_NAME], ignore_error=True)
-            node.os.uninstall_packages(self.AziHsmDrvPkgName)
+            node.os.uninstall_packages(AziHsm.AziHsmDrvPkgName)
 
     #
     #
@@ -417,7 +421,7 @@ class AziHsm(TestSuite):
         finally:
             # Clean up
             modprobe.remove([AZIHSM_NAME], ignore_error=True)
-            node.os.uninstall_packages(self.AziHsmDrvPkgName)
+            node.os.uninstall_packages(AziHsm.AziHsmDrvPkgName)
 
     @TestCaseMetadata(
         description="""
@@ -444,7 +448,7 @@ class AziHsm(TestSuite):
         #
         # Test 14 - Package removal succeeds
         try:
-            node.os.uninstall_packages(self.AziHsmDrvPkgName)
+            node.os.uninstall_packages(AziHsm.AziHsmDrvPkgName)
         except Exception as e:
             log.error(f"Uninstall failed {e}")
         finally:
@@ -452,15 +456,15 @@ class AziHsm(TestSuite):
 
         #
         # Test 15 - package gone from package database
-        package_installed = node.os.package_exists(self.AziHsmDrvPkgName)
+        package_installed = node.os.package_exists(AziHsm.AziHsmDrvPkgName)
         assert_that(package_installed).described_as(
-            f"{self.AziHsmDrvPkgName} package should NOT be installed"
+            f"{AziHsm.AziHsmDrvPkgName} package should NOT be installed"
         ).is_false()
         log.info("Package no longer in package database")
 
         #
         # Test 16 - .ko file removed
-        assert_that(self.kmodpath).does_not_exist()
+        assert_that(AziHsm.kmodpath).does_not_exist()
         log.info("Module file removed from disk")
 
         #
