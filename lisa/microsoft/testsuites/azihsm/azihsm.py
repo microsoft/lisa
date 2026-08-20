@@ -44,8 +44,9 @@ packages_installed = False
     functional behavior of the driver, and verification of user space components suck as the SDK API
     and the OpenSSL engine that uses axihsm.
 
-    These tests assume that the package to be tested is avaiable via the tux-dev internal repository.
-    The needed URLs will be added to the system ad the package installed via apt or tdnf.
+    These tests assume that the package to be tested is avaiable via testing or preview releases in
+    packages.microsfot.com.  The needed URLs will be added to the system ad the package installed
+    via apt or tdnf.
     """,
     owner="Microsoft",
     requirement=simple_requirement(
@@ -77,7 +78,7 @@ class AziHsm(TestSuite):
                     )
         if isinstance(node.os, CBLMariner):
             node.os.add_repository(
-                    repo=(f"http://tux-devrepo.corp.microsoft.com/yumrepos/azihsm/"),
+                    repo=(f"http://packages.microsoft.com/azurelinux/{node.os.information.release}/preview/ms-oss"),
                     repo_name="AZIHSM Packages"
                     )
 
@@ -163,13 +164,12 @@ class AziHsm(TestSuite):
                              ]
         if isinstance(node.os, CBLMariner):
             AziHsmPkgList = [
-                             "azihsm-hwe-driver",
-                             "azihsm-tools",
                              "azihsm-driver-tests",
-                             "libengine-azihsm-openssl",
                              "azihsm-sdk-tests",
+                             "azihsm-tools",
                              "libazihsm",
                              "libazihsm-devel",
+                             "libengine-azihsm-openssl",
                              ]
 
         for pkg in AziHsmPkgList:
