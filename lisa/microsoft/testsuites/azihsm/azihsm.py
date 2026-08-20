@@ -60,7 +60,7 @@ class AziHsm(TestSuite):
     #
     # Make sure the azihsm package repository is configured for this system.
     #
-    def setupPackageRepository(self, node: Node, log: Logger):
+    def setupPackageRepository(self, node: Node, log: Logger) -> None:
         global testing_repo_added
         if testing_repo_added == True:
             return
@@ -82,14 +82,7 @@ class AziHsm(TestSuite):
                     repo_name="AZIHSM Packages"
                     )
 
-    #
-    # Make sure all of the azihsm package are installed and up-to-date
-    #
-    def install_azihsm_driver_package(self, node: Node, log: Logger) -> None:
-
-        # Make sure we've added the AZIHSM repo
-        self.setupPackageRepository(node=node, log=log)
-
+        # Get the kernel version so we can build some names used later
         uname = node.tools[Uname]
         kernel_version = uname.get_linux_information(
                 force_run=True
@@ -103,6 +96,14 @@ class AziHsm(TestSuite):
         if isinstance(node.os, CBLMariner):
             self.AziHsmDrvPkgName = "azihsm-driver"
             self.kmodpath = f"/lib/modules/{kernel_version}/extra/azihsm.ko"
+
+    #
+    # Make sure all of the azihsm package are installed and up-to-date
+    #
+    def install_azihsm_driver_package(self, node: Node, log: Logger) -> None:
+
+        # Make sure we've added the AZIHSM repo
+        self.setupPackageRepository(node=node, log=log)
 
         log.info(f"Installing {self.AziHsmDrvPkgName}")
         node.os.install_packages(self.AziHsmDrvPkgName)
