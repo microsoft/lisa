@@ -223,7 +223,7 @@ class StoragePassthroughPerfTests(TestSuite):
             node, environment, log
         )
         self._validate_namespace_is_safe(node, namespace)
-        testcases = self._get_fio_testcases(variables)
+        testcases = _get_fio_testcases(variables)
 
         log.info(
             f"Selected passthrough NVMe namespace '{namespace}' from host "
@@ -248,7 +248,7 @@ class StoragePassthroughPerfTests(TestSuite):
                 runtime = int(testcase.get("time", 60))
                 size_mb = int(testcase.get("size_mb", 512))
                 overwrite = bool(testcase.get("overwrite", False))
-                num_jobs = self._get_num_jobs(start_iodepth, max_iodepth, thread_count)
+                num_jobs = _get_num_jobs(start_iodepth, max_iodepth, thread_count)
                 filename = f"passthrough_nvme_fio_{uuid.uuid4()}"
                 fio_files.append(f"{mount_point}/{filename}")
                 test_name = f"passthrough_nvme_{size_mb}_MB_{block_size}K"
@@ -470,70 +470,67 @@ class StoragePassthroughPerfTests(TestSuite):
                 f"Refusing destructive FIO on '{namespace}': " + "; ".join(issues)
             )
 
-    @staticmethod
-    def _get_fio_testcases(variables: Dict[str, Any]) -> List[Dict[str, Any]]:
-        raw_testcases = variables.get("fio_testcase_list")
-        if raw_testcases is None:
-            testcases: List[Dict[str, Any]] = [
-                {
-                    "start_iodepth": 1,
-                    "max_iodepth": 4,
-                    "block_size": 4,
-                    "size_mb": 512,
-                    "time": 60,
-                }
-            ]
-        elif isinstance(raw_testcases, list) and all(
-            isinstance(testcase, dict) for testcase in raw_testcases
-        ):
-            testcases = cast(List[Dict[str, Any]], raw_testcases)
-        else:
-            raise LisaException("fio_testcase_list must be a list of mappings")
 
-        if not testcases or len(testcases) > _MAX_FIO_CASES:
-            raise LisaException(
-                f"fio_testcase_list must contain between 1 and {_MAX_FIO_CASES} cases"
-            )
-        for testcase in testcases:
-            start_iodepth = int(testcase.get("start_iodepth", 1))
-            max_iodepth = int(testcase.get("max_iodepth", 4))
-            block_size = int(testcase.get("block_size", 4))
-            runtime = int(testcase.get("time", 60))
-            size_mb = int(testcase.get("size_mb", 512))
-            if not 1 <= start_iodepth <= max_iodepth <= _MAX_FIO_IODEPTH:
-                raise LisaException(
-                    f"FIO iodepth must satisfy 1 <= start <= max <= "
-                    f"{_MAX_FIO_IODEPTH}: {testcase}"
-                )
-            if not 1 <= runtime <= _MAX_FIO_RUNTIME_SECONDS:
-                raise LisaException(
-                    f"FIO runtime must be between 1 and "
-                    f"{_MAX_FIO_RUNTIME_SECONDS} seconds: {testcase}"
-                )
-            if not 1 <= size_mb <= _MAX_FIO_SIZE_MB:
-                raise LisaException(
-                    f"FIO size_mb must be between 1 and {_MAX_FIO_SIZE_MB}: "
-                    f"{testcase}"
-                )
-            if not 1 <= block_size <= _MAX_FIO_BLOCK_SIZE_KB:
-                raise LisaException(
-                    f"FIO block_size must be between 1 and "
-                    f"{_MAX_FIO_BLOCK_SIZE_KB} KiB: {testcase}"
-                )
-        return testcases
+def _get_fio_testcases(variables: Dict[str, Any]) -> List[Dict[str, Any]]:
+    raw_testcases = variables.get("fio_testcase_list")
+    if raw_testcases is None:
+        testcases: List[Dict[str, Any]] = [
+            {
+                "start_iodepth": 1,
+                "max_iodepth": 4,
+                "block_size": 4,
+                "size_mb": 512,
+                "time": 60,
+            }
+        ]
+    elif isinstance(raw_testcases, list) and all(
+        isinstance(testcase, dict) for testcase in raw_testcases
+    ):
+        testcases = cast(List[Dict[str, Any]], raw_testcases)
+    else:
+        raise LisaException("fio_testcase_list must be a list of mappings")
 
-    @staticmethod
-    def _get_num_jobs(
-        start_iodepth: int, max_iodepth: int, thread_count: int
-    ) -> List[int]:
-        if start_iodepth < 1 or start_iodepth > max_iodepth or thread_count < 1:
+    if not testcases or len(testcases) > _MAX_FIO_CASES:
+        raise LisaException(
+            f"fio_testcase_list must contain between 1 and {_MAX_FIO_CASES} cases"
+        )
+    for testcase in testcases:
+        start_iodepth = int(testcase.get("start_iodepth", 1))
+        max_iodepth = int(testcase.get("max_iodepth", 4))
+        block_size = int(testcase.get("block_size", 4))
+        runtime = int(testcase.get("time", 60))
+        size_mb = int(testcase.get("size_mb", 512))
+        if not 1 <= start_iodepth <= max_iodepth <= _MAX_FIO_IODEPTH:
             raise LisaException(
-                f"Invalid FIO job parameters: start_iodepth={start_iodepth}, "
-                f"max_iodepth={max_iodepth}, thread_count={thread_count}"
+                f"FIO iodepth must satisfy 1 <= start <= max <= "
+                f"{_MAX_FIO_IODEPTH}: {testcase}"
             )
-        num_jobs: List[int] = []
-        iodepth = start_iodepth
-        while iodepth <= max_iodepth:
-            num_jobs.append(min(iodepth, thread_count))
-            iodepth *= 2
-        return num_jobs
+        if not 1 <= runtime <= _MAX_FIO_RUNTIME_SECONDS:
+            raise LisaException(
+                f"FIO runtime must be between 1 and "
+                f"{_MAX_FIO_RUNTIME_SECONDS} seconds: {testcase}"
+            )
+        if not 1 <= size_mb <= _MAX_FIO_SIZE_MB:
+            raise LisaException(
+                f"FIO size_mb must be between 1 and {_MAX_FIO_SIZE_MB}: {testcase}"
+            )
+        if not 1 <= block_size <= _MAX_FIO_BLOCK_SIZE_KB:
+            raise LisaException(
+                f"FIO block_size must be between 1 and "
+                f"{_MAX_FIO_BLOCK_SIZE_KB} KiB: {testcase}"
+            )
+    return testcases
+
+
+def _get_num_jobs(start_iodepth: int, max_iodepth: int, thread_count: int) -> List[int]:
+    if start_iodepth < 1 or start_iodepth > max_iodepth or thread_count < 1:
+        raise LisaException(
+            f"Invalid FIO job parameters: start_iodepth={start_iodepth}, "
+            f"max_iodepth={max_iodepth}, thread_count={thread_count}"
+        )
+    num_jobs: List[int] = []
+    iodepth = start_iodepth
+    while iodepth <= max_iodepth:
+        num_jobs.append(min(iodepth, thread_count))
+        iodepth *= 2
+    return num_jobs

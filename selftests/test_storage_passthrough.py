@@ -4,9 +4,10 @@
 from unittest import TestCase
 
 from lisa.microsoft.testsuites.device_passthrough.storage_tests import (
-    StoragePassthroughPerfTests,
     _get_disk_safety_issues,
+    _get_fio_testcases,
     _get_guest_pci_bdf_from_domain_xml,
+    _get_num_jobs,
 )
 from lisa.tools.lsblk import DiskInfo, PartitionInfo
 from lisa.util import LisaException
@@ -172,10 +173,8 @@ class StoragePassthroughTestCase(TestCase):
 
     def test_rejects_unbounded_fio_configuration(self) -> None:
         with self.assertRaisesRegex(LisaException, "runtime"):
-            StoragePassthroughPerfTests._get_fio_testcases(
-                {"fio_testcase_list": [{"time": 301}]}
-            )
+            _get_fio_testcases({"fio_testcase_list": [{"time": 301}]})
 
     def test_rejects_invalid_num_jobs_range(self) -> None:
         with self.assertRaisesRegex(LisaException, "Invalid FIO job parameters"):
-            StoragePassthroughPerfTests._get_num_jobs(4, 2, 8)
+            _get_num_jobs(4, 2, 8)
