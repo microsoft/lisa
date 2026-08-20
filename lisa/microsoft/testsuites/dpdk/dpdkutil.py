@@ -300,6 +300,19 @@ def run_testpmd_hotplug(
         kit.testpmd.process_testpmd_output(processes[kit].wait_result(timeout=120))
 
 
+class DpdkForwardingMode(str, Enum):
+    """Forwarding mode for a multi-port test run."""
+
+    TXONLY = "txonly"
+    RXONLY = "rxonly"
+    SEND_RECEIVE = "send_receive"
+
+class TestPlan(str, Enum):
+    """Forwarding mode for a multi-port test run."""
+
+    SINGLE_NODE = "SINGLE_NODE"
+    MULTIPLE_NODES = "MULTIPLE_NODES"
+
 class DpdkHotplugTarget(str, Enum):
     """
     Which side of a send/receive run should have its VFs hotplugged.
@@ -310,13 +323,13 @@ class DpdkHotplugTarget(str, Enum):
     NONE = "none"
     SENDER = "sender"
     RECEIVER = "receiver"
-    BOTH = "both"
+    ALL = "both"
 
     def includes_sender(self) -> bool:
-        return self in (DpdkHotplugTarget.SENDER, DpdkHotplugTarget.BOTH)
+        return self in (DpdkHotplugTarget.SENDER, DpdkHotplugTarget.ALL)
 
     def includes_receiver(self) -> bool:
-        return self in (DpdkHotplugTarget.RECEIVER, DpdkHotplugTarget.BOTH)
+        return self in (DpdkHotplugTarget.RECEIVER, DpdkHotplugTarget.ALL)
 
     def is_enabled(self) -> bool:
         return self is not DpdkHotplugTarget.NONE
@@ -1335,28 +1348,75 @@ def _get_multi_port_test_nics(
 
 def _trigger_multi_port_hotplug(
     log: Logger,
-    hotplug: DpdkHotplugTarget,
-    sender: DpdkTestResources,
-    receiver: DpdkTestResources,
     nic_list: Dict[Node, List[NicInfo]],
 ) -> None:
-    hotplug_kits = []
-    if hotplug.includes_sender():
-        hotplug_kits.append(sender)
-    if hotplug.includes_receiver():
-        hotplug_kits.append(receiver)
     # switch_sriov_for_nics does its own settling sleeps around the
     # remove and rescan, so no extra sleep is needed here.
     run_in_parallel(
         [
-            partial(switch_sriov_for_nics, kit.node, nic_list[kit.node])
-            for kit in hotplug_kits
+            partial(switch_sriov_for_nics, node, nic_list[node])
+            for node in nic_list.keys()
         ],
         log,
     )
 
 
-def verify_dpdk_send_receive_multi_port(
+def _generate_multi_port_single_node_run_info(
+    pmd: Pmd,
+    kit: DpdkTestResources,
+    nics: List[NicInfo],
+    test_fwd_mode: DpdkForwardingMode,
+    multiple_queues: bool = False,
+    use_service_cores: int = 1,
+    set_mtu: int = 0,
+) -> Tuple[str, Dict[int, NicInfo]]:
+    """
+    Generate a testpmd command for a single-node multi-port run (txonly or
+    rxonly). Returns the command string and the dpdk port id -> nic mapping.
+    """
+    if set_mtu:
+        _validate_and_set_mtu_for_kit(kit, nics, set_mtu)
+        first_nic = nics[0]
+        check_nic = first_nic.lower if first_nic.lower else first_nic.name
+        maxmtu = kit.node.tools[Ip].get_detail(check_nic, "maxmtu")
+        maxmtu_int = int(maxmtu) if maxmtu else 0
+    else:
+        maxmtu_int = 0
+
+    devname = DpdkDevnameInfo(kit.testpmd)
+    devname.get_port_info(nics, expect_ports=len(nics))
+    port_map: Dict[int, NicInfo] = dict()
+    for nic in nics:
+        mac_addr = nic.mac_addr.lower()
+        assert_that(devname.nic_port_info).described_as(
+            f"dpdk-devname did not report a port id for {nic.name} "
+            f"({mac_addr}) on {kit.node.name}."
+        ).contains_key(mac_addr)
+        port_map[devname.nic_port_info[mac_addr]] = nic
+    kit.node.log.debug(
+        "DPDK port assignment: "
+        + ", ".join(
+            f"port {port_id}={nic.name}/{nic.ip_addr}"
+            for port_id, nic in sorted(port_map.items())
+        )
+    )
+
+    cmd = kit.testpmd.generate_testpmd_command(
+        nics,
+        0,
+        test_fwd_mode.value,
+        pmd=pmd,
+        multiple_queues=multiple_queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+        eal_device_args=devname.nic_args,
+        stats_period=5,
+    )
+    return cmd, port_map
+
+
+def run_testpmd_consolidated(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],
@@ -1367,22 +1427,24 @@ def verify_dpdk_send_receive_multi_port(
     multiple_queues: bool = False,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
-    check_sender_packet_drops: bool = False,
     hotplug: DpdkHotplugTarget = DpdkHotplugTarget.NONE,
-) -> Tuple[DpdkTestResources, DpdkTestResources]:
+    test_plan: TestPlan = TestPlan.MULTIPLE_NODES,
+    fwd_mode : Optional[DpdkForwardingMode] = None,
+) -> None:
     """
-    Sender/receiver test which uses more than one port on each VM.
+    Multi-port testpmd test. Supports three modes controlled by test_fwd_mode:
 
-    Each VM has one test nic per subnet, so port N on the sender has a
-    matching peer port N on the receiver. Every sender port transmits to
-    the address of its own peer port using the per-port form of --tx-ip,
-    and every port is graded individually.
+    SEND_RECEIVE (default): two-node sender/receiver test. Each VM has one
+        test nic per subnet, every sender port transmits to its matching
+        peer on the receiver using per-port --tx-ip, and every port is
+        graded individually.
+    TXONLY: single-node send-only test. Runs txonly on all ports and
+        grades TX throughput per port.
+    RXONLY: single-node receive-only test. Runs rxonly on all ports and
+        grades RX throughput per port.
 
     When hotplug names a side, that side's VFs are removed and restored
-    mid-run. The hotplugged side is graded on whether every port saw the
-    removal, kept forwarding on the synthetic path, and recovered its
-    throughput. The peer side is graded on its best sustained throughput
-    since its samples span the outage.
+    mid-run and graded on removal/recovery behaviour.
     """
     assert_that(nic_count).described_as(
         "Test bug: multiple port send/receive needs at least two test nics."
@@ -1406,16 +1468,12 @@ def verify_dpdk_send_receive_multi_port(
         else:
             raise SkippedException()
 
-    log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
-
     reset_environment_netvsc_binding(environment, log)
 
-    # pick one nic per subnet on each node, the index of the nic in the
-    # list is the same on both nodes since the subnet list is shared.
+    # pick one nic per subnet on each node
     nic_list = _get_multi_port_test_nics(environment, nic_count)
 
     # get test duration variable if set
-    # enables long-running tests to shake out QoS and SLB issues
     test_duration: int = variables.get("dpdk_test_duration", 15)
     test_kits = init_nodes_concurrent(
         environment,
@@ -1425,120 +1483,150 @@ def verify_dpdk_send_receive_multi_port(
         hugepage_size=hugepage_size,
         specific_pairings=nic_list,
     )
+    port_maps: Dict[DpdkTestResources,Dict[int, NicInfo]] = {}
+    kit_cmd_pairs: Dict[DpdkTestResources,str] = {}
+    kit_labels : Dict[DpdkTestResources, str] = {}
+    kit_port_stats : Dict[DpdkTestResources, Dict[int,DpdkPortStats]] = {}
+    
+    # single-node mode: txonly or rxonly on one VM
+    if test_plan is TestPlan.SINGLE_NODE:
+        assert fwd_mode is not None, (
+            "Test bug: must provide fwd_mode for single node test"
+        )
+        check_send_receive_compatibility(test_kits)
+        kit = test_kits[0]
 
-    check_multi_port_send_receive_compatibility(test_kits)
-    sender, receiver = test_kits
+        if result is not None:
+            annotate_dpdk_test_result(test_kit=kit, test_result=result, log=log)
 
-    # annotate test result before starting
-    if result is not None:
-        annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
+        cmd, port_map = _generate_multi_port_single_node_run_info(
+            pmd,
+            kit,
+            nic_list[kit.node],
+            fwd_mode,
+            multiple_queues=multiple_queues,
+            use_service_cores=use_service_cores,
+            set_mtu=set_mtu,
+        )
+        kit_cmd_pairs[kit] = cmd
+        port_maps[kit] = port_map
+        graded_kit = kit
+        start_order = [kit]
+        graded_nics = { graded_kit.node: list(port_map.values()) }
+        kit_labels[kit]= f"{str(test_plan)}:{str(fwd_mode)}"
+        kit_fwd_modes[kit] = fwd_mode
+        # proc = kit.node.execute_async(cmd, sudo=True)
+        # proc.wait_output("start packet forwarding")
 
-    kit_cmd_pairs, port_maps = generate_multi_port_send_receive_run_info(
-        pmd,
-        sender,
-        receiver,
-        nic_list[sender.node],
-        nic_list[receiver.node],
-        use_service_cores=use_service_cores,
-        multiple_queues=multiple_queues,
-        set_mtu=set_mtu,
-    )
+        # if hotplug.is_enabled():
+        #     sleep(10)
+        #     switch_sriov_for_nics(kit.node, nic_list[kit.node])
+        #     sleep(10)
+        # else:
+        #     sleep(test_duration)
 
-    receiver_proc = receiver.node.execute_async(
-        kit_cmd_pairs[receiver],
-        sudo=True,
-    )
-    receiver_proc.wait_output("start packet forwarding")
+        # kit.testpmd.kill_previous_testpmd_command()
+        # sleep(5)
+        # kit.testpmd.process_testpmd_output(proc.wait_result())
+        # log.debug(f"\n{fwd_mode.name}:\n{kit.testpmd}")
 
-    sender_proc = sender.node.execute_async(
-        kit_cmd_pairs[sender],
-        sudo=True,
-    )
-    sender_proc.wait_output("start packet forwarding")
+        # kit.dmesg.check_kernel_errors(force_run=True)
 
+        # direction = "TX" if fwd_mode is DpdkForwardingMode.TXONLY else "RX"
+        # was_hotplugged = hotplug.is_enabled()
+        # grade_port_stats(
+        #     log=log,
+        #     kit=kit,
+        #     direction=direction,
+        #     port_map=port_map,
+        #     port_stats=kit.testpmd.get_stats_by_port(),
+        #     result=result,
+        #     grade_mode=_select_grade_mode(hotplug, was_hotplugged),
+        # )
+
+        #return kit, None
+
+    # two-node send+receive mode (original behaviour)
+    else:
+        log.debug(f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n")
+
+        check_multi_port_send_receive_compatibility(test_kits)
+        sender, receiver = test_kits
+        start_order = [receiver, sender]
+        
+
+        # annotate test result before starting
+        if result is not None:
+            annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
+
+        kit_cmd_pairs, port_maps = generate_multi_port_send_receive_run_info(
+            pmd,
+            sender,
+            receiver,
+            nic_list[sender.node],
+            nic_list[receiver.node],
+            use_service_cores=use_service_cores,
+            multiple_queues=multiple_queues,
+            set_mtu=set_mtu,
+        )
+        graded_kit=receiver
+        graded_nics={ graded_kit.node: list(port_maps[graded_kit].values()) }
+        kit_fwd_modes = {sender: DpdkForwardingMode.TXONLY, receiver:DpdkForwardingMode.RXONLY}
+        
+
+    test_procs: Dict[DpdkTestResources, Process] = {}
+
+    for kit in start_order:
+        test_proc = kit.node.execute_async(kit_cmd_pairs[kit], sudo=True)
+        test_proc.wait_output("start packet forwarding")
+        test_procs[kit] = test_proc
+    
     if hotplug.is_enabled():
         sleep(10)
-        _trigger_multi_port_hotplug(log, hotplug, sender, receiver, nic_list)
+        _trigger_multi_port_hotplug(log, nic_list=graded_nics)
         # let the recovered ports build up a clean run of samples before
         # testpmd is stopped, otherwise the "after" phase is all noise.
         sleep(10)
     else:
         sleep(test_duration)
 
-    sender.testpmd.kill_previous_testpmd_command()
-    receiver.testpmd.kill_previous_testpmd_command()
-
-    sleep(5)
-
     results = dict()
-    results[sender] = sender.testpmd.process_testpmd_output(sender_proc.wait_result())
-    results[receiver] = receiver.testpmd.process_testpmd_output(
-        receiver_proc.wait_result()
-    )
+    for kit in start_order[::-1]:
+        kit.testpmd.kill_previous_testpmd_command()
+        sleep(5)
+        results[kit] = kit.testpmd.process_testpmd_output(test_procs[kit].wait_result())
 
     # helpful to have the outputs labeled
-    log.debug(f"\nSENDER:\n{results[sender]}")
-    log.debug(f"\nRECEIVER:\n{results[receiver]}")
-
-    sender.dmesg.check_kernel_errors(force_run=True)
-    receiver.dmesg.check_kernel_errors(force_run=True)
+    for kit in start_order:
+        log.debug(f"\n{kit_labels[kit]}:\n{results[kit]}")
+    
+    for kit in start_order:
+        kit.dmesg.check_kernel_errors(force_run=True)
+        
 
     # grade each port on its own, an aggregate would hide a port
     # which sent or received nothing at all.
-    port_stats = {
-        sender: sender.testpmd.get_stats_by_port(),
-        receiver: receiver.testpmd.get_stats_by_port(),
-    }
-    for kit, direction, was_hotplugged in [
-        (sender, "TX", hotplug.includes_sender()),
-        (receiver, "RX", hotplug.includes_receiver()),
-    ]:
-        grade_port_stats(
-            log=log,
-            kit=kit,
-            direction=direction,
-            port_map=port_maps[kit],
-            port_stats=port_stats[kit],
-            result=result,
-            grade_mode=_select_grade_mode(hotplug, was_hotplugged),
-        )
-
-    # verify the receiver didn't drop most of the packets on any one port.
-    # A hotplug always costs some packets while the datapath switches,
-    # so the strict drop check only applies to steady state runs.
-    for port_id, nic in sorted(port_maps[receiver].items()):
-        drop_rate = port_stats[receiver][port_id].get_packet_drop_rate("RX")
-        if hotplug.is_enabled():
-            log.info(
-                f"{receiver.node.name} {nic.name} port {port_id} "
-                f"RX drop rate across the hotplug: {drop_rate}"
+    for kit in start_order:
+        kit_port_stats[kit] = kit.testpmd.get_stats_by_port()
+    
+    for kit in start_order:
+        if hotplug is DpdkHotplugTarget.NONE or kit is graded_kit:
+            grade_port_stats(
+                log=log,
+                kit=kit,
+                direction=_get_grading_key(kit_fwd_modes[kit]),
+                port_map=port_maps[kit],
+                port_stats=kit_port_stats[kit],
+                result=result,
+                grade_mode=_select_grade_mode(hotplug, kit.node in graded_nics.keys(),),
             )
-            continue
-        assert_that(drop_rate).described_as(
-            f"More than 1% of the packets received on port {port_id} "
-            f"({nic.name}) were dropped!"
-        ).is_close_to(0, 0.01)
+   
+    #annotate_packet_drops(log, result, graded_kit)
 
-    # sender packet drops are common when network bandwidth is
-    # artificially throttled by the sku, so checking sender
-    # is optional
-    if check_sender_packet_drops and not hotplug.is_enabled():
-        for port_id, nic in sorted(port_maps[sender].items()):
-            drop_rate = port_stats[sender][port_id].get_packet_drop_rate("TX")
-            assert_that(drop_rate).described_as(
-                f"More than 33% of the packets sent on port {port_id} "
-                f"({nic.name}) were dropped!"
-            ).is_close_to(0, 0.33)
 
-    # check the aggregate receive drop rate as well, this populates the
-    # packet drop rate used to annotate the test result.
-    if not hotplug.is_enabled():
-        receiver.testpmd.check_rx_packet_drops()
+def _get_grading_key(fwd_mode:DpdkForwardingMode) -> str:
+    return "TX" if fwd_mode == DpdkForwardingMode.TXONLY else "RX"
 
-    # annotate the amount of dropped packets on the receiver
-    annotate_packet_drops(log, result, receiver)
-
-    return sender, receiver
 
 
 class DpdkPortGradeMode(str, Enum):

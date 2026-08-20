@@ -18,6 +18,7 @@ from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
     DpdkHotplugTarget,
+    TestPlan,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
     do_parallel_cleanup,
@@ -28,12 +29,12 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     reset_environment_netvsc_binding,
     reset_node_netvsc_bindings,
     run_dpdk_symmetric_mp,
+    run_testpmd_consolidated,
     run_testpmd_hotplug,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_multiple_ports,
     verify_dpdk_send_receive,
-    verify_dpdk_send_receive_multi_port,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
 from microsoft.testsuites.dpdk.dpdkvpp import DpdkVpp
@@ -1143,7 +1144,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         try:
-            verify_dpdk_send_receive_multi_port(
+            run_testpmd_consolidated(
                 environment,
                 log,
                 variables,
@@ -1152,6 +1153,7 @@ class Dpdk(TestSuite):
                 nic_count=2,
                 multiple_queues=True,
                 result=result,
+                test_plan=TestPlan.MULTIPLE_NODES
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -1189,7 +1191,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         try:
-            verify_dpdk_send_receive_multi_port(
+            run_testpmd_consolidated(
                 environment,
                 log,
                 variables,

@@ -621,5 +621,5 @@ class DpdkHostEvent(TestSuite):
             log.debug(f"{node.name}: no nics are bound to uio_hv_generic")
             return
         log.info(f"{node.name}: rebinding {devices} from uio_hv_generic to hv_netvsc")
-        rebind_uio_devices_to_hv_netvsc(node, devices)
+        rebind_uio_devices_to_hv_netvsc(node)
         node.nics.reload()
