@@ -68,6 +68,16 @@ def _resolve_target_os(
     return infer_target_os(variables)
 
 
+def _resolve_target_platforms(runbook: schema.Runbook) -> List[str]:
+    platform_runbook = runbook.platform[0]
+    platform_types = [platform_runbook.type]
+    if platform_runbook.guest_enabled:
+        platform_types.extend(
+            guest.type for guest in platform_runbook.guests if guest.type
+        )
+    return platform_types
+
+
 class LisaRunner(BaseRunner):
     @classmethod
     def type_name(cls) -> str:
@@ -89,8 +99,11 @@ class LisaRunner(BaseRunner):
             getattr(self._runbook_builder, "variables", None) or self._case_variables
         )
         target_os = _resolve_target_os(variables_pool)
+        target_platforms = _resolve_target_platforms(self._runbook)
         selected_test_cases = select_testcases(
-            filters=self._runbook.testcase, target_os=target_os
+            filters=self._runbook.testcase,
+            target_os=target_os,
+            target_platforms=target_platforms,
         )
 
         # create test results

@@ -79,10 +79,47 @@ def _prefilter_by_target_os(
     return kept
 
 
+def _is_platform_compatible(
+    case: TestCaseMetadata, target_platforms: List[str]
+) -> bool:
+    requirement = getattr(case, "requirement", None)
+    if requirement is None:
+        return True
+    platform_type = getattr(requirement, "platform_type", None)
+    if not platform_type or len(platform_type) == 0:
+        return True
+
+    if platform_type.is_allow_set:
+        return any(platform in platform_type for platform in target_platforms)
+
+    return all(platform not in platform_type for platform in target_platforms)
+
+
+def _prefilter_by_target_platforms(
+    full_list: Dict[str, TestCaseMetadata], target_platforms: List[str]
+) -> Dict[str, TestCaseMetadata]:
+    log = _get_logger()
+    kept: Dict[str, TestCaseMetadata] = {}
+    dropped_names: List[str] = []
+    for name, metadata in full_list.items():
+        if _is_platform_compatible(metadata, target_platforms):
+            kept[name] = metadata
+        else:
+            dropped_names.append(name)
+    if dropped_names:
+        log.info(
+            f"pre-filter: dropped {len(dropped_names)} case(s) incompatible "
+            f"with platform(s) {target_platforms}"
+        )
+        log.debug(f"pre-filter dropped cases: {dropped_names}")
+    return kept
+
+
 def select_testcases(  # noqa: C901
     filters: Optional[List[schema.TestCase]] = None,
     init_cases: Optional[List[TestCaseMetadata]] = None,
     target_os: Optional[Type[OperatingSystem]] = None,
+    target_platforms: Optional[List[str]] = None,
     apply_stable_gate: bool = True,
 ) -> List[TestCaseRuntimeData]:
     """
@@ -106,6 +143,8 @@ def select_testcases(  # noqa: C901
         full_list = get_cases_metadata()
     if target_os is not None:
         full_list = _prefilter_by_target_os(full_list, target_os)
+    if target_platforms:
+        full_list = _prefilter_by_target_platforms(full_list, target_platforms)
     if filters:
         selected: Dict[str, TestCaseRuntimeData] = {}
         force_included: Set[str] = set()
