@@ -2458,7 +2458,7 @@ class CBLMariner(RPMDistro):
         # => menuentry 'AzureLinux GNU/Linux, with Linux 6.6.96-3.cm2'
         menu_entry_name = ""
         matched_version = extracted_version
-        for version_candidate in version_candidates:
+        for version_candidate in sorted(version_candidates, key=len, reverse=True):
             menu_entry_pattern = re.compile(
                 rf"menuentry '(?P<entry>[^']*{re.escape(version_candidate)}\s*)'",
                 re.IGNORECASE,
