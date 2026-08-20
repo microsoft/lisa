@@ -72,6 +72,9 @@ class Service(Tool):
     def is_service_running(self, name: str) -> bool:
         return self._internal_tool._check_service_running(name)  # type: ignore
 
+    def is_service_enabled(self, name: str) -> bool:
+        return self._internal_tool._is_service_enabled(name)  # type: ignore
+
     def wait_for_service_start(self, name: str) -> None:
         raise NotImplementedError("'wait_for_service_start' is not implemented")
 
@@ -200,6 +203,16 @@ class Systemctl(Tool):
             f"--full --no-pager status {name}", shell=True, sudo=True, force_run=True
         )
         return "Active: active" in cmd_result.stdout
+
+    def _is_service_enabled(self, name: str) -> bool:
+        cmd_result = self.run(
+            f"is-enabled {name}",
+            shell=True,
+            sudo=True,
+            force_run=True,
+            no_error_log=True,
+        )
+        return cmd_result.exit_code == 0
 
     def _check_exists(self) -> bool:
         return True
