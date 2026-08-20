@@ -948,6 +948,7 @@ class Debian(Linux):
         keys = [
             "https://packages.microsoft.com/keys/microsoft.asc",
             "https://packages.microsoft.com/keys/msopentech.asc",
+            "https://packages.microsoft.com/keys/microsoft-roling.asc",
         ]
         if (
             repo_name == AzureCoreRepo.AzureCore
