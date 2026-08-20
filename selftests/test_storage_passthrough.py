@@ -3,12 +3,11 @@
 
 from unittest import TestCase
 
-from microsoft.testsuites.device_passthrough.storage_tests import (
+from lisa.microsoft.testsuites.device_passthrough.storage_tests import (
     StoragePassthroughPerfTests,
     _get_disk_safety_issues,
     _get_guest_pci_bdf_from_domain_xml,
 )
-
 from lisa.tools.lsblk import DiskInfo, PartitionInfo
 from lisa.util import LisaException
 
