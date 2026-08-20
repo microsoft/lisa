@@ -47,6 +47,8 @@ packages_installed = False
 class AziHsm(TestSuite):
     AziHsmDrvPkgName = ""
     kmodpath = ""
+    kernel_version = ""
+
     #
     # Make sure the azihsm package repository is configured for this system.
     #
@@ -70,17 +72,20 @@ class AziHsm(TestSuite):
                 repo_name="AZIHSM Packages",
             )
         if isinstance(node.os, CBLMariner):
+            arch_name = node.os.get_kernel_information().hardware_platform
             node.os.add_repository(
                 repo=(
                     "http://packages.microsoft.com/azurelinux/"
-                    f"{node.os.information.release}/preview/ms-oss"
+                    f"{node.os.information.release}/preview/"
+                    f"ms-oss/{arch_name}/"
                 ),
+                repo_file="preview-ms-oss.repo",
                 repo_name="AZIHSM Packages",
             )
 
         # Get the kernel version so we can build some names used later
         uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information(force_run=True).kernel_version
+        kernel_version = uname.get_linux_information(force_run=True).kernel_version_raw
 
         # Store the kernel driver package name in an instance
         # variable so we can access it throughout the tests
@@ -88,10 +93,12 @@ class AziHsm(TestSuite):
             AziHsm.AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
             AziHsm.kmodpath = f"/lib/modules/{kernel_version}/updates/azihsm.ko"
         if isinstance(node.os, CBLMariner):
-            AziHsm.AziHsmDrvPkgName = "azihsm-driver"
+            AziHsm.AziHsmDrvPkgName = f"azihsm-driver-{kernel_version}"
             AziHsm.kmodpath = f"/lib/modules/{kernel_version}/extra/azihsm.ko"
+        AziHsm.kernel_version = kernel_version
         log.info(f"Driver Package {AziHsm.AziHsmDrvPkgName}")
         log.info(f"Driver Path {AziHsm.kmodpath}")
+        log.info(f"Kernel Version {AziHsm.kernel_version}")
 
     #
     # Make sure all of the azihsm package are installed and up-to-date
@@ -130,6 +137,7 @@ class AziHsm(TestSuite):
             node.os.update_packages(AziHsm.AziHsmDrvPkgName)
             # Verify package was installed
             package_installed = node.os.package_exists(AziHsm.AziHsmDrvPkgName)
+            log.info(f"{AziHsm.AziHsmDrvPkgName} status {package_installed}")
             assert_that(package_installed).described_as(
                 f"{AziHsm.AziHsmDrvPkgName} package should be installed"
             ).is_true()
@@ -201,10 +209,7 @@ class AziHsm(TestSuite):
         # Make sure the azihsm packages are installed
         self.install_all_azihsm_packages(node=node, log=log)
 
-        uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information(force_run=True).kernel_version
-
-        log.info(f"Checking the driver for kernel version {kernel_version}")
+        log.info(f"Checking the driver for kernel version {AziHsm.kernel_version}")
         # Check that the driver exists where we expect it to be
         assert_that(AziHsm.kmodpath).is_file()
 
@@ -232,17 +237,8 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def package_installation_tests(self, node: Node, log: Logger) -> None:
-        # We need the current runing kernel version
-        uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information(force_run=True).kernel_version
-
         # Make sure we've added the AZIHSM repo
         self.setup_package_repository(node=node, log=log)
-
-        if isinstance(node.os, Ubuntu):
-            AziHsm.AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
-        if isinstance(node.os, CBLMariner):
-            AziHsm.AziHsmDrvPkgName = "azihsm-driver"
 
         #
         # Remove the driver package so we can explicitely test its install
@@ -273,6 +269,7 @@ class AziHsm(TestSuite):
 
         #
         # Test 3 - Module .ko file exists od disk
+        log.info(f"Checking for {AziHsm.kmodpath}")
         assert_that(AziHsm.kmodpath).is_file()
 
         #
@@ -281,8 +278,11 @@ class AziHsm(TestSuite):
 
         #
         # Test 5 - depmod registered the module in modules.dep
-        contents = contents_of(f"/lib/modules/{kernel_version}/modules.dep", "ascii")
-        assert_that(contents).contains("updates/azihsm.ko")
+        contents = contents_of(f"/lib/modules/{AziHsm.kernel_version}/modules.dep", "ascii")
+        # Note: thiscould be under either 'extra' or 'updates'
+        # We do not provide the subdir, so this driver located anywhere
+        # in the tree would match and cause a false postive
+        assert_that(contents).contains("azihsm.ko")
 
     #
     #
@@ -501,7 +501,6 @@ class AziHsm(TestSuite):
             result = node.execute(
                 f"/usr/bin/azihsm/driver_tests {params}",
             )
-            cmd_output = result.stdout.strip()
         except Exception:
             log.info("test failed")
         finally:
