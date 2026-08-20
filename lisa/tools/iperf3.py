@@ -17,7 +17,7 @@ from lisa.messages import (
     create_perf_message,
     send_unified_perf_message,
 )
-from lisa.operating_system import Posix
+from lisa.operating_system import CBLMariner, Posix
 from lisa.tools import Cat
 from lisa.util import (
     LisaException,
@@ -31,6 +31,7 @@ from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process
 
 from .firewall import Firewall
+from .gcc import Gcc
 from .git import Git
 from .ls import Ls
 from .lsof import Lsof
@@ -115,7 +116,7 @@ class Iperf3(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Git, Make]
+        return [Git, Make, Gcc]
 
     def help(self) -> ExecutableResult:
         return self.run("-h", force_run=True)
@@ -146,7 +147,7 @@ class Iperf3(Tool):
             < parse_version(self._first_fixed_version)
         )
 
-    def install(self) -> bool:
+    def _install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         try:
             posix_os.install_packages("iperf3")
@@ -636,7 +637,12 @@ class Iperf3(Tool):
         firewall = self.node.tools[Firewall]
         firewall.stop()
 
+    def _install_dep_packages(self) -> None:
+        if isinstance(self.node.os, CBLMariner):
+            self.node.os.install_packages(["binutils", "glibc-devel"])
+
     def _install_from_src(self) -> None:
+        self._install_dep_packages()
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         # Pin to a fixed upstream release so the built binary does not have the
