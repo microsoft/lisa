@@ -1148,6 +1148,7 @@ class Debian(Linux):
     def add_repository(
         self,
         repo: str,
+        repo_file: str,
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
@@ -1160,12 +1161,15 @@ class Debian(Linux):
         # This command will trigger apt update too, so it doesn't need to update
         # repos again.
 
-        apt_repo = self._node.tools[AptAddRepository]
-        apt_repo.add_repository(repo)
+        # apt-add-repository seems like the right tool to use here, but it's interface
+        # is too inconsistant accross the distro/release combinations, and it is not
+        # able to handle the signed-by option which we need to be useing. Instead,
+        # It is trivial to to just create the file directly
+        with open("/etc/apt/sources.list.d/"+repo_file, "w") as f:
+            f.write(repo)
 
-        # apt update will not be triggered on Debian during add repo
-        if type(self._node.os) is Debian:
-            self._node.execute("apt-get update", sudo=True)
+        # Go ahead and do an update so we have the latest package lists ready
+        self._node.execute("apt-get update", sudo=True)
 
     def is_end_of_life_release(self) -> bool:
         return self.information.full_version in self.end_of_life_releases
