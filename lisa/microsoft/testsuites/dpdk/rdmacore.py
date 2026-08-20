@@ -1,4 +1,3 @@
-from assertpy import assert_that
 from microsoft.testsuites.dpdk.common import (
     DependencyInstaller,
     Installer,
@@ -14,7 +13,7 @@ from lisa.tools import Make, Pkgconfig
 
 RDMA_CORE_MANA_DEFAULT_SOURCE = (
     "https://github.com/linux-rdma/rdma-core/"
-    "releases/download/v50.1/rdma-core-50.1.tar.gz"
+    "releases/download/v59.0/rdma-core-59.0.tar.gz"
 )
 RDMA_CORE_SOURCE_DEPENDENCIES = DependencyInstaller(
     [
@@ -166,20 +165,6 @@ class RdmaCoreSourceInstaller(Installer):  # type: ignore[misc]
         self._node.tools[Make].run(
             parameters="uninstall", shell=True, sudo=True, cwd=self.asset_path
         )
-        working_path = str(self._node.get_working_path())
-        assert_that(str(self.asset_path)).described_as(
-            "RDMA Installer source path was empty during attempted cleanup!"
-        ).is_not_empty()
-        assert_that(str(self.asset_path)).described_as(
-            "RDMA Installer source path was set to root dir "
-            "'/' during attempted cleanup!"
-        ).is_not_equal_to("/")
-        assert_that(str(self.asset_path)).described_as(
-            f"RDMA Installer source path {self.asset_path} was set to "
-            f"working path '{working_path}' during attempted cleanup!"
-        ).is_not_equal_to(working_path)
-        # remove source code directory
-        self._node.execute(f"rm -rf {str(self.asset_path)}", shell=True)
 
     def get_installed_version(self) -> VersionInfo:
         version: VersionInfo = self._node.tools[Pkgconfig].get_package_version(
