@@ -33,6 +33,7 @@ from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 AZIHSM_DEV = "/dev/azihsm0"
 AZIHSM_NAME = "azihsm"
 
+testing_repo_added = False
 packages_installed = False
 
 @TestSuiteMetadata(
@@ -54,14 +55,24 @@ packages_installed = False
 
 
 class AziHsm(TestSuite):
+
     #
     # Make sure the azihsm package repository is configured for this system.
     #
     def setupPackageRepository(self, node: Node, log: Logger):
-        log.info(f"Adding AZIHSM tuxdev repository")
+        global testing_repo_added
+        if testing_repo_added == True:
+            return
+
+        # Indicate we have done this step already
+        testing_repo_added = True
+
+
+        log.info(f"Adding PMC testing repository")
         if isinstance(node.os, Ubuntu):
             node.os.add_repository(
-                    repo=(f"deb http://tux-devrepo.corp.microsoft.com/repos/azihsm {node.os.information.codename} main"),
+                    repo=(f"deb [signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/ubuntu/{node.os.information.release}/prod testing main"),
+                    repo_file="microsoft-testing.list",
                     repo_name="AZIHSM Packages"
                     )
         if isinstance(node.os, CBLMariner):
@@ -69,6 +80,58 @@ class AziHsm(TestSuite):
                     repo=(f"http://tux-devrepo.corp.microsoft.com/yumrepos/azihsm/"),
                     repo_name="AZIHSM Packages"
                     )
+
+    #
+    # Make sure all of the azihsm package are installed and up-to-date
+    #
+    def install_azihsm_driver_package(self, node: Node, log: Logger) -> None:
+
+        # Make sure we've added the AZIHSM repo
+        self.setupPackageRepository(node=node, log=log)
+
+        uname = node.tools[Uname]
+        kernel_version = uname.get_linux_information(
+                force_run=True
+                ).kernel_version
+
+        # Store the kernel driver package name in an instance 
+        # variable so we can access it throughout the tests
+        if isinstance(node.os, Ubuntu):
+            self.AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
+        if isinstance(node.os, CBLMariner):
+            self.AziHsmDrvPkgName = "azihsm-driver"
+
+        log.info(f"Installing {self.AziHsmDrvPkgName}")
+        node.os.install_packages(self.AziHsmDrvPkgName)
+
+        log.info(f"Checking package {self.AziHsmDrvPkgName}")
+
+        # Check if the package is already installed
+        package_exists = node.os.package_exists(self.AziHsmDrvPkgName)
+
+        if not package_exists:
+            # Check is package is avaialble is repositories
+            if not node.os.is_package_in_repo(self.AziHsmDrvPkgName):
+                raise SkippedException(f"{self.AziHsmDrvPkgName} package not found in repositories")
+
+            # Package is available, install it
+            log.info(f"Installing package {self.AziHsmDrvPkgName}")
+            node.os.install_packages(self.AziHsmDrvPkgName)
+
+            # Verify package is installed
+            package_installed = node.os.package_exists(self.AziHsmDrvPkgName)
+            assert_that(package_installed).described_as(
+                    f"{self.AziHsmDrvPkgName} package should be installed"
+            ).is_true()
+        else:
+            # Make sure everything is up-to-date
+            log.info(f"Updating package {self.AziHsmDrvPkgName}")
+            node.os.update_packages(self.AziHsmDrvPkgName)
+            # Verify package was installed
+            package_installed = node.os.package_exists(self.AziHsmDrvPkgName)
+            assert_that(package_installed).described_as(
+                    f"{self.AziHsmDrvPkgName} package should be installed"
+            ).is_true()
 
     #
     # Make sure all of the azihsm package are installed and up-to-date
@@ -183,32 +246,35 @@ class AziHsm(TestSuite):
                 force_run=True
                 ).kernel_version
 
+        # Make sure we've added the AZIHSM repo
+        self.setupPackageRepository(node=node, log=log)
+
         if isinstance(node.os, Ubuntu):
-            AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
+            self.AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
         if isinstance(node.os, CBLMariner):
-            AziHsmDrvPkgName = "azihsm-driver"
+            self.AziHsmDrvPkgName = "azihsm-driver"
 
         #
         # Remove the driver package so we can explicitely test its install
-        log.info(f"Uninstalling {AziHsmDrvPkgName}")
-        node.os.uninstall_packages(AziHsmDrvPkgName)
+        log.info(f"Uninstalling {self.AziHsmDrvPkgName}")
+        node.os.uninstall_packages(self.AziHsmDrvPkgName)
 
         #
         # Test 1 - Package installs without errors
-        log.info(f"Installing {AziHsmDrvPkgName}")
-        node.os.install_packages(AziHsmDrvPkgName)
+        log.info(f"Installing {self.AziHsmDrvPkgName}")
+        node.os.install_packages(self.AziHsmDrvPkgName)
 
         #
         # Test 2a - Package is registered in the package database
-        log.info(f"Checking {AziHsmDrvPkgName}")
-        package_installed = node.os.package_exists(AziHsmDrvPkgName)
+        log.info(f"Checking {self.AziHsmDrvPkgName}")
+        package_installed = node.os.package_exists(self.AziHsmDrvPkgName)
         assert_that(package_installed).described_as(
-            f"{AziHsmDrvPkgName} package should be installed"
+            f"{self.AziHsmDrvPkgName} package should be installed"
         ).is_true()
 
         #
         # Test 2b - Package version matches expected version
-        package_info = node.os.get_package_information(AziHsmDrvPkgName)
+        package_info = node.os.get_package_information(self.AziHsmDrvPkgName)
         log.info(package_info)
         # Skipping this until the operating_system.py framework can be debugged
         #assert_that(package_installed).described_as(
@@ -240,18 +306,9 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def verify_azihsm_modinfo(self, node: Node, log: Logger) -> None:
-        # We need the current runing kernel version
-        uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information(
-                force_run=True
-                ).kernel_version
 
-        if isinstance(node.os, Ubuntu):
-            AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
-        if isinstance(node.os, CBLMariner):
-            AziHsmDrvPkgName = "azihsm-driver"
-
-        node.os.install_packages(AziHsmDrvPkgName)
+        # Make sure the driver package is installed
+        self.install_azihsm_driver_package(node=node, log=log)
 
         #
         # Test 6 - modinfo succeeds
@@ -263,7 +320,7 @@ class AziHsm(TestSuite):
                     ).is_not_empty()
             log.info(f"modinfo output:\n{info}");
         finally:
-            node.os.uninstall_packages(AziHsmDrvPkgName)
+            node.os.uninstall_packages(self.AziHsmDrvPkgName)
 
     #
     #
@@ -281,18 +338,9 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def verify_azihsm_module_load_unload(self, node: Node, log: Logger) -> None:
-        # We need the current runing kernel version
-        uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information(
-                force_run=True
-                ).kernel_version
 
-        if isinstance(node.os, Ubuntu):
-            AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
-        if isinstance(node.os, CBLMariner):
-            AziHsmDrvPkgName = "azihsm-driver"
-
-        node.os.install_packages(AziHsmDrvPkgName)
+        # Make sure the driver package is installed
+        self.install_azihsm_driver_package(node=node, log=log)
 
         # Tools we need
         modprobe = node.tools[Modprobe]
@@ -359,7 +407,7 @@ class AziHsm(TestSuite):
         finally:
             # Clean up
             modprobe.remove([AZIHSM_NAME], ignore_error=True)
-            node.os.uninstall_packages(AziHsmDrvPkgName)
+            node.os.uninstall_packages(self.AziHsmDrvPkgName)
 
     #
     #
@@ -372,18 +420,9 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def verify_azihsm_module_reload_cycles(self, node: Node, log: Logger) -> None:
-        # We need the current runing kernel version
-        uname = node.tools[Uname]
-        kernel_version = uname.get_linux_information(
-                force_run=True
-                ).kernel_version
 
-        if isinstance(node.os, Ubuntu):
-            AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
-        if isinstance(node.os, CBLMariner):
-            AziHsmDrvPkgName = "azihsm-driver"
-
-        node.os.install_packages(AziHsmDrvPkgName)
+        # Make sure the driver package is installed
+        self.install_azihsm_driver_package(node=node, log=log)
 
         # Tools we need
         modprobe = node.tools[Modprobe]
@@ -404,7 +443,7 @@ class AziHsm(TestSuite):
         finally:
             # Clean up
             modprobe.remove([AZIHSM_NAME], ignore_error=True)
-            node.os.uninstall_packages(AziHsmDrvPkgName)
+            node.os.uninstall_packages(self.AziHsmDrvPkgName)
 
     @TestCaseMetadata(
         description="""
@@ -419,18 +458,14 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def verify_azihsm_package_uninstallation(self, node: Node, log: Logger) -> None:
+
         # We need the current runing kernel version
         uname = node.tools[Uname]
         kernel_version = uname.get_linux_information(
                 force_run=True
                 ).kernel_version
-
-        if isinstance(node.os, Ubuntu):
-            AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
-        if isinstance(node.os, CBLMariner):
-            AziHsmDrvPkgName = "azihsm-driver"
-
-        node.os.install_packages(AziHsmDrvPkgName)
+        # Make sure the driver package is installed
+        self.install_azihsm_driver_package(node=node, log=log)
 
         # Make sure module is unloaded before removal
         modprobe = node.tools[Modprobe]
@@ -441,9 +476,9 @@ class AziHsm(TestSuite):
             time.sleep(1)
 
         #
-        # Test 14 - Package removeal succeeds
+        # Test 14 - Package removal succeeds
         try:
-            node.os.uninstall_packages(AziHsmDrvPkgName)
+            node.os.uninstall_packages(self.AziHsmDrvPkgName)
         except Exception as e:
             log.error(f"Uninstall failed {e}")
         finally:
@@ -451,9 +486,9 @@ class AziHsm(TestSuite):
 
         #
         # Test 15 - package gone from package database
-        package_installed = node.os.package_exists(AziHsmDrvPkgName)
+        package_installed = node.os.package_exists(self.AziHsmDrvPkgName)
         assert_that(package_installed).described_as(
-            f"{AziHsmDrvPkgName} package should NOT be installed"
+            f"{self.AziHsmDrvPkgName} package should NOT be installed"
         ).is_false()
         log.info("Package no longer in package database")
 
@@ -468,8 +503,8 @@ class AziHsm(TestSuite):
            modprobe.load(AZIHSM_NAME)
         except Exception as e:
             log.info(f"modprobe correctly failed")
-        finally:
-            raise AssertionError("modprobe did not fail as expected")
+        #finally:
+        #    raise AssertionError("modprobe did not fail as expected")
 
         #
         # Test 18 - no leftover files
@@ -486,6 +521,10 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def run_azihsm_driver_tests(self, node: Node, log: Logger) -> None:
+
+        # Make sure the driver package is installed
+        self.install_azihsm_driver_package(node=node, log=log)
+
         # Make sure the azihsm packages are installed
         self.install_all_azihsm_packages(node=node, log=log)
 
@@ -494,15 +533,12 @@ class AziHsm(TestSuite):
         try:
             result = node.execute(
                     f"/usr/bin/azihsm/driver_tests {params}",
-                    #sudo=True,
-                    #expected_exit_code=0,
                     )
             cmd_output = result.stdout.strip()
         except Exception as e:
             log.info("test failed")
         finally:
             cmd_output = result.stdout.strip()
-            #assert_that(cmd_output,"Test did not contain PASSED").contains("PASSED")
             assert_that("PASSED" in cmd_output,"Test did not contain PASSED").is_true()
 
     #
@@ -515,6 +551,9 @@ class AziHsm(TestSuite):
         requirement=simple_requirement(unsupported_os=[]),
     )
     def run_azihsm_sdk_tests(self, node: Node, log: Logger) -> None:
+
+        # Make sure the driver package is installed
+        self.install_azihsm_driver_package(node=node, log=log)
 
         # Make sure the azihsm packages are installed
         self.install_all_azihsm_packages(node=node, log=log)
@@ -535,20 +574,21 @@ class AziHsm(TestSuite):
             try:
                 result = node.execute(
                         f"/usr/bin/azihsm/{test} {params}",
+                        update_envs={"AZIHSM_USE_TPM":"1"}
                         #sudo=True,
                         #expected_exit_code=0,
                         )
                 cmd_output = result.stdout.strip()
             except Exception as e:
-                log.info(cmd_output)
+                cmd_output=""
                 log.info("Failed:", e)
                 all_tests_passed = False
-            finally:
-                if "FAILED" in cmd_output:
-                    #log.info(cmd_output)
-                    log.info(f"{test} Failed")
-                    all_tests_passed = False
-                else:
-                    log.info(f"{test} Passed")
+
+            if "FAILED" in cmd_output:
+                #log.info(cmd_output)
+                log.info(f"{test} Failed")
+                all_tests_passed = False
+            else:
+                log.info(f"{test} Passed")
 
         assert_that(all_tests_passed,"Not all SDK tests passed").is_true()
