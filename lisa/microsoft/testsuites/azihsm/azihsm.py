@@ -99,8 +99,10 @@ class AziHsm(TestSuite):
         # variable so we can access it throughout the tests
         if isinstance(node.os, Ubuntu):
             self.AziHsmDrvPkgName = f"azihsm-module-{kernel_version}"
+            self.kmodpath = f"/lib/modules/{kernel_version}/updates/azihsm.ko"
         if isinstance(node.os, CBLMariner):
             self.AziHsmDrvPkgName = "azihsm-driver"
+            self.kmodpath = f"/lib/modules/{kernel_version}/extra/azihsm.ko"
 
         log.info(f"Installing {self.AziHsmDrvPkgName}")
         node.os.install_packages(self.AziHsmDrvPkgName)
@@ -214,7 +216,7 @@ class AziHsm(TestSuite):
 
         log.info(f"Checking the driver for kernel version {kernel_version}")
         # Check that the driver exists where we expect it to be
-        assert_that(f"/lib/modules/{kernel_version}/updates/azihsm.ko").is_file()
+        assert_that(self.kmodpath).is_file()
 
 ##
 ##
@@ -283,7 +285,7 @@ class AziHsm(TestSuite):
 
         #
         # Test 3 - Module .ko file exists od disk
-        assert_that(f"/lib/modules/{kernel_version}/updates/azihsm.ko").is_file()
+        assert_that(self.kmodpath).is_file()
 
         #
         # Test 4 - rpm -V reports no discrepancies
@@ -494,7 +496,7 @@ class AziHsm(TestSuite):
 
         #
         # Test 16 - .ko file removed
-        assert_that(f"/lib/modules/{kernel_version}/updates/azihsm.ko").does_not_exist()
+        assert_that(self.kmodpath).does_not_exist()
         log.info("Module file removed from disk")
 
         #
