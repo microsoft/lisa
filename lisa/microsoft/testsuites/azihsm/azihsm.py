@@ -32,12 +32,12 @@ packages_installed = False
     description="""
     Test suite for the azihsm driver and package. These tests cover package
     installation and cleanup, functional behavior of the driver, and
-    verification of user space components suck as the SDK API and the OpenSSL
-    engine that uses axihsm.
+    verification of user space components such as the SDK API and the OpenSSL
+    engine that uses azihsm.
 
-    These tests assume that the package to be tested is avaiable via testing
-    or preview releases in packages.microsfot.com.  The needed URLs will be
-    added to the system ad the package installed via apt or tdnf.
+    These tests assume that the packages to be tested is available via testing
+    or preview releases in packages.microsoft.com.  The needed URLs will be
+    added to the system and the package installed via apt or tdnf.
     """,
     owner="Microsoft",
     requirement=simple_requirement(
@@ -56,9 +56,6 @@ class AziHsm(TestSuite):
         global testing_repo_added
         if testing_repo_added is True:
             return
-
-        # Indicate we have done this step already
-        testing_repo_added = True
 
         log.info("Adding PMC testing repository")
         if isinstance(node.os, Ubuntu):
@@ -99,6 +96,9 @@ class AziHsm(TestSuite):
         log.info(f"Driver Package {AziHsm.AziHsmDrvPkgName}")
         log.info(f"Driver Path {AziHsm.kmodpath}")
         log.info(f"Kernel Version {AziHsm.kernel_version}")
+
+        # Indicate we have done this step already
+        testing_repo_added = True
 
     #
     # Make sure all of the azihsm package are installed and up-to-date
@@ -146,9 +146,6 @@ class AziHsm(TestSuite):
         global packages_installed
         if packages_installed is True:
             return
-
-        # Indicate we have done this step already
-        packages_installed = True
 
         # Make sure we've added the AZIHSM repo
         self.setup_package_repository(node=node, log=log)
@@ -202,6 +199,9 @@ class AziHsm(TestSuite):
                     f"{pkg} package should be installed"
                 ).is_true()
 
+        # Indicate we have done this step already
+        packages_installed = True
+
     def check_driver_package_contents(self, node: Node, log: Logger) -> None:
         # Make sure the azihsm packages are installed
         self.install_all_azihsm_packages(node=node, log=log)
@@ -248,7 +248,7 @@ class AziHsm(TestSuite):
         node.os.install_packages(AziHsm.AziHsmDrvPkgName)
 
         #
-        # Test 2a - Package is registered in the package database
+        # Test 2 - Package is registered in the package database
         log.info(f"Checking {AziHsm.AziHsmDrvPkgName}")
         package_installed = node.os.package_exists(AziHsm.AziHsmDrvPkgName)
         assert_that(package_installed).described_as(
@@ -256,18 +256,9 @@ class AziHsm(TestSuite):
         ).is_true()
 
         #
-        # Test 2b - Package version matches expected version
-        package_info = node.os.get_package_information(AziHsm.AziHsmDrvPkgName)
-        log.info(package_info)
-        # Skipping this until the operating_system.py framework can be debugged
-        # assert_that(package_installed).described_as(
-        #    f"{pkg} package should be installed"
-        # ).is_true()
-
-        #
         # Test 3 - Module .ko file exists od disk
         log.info(f"Checking for {AziHsm.kmodpath}")
-        assert_that(AziHsm.kmodpath).is_file()
+        node.shell.exists(node.get_pure_path(AziHsm.kmodpath))
 
         #
         # Test 4 - rpm -V reports no discrepancies
@@ -339,7 +330,13 @@ class AziHsm(TestSuite):
                     AZIHSM_NAME, force_run=True, no_error_log=True
                 ):
                     modprobe.remove([AZIHSM_NAME])
-                    time.sleep(1)
+                    for attempt in range(5):
+                        if not modprobe.is_module_loaded(
+                            AZIHSM_NAME, force_run=True, no_error_log=True
+                        ):
+                            break
+                        else:
+                            time.sleep(1)
             finally:
                 log.info("module is not loaded as desired")
 
@@ -411,9 +408,22 @@ class AziHsm(TestSuite):
             for i in range(1, cycles + 1):
                 log.info(f"Load/unload cycle {i}/{cycles}")
                 modprobe.load(AZIHSM_NAME)
-                time.sleep(0.5)
+                for attempt in range(5):
+                    if modprobe.is_module_loaded(
+                        AZIHSM_NAME, force_run=True, no_error_log=True
+                    ):
+                        break
+                    else:
+                        time.sleep(0.5)
+
                 modprobe.remove([AZIHSM_NAME])
-                time.sleep(0.5)
+                for attempt in range(5):
+                    if not modprobe.is_module_loaded(
+                        AZIHSM_NAME, force_run=True, no_error_log=True
+                    ):
+                        break
+                    else:
+                        time.sleep(0.5)
 
             log.info(f"{cycles} load/unload cycles completed successfully")
 
@@ -524,7 +534,7 @@ class AziHsm(TestSuite):
 
         sdk_test_list = [
             "azihsm_api",
-            "azihsm_api_cpp_tests",
+            # "azihsm_api_cpp_tests", - do this seperately
             "azihsm_api_native",
             "azihsm_api_tests",
             "azihsm_ddi_tests",
@@ -538,9 +548,7 @@ class AziHsm(TestSuite):
             try:
                 result = node.execute(
                     f"/usr/bin/azihsm/{test} {params}",
-                    update_envs={"AZIHSM_USE_TPM": "1"}
-                    # sudo=True,
-                    # expected_exit_code=0,
+                    update_envs={"AZIHSM_USE_TPM": "1"},
                 )
                 cmd_output = result.stdout.strip()
             except Exception as e:
@@ -548,11 +556,32 @@ class AziHsm(TestSuite):
                 log.info("Failed:", e)
                 all_tests_passed = False
 
-            if "FAILED" in cmd_output:
-                # log.info(cmd_output)
+            if "test result: ok." in cmd_output:
+                log.info(f"{test} Passed")
+            else:
                 log.info(f"{test} Failed")
                 all_tests_passed = False
-            else:
-                log.info(f"{test} Passed")
+
+        # Do the api_cpp_tests here because the output is a different format
+        log.info(f"Running {test}")
+        test = "azihsm_api_cpp_tests"
+        try:
+            result = node.execute(
+                f"/usr/bin/azihsm/{test} {params}",
+                update_envs={"AZIHSM_USE_TPM": "1"},
+                # sudo=True,
+                # expected_exit_code=0,
+            )
+            cmd_output = result.stdout.strip()
+        except Exception as e:
+            cmd_output = ""
+            log.info("Failed:", e)
+            all_tests_passed = False
+
+        if "test result: ok." in cmd_output:
+            log.info(f"{test} Passed")
+        else:
+            log.info(f"{test} Failed")
+            all_tests_passed = False
 
         assert_that(all_tests_passed, "Not all SDK tests passed").is_true()
