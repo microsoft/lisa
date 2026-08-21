@@ -44,7 +44,7 @@ from lisa.sut_orchestrator.azure.tools import Waagent
     12. File uri (pointing to python script) and command in public settings
 
     """,
-    tags=["VM_Extension", "RunCommandLinux"],
+    tags=["VM_Extension", "microsoft.cplat.core.runcommandlinux"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],

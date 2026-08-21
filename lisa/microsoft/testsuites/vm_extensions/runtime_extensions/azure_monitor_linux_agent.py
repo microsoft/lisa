@@ -23,7 +23,7 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
     installed, confirm the VM is still reachable over SSH, then remove the
     extension.
     """,
-    tags=["VM_Extension", "AzureMonitorLinuxAgent"],
+    tags=["VM_Extension", "microsoft.azure.monitor.azuremonitorlinuxagent"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
