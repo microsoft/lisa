@@ -107,9 +107,6 @@ class AziHsm(TestSuite):
         # Make sure we've added the AZIHSM repo
         self.setup_package_repository(node=node, log=log)
 
-        log.info(f"Installing {AziHsm.AziHsmDrvPkgName}")
-        node.os.install_packages(AziHsm.AziHsmDrvPkgName)
-
         log.info(f"Checking package {AziHsm.AziHsmDrvPkgName}")
 
         # Check if the package is already installed
@@ -278,7 +275,9 @@ class AziHsm(TestSuite):
 
         #
         # Test 5 - depmod registered the module in modules.dep
-        contents = contents_of(f"/lib/modules/{AziHsm.kernel_version}/modules.dep", "ascii")
+        contents = contents_of(
+            f"/lib/modules/{AziHsm.kernel_version}/modules.dep", "ascii"
+        )
         # Note: thiscould be under either 'extra' or 'updates'
         # We do not provide the subdir, so this driver located anywhere
         # in the tree would match and cause a false postive
@@ -413,7 +412,7 @@ class AziHsm(TestSuite):
                 log.info(f"Load/unload cycle {i}/{cycles}")
                 modprobe.load(AZIHSM_NAME)
                 time.sleep(0.5)
-                modprobe.remove(AZIHSM_NAME)
+                modprobe.remove([AZIHSM_NAME])
                 time.sleep(0.5)
 
             log.info(f"{cycles} load/unload cycles completed successfully")
