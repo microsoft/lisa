@@ -31,6 +31,7 @@ from lisa.util.perf_timer import create_timer
 from lisa.util.process import ExecutableResult, Process
 
 from .firewall import Firewall
+from .gcc import Gcc
 from .git import Git
 from .ls import Ls
 from .lsof import Lsof
@@ -643,6 +644,7 @@ class Iperf3(Tool):
         # UDP multi-threading segfault regression.
         git.clone(self._repo, tool_path, ref=self._branch)
         code_path = tool_path.joinpath("iperf")
+        _ = self.node.tools[Gcc]
         make = self.node.tools[Make]
         self.node.execute("./configure", cwd=code_path).assert_exit_code()
         make.make_install(code_path)
