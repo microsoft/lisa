@@ -17,7 +17,7 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
     description="""
     This test suite validates the Microsoft AKS Linux AKSNode VM extension.
     """,
-    tags=["VM_Extension", "Microsoft.AKS.Compute.AKS.Linux.AKSNode"],
+    tags=["VM_Extension", "microsoft.aks.compute.aks.linux.aksnode"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
