@@ -91,12 +91,14 @@ class Iptables(Tool):
         self.run(
             f"-I FORWARD -o virbr0 -p tcp -d {dst_ip} --dport {dst_port} -j ACCEPT",
             sudo=True,
+            force_run=True,
             expected_exit_code=0,
         )
 
         self.run(
             f"-t nat -I PREROUTING -p tcp --dport {port} -j DNAT --to {dst_ip}:{dst_port}",  # noqa: E501
             sudo=True,
+            force_run=True,
             expected_exit_code=0,
         )
 
@@ -104,12 +106,14 @@ class Iptables(Tool):
         self.run(
             f"-D FORWARD -o virbr0 -p tcp -d {dst_ip} --dport {dst_port} -j ACCEPT",
             sudo=True,
+            force_run=True,
             expected_exit_code=0,
         )
 
         self.run(
             f"-t nat -D PREROUTING -p tcp --dport {port} -j DNAT --to {dst_ip}:{dst_port}",  # noqa: E501
             sudo=True,
+            force_run=True,
             expected_exit_code=0,
         )
 
