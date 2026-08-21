@@ -347,6 +347,7 @@ class AzurePlatformSchema:
     tags: Optional[Dict[str, Any]] = field(default=None)
     use_public_address: bool = field(default=True)
     create_public_address: bool = field(default=True)
+    dynamic_data_disk_provisioning: bool = field(default=False)
     use_ipv6: bool = field(default=False)
     ip_service_tags: Optional[Dict[str, str]] = field(default=None)
     # Default outbound access is disabled for better security and control.
@@ -2807,23 +2808,26 @@ class AzurePlatform(Platform):
         assert isinstance(
             node.capability.disk.data_disk_count, int
         ), f"actual: {type(node.capability.disk.data_disk_count)}"
-        
-        # Use core count instead of requested data_disk_count for data disk provisioning
-        assert isinstance(node.capability.core_count, int), f"actual: {type(node.capability.core_count)}"
-        core_count = node.capability.core_count
-        original_disk_count = node.capability.disk.data_disk_count
-        
-        # Use the pipeline-requested data_disk_count as the max cap.
-        # actual disk count = min(core_count, requested_disk_count)
-        disk_count = min(core_count, original_disk_count)
-        
-        # Log the change for debugging
-        self._log.info(
-            f"Modifying data disk count from {original_disk_count} to {disk_count} "
-            f"(core count: {core_count}, pipeline requested: {original_disk_count} "
-            f"for VM size {azure_node_runbook.vm_size})"
-        )
-        
+        disk_count = node.capability.disk.data_disk_count
+        if self._azure_runbook.dynamic_data_disk_provisioning:
+            assert isinstance(
+                node.capability.core_count, int
+            ), f"actual: {type(node.capability.core_count)}"
+            assert isinstance(
+                node.capability.disk.max_data_disk_count, int
+            ), f"actual: {type(node.capability.disk.max_data_disk_count)}"
+            disk_count = min(
+                node.capability.core_count,
+                32,
+                node.capability.disk.max_data_disk_count,
+            )
+            self._log.info(
+                f"Dynamically provisioning {disk_count} data disks for VM size "
+                f"{azure_node_runbook.vm_size} (vCPUs: "
+                f"{node.capability.core_count}, SKU maximum: "
+                f"{node.capability.disk.max_data_disk_count}, cap: 32)"
+            )
+
         for _ in range(disk_count):
             assert isinstance(
                 node.capability.disk.data_disk_size, int
@@ -2845,10 +2849,8 @@ class AzurePlatform(Platform):
                     None,
                 )
             )
-        
-        # Update the node's capability to reflect actual data disk count
         node.capability.disk.data_disk_count = disk_count
-        
+
         runbook = node.capability.get_extended_runbook(AzureNodeSchema)
         if node.capability.disk and isinstance(
             node.capability.disk.max_data_disk_count, int

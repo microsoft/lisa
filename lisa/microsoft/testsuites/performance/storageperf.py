@@ -155,8 +155,8 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 data_disk_type=schema.DiskType.PremiumSSDLRS,
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
-                data_disk_iops=search_space.IntRange(min=16000),
-                data_disk_count=search_space.IntRange(min=1),
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=16),
             ),
         ),
     )
@@ -165,7 +165,7 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test case uses fio to test data disk performance using 128K block size
+        This test case uses fio to test data disk performance using 1024K block size
         using libaio as ioengine.
         """,
         priority=3,
@@ -174,13 +174,13 @@ class StoragePerformance(TestSuite):
             disk=schema.DiskOptionSettings(
                 data_disk_type=schema.DiskType.PremiumSSDLRS,
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
-                data_disk_iops=search_space.IntRange(min=16000),
-                data_disk_count=search_space.IntRange(min=1),
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=16),
             ),
         ),
     )
     def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
-        perf_premium_datadisks(node, result, block_size=128)
+        perf_premium_datadisks(node, result, block_size=1024)
 
     @TestCaseMetadata(
         description="""

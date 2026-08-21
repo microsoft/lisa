@@ -3,9 +3,8 @@
 import inspect
 import pathlib
 import time
-from decimal import Decimal
 from functools import partial
-from typing import Any, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Dict, List, Optional, Union, cast
 
 from assertpy import assert_that
 from retry import retry
@@ -50,7 +49,7 @@ from lisa.tools import (
     Ssh,
     Sysctl,
 )
-from lisa.tools.fio import IoEngine, FIOResult
+from lisa.tools.fio import IoEngine
 from lisa.tools.ip import Ip
 from lisa.tools.ntttcp import (
     NTTTCP_TCP_CONCURRENCY,
@@ -101,94 +100,12 @@ def perf_nvme(
         filename,
         core_count=core_count,
         disk_count=disk_count,
-        numjob=disk_count,  # Changed: 1 job per disk instead of core_count
+        numjob=core_count,
         test_name=test_name,
         disk_setup_type=DiskSetupType.raw,
         disk_type=disk_type,
         test_result=result,
         ioengine=ioengine,
-        # CPU affinity: Prevent I/O queue pair overflow (Azure ASAP MEQS=255 limit)
-        # Each worker gets specific vCPU: worker1→CPU0, worker2→CPU1, etc.
-        cpus_allowed=":".join(str(i) for i in range(min(disk_count, core_count))),
-    )
-
-
-def _generate_cpu_affinity_per_worker(worker_index: int, core_count: int) -> str:
-    """
-    Generate CPU affinity for a specific worker to ensure 1:1 CPU:worker mapping.
-    worker1 → CPU0, worker2 → CPU1, etc.
-    
-    Args:
-        worker_index: 0-based worker index (0 for first worker)
-        core_count: Total available CPU cores
-    
-    Returns:
-        Single CPU ID string for this specific worker (e.g. "0" for first worker)
-    """
-    if worker_index >= core_count:
-        # If we exceed available cores, wrap around
-        cpu_id = worker_index % core_count
-    else:
-        cpu_id = worker_index
-    
-    return str(cpu_id)
-
-
-def perf_disk_with_cpu_affinity(
-    node: Node,
-    start_iodepth: int,
-    max_iodepth: int,
-    filename: str,
-    core_count: int,
-    disk_count: int,
-    test_result: TestResult,
-    disk_setup_type: DiskSetupType = DiskSetupType.unknown,
-    disk_type: DiskType = DiskType.unknown,
-    test_name: str = "",
-    block_size: int = 4,
-    time: int = 120,
-    size_mb: int = 0,
-    overwrite: bool = False,
-    ioengine: IoEngine = IoEngine.LIBAIO,
-    cwd: Optional[pathlib.PurePath] = None,
-) -> None:
-    """
-    Run disk performance test with 1:1:1 CPU:job:disk mapping.
-    Starting from vCPU0, assigns one CPU per worker per disk.
-    """
-    # Set numjob to match disk_count for 1:1:1 mapping
-    numjob = min(disk_count, core_count)
-    
-    # Generate CPU affinity starting from vCPU0 (legacy colon-separated format)
-    effective_workers = min(numjob, disk_count, core_count)
-    cpus_allowed = ":".join(str(i) for i in range(effective_workers))
-    
-    node.log.info(
-        f"Starting 1:1:1 CPU:job:disk test - "
-        f"CPUs: {cpus_allowed}, Jobs: {numjob}, Disks: {disk_count}"
-    )
-    
-    # Call the main perf_disk function with generated parameters
-    perf_disk(
-        node=node,
-        start_iodepth=start_iodepth,
-        max_iodepth=max_iodepth,
-        filename=filename,
-        core_count=core_count,
-        disk_count=disk_count,
-        test_result=test_result,
-        disk_setup_type=disk_setup_type,
-        disk_type=disk_type,
-        test_name=test_name,
-        num_jobs=None,  # Use fixed numjob instead
-        block_size=block_size,
-        time=time,
-        size_mb=size_mb,
-        numjob=numjob,
-        overwrite=overwrite,
-        ioengine=ioengine,
-        cpus_allowed=cpus_allowed,
-        cwd=cwd,
     )
 
 
@@ -210,7 +127,6 @@ def perf_disk(
     numjob: int = 0,
     overwrite: bool = False,
     ioengine: IoEngine = IoEngine.LIBAIO,
-    cpus_allowed: str = "",
     cwd: Optional[pathlib.PurePath] = None,
 ) -> None:
     fio_result_list: List[FIOResult] = []
@@ -229,160 +145,30 @@ def perf_disk(
     # This limitation is only needed for 'libaio' ioengine but not for 'io_uring'.
     if ioengine == IoEngine.LIBAIO:
         numjob = min(numjob, 256)
-    
-    # Auto-generate CPU affinity for 1:1:1 mapping (CPU:job:disk) if not provided
-    if not cpus_allowed and numjob > 0:
-        effective_workers = min(numjob, disk_count, core_count)
-        cpus_allowed = ":".join(str(i) for i in range(effective_workers))
-        node.log.info(
-            f"Auto-generated CPU affinity: {cpus_allowed} "
-            f"(cores:{core_count}, disks:{disk_count}, jobs:{numjob})"
-        )
-    
-    # Check if we need strict worker→CPU mapping (multiple disks with specific affinity)
-    use_worker_specific_affinity = (
-        disk_count > 1 and 
-        cpus_allowed and 
-        numjob == disk_count and 
-        ":" in filename  # Multiple disk files
-    )
-    
-    # Resource validation for large-scale testing
-    if use_worker_specific_affinity and disk_count > 32:
-        node.log.warning(
-            f"Large-scale test detected: {disk_count} disks. "
-            f"This may stress system resources (memory, file descriptors, AIO limits)."
-        )
-    
-    # Validate AIO limits for libaio engine
-    if ioengine == IoEngine.LIBAIO and use_worker_specific_affinity:
-        max_aio_requests = disk_count * max_iodepth
-        if max_aio_requests > 65536:
-            node.log.warning(
-                f"AIO requests ({max_aio_requests}) may exceed system limit (65536). "
-                f"Consider reducing iodepth or using io_uring engine."
+    for mode in FIOMODES:
+        iodepth = start_iodepth
+        numjobindex = 0
+        while iodepth <= max_iodepth:
+            if num_jobs:
+                numjob = num_jobs[numjobindex]
+            fio_result = fio.launch(
+                name=f"iteration{numjobiterator}",
+                filename=filename,
+                mode=mode.name,
+                time=time,
+                size_gb=size_mb,
+                block_size=f"{block_size}K",
+                iodepth=iodepth,
+                overwrite=overwrite,
+                numjob=numjob,
+                cwd=cwd,
+                ioengine=ioengine,
             )
-    
-    if use_worker_specific_affinity:
-        # Split disks and run parallel FIO jobs for precise worker→CPU mapping
-        disk_files = filename.split(":")
-        node.log.info(
-            f"Running parallel FIO jobs for worker-specific CPU affinity: "
-            f"{len(disk_files)} disks, {disk_count} workers"
-        )
-        
-        # Run parallel FIO jobs for each iodepth level (randread mode only)
-        mode = FIOMODES.randread
-        iodepth = start_iodepth
-        numjobindex = 0
-        while iodepth <= max_iodepth:
-                # Create FIO job file for all disks at this iodepth
-                job_file_content = f"""[global]
-ioengine={ioengine.value}
-direct=1
-runtime={time}
-time_based=1
-bs={block_size}K
-rw={mode.name}
-iodepth={iodepth}
-group_reporting=1
-"""
-                if overwrite:
-                    job_file_content += "overwrite=1\n"
-                
-                job_file_content += "\n"
-                
-                # Add individual job sections for each disk
-                for disk_idx, disk_file in enumerate(disk_files[:disk_count]):
-                    specific_cpu = _generate_cpu_affinity_per_worker(disk_idx, core_count)
-                    size_per_disk = size_mb // disk_count if size_mb > 0 else 0
-                    
-                    job_file_content += f"""[worker{disk_idx+1}_iteration{numjobiterator}]
-filename={disk_file}
-cpus_allowed={specific_cpu}
-numjobs=1
-"""
-                    if size_per_disk > 0:
-                        job_file_content += f"size={size_per_disk}M\n"
-                    job_file_content += "\n"
-                
-                # Write job file and execute single FIO command
-                job_file_path = f"/tmp/multi_disk_iodepth_{iodepth}_iter_{numjobiterator}.fio"
-                
-                # Use shell=True to execute heredoc as a single shell command
-                write_command = f"cat > {job_file_path} << 'EOF'\n{job_file_content}EOF"
-                result = node.execute(write_command, shell=True)
-                if result.exit_code != 0:
-                    raise LisaException(f"Failed to write job file: {result.stderr}")
-                
-                # Run single FIO command with job file (requires sudo for block device access)
-                fio_result = node.execute(f"sudo fio {job_file_path}")
-                if fio_result.exit_code != 0:
-                    raise LisaException(f"FIO failed with exit code {fio_result.exit_code}: {fio_result.stderr}")
-                
-                # Parse aggregated results from the job file output
-                try:
-                    # FIO job files with group_reporting=1 aggregate all jobs into single result
-                    aggregated_result = fio.get_result_from_raw_output(
-                        mode.name, fio_result.stdout, iodepth, len(disk_files[:disk_count])
-                    )
-                except Exception as parse_error:
-                    # Log FIO output for debugging if parsing fails
-                    node.log.error(f"Failed to parse FIO output. Raw output: {fio_result.stdout[:1000]}...")
-                    raise LisaException(f"FIO result parsing failed: {parse_error}")
-                
-                # For job files, we get one aggregated result representing all disks
-                # Split this into individual results for each disk (for compatibility)
-                if aggregated_result.iops > 0:
-                    individual_iops = aggregated_result.iops / len(disk_files[:disk_count])
-                else:
-                    node.log.warning("FIO reported zero IOPS, using fallback value")
-                    individual_iops = Decimal(1)  # Fallback to prevent division by zero
-                    
-                for disk_idx in range(len(disk_files[:disk_count])):
-                    individual_result = FIOResult()
-                    individual_result.mode = mode.name
-                    individual_result.iops = individual_iops  # Distribute IOPS equally
-                    individual_result.latency = aggregated_result.latency  # Same latency
-                    individual_result.iodepth = iodepth
-                    individual_result.qdepth = iodepth
-                    fio_result_list.append(individual_result)
-                
-                # Clean up job file
-                node.execute(f"rm -f {job_file_path}")
-                
-                iodepth = iodepth * 2
-                numjobindex += 1
-                numjobiterator += 1
-        
-    else:
-        # Standard single FIO job approach (workers may float among CPUs) - randread mode only
-        mode = FIOMODES.randread
-        iodepth = start_iodepth
-        numjobindex = 0
-        while iodepth <= max_iodepth:
-                if num_jobs:
-                    numjob = num_jobs[numjobindex]
-                fio_result = fio.launch(
-                    name=f"iteration{numjobiterator}",
-                    filename=filename,
-                    mode=mode.name,
-                    time=time,
-                    size_gb=size_mb,
-                    block_size=f"{block_size}K",
-                    iodepth=iodepth,
-                    overwrite=overwrite,
-                    numjob=numjob,
-                    cwd=cwd,
-                    ioengine=ioengine,
-                    cpus_allowed=cpus_allowed,
-                )
-                fio_result_list.append(fio_result)
-                iodepth = iodepth * 2
-                numjobindex += 1
-                numjobiterator += 1
-    
-    # After all FIO jobs are complete, process and notify results
+            fio_result_list.append(fio_result)
+            iodepth = iodepth * 2
+            numjobindex += 1
+            numjobiterator += 1
+
     other_fields: Dict[str, Any] = {}
     other_fields["core_count"] = core_count
     other_fields["disk_count"] = disk_count
@@ -391,83 +177,14 @@ numjobs=1
     other_fields["disk_type"] = disk_type
     if not test_name:
         test_name = inspect.stack()[1][3]
-        
-    # Aggregate results if we used separate jobs per disk
-    aggregated_results = _aggregate_multi_disk_fio_results(
-        fio_result_list, disk_count, use_worker_specific_affinity
-    )
-    
-    # Print aggregated results to screen for debugging
-    node.log.info("=== FIO Performance Results ===")
-    for result in aggregated_results:
-        node.log.info(
-            f"Mode: {result.mode}, "
-            f"IODepth: {result.iodepth}, "
-            f"QDepth: {result.qdepth}, "
-            f"IOPS: {result.iops:,.0f}, "
-            f"Latency: {result.latency:.2f}μs"
-        )
-    node.log.info("==============================")
-    
     fio_messages: List[DiskPerformanceMessage] = fio.create_performance_messages(
-        aggregated_results,
+        fio_result_list,
         test_name=test_name,
         test_result=test_result,
         other_fields=other_fields,
     )
     for fio_message in fio_messages:
         notifier.notify(fio_message)
-
-
-def _aggregate_multi_disk_fio_results(
-    fio_result_list: List[FIOResult], disk_count: int, use_worker_specific_affinity: bool
-) -> List[FIOResult]:
-    """
-    Aggregate FIO results from multiple disk jobs into combined results.
-    When running separate jobs per disk, we need to sum IOPS and average latencies
-    to get meaningful aggregate performance metrics.
-    
-    Args:
-        fio_result_list: List of individual disk FIO results
-        disk_count: Number of disks being tested
-        use_worker_specific_affinity: Whether separate jobs were used
-        
-    Returns:
-        Aggregated FIO results suitable for standard reporting
-    """
-    if not use_worker_specific_affinity or disk_count <= 1:
-        # No aggregation needed for standard single-job approach
-        return fio_result_list
-    
-    # Group results by (mode, iodepth) for aggregation
-    grouped_results: Dict[Tuple[str, int], List[FIOResult]] = {}
-    
-    for result in fio_result_list:
-        key = (result.mode, result.iodepth)
-        if key not in grouped_results:
-            grouped_results[key] = []
-        grouped_results[key].append(result)
-    
-    # Create aggregated results
-    aggregated_results = []
-    for (mode, iodepth), results in grouped_results.items():
-        if len(results) == disk_count:
-            # We have results from all disks for this configuration
-            # Sum IOPS and average latencies
-            total_iops = sum(r.iops for r in results)
-            avg_latency = sum(r.latency for r in results) / Decimal(len(results))
-            
-            # Create aggregated result using first result as template
-            base_result = results[0]
-            aggregated_result = FIOResult()
-            aggregated_result.mode = mode
-            aggregated_result.iops = total_iops
-            aggregated_result.latency = avg_latency
-            aggregated_result.iodepth = iodepth
-            aggregated_result.qdepth = iodepth  # Keep same qdepth format as original (iodepth * numjob where numjob=1 per disk)
-            aggregated_results.append(aggregated_result)
-    
-    return aggregated_results
 
 
 def get_nic_datapath(node: Node) -> str:
@@ -1191,13 +908,12 @@ def perf_premium_datadisks(
         disk_count=disk_count,
         disk_setup_type=disk_setup_type,
         disk_type=disk_type,
-        numjob=disk_count,  # Changed: 1 job per disk instead of thread_count
+        numjob=thread_count,
         block_size=block_size,
         size_mb=8192,
         overwrite=True,
         test_result=test_result,
         ioengine=ioengine,
-        cpus_allowed=":".join(str(i) for i in range(min(disk_count, thread_count))),  # Worker-specific CPU assignment: worker1→vCPU0, worker2→vCPU1, etc.
     )
 
 
@@ -1247,12 +963,11 @@ def perf_resource_disks(
             disk_count=disk_count,
             disk_setup_type=disk_setup_type,
             disk_type=DiskType.localssd,
-            numjob=disk_count,  # Changed: 1 job per disk instead of core_count
+            numjob=core_count,
             block_size=block_size,
             size_mb=8192,
             overwrite=True,
             test_result=test_result,
-            cpus_allowed=":".join(str(i) for i in range(min(disk_count, core_count))),  # Worker-specific CPU assignment: worker1→vCPU0, worker2→vCPU1, etc.
         )
 
     else:
