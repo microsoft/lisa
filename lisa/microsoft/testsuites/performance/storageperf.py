@@ -23,6 +23,7 @@ from lisa.features import AvailabilityZoneEnabled, Disk
 from lisa.features.network_interface import Sriov, Synthetic
 from lisa.messages import DiskSetupType, DiskType
 from lisa.microsoft.testsuites.performance.common import (
+    check_premium_datadisks_performance,
     perf_disk,
     perf_premium_datadisks,
     perf_resource_disks,
@@ -160,8 +161,11 @@ class StoragePerformance(TestSuite):
             ),
         ),
     )
-    def perf_premium_datadisks_4k(self, node: Node, result: TestResult) -> None:
-        perf_premium_datadisks(node, result)
+    def perf_premium_datadisks_4k(
+        self, node: Node, result: TestResult, variables: Dict[str, Any]
+    ) -> None:
+        perf_messages = perf_premium_datadisks(node, result)
+        check_premium_datadisks_performance(result, perf_messages, variables)
 
     @TestCaseMetadata(
         description="""
@@ -179,8 +183,11 @@ class StoragePerformance(TestSuite):
             ),
         ),
     )
-    def perf_premium_datadisks_1024k(self, node: Node, result: TestResult) -> None:
-        perf_premium_datadisks(node, result, block_size=1024)
+    def perf_premium_datadisks_1024k(
+        self, node: Node, result: TestResult, variables: Dict[str, Any]
+    ) -> None:
+        perf_messages = perf_premium_datadisks(node, result, block_size=1024)
+        check_premium_datadisks_performance(result, perf_messages, variables)
 
     @TestCaseMetadata(
         description="""
@@ -199,15 +206,16 @@ class StoragePerformance(TestSuite):
         ),
     )
     def perf_premium_datadisks_4k_io_uring(
-        self, node: Node, result: TestResult
+        self, node: Node, result: TestResult, variables: Dict[str, Any]
     ) -> None:
         # Check if io_uring is available in kernel configuration
         kernel_config = node.tools[KernelConfig]
         if not kernel_config.is_enabled("CONFIG_IO_URING"):
             raise SkippedException("io_uring is not available in kernel configuration")
-        perf_premium_datadisks(
+        perf_messages = perf_premium_datadisks(
             node, ioengine=IoEngine.IO_URING, test_result=result, max_iodepth=1024
         )
+        check_premium_datadisks_performance(result, perf_messages, variables)
 
     @TestCaseMetadata(
         description="""
@@ -226,19 +234,20 @@ class StoragePerformance(TestSuite):
         ),
     )
     def perf_premium_datadisks_1024k_io_uring(
-        self, node: Node, result: TestResult
+        self, node: Node, result: TestResult, variables: Dict[str, Any]
     ) -> None:
         # Check if io_uring is available in kernel configuration
         kernel_config = node.tools[KernelConfig]
         if not kernel_config.is_enabled("CONFIG_IO_URING"):
             raise SkippedException("io_uring is not available in kernel configuration")
-        perf_premium_datadisks(
+        perf_messages = perf_premium_datadisks(
             node,
             ioengine=IoEngine.IO_URING,
             test_result=result,
             max_iodepth=1024,
             block_size=1024,
         )
+        check_premium_datadisks_performance(result, perf_messages, variables)
 
     @TestCaseMetadata(
         description="""
