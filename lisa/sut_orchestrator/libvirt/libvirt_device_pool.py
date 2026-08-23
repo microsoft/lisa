@@ -3,9 +3,12 @@
 
 import re
 import xml.etree.ElementTree as ET  # noqa: N817
+from ipaddress import ip_address
 from itertools import combinations
 from pathlib import PurePosixPath
 from typing import Any, Dict, List, Optional, cast
+
+from paramiko.ssh_exception import SSHException
 
 from lisa.node import Node, RemoteNode
 from lisa.sut_orchestrator.util.device_pool import BaseDevicePool
@@ -36,6 +39,8 @@ class LibvirtDevicePool(BaseDevicePool):
         self.available_host_devices: Dict[
             HostDevicePoolType, Dict[str, List[DeviceAddressSchema]]
         ] = {}
+        self._allocated_device_groups: Dict[HostDevicePoolType, Dict[str, str]] = {}
+        self._management_route_cleanup_command = ""
 
         self.supported_pool_type = [
             HostDevicePoolType.PCI_NIC,
@@ -66,6 +71,9 @@ class LibvirtDevicePool(BaseDevicePool):
         )
         if not allow_unsafe_interrupt:
             raise LisaException("Allowing unsafe interrupt failed")
+
+        if any(config.type == HostDevicePoolType.PCI_NIC for config in device_configs):
+            self._stabilize_management_route()
 
         # Dump the initialized pool to ease debugging of passthrough issues.
         pool_summary = {
@@ -107,8 +115,15 @@ class LibvirtDevicePool(BaseDevicePool):
 
         devices: List[DeviceAddressSchema] = []
         selected_pools = results[0]
+        allocated_device_groups = self._allocated_device_groups.setdefault(
+            pool_type, {}
+        )
         for iommu_grp in selected_pools:
-            devices += pool.pop(iommu_grp)
+            group_devices = pool.pop(iommu_grp)
+            devices += group_devices
+            for device in group_devices:
+                device_id = self._get_pci_address_str(device)
+                allocated_device_groups[device_id] = iommu_grp
         self.available_host_devices[pool_type] = pool
         return devices
 
@@ -121,13 +136,17 @@ class LibvirtDevicePool(BaseDevicePool):
             pool_type = context.pool_type
             devices_list = context.device_list
             pool = self.available_host_devices.get(pool_type, {})
+            allocated_device_groups = self._allocated_device_groups.get(pool_type, {})
             for device in devices_list:
-                iommu_grp = self._get_device_iommu_group(device)
+                device_id = self._get_pci_address_str(device)
+                iommu_grp = allocated_device_groups.pop(device_id)
                 pool_devices = pool.get(iommu_grp, [])
                 if device not in pool_devices:
                     pool_devices.append(device)
                 pool[iommu_grp] = pool_devices
             self.available_host_devices[pool_type] = pool
+            if not allocated_device_groups:
+                self._allocated_device_groups.pop(pool_type, None)
         node_context.passthrough_devices.clear()
 
     def get_primary_nic_iommu_group(self) -> str:
@@ -168,6 +187,258 @@ class LibvirtDevicePool(BaseDevicePool):
         return self._resolve_iommu_group_from_sysfs_path(
             sysfs_path, context="primary NIC"
         )
+
+    def _stabilize_management_route(self) -> None:
+        ssh_result = self.host_node.execute(
+            cmd='printf "%s" "$SSH_CONNECTION"',
+            shell=True,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
+        ssh_fields = ssh_result.stdout.strip().split()
+        if len(ssh_fields) < 4:
+            self.host_node.log.debug(
+                "SSH_CONNECTION is unavailable; skipping management route guard."
+            )
+            return
+
+        try:
+            peer_ip = ip_address(ssh_fields[0])
+            host_ip = ip_address(ssh_fields[2])
+        except ValueError:
+            self.host_node.log.debug(
+                f"Invalid SSH_CONNECTION value '{ssh_result.stdout.strip()}'; "
+                "skipping management route guard."
+            )
+            return
+
+        if peer_ip.version != 4 or host_ip.version != 4:
+            self.host_node.log.debug(
+                "The management route guard currently supports IPv4 SSH only."
+            )
+            return
+
+        address_result = self.host_node.execute(
+            cmd="ip -o -4 addr show",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Can not list host IPv4 addresses",
+        )
+        management_interface = self._find_interface_for_ip(
+            address_result.stdout, str(host_ip)
+        )
+        if not management_interface:
+            raise LisaException(
+                f"Can not identify the interface that owns SSH server IP "
+                f"'{host_ip}'. Host IPv4 addresses: "
+                f"'{address_result.stdout.strip() or '<empty>'}'."
+            )
+        self._validate_interface_name(management_interface, "Management")
+
+        route_result = self.host_node.execute(
+            cmd=f"ip -o -4 route get {peer_ip} from {host_ip}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Can not resolve the SSH return route to {peer_ip}"
+            ),
+        )
+        route_interface = self._get_route_interface(
+            route_result.stdout, f"SSH return route to '{peer_ip}'"
+        )
+        if route_interface == management_interface:
+            return
+        if not self._is_passthrough_nic_interface(route_interface):
+            self.host_node.log.debug(
+                f"SSH return route uses interface '{route_interface}', which is "
+                "not an eligible passthrough NIC; skipping management route guard."
+            )
+            return
+
+        existing_route = self.host_node.execute(
+            cmd=f"ip -o -4 route show table main exact {peer_ip}/32",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Can not inspect existing host routes to {peer_ip}"
+            ),
+        ).stdout.strip()
+        if existing_route:
+            raise LisaException(
+                f"SSH return route to '{peer_ip}' uses passthrough candidate "
+                f"interface '{route_interface}', but an existing peer route "
+                f"prevents LISA from pinning it to management interface "
+                f"'{management_interface}': '{existing_route}'."
+            )
+
+        route_command = self._get_management_route_command(
+            str(peer_ip), str(host_ip), management_interface
+        )
+        self.host_node.execute(
+            cmd=route_command,
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Can not pin the SSH return route to {management_interface}"
+            ),
+        )
+        self._management_route_cleanup_command = route_command.replace(
+            " route add ", " route del ", 1
+        )
+        self.host_node.log.debug(
+            f"Pinned SSH peer {peer_ip} to management interface "
+            f"'{management_interface}' because the previous route used "
+            f"'{route_interface}'."
+        )
+
+    def _is_passthrough_nic_interface(self, interface_name: str) -> bool:
+        route_sysfs_path = self.host_node.tools[Readlink].get_canonical_path(
+            f"/sys/class/net/{interface_name}/device",
+            sudo=True,
+            no_error_log=True,
+        )
+        route_pci_address = (
+            PurePosixPath(route_sysfs_path).name if route_sysfs_path else ""
+        )
+        return route_pci_address in {
+            self._get_pci_address_str(device)
+            for devices in self.available_host_devices.get(
+                HostDevicePoolType.PCI_NIC, {}
+            ).values()
+            for device in devices
+        }
+
+    def _get_management_route_command(
+        self, peer_ip: str, host_ip: str, management_interface: str
+    ) -> str:
+        management_route_result = self.host_node.execute(
+            cmd=(
+                f"ip -o -4 route get {peer_ip} from {host_ip} "
+                f"oif {management_interface}"
+            ),
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Can not resolve an SSH return route to {peer_ip} through "
+                f"management interface {management_interface}"
+            ),
+        )
+        management_route_fields = management_route_result.stdout.strip().split()
+        route_context = (
+            f"SSH return route to '{peer_ip}' through '{management_interface}'"
+        )
+        route_interface = self._get_route_interface(
+            management_route_result.stdout, route_context
+        )
+        if route_interface != management_interface:
+            raise LisaException(
+                f"SSH return route constrained to '{management_interface}' "
+                f"resolved unexpectedly: "
+                f"'{management_route_result.stdout.strip()}'."
+            )
+        route_parts = ["ip", "route", "add", f"{peer_ip}/32"]
+        if "via" in management_route_fields:
+            via_index = management_route_fields.index("via")
+            if via_index + 1 >= len(management_route_fields):
+                raise LisaException(
+                    f"SSH return route to '{peer_ip}' through "
+                    f"'{management_interface}' has an invalid gateway: "
+                    f"'{management_route_result.stdout.strip()}'."
+                )
+            gateway_text = management_route_fields[via_index + 1]
+            try:
+                gateway = ip_address(gateway_text)
+            except ValueError as identifier_error:
+                raise LisaException(
+                    f"SSH return route to '{peer_ip}' through "
+                    f"'{management_interface}' has an invalid gateway "
+                    f"'{gateway_text}': "
+                    f"'{management_route_result.stdout.strip()}'."
+                ) from identifier_error
+            if gateway.version != 4:
+                raise LisaException(
+                    f"SSH return route to '{peer_ip}' through "
+                    f"'{management_interface}' has a non-IPv4 gateway: "
+                    f"'{gateway}'."
+                )
+            route_parts.extend(["via", str(gateway)])
+        route_parts.extend(
+            ["dev", management_interface, "src", str(host_ip), "proto", "static"]
+        )
+        return " ".join(route_parts)
+
+    @classmethod
+    def _get_route_interface(cls, route_output: str, route_context: str) -> str:
+        route_fields = route_output.strip().split()
+        if "dev" not in route_fields:
+            raise LisaException(
+                f"{route_context} has no interface: "
+                f"'{route_output.strip() or '<empty>'}'."
+            )
+        dev_index = route_fields.index("dev")
+        if dev_index + 1 >= len(route_fields):
+            raise LisaException(
+                f"{route_context} has an invalid interface: "
+                f"'{route_output.strip()}'."
+            )
+        interface_name = route_fields[dev_index + 1].split("@", 1)[0]
+        cls._validate_interface_name(interface_name, route_context)
+        return interface_name
+
+    @staticmethod
+    def _validate_interface_name(interface_name: str, context: str) -> None:
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]+", interface_name):
+            raise LisaException(
+                f"{context} interface name '{interface_name}' contains "
+                "unsupported characters."
+            )
+
+    @staticmethod
+    def _find_interface_for_ip(address_output: str, ip_address: str) -> str:
+        for line in address_output.splitlines():
+            fields = line.split()
+            if "inet" not in fields:
+                continue
+            inet_index = fields.index("inet")
+            if inet_index + 1 >= len(fields):
+                continue
+            if fields[inet_index + 1].split("/", 1)[0] == ip_address:
+                return fields[1].split("@", 1)[0]
+        return ""
+
+    def cleanup(self) -> None:
+        if not self._management_route_cleanup_command:
+            return
+
+        cleanup_command = self._management_route_cleanup_command
+        try:
+            result = self.host_node.execute(
+                cmd=cleanup_command,
+                shell=True,
+                sudo=True,
+                no_error_log=True,
+                expected_exit_code=None,
+            )
+        except (LisaException, SSHException) as identifier_error:
+            self.host_node.log.debug(
+                f"Failed to remove the temporary SSH peer route with "
+                f"'{cleanup_command}': {identifier_error}"
+            )
+            return
+        if result.exit_code != 0:
+            self.host_node.log.debug(
+                f"Failed to remove the temporary SSH peer route with "
+                f"'{cleanup_command}'. Exit code: {result.exit_code}. "
+                f"Output: {(result.stdout + result.stderr).strip()}"
+            )
+            return
+        self._management_route_cleanup_command = ""
 
     def get_rootfs_nvme_iommu_group(self) -> str:
         # Find the NVMe device backing the root filesystem to exclude it
