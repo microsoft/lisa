@@ -41,6 +41,7 @@ DOMAIN_STOP_TIMEOUT_SECONDS = 30
 DOMAIN_STOP_KILL_TIMEOUT_SECONDS = 5
 DOMAIN_PROCESS_EXIT_TIMEOUT_SECONDS = 15
 CONSOLE_CLOSE_TIMEOUT_SECONDS = 15
+PASSTHROUGH_BOOT_RETRY_COUNT = 4
 
 
 class CloudHypervisorDomainStopError(LisaException):
@@ -542,28 +543,35 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         timeout: float,
     ) -> str:
         node_context = get_node_context(node)
-        try:
-            return super()._get_node_ip_address(environment, log, node, timeout)
-        except GuestBootTimeoutError:
-            if not node_context.passthrough_devices:
-                raise
+        restart_count = 0
+        current_timeout = timeout
+        while True:
+            try:
+                return super()._get_node_ip_address(
+                    environment,
+                    log,
+                    node,
+                    current_timeout,
+                )
+            except GuestBootTimeoutError:
+                if (
+                    not node_context.passthrough_devices
+                    or restart_count >= PASSTHROUGH_BOOT_RETRY_COUNT
+                ):
+                    raise
 
-        log.warning(
-            f"VM {node_context.vm_name} did not acquire an IP address before the "
-            "boot timeout; restarting the Cloud Hypervisor passthrough domain once"
-        )
-        self._stop_domain(node_context, log)
-        self.restart_domain_and_attach_logger(node)
-
-        retry_timeout = (
-            time.time() + get_environment_context(environment).network_boot_timeout
-        )
-        return super()._get_node_ip_address(
-            environment,
-            log,
-            node,
-            retry_timeout,
-        )
+            restart_count += 1
+            log.warning(
+                f"VM {node_context.vm_name} did not acquire an IP address before "
+                "the boot timeout; restarting the Cloud Hypervisor passthrough "
+                f"domain (attempt {restart_count} of "
+                f"{PASSTHROUGH_BOOT_RETRY_COUNT})"
+            )
+            self._stop_domain(node_context, log)
+            self.restart_domain_and_attach_logger(node)
+            current_timeout = (
+                time.time() + get_environment_context(environment).network_boot_timeout
+            )
 
     def _attach_console_logger(self, node_context: NodeContext) -> None:
         domain = cast(Any, node_context.domain)
