@@ -84,6 +84,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        use_new_environment=True,
         requirement=simple_requirement(
             min_count=1,
             supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
@@ -99,9 +100,6 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
         self._skip_if_windows_server(server, "iperf3")
-
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
 
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -123,6 +121,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        use_new_environment=True,
         requirement=simple_requirement(
             min_count=1,
             supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
@@ -138,9 +137,6 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
         self._skip_if_windows_server(server, "iperf3")
-
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
 
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -164,6 +160,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=PPS_TIMEOUT,
+        use_new_environment=True,
         requirement=simple_requirement(
             min_count=1,
             supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
@@ -179,9 +176,6 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
         self._skip_if_windows_server(server, "netperf/sar")
-
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
 
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -203,6 +197,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=PPS_TIMEOUT,
+        use_new_environment=True,
         requirement=simple_requirement(
             min_count=1,
             supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
@@ -218,9 +213,6 @@ class NetworkPerformance(TestSuite):
     ) -> None:
         server = self._get_host_as_server(variables)
         self._skip_if_windows_server(server, "netperf/sar")
-
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
 
         client, _ = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -241,6 +233,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        use_new_environment=True,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 node_count=1,
@@ -257,9 +250,6 @@ class NetworkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         server = self._get_host_as_server(variables)
-
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
 
         client, client_nic_name = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -301,6 +291,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        use_new_environment=True,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 node_count=1,
@@ -317,9 +308,6 @@ class NetworkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         server = self._get_host_as_server(variables)
-
-        # Reboot guest into fresh state; never reboot the baremetal host.
-        cast(RemoteNode, node).reboot()
 
         client, client_nic_name = self._configure_passthrough_nic_for_node(
             node, log_path, host_node=server
@@ -353,6 +341,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        use_new_environment=True,
         requirement=simple_requirement(
             min_count=2,
             supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
@@ -368,10 +357,6 @@ class NetworkPerformance(TestSuite):
 
         client_node = cast(RemoteNode, environment.nodes[0])
         server_node = cast(RemoteNode, environment.nodes[1])
-
-        # Reboot both guests first to avoid stale passthrough NIC state.
-        client_node.reboot()
-        server_node.reboot()
 
         client, _ = self._configure_passthrough_nic_for_node(client_node, log_path)
         server, _ = self._configure_passthrough_nic_for_node(server_node, log_path)
@@ -391,6 +376,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        use_new_environment=True,
         requirement=simple_requirement(
             min_count=2,
             supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
@@ -406,10 +392,6 @@ class NetworkPerformance(TestSuite):
 
         client_node = cast(RemoteNode, environment.nodes[0])
         server_node = cast(RemoteNode, environment.nodes[1])
-
-        # Reboot both nodes; Libvirt may reuse them, boot into fresh state.
-        client_node.reboot()
-        server_node.reboot()
 
         client, _ = self._configure_passthrough_nic_for_node(client_node, log_path)
         server, _ = self._configure_passthrough_nic_for_node(server_node, log_path)
@@ -432,6 +414,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=PPS_TIMEOUT,
+        use_new_environment=True,
         requirement=simple_requirement(
             min_count=2,
             supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
@@ -447,10 +430,6 @@ class NetworkPerformance(TestSuite):
 
         client_node = cast(RemoteNode, environment.nodes[0])
         server_node = cast(RemoteNode, environment.nodes[1])
-
-        # Reboot both nodes; Libvirt may reuse them, boot into fresh state.
-        client_node.reboot()
-        server_node.reboot()
 
         client, _ = self._configure_passthrough_nic_for_node(client_node, log_path)
         server, _ = self._configure_passthrough_nic_for_node(server_node, log_path)
@@ -471,6 +450,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=PPS_TIMEOUT,
+        use_new_environment=True,
         requirement=simple_requirement(
             min_count=2,
             supported_platform_type=SUPPORTED_PASSTHROUGH_PLATFORMS,
@@ -486,10 +466,6 @@ class NetworkPerformance(TestSuite):
 
         client_node = cast(RemoteNode, environment.nodes[0])
         server_node = cast(RemoteNode, environment.nodes[1])
-
-        # Reboot both nodes; Libvirt may reuse them, boot into fresh state.
-        client_node.reboot()
-        server_node.reboot()
 
         client, _ = self._configure_passthrough_nic_for_node(client_node, log_path)
         server, _ = self._configure_passthrough_nic_for_node(server_node, log_path)
@@ -509,6 +485,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        use_new_environment=True,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 node_count=2,
@@ -525,10 +502,6 @@ class NetworkPerformance(TestSuite):
 
         client_node = cast(RemoteNode, environment.nodes[0])
         server_node = cast(RemoteNode, environment.nodes[1])
-
-        # Reboot both nodes; Libvirt may reuse them, boot into fresh state.
-        client_node.reboot()
-        server_node.reboot()
 
         client, client_nic_name = self._configure_passthrough_nic_for_node(
             client_node, log_path
@@ -565,6 +538,7 @@ class NetworkPerformance(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        use_new_environment=True,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 node_count=2,
@@ -581,10 +555,6 @@ class NetworkPerformance(TestSuite):
 
         client_node = cast(RemoteNode, environment.nodes[0])
         server_node = cast(RemoteNode, environment.nodes[1])
-
-        # Reboot both nodes; Libvirt may reuse them, boot into fresh state.
-        client_node.reboot()
-        server_node.reboot()
 
         client, client_nic_name = self._configure_passthrough_nic_for_node(
             client_node, log_path
