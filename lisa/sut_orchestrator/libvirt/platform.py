@@ -82,6 +82,10 @@ KEY_VMM_VERSION = "vmm_version"
 _LibvirtOperationResult = TypeVar("_LibvirtOperationResult")
 
 
+class GuestBootTimeoutError(LisaException):
+    pass
+
+
 class _HostCapabilities:
     def __init__(self) -> None:
         self.core_count = 0
@@ -1272,7 +1276,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                 return addr
 
             if time.time() > timeout:
-                raise LisaException(
+                raise GuestBootTimeoutError(
                     f"no IP addresses found for {node_context.vm_name}."
                     " Guest OS might have failed to boot"
                 )

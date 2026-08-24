@@ -6,6 +6,7 @@ import os
 import re
 import secrets
 import shutil
+import time
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
 from typing import Any, List, Type, cast
@@ -17,9 +18,13 @@ from lisa.node import Node
 from lisa.sut_orchestrator.libvirt.context import (
     GuestVmType,
     NodeContext,
+    get_environment_context,
     get_node_context,
 )
-from lisa.sut_orchestrator.libvirt.platform import BaseLibvirtPlatform
+from lisa.sut_orchestrator.libvirt.platform import (
+    BaseLibvirtPlatform,
+    GuestBootTimeoutError,
+)
 from lisa.tools import Ls, QemuImg
 from lisa.util import LisaException, parse_version
 from lisa.util.logger import Logger, filter_ansi_escape
@@ -277,6 +282,40 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             self.device_pool._verify_device_passthrough_post_boot(
                 node_context=node_context,
             )
+
+    def _get_node_ip_address(
+        self,
+        environment: Environment,
+        log: Logger,
+        node: Node,
+        timeout: float,
+    ) -> str:
+        node_context = get_node_context(node)
+        try:
+            return super()._get_node_ip_address(environment, log, node, timeout)
+        except GuestBootTimeoutError:
+            if not node_context.passthrough_devices:
+                raise
+
+        log.warning(
+            f"VM {node_context.vm_name} did not acquire an IP address before the "
+            "boot timeout; restarting the Cloud Hypervisor passthrough domain once"
+        )
+        domain = cast(Any, node_context.domain)
+        assert domain is not None
+        if domain.isActive():
+            domain.destroy()
+        self.restart_domain_and_attach_logger(node)
+
+        retry_timeout = (
+            time.time() + get_environment_context(environment).network_boot_timeout
+        )
+        return super()._get_node_ip_address(
+            environment,
+            log,
+            node,
+            retry_timeout,
+        )
 
     def _attach_console_logger(self, node_context: NodeContext) -> None:
         domain = cast(Any, node_context.domain)
