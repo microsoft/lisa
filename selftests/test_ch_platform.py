@@ -160,9 +160,9 @@ class CloudHypervisorPlatformTestCase(TestCase):
         platform._run_bounded_domain_stop = MagicMock(
             return_value=self._command_result(0)
         )
+        platform._find_domain_process_id = MagicMock(return_value=4321)
 
         domain = MagicMock()
-        domain.ID.return_value = 4321
         node_context = MagicMock(
             vm_name="lisa-test-0",
             passthrough_devices=[MagicMock()],
@@ -173,6 +173,24 @@ class CloudHypervisorPlatformTestCase(TestCase):
 
         platform._run_bounded_domain_stop.assert_called_once_with("lisa-test-0")
         domain.destroy.assert_not_called()
+
+    def test_finds_only_exact_cloud_hypervisor_domain_process(self) -> None:
+        ch_platform_module = _load_ch_platform_module()
+        platform = object.__new__(ch_platform_module.CloudHypervisorPlatform)
+        platform.host_node = MagicMock()
+        platform.host_node.execute.return_value = self._command_result(
+            0,
+            stdout="4321",
+        )
+
+        process_id = platform._find_domain_process_id("lisa-test-0")
+
+        self.assertEqual(4321, process_id)
+        command = platform.host_node.execute.call_args.args[0]
+        self.assertIn("/proc/[0-9]*/cmdline", command)
+        self.assertIn("lisa-test-0-event-monitor-fifo", command)
+        self.assertIn("cloud-hypervisor", command)
+        self.assertNotIn("pgrep", command)
 
     def test_bounded_domain_stop_uses_host_timeout(self) -> None:
         ch_platform_module = _load_ch_platform_module()
@@ -214,6 +232,7 @@ class CloudHypervisorPlatformTestCase(TestCase):
                 self._command_result(0),
             ]
         )
+        platform._find_domain_process_id = MagicMock(return_value=4321)
         platform._capture_domain_process_diagnostics = MagicMock()
         platform._force_kill_domain_process = MagicMock(
             return_value=self._command_result(0)
@@ -221,12 +240,10 @@ class CloudHypervisorPlatformTestCase(TestCase):
         replacement_domain = MagicMock()
         platform._lookup_domain = MagicMock(return_value=replacement_domain)
 
-        domain = MagicMock()
-        domain.ID.return_value = 4321
         node_context = MagicMock(
             vm_name="lisa-test-0",
             passthrough_devices=[MagicMock()],
-            domain=domain,
+            domain=MagicMock(),
         )
         log = MagicMock()
 
@@ -246,17 +263,16 @@ class CloudHypervisorPlatformTestCase(TestCase):
         platform._run_bounded_domain_stop = MagicMock(
             return_value=self._command_result(124)
         )
+        platform._find_domain_process_id = MagicMock(return_value=4321)
         platform._capture_domain_process_diagnostics = MagicMock()
         platform._force_kill_domain_process = MagicMock(
             return_value=self._command_result(124)
         )
 
-        domain = MagicMock()
-        domain.ID.return_value = 4321
         node_context = MagicMock(
             vm_name="lisa-test-0",
             passthrough_devices=[MagicMock()],
-            domain=domain,
+            domain=MagicMock(),
         )
 
         with self.assertRaises(ch_platform_module.CloudHypervisorDomainStopError):
