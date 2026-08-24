@@ -305,11 +305,8 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 "failed its bounded stop and cannot be safely reused."
             )
 
-        domain = cast(Any, node_context.domain)
-        assert domain is not None
-        # The libvirt CH driver uses the Cloud Hypervisor child PID as its
-        # active domain ID.
-        process_id = int(domain.ID())
+        assert node_context.domain is not None
+        process_id = self._find_domain_process_id(node_context.vm_name)
 
         stop_result = self._run_bounded_domain_stop(node_context.vm_name)
         if self._domain_stop_succeeded(stop_result):
@@ -368,6 +365,37 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             )
         node_context.domain_stop_failed = False
         node_context.domain = self._lookup_domain(node_context.vm_name, log)
+
+    def _find_domain_process_id(self, vm_name: str) -> int:
+        event_monitor_argument = shlex.quote(
+            f"path={CH_STATE_DIRECTORY}/{vm_name}-event-monitor-fifo"
+        )
+        command = (
+            "for cmdline in /proc/[0-9]*/cmdline; do "
+            '[ -r "$cmdline" ] || continue; '
+            f"tr '\\0' '\\n' < \"$cmdline\" "
+            f"| grep -Fqx -- {event_monitor_argument} || continue; "
+            'pid="${cmdline#/proc/}"; pid="${pid%/cmdline}"; '
+            'executable="$(readlink -f "/proc/$pid/exe")" || continue; '
+            '[ "${executable##*/}" = "cloud-hypervisor" ] || continue; '
+            'printf "%s\\n" "$pid"; '
+            "done"
+        )
+        result = self.host_node.execute(
+            command,
+            sudo=True,
+            shell=True,
+            timeout=15,
+        )
+        process_ids = [
+            int(line) for line in result.stdout.splitlines() if line.strip().isdigit()
+        ]
+        if len(process_ids) > 1:
+            raise CloudHypervisorDomainStopError(
+                f"Found multiple Cloud Hypervisor processes for domain {vm_name}: "
+                f"{process_ids}"
+            )
+        return process_ids[0] if process_ids else -1
 
     def _run_bounded_domain_stop(self, vm_name: str) -> ExecutableResult:
         command = (
