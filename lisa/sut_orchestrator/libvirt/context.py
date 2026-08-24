@@ -78,6 +78,7 @@ class NodeContext:
 
     console_logger: Optional[QemuConsoleLogger] = None
     domain: Optional[libvirt.virDomain] = None
+    domain_stop_failed: bool = False
 
     # Device pass through configuration
     passthrough_devices: List[DevicePassthroughContext] = field(

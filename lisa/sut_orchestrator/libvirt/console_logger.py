@@ -52,7 +52,7 @@ class QemuConsoleLogger:
         self._console_stream_callback_started = True
 
     # Close the logger.
-    def close(self, abort: bool = True) -> None:
+    def close(self, abort: bool = True, timeout: Optional[float] = None) -> bool:
         # Check if attach() run successfully.
         if self._console_stream_callback_started:
             if abort:
@@ -60,7 +60,7 @@ class QemuConsoleLogger:
                 libvirt_events_thread.run_callback(self._close_stream, True)
 
             # Wait for stream to close.
-            self._stream_completed.wait()
+            return self._stream_completed.wait(timeout)
 
         else:
             if self._console_stream:
@@ -69,11 +69,14 @@ class QemuConsoleLogger:
             if self._log_file:
                 self._log_file.close()
 
+        return True
+
     # Wait until the stream closes.
     # Typically used when gracefully shutting down a VM.
-    def wait_for_close(self) -> None:
+    def wait_for_close(self, timeout: Optional[float] = None) -> bool:
         if self._console_stream_callback_started:
-            self._stream_completed.wait()
+            return self._stream_completed.wait(timeout)
+        return True
 
     # Register the console stream events.
     # Threading: Must only be called on libvirt events thread.
