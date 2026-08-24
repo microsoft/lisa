@@ -91,7 +91,7 @@ class CloudHypervisorPlatformTestCase(TestCase):
         self.assertEqual(340, get_ip_address.call_args_list[1].args[3])
         log.warning.assert_called_once()
 
-    def test_propagates_second_passthrough_boot_timeout(self) -> None:
+    def test_limits_passthrough_boot_restarts(self) -> None:
         ch_platform_module = _load_ch_platform_module()
         platform = object.__new__(ch_platform_module.CloudHypervisorPlatform)
         platform._stop_domain = MagicMock()
@@ -109,10 +109,7 @@ class CloudHypervisorPlatformTestCase(TestCase):
         with patch.object(
             ch_platform_module.BaseLibvirtPlatform,
             "_get_node_ip_address",
-            side_effect=[
-                ch_platform_module.GuestBootTimeoutError("first timeout"),
-                ch_platform_module.GuestBootTimeoutError("second timeout"),
-            ],
+            side_effect=ch_platform_module.GuestBootTimeoutError("boot timeout"),
         ), patch.object(ch_platform_module.time, "time", return_value=100):
             with self.assertRaises(ch_platform_module.GuestBootTimeoutError):
                 platform._get_node_ip_address(
@@ -122,8 +119,14 @@ class CloudHypervisorPlatformTestCase(TestCase):
                     timeout=50,
                 )
 
-        platform._stop_domain.assert_called_once()
-        platform.restart_domain_and_attach_logger.assert_called_once_with(node)
+        self.assertEqual(
+            ch_platform_module.PASSTHROUGH_BOOT_RETRY_COUNT,
+            platform._stop_domain.call_count,
+        )
+        self.assertEqual(
+            ch_platform_module.PASSTHROUGH_BOOT_RETRY_COUNT,
+            platform.restart_domain_and_attach_logger.call_count,
+        )
 
     def test_does_not_restart_domain_without_passthrough(self) -> None:
         ch_platform_module = _load_ch_platform_module()
