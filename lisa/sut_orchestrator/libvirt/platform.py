@@ -578,6 +578,34 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             node_runbook,
         )
 
+    def stop_domain(self, node: Node) -> None:
+        self._stop_domain(get_node_context(node), self._log)
+
+    def _stop_domain(self, node_context: NodeContext, log: Logger) -> None:
+        assert node_context.domain, (
+            f"Cannot stop VM '{node_context.vm_name}' because no libvirt domain "
+            "is recorded in the node context."
+        )
+        domain = node_context.domain
+
+        def stop_domain() -> None:
+            if domain.isActive():
+                domain.destroy()
+
+        def retry_stop_domain() -> None:
+            node_context.domain = self._lookup_domain(node_context.vm_name, log)
+            assert node_context.domain
+            if node_context.domain.isActive():
+                node_context.domain.destroy()
+
+        self._run_libvirt_operation_with_reconnect(
+            operation=stop_domain,
+            retry_operation=retry_stop_domain,
+            operation_description="domain stop",
+            vm_name=node_context.vm_name,
+            log=log,
+        )
+
     def restart_domain_and_attach_logger(self, node: Node) -> None:
         node_context = get_node_context(node)
         domain = node_context.domain
@@ -732,28 +760,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
     def _destroy_domain(self, node_context: NodeContext, log: Logger) -> None:
         """Stop (destroy) the VM domain, reconnecting if the socket was closed."""
-        assert node_context.domain, (
-            f"Cannot stop VM '{node_context.vm_name}' because no libvirt domain "
-            "is recorded in the node context."
-        )
-        domain = node_context.domain
-
-        def destroy_domain() -> None:
-            domain.destroy()
-
-        def retry_destroy_domain() -> None:
-            node_context.domain = self._lookup_domain(node_context.vm_name, log)
-            node_context.domain.destroy()
-
         try:
             # In the libvirt API, "destroy" means "stop".
-            self._run_libvirt_operation_with_reconnect(
-                operation=destroy_domain,
-                retry_operation=retry_destroy_domain,
-                operation_description="domain stop",
-                vm_name=node_context.vm_name,
-                log=log,
-            )
+            self._stop_domain(node_context, log)
         except libvirt.libvirtError as ex:
             log.info(f"VM stop failed for {node_context.vm_name}. {ex}")
 
@@ -788,27 +797,27 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
 
         watchdog = Timer(60.0, self._delete_node_watchdog_callback)
         watchdog.start()
+        try:
+            # Stop the VM.
+            if node_context.domain:
+                log.debug(f"Stop VM: {node_context.vm_name}")
+                self._destroy_domain(node_context, log)
 
-        # Stop the VM.
-        if node_context.domain:
-            log.debug(f"Stop VM: {node_context.vm_name}")
-            self._destroy_domain(node_context, log)
+            # Wait for console log to close.
+            # Note: libvirt can deadlock if you try to undefine the VM while the stream
+            # is trying to close.
+            if node_context.console_logger:
+                log.debug(f"Close VM console log: {node_context.vm_name}")
+                node_context.console_logger.close()
+                node_context.console_logger = None
 
-        # Wait for console log to close.
-        # Note: libvirt can deadlock if you try to undefine the VM while the stream
-        # is trying to close.
-        if node_context.console_logger:
-            log.debug(f"Close VM console log: {node_context.vm_name}")
-            node_context.console_logger.close()
-            node_context.console_logger = None
-
-        # Undefine the VM.
-        if node_context.domain:
-            log.debug(f"Delete VM: {node_context.vm_name}")
-            self._undefine_domain(node_context, log)
-            node_context.domain = None
-
-        watchdog.cancel()
+            # Undefine the VM.
+            if node_context.domain:
+                log.debug(f"Delete VM: {node_context.vm_name}")
+                self._undefine_domain(node_context, log)
+                node_context.domain = None
+        finally:
+            watchdog.cancel()
 
         # Add passthrough device back in the
         # list of available device once domain is deleted
