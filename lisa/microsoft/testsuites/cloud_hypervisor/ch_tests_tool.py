@@ -15,7 +15,7 @@ from lisa import Node
 from lisa.executable import ExecutableResult, Tool
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
-from lisa.operating_system import CBLMariner, Posix, Ubuntu
+from lisa.operating_system import CBLMariner, CpuArchitecture, Posix, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import (
     Cat,
@@ -30,6 +30,7 @@ from lisa.tools import (
     Mkdir,
     Modprobe,
     Sed,
+    Uname,
     Whoami,
 )
 from lisa.util import (
@@ -1449,12 +1450,29 @@ exit $ec
             self.env_vars["GUEST_VM_TYPE"] = self.clh_guest_vm_type
             if self.use_ms_guest_kernel:
                 self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
+                architecture = self.node.tools[Uname].get_machine_architecture()
+                if architecture == CpuArchitecture.ARM64:
+                    kernel_name = "Image"
+                else:
+                    kernel_name = "vmlinux.bin"
+                self.env_vars[
+                    "CH_CUSTOM_KERNEL"
+                ] = f"/usr/share/cloud-hypervisor/{kernel_name}"
             if self.use_ms_hypervisor_fw:
                 self.env_vars["USE_MS_HV_FW"] = self.use_ms_hypervisor_fw
+                self.env_vars[
+                    "CH_CUSTOM_FIRMWARE"
+                ] = "/usr/share/cloud-hypervisor/hypervisor-fw"
             if self.use_ms_ovmf_fw:
                 self.env_vars["USE_MS_OVMF_FW"] = self.use_ms_ovmf_fw
+                self.env_vars[
+                    "CH_CUSTOM_OVMF"
+                ] = "/usr/share/cloud-hypervisor/CLOUDHV_EFI.fd"
             if self.use_ms_bz_image:
                 self.env_vars["USE_MS_BZ_IMAGE"] = self.use_ms_bz_image
+                self.env_vars[
+                    "CH_CUSTOM_BZIMAGE"
+                ] = "/usr/share/cloud-hypervisor/bzImage"
 
             if self.use_pmem:
                 self.env_vars["USE_DATADISK"] = self.use_pmem
