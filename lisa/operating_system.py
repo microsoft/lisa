@@ -2399,6 +2399,37 @@ class CBLMariner(RPMDistro):
         cat = self._node.tools[Cat]
         cat.run("/etc/default/grub")
 
+    @staticmethod
+    def _get_kernel_version_candidates(kernel_version: str) -> List[str]:
+        rpm_version_pattern = re.compile(
+            r"^kernel-(?:[^-]+-)*(?P<version>\d+\.\d+\.\d+.*?)\.(x86_64|aarch64)$"
+        )
+        match_result = find_group_in_lines(
+            kernel_version, rpm_version_pattern, single_line=True
+        )
+        extracted_version = match_result.get("version")
+        if not extracted_version:
+            return [kernel_version]
+
+        candidates = [extracted_version]
+        flavored_rpm_pattern = re.compile(
+            r"^kernel-(?P<flavor>[^-]+)-"
+            r"(?P<version>\d+(?:\.\d+)+)-(?P<release>.+)"
+            r"\.(x86_64|aarch64)$"
+        )
+        flavored_match = find_group_in_lines(
+            kernel_version, flavored_rpm_pattern, single_line=True
+        )
+        if all(flavored_match.get(group) for group in ("flavor", "version", "release")):
+            flavored_version = (
+                f"{flavored_match['version']}-{flavored_match['flavor']}-"
+                f"{flavored_match['release']}"
+            )
+            if flavored_version not in candidates:
+                candidates.append(flavored_version)
+
+        return candidates
+
     def replace_boot_kernel(self, kernel_version: str) -> None:
         self._log.info(
             f"Configuring Grub to boot into kernel version: {kernel_version}"
@@ -2409,15 +2440,9 @@ class CBLMariner(RPMDistro):
         # kernel-lvbs-6.6.89-9.cm2.x86_64 -> 6.6.89-9.cm2
         # kernel-6.6.89-9.azl3.x86_64 -> 6.6.89-9.azl3
         # kernel-6.6.89-9.azl3.aarch64 -> 6.6.89-9.azl3
-        extracted_version = kernel_version
-        rpm_version_pattern = re.compile(
-            r"^kernel-(?:[^-]+-)*(?P<version>\d+\.\d+\.\d+.*?)\.(x86_64|aarch64)$"
-        )
-        match_result = find_group_in_lines(
-            kernel_version, rpm_version_pattern, single_line=True
-        )
-        if match_result.get("version"):
-            extracted_version = match_result["version"]
+        version_candidates = self._get_kernel_version_candidates(kernel_version)
+        extracted_version = version_candidates[0]
+        if extracted_version != kernel_version:
             self._log.info(
                 f"Extracted kernel version '{extracted_version}' "
                 f"from RPM package '{kernel_version}'"
@@ -2445,19 +2470,25 @@ class CBLMariner(RPMDistro):
         # Examples of potential menu entries:
         # For kernel-6.6.96-3.cm2.x86_64 => 6.6.96-3.cm2
         # => menuentry 'AzureLinux GNU/Linux, with Linux 6.6.96-3.cm2'
-        menu_entry_pattern = re.compile(
-            rf"menuentry '(?P<entry>[^']*{re.escape(extracted_version)}\s*)'",
-            re.IGNORECASE,
-        )
-        match_result = find_group_in_lines(
-            grub_cfg_result.stdout, menu_entry_pattern, single_line=True
-        )
-        menu_entry_name = match_result.get("entry")
+        menu_entry_name = ""
+        matched_version = extracted_version
+        for version_candidate in sorted(version_candidates, key=len, reverse=True):
+            menu_entry_pattern = re.compile(
+                rf"menuentry '(?P<entry>[^']*{re.escape(version_candidate)}\s*)'",
+                re.IGNORECASE,
+            )
+            match_result = find_group_in_lines(
+                grub_cfg_result.stdout, menu_entry_pattern, single_line=True
+            )
+            menu_entry_name = match_result.get("entry", "")
+            if menu_entry_name:
+                matched_version = version_candidate
+                break
 
         if not menu_entry_name:
             self._log.warning(
                 f"Could not find GRUB menu entry for kernel version "
-                f"'{extracted_version}' (original: '{kernel_version}'). "
+                f"candidates {version_candidates} (original: '{kernel_version}'). "
                 f"GRUB configuration may not be updated properly."
             )
             return
@@ -2479,7 +2510,7 @@ class CBLMariner(RPMDistro):
 
         self._log.info(
             f"Successfully configured GRUB to boot into kernel version "
-            f"'{extracted_version}' (from RPM package '{kernel_version}')"
+            f"'{matched_version}' (from RPM package '{kernel_version}')"
         )
 
 
