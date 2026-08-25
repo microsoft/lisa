@@ -63,7 +63,6 @@ from lisa.util.subclasses import Factory
 if TYPE_CHECKING:
     from lisa.node import Node
 
-
 _get_init_logger = partial(get_logger, name="os")
 
 
@@ -384,7 +383,15 @@ class Posix(OperatingSystem, BaseClassMixin):
 
         return kernel_information
 
-    def add_repository(self, repo: str, **kwargs: Any) -> None:
+    def add_repository(
+        self,
+        repo: str,
+        repo_file: str,
+        no_gpgcheck: bool = True,
+        repo_name: Optional[str] = None,
+        keys_location: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> None:
         raise NotImplementedError()
 
     def install_packages(
@@ -859,12 +866,9 @@ class Debian(Linux):
     def add_key(self, server_name: str, key: str = "") -> None:
         # apt-key add is deprecated starting from Ubuntu 2504.
         # Use gpg to import the key instead.
+        # Leave the apt_key_available branches in place in case we hit a case
+        # where we need to turn it back on.
         apt_key_available = False
-        if (
-            self._node.execute("command -v apt-key", shell=True, sudo=True).exit_code
-            == 0
-        ):
-            apt_key_available = True
 
         if key:
             if apt_key_available:
@@ -907,6 +911,7 @@ class Debian(Linux):
                 )
             else:
                 key_basename = os.path.basename(key_file_path)
+                key_basename = os.path.splitext(key_basename)[0]
                 self._node.execute(
                     cmd=(
                         "gpg --yes --dearmor -o "
@@ -949,6 +954,7 @@ class Debian(Linux):
         keys = [
             "https://packages.microsoft.com/keys/microsoft.asc",
             "https://packages.microsoft.com/keys/msopentech.asc",
+            "https://packages.microsoft.com/keys/microsoft-rolling.asc",
         ]
         if (
             repo_name == AzureCoreRepo.AzureCore
@@ -965,6 +971,7 @@ class Debian(Linux):
                 repo_url = "http://packages.microsoft.com/repos/azurecore-multiarch/"
                 self.add_repository(
                     repo=(f"deb [arch={arch_name}] {repo_url} {code_name} main"),
+                    repo_file="azurecore-multiarch.list",
                     keys_location=keys,
                 )
         else:
@@ -974,6 +981,7 @@ class Debian(Linux):
         repo_url = f"http://packages.microsoft.com/repos/{repo_name.value}/"
         self.add_repository(
             repo=(f"deb [arch={arch_name}] {repo_url} {code_name} main"),
+            repo_file="azurecore.list",
             keys_location=keys,
         )
 
@@ -1149,6 +1157,7 @@ class Debian(Linux):
     def add_repository(
         self,
         repo: str,
+        repo_file: str,
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
@@ -1162,11 +1171,25 @@ class Debian(Linux):
         # repos again.
 
         apt_repo = self._node.tools[AptAddRepository]
-        apt_repo.add_repository(repo)
+        try:
+            apt_repo.add_repository(repo)
+        except Exception:
+            # apt-add-repository seems like the right tool to use here,
+            # but its interface is too inconsistant across the distro/release
+            # combinations, and it is not able to handle the signed-by option
+            # which we need to be using. If it fails, just create the file directly
+            # Note: Need to use sudo to create the file.
+            self._log.error("apt-add-repository failed, creating the file manually")
+            try:
+                self._node.execute(
+                    f"echo '{repo}' | " f"sudo tee /etc/apt/sources.list.d/{repo_file}",
+                    shell=True,
+                )
+            except Exception as e:
+                self._log.error(f"OOPS: {e}")
 
-        # apt update will not be triggered on Debian during add repo
-        if type(self._node.os) is Debian:
-            self._node.execute("apt-get update", sudo=True)
+        # Ensure the package lists include the newly added repository.
+        self._node.execute("apt-get update", sudo=True)
 
     def is_end_of_life_release(self) -> bool:
         return self.information.full_version in self.end_of_life_releases
@@ -1547,9 +1570,11 @@ class Ubuntu(Debian):
 
         self.add_repository(
             repo=(f"deb [arch={arch_name}] {repo_url} {code_name} main"),
+            repo_file="azurecore.list",
             keys_location=[
                 "https://packages.microsoft.com/keys/microsoft.asc",
                 "https://packages.microsoft.com/keys/msopentech.asc",
+                "https://packages.microsoft.com/keys/microsoft-rolling.asc",
             ],
         )
         # If its architecture is aarch64 for bionic and xenial,
@@ -1558,9 +1583,11 @@ class Ubuntu(Debian):
             repo_url = "http://packages.microsoft.com/repos/azurecore-multiarch/"
             self.add_repository(
                 repo=(f"deb [arch={arch_name}] {repo_url} {code_name} main"),
+                repo_file="azurecore-multiarch.list",
                 keys_location=[
                     "https://packages.microsoft.com/keys/microsoft.asc",
                     "https://packages.microsoft.com/keys/msopentech.asc",
+                    "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                 ],
             )
 
@@ -1745,6 +1772,7 @@ class RPMDistro(Linux):
     def add_repository(
         self,
         repo: str,
+        repo_file: str,
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
@@ -1755,7 +1783,10 @@ class RPMDistro(Linux):
     def add_azure_core_repo(
         self, repo_name: Optional[AzureCoreRepo] = None, code_name: Optional[str] = None
     ) -> None:
-        self.add_repository("https://packages.microsoft.com/yumrepos/azurecore/")
+        self.add_repository(
+            "https://packages.microsoft.com/yumrepos/azurecore/",
+            repo_file="packages-microsoft-com-azurecore.list",
+        )
 
     def clean_package_cache(self) -> None:
         self._node.execute(f"{self._dnf_tool()} clean all", sudo=True, shell=True)
@@ -2315,6 +2346,7 @@ class CBLMariner(RPMDistro):
     def add_repository(
         self,
         repo: str,
+        repo_file: str,
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
@@ -2645,6 +2677,7 @@ class Suse(Linux):
     def add_repository(
         self,
         repo: str,
+        repo_file: str,
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,
@@ -2671,6 +2704,7 @@ class Suse(Linux):
     ) -> None:
         self.add_repository(
             repo="https://packages.microsoft.com/yumrepos/azurecore/",
+            repo_file="packages-microsoft-com-azurecore.list",
             repo_name="packages-microsoft-com-azurecore",
         )
 
@@ -2937,6 +2971,7 @@ class SlMicro(Suse):
     def add_repository(
         self,
         repo: str,
+        repo_file: str,
         no_gpgcheck: bool = True,
         repo_name: Optional[str] = None,
         keys_location: Optional[List[str]] = None,

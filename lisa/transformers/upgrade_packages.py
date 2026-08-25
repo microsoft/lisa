@@ -144,7 +144,7 @@ class UnattendedUpgradeInstaller(UpgradeInstaller):
         repo_entry = (
             f"deb {repo_url} {version_name} " f"restricted main multiverse universe"
         )
-        node.os.add_repository(repo_entry)
+        node.os.add_repository(repo_entry, repo_file="custom.list")
 
     def _update_packages(self) -> List[str]:
         node: Node = self._node
@@ -259,7 +259,7 @@ class FullUpgradeInstaller(UpgradeInstaller):
         repo_entry = (
             f"deb {repo_url} {version_name} restricted main multiverse universe"
         )
-        node.os.add_repository(repo_entry)
+        node.os.add_repository(repo_entry, repo_file="custom.list")
 
     def _update_packages(self) -> List[str]:
         node: Node = self._node

@@ -118,7 +118,7 @@ class CVMBootTestSuite(TestSuite):
 
         repo_url = variables.get("rpm_repository")
         if repo_url:
-            os.add_repository(repo_url)
+            os.add_repository(repo_url, repo_file="cvm_update.repo")
 
         # Upgrade boot components
         os.update_packages(boot_components)
