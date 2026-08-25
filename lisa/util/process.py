@@ -564,6 +564,64 @@ class Process:
             self._running = self._process.is_running()
         return self._running
 
+    def wait_line(
+        self,
+        predicate: Callable[[str], bool],
+        timeout: float = 300,
+        error_on_missing: bool = True,
+        interval: float = 1,
+        delta_only: bool = True,
+        description: str = "",
+    ) -> Optional[str]:
+        """Wait until a complete output line satisfies 'predicate'.
+
+        Unlike wait_output, which does a substring search over the whole
+        buffer, this consumes the captured output line by line and hands each
+        new, complete line to the caller's predicate. That allows matching on
+        structured content (for example, all key=value pairs of a line) instead
+        of a single keyword.
+
+        Returns the matching line, or None when nothing matched and
+        error_on_missing is False.
+        """
+        start_time = time.time()
+        # only complete lines are consumed, a trailing partial line stays in
+        # the buffer until its newline arrives.
+        position = self.log_buffer_offset if delta_only else 0
+        while True:
+            # LogWriter only flushes if "\n" is written, so we need to flush
+            # manually.
+            is_running = self.is_running()
+            self._stdout_writer.flush()
+            self._stderr_writer.flush()
+
+            buffer = self.log_buffer.getvalue()
+            while True:
+                line_end = buffer.find("\n", position)
+                if line_end < 0:
+                    break
+                line = buffer[position:line_end].rstrip("\r")
+                position = line_end + 1
+                self.log_buffer_offset = position
+                if predicate(line):
+                    return line
+
+            if not is_running:
+                # the process ended, and its remaining output is consumed.
+                break
+            if time.time() - start_time >= timeout:
+                break
+            time.sleep(interval)
+
+        message = description or "matching line"
+        if error_on_missing:
+            raise LisaException(
+                f"{message} not found in process output within {timeout} seconds. "
+                "Check the command output and consider increasing the timeout."
+            )
+        self._log.debug(f"not found '{message}' in {timeout} seconds, but ignore it.")
+        return None
+
     def wait_output(
         self,
         keyword: str,
@@ -574,6 +632,7 @@ class Process:
     ) -> bool:
         # check if stdout buffers contain the string "keyword" to determine if
         # it is running
+        last_search_len = 0
         start_time = time.time()
         while time.time() - start_time < timeout:
             # LogWriter only flushes if "\n" is written, so we need to flush
@@ -583,13 +642,17 @@ class Process:
 
             # check if buffer contains the keyword
             find_pos = self.log_buffer_offset if delta_only else 0
-            if self.log_buffer.getvalue().find(keyword, find_pos) >= 0:
-                self.log_buffer_offset = len(self.log_buffer.getvalue())
+            buffer = self.log_buffer.getvalue()
+            found_at_index = buffer.find(keyword, find_pos)
+            last_search_len = len(buffer)
+            if found_at_index >= 0:
+                next_chunk = found_at_index + len(keyword)
+                self.log_buffer_offset = next_chunk
                 return True
 
             time.sleep(interval)
 
-        self.log_buffer_offset = len(self.log_buffer.getvalue())
+        self.log_buffer_offset = last_search_len
 
         if error_on_missing:
             raise LisaException(
