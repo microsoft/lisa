@@ -68,6 +68,7 @@ from azure.mgmt.privatedns.models import (
     SubResource,
     VirtualNetworkLink,
 )
+from azure.core.pipeline.policies import RetryPolicy
 from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
 from azure.mgmt.storage import StorageManagementClient
 from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters
@@ -1739,6 +1740,11 @@ def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
         subscription_id=platform.subscription_id,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
+        retry_policy=RetryPolicy(
+                    retry_total=5,            # Total retry attempts
+                    retry_backoff_factor=2,   # Backoff multiplier (seconds)
+                    retry_on_status_codes=[429, 500, 502, 503, 504]  # Retry on these HTTP status codes
+                )
     )
 
 
