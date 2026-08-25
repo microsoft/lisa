@@ -2,18 +2,71 @@
 # Licensed under the MIT license.
 
 from unittest import TestCase
+from unittest.mock import MagicMock
 
 from lisa.microsoft.testsuites.device_passthrough.storage_tests import (
+    StoragePassthroughPerfTests,
     _get_disk_safety_issues,
     _get_fio_testcases,
     _get_guest_pci_bdf_from_domain_xml,
     _get_num_jobs,
 )
+from lisa.microsoft.testsuites.performance.common import perf_disk
 from lisa.tools.lsblk import DiskInfo, PartitionInfo
 from lisa.util import LisaException
 
 
 class StoragePassthroughTestCase(TestCase):
+    def test_exposes_only_focused_passthrough_test_cases(self) -> None:
+        self.assertTrue(
+            hasattr(
+                StoragePassthroughPerfTests,
+                "verify_storage_passthrough_nvme_visible",
+            )
+        )
+        self.assertTrue(
+            hasattr(
+                StoragePassthroughPerfTests,
+                "perf_storage_passthrough_fio_randread",
+            )
+        )
+        self.assertTrue(
+            hasattr(
+                StoragePassthroughPerfTests,
+                "perf_storage_passthrough_fio_randwrite",
+            )
+        )
+        self.assertFalse(
+            hasattr(
+                StoragePassthroughPerfTests,
+                "perf_storage_passthrough_fio_test",
+            )
+        )
+
+    def test_perf_disk_runs_only_requested_fio_mode(self) -> None:
+        node = MagicMock()
+        fio = MagicMock()
+        node.tools.__getitem__.return_value = fio
+        fio.create_performance_messages.return_value = []
+
+        perf_disk(
+            node=node,
+            start_iodepth=1,
+            max_iodepth=4,
+            filename="passthrough_nvme_test",
+            core_count=1,
+            disk_count=1,
+            test_result=MagicMock(),
+            num_jobs=[1, 1, 1],
+            fio_modes=["randread"],
+        )
+
+        self.assertEqual(3, fio.launch.call_count)
+        self.assertEqual(
+            {"randread"},
+            {call.kwargs["mode"] for call in fio.launch.call_args_list},
+        )
+
     def test_resolves_guest_bdf_for_assigned_host_device(self) -> None:
         domain_xml = """
             <domain>
