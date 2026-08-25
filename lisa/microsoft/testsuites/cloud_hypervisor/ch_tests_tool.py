@@ -1438,6 +1438,77 @@ exit $ec
         if "MIGRATABLE_VERSION" in os.environ:
             self.env_vars["MIGRATABLE_VERSION"] = os.environ["MIGRATABLE_VERSION"]
 
+    def _log_custom_kernel_metadata(self, kernel_path: str) -> None:
+        metadata_command = (
+            "kernel_path="
+            + shlex.quote(kernel_path)
+            + r"""
+echo "[uvm-kernel] path=$kernel_path"
+if [ ! -r "$kernel_path" ]; then
+    echo "[uvm-kernel] readable=false"
+    exit 0
+fi
+
+embedded_pattern='(Linux version )?[0-9]+\.[0-9]+\.[0-9]+'
+embedded_pattern="${embedded_pattern}[^[:space:][:cntrl:]]* \([^[:cntrl:]]+\)"
+embedded_build=$(
+    LC_ALL=C grep -a -o -E -m1 "$embedded_pattern" "$kernel_path" \
+        2>/dev/null | head -n 1 || true
+)
+if [ -z "$embedded_build" ] && command -v strings >/dev/null 2>&1; then
+    embedded_build=$(
+        strings -a "$kernel_path" 2>/dev/null \
+            | grep -a -E -m1 \
+                '^(Linux version )?[0-9]+\.[0-9]+\.[0-9]+[^[:space:]]* \(' \
+            || true
+    )
+fi
+if [ -n "$embedded_build" ]; then
+    echo "[uvm-kernel] embedded-build=$embedded_build"
+else
+    echo "[uvm-kernel] embedded-build=unavailable"
+fi
+
+kernel_sha=""
+if command -v sha256sum >/dev/null 2>&1; then
+    kernel_sha=$(sha256sum "$kernel_path" | cut -d ' ' -f 1)
+    echo "[uvm-kernel] sha256=$kernel_sha"
+fi
+
+if command -v file >/dev/null 2>&1; then
+    echo "[uvm-kernel] file=$(file -b "$kernel_path" 2>&1)"
+fi
+
+if command -v rpm >/dev/null 2>&1; then
+    package=$(
+        rpm -qf --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' \
+            "$kernel_path" 2>/dev/null || true
+    )
+    if [ -n "$package" ]; then
+        echo "[uvm-kernel] package=$package"
+    fi
+elif command -v dpkg-query >/dev/null 2>&1; then
+    package=$(dpkg-query -S "$kernel_path" 2>/dev/null | head -n 1 || true)
+    if [ -n "$package" ]; then
+        echo "[uvm-kernel] package=$package"
+    fi
+fi
+exit 0
+"""
+        )
+        result = self.node.execute(metadata_command, shell=True)
+        metadata = "\n".join(
+            output
+            for output in (result.stdout.strip(), result.stderr.strip())
+            if output
+        )
+        if result.exit_code != 0:
+            self._log.debug(
+                f"Failed to inspect selected UVM kernel '{kernel_path}': {metadata}"
+            )
+        elif metadata:
+            self._log.info(f"Selected UVM kernel metadata:\n{metadata}")
+
     def _install(self) -> bool:
         git = self.node.tools[Git]
         clone_path = self.get_tool_path(use_global=True)
@@ -1455,9 +1526,9 @@ exit $ec
                     kernel_name = "Image"
                 else:
                     kernel_name = "vmlinux.bin"
-                self.env_vars[
-                    "CH_CUSTOM_KERNEL"
-                ] = f"/usr/share/cloud-hypervisor/{kernel_name}"
+                kernel_path = f"/usr/share/cloud-hypervisor/{kernel_name}"
+                self.env_vars["CH_CUSTOM_KERNEL"] = kernel_path
+                self._log_custom_kernel_metadata(kernel_path)
             if self.use_ms_hypervisor_fw:
                 self.env_vars["USE_MS_HV_FW"] = self.use_ms_hypervisor_fw
                 self.env_vars[
