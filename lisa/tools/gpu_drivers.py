@@ -435,7 +435,8 @@ class NvidiaCudaDriver(GpuDriver):
         # Add CUDA repository
         self.node.os.add_repository(
             f"{self.NVIDIA_CUDA_REPO_BASE_URL}/"
-            f"rhel{release}/x86_64/cuda-rhel{release}.repo"
+            f"rhel{release}/x86_64/cuda-rhel{release}.repo",
+            repo_file="cuda-rhel.repo",
         )
 
         # Install CUDA packages
@@ -601,7 +602,8 @@ class NvidiaCudaDriver(GpuDriver):
         # Add Mariner NVIDIA repository
         self.node.os.add_repository(
             f"https://raw.githubusercontent.com/microsoft/CBL-Mariner/"
-            f"{major_version}.0/toolkit/docs/nvidia/mariner-nvidia.repo"
+            f"{major_version}.0/toolkit/docs/nvidia/mariner-nvidia.repo",
+            repo_file="mariner-nvidia.repo",
         )
 
         # Install CUDA
