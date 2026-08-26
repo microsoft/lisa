@@ -425,7 +425,7 @@ class LibvirtDevicePool(BaseDevicePool):
                 no_error_log=True,
                 expected_exit_code=None,
             )
-        except (LisaException, SSHException) as identifier_error:
+        except Exception as identifier_error:
             self.host_node.log.debug(
                 f"Failed to remove the temporary SSH peer route with "
                 f"'{cleanup_command}': {identifier_error}"
