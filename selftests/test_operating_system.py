@@ -1,4 +1,5 @@
 import shlex
+from typing import Tuple
 from unittest import TestCase
 from unittest.mock import MagicMock
 
@@ -11,7 +12,7 @@ from lisa.operating_system import CBLMariner
 class OperatingSystemTestCase(TestCase):
     def _create_mariner(
         self, grub_default_exists: bool
-    ) -> tuple[CBLMariner, MagicMock]:
+    ) -> Tuple[CBLMariner, MagicMock]:
         node = MagicMock()
         node.execute.return_value.exit_code = 0 if grub_default_exists else 1
         mariner = CBLMariner.__new__(CBLMariner)
