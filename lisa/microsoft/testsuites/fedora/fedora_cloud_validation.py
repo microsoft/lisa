@@ -11,6 +11,7 @@ package management, and reboot integrity.
 
 from logging import Logger
 from typing import Any, Dict
+from uuid import uuid4
 
 from assertpy.assertpy import assert_that
 
@@ -22,8 +23,9 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
+from lisa.base_tools import Service
 from lisa.operating_system import Fedora
-from lisa.tools import Cat, Journalctl, Reboot
+from lisa.tools import Cat, Journalctl, Pgrep, Reboot
 from lisa.util import check_till_timeout
 
 
@@ -54,12 +56,65 @@ class FedoraCloudValidation(TestSuite):
                 "this suite runs on Fedora only (excluding subclasses)."
             )
 
+    def _check_journal_corruption(self, node: Node, boot_id: str = "") -> None:
+        """Scan journalctl for filesystem corruption or recovery errors."""
+        corruption_keywords = [
+            "dirty bit",
+            "corrupt",
+            "run fsck",
+            "recovery",
+            "recovering",
+            "tree-log replay",
+        ]
+        journalctl = node.tools[Journalctl]
+        boot_logs = journalctl.first_n_logs_from_boot(boot_id=boot_id, no_of_lines=0)
+        matches = [
+            line
+            for line in boot_logs.splitlines()
+            if any(kw in line.lower() for kw in corruption_keywords)
+            and "recovery algorithm" not in line.lower()
+        ]
+        assert_that(matches).described_as(
+            "No filesystem corruption or recovery errors should appear in journalctl"
+        ).is_empty()
+
+    def _assert_chronyd_state(
+        self,
+        node: Node,
+        service: Service,
+        expected_enabled: bool,
+        expected_active: bool,
+        context: str,
+    ) -> None:
+        assert_that(service.is_service_enabled("chronyd.service")).described_as(
+            f"chronyd enablement must be correct {context}"
+        ).is_equal_to(expected_enabled)
+
+        assert_that(service.is_service_running("chronyd.service")).described_as(
+            f"chronyd activity must be correct {context}"
+        ).is_equal_to(expected_active)
+
+        pgrep = node.tools[Pgrep]
+        chronyd_processes = [
+            process
+            for process in pgrep.get_processes("chronyd")
+            if process.name == "chronyd"
+        ]
+        if expected_active:
+            assert_that(chronyd_processes).described_as(
+                f"chronyd must be running {context}"
+            ).is_not_empty()
+        else:
+            assert_that(chronyd_processes).described_as(
+                f"chronyd must not be running {context}"
+            ).is_empty()
+
     @TestCaseMetadata(
         description="""
         Verify Fedora edition self-identification.
 
-        Validates /etc/os-release fields, fedora-release-common package version,
-        and SUPPORT_END date.
+        Validates Cloud Edition metadata in /etc/os-release and the
+        fedora-release-common package version.
         """,
         priority=1,
         requirement=simple_requirement(supported_os=[Fedora]),
@@ -71,6 +126,7 @@ class FedoraCloudValidation(TestSuite):
         Reads /etc/os-release and checks:
         - ID is "fedora"
         - VERSION is present
+        - VARIANT and VARIANT_ID identify Fedora Cloud
         - CPE_NAME includes :fedora:<VERSION_ID>
         - Installed fedora-release-common RPM version matches VERSION_ID
         - SUPPORT_END date is still in the future
@@ -102,6 +158,14 @@ class FedoraCloudValidation(TestSuite):
         assert_that(version).described_as(
             "/etc/os-release must have VERSION"
         ).is_not_empty()
+
+        variant = fields.get("VARIANT", "")
+        assert_that(variant).described_as(
+            "Fedora Cloud images must identify the Cloud Edition"
+        ).is_equal_to("Cloud Edition")
+        assert_that(fields.get("VARIANT_ID", "")).described_as(
+            "Fedora Cloud images must use the cloud variant identifier"
+        ).is_equal_to("cloud")
 
         # CPE_NAME must contain :fedora:<VERSION_ID>
         cpe = fields.get("CPE_NAME", "")
@@ -164,12 +228,22 @@ class FedoraCloudValidation(TestSuite):
 
         # After settling, verify system is running
         if state != "running":
-            failed_units_result = node.execute("systemctl --all --failed --no-pager")
+            failed_units_result = node.execute(
+                "systemctl --all --failed --no-legend --plain --no-pager"
+            )
             node.log.info(f"Failed units:\n{failed_units_result.stdout}")
             assert_that(state).described_as(
                 f"System must be running (got {state}). "
                 f"Failed: {failed_units_result.stdout}"
             ).is_equal_to("running")
+
+        boot_journal = node.execute("journalctl -b --no-pager")
+        assert_that(boot_journal.exit_code).described_as(
+            "journalctl must read the current boot journal successfully"
+        ).is_equal_to(0)
+        assert_that(boot_journal.stdout.lower()).described_as(
+            "no service may be discarded from boot due to an ordering cycle"
+        ).does_not_contain("deleted to break ordering cycle")
 
         node.log.info("No failed services detected")
 
@@ -291,34 +365,297 @@ class FedoraCloudValidation(TestSuite):
         Reboot and assert no filesystem corruption or recovery errors
         in the journal.
         """
-        corruption_keywords = [
-            "corrupt",
-            "run fsck",
-            "recovery",
-            "recovering",
-            "tree-log replay",
-        ]
-
-        def check_unmount_errors(boot_id: str = "") -> None:
-            journalctl = node.tools[Journalctl]
-            boot_logs = journalctl.first_n_logs_from_boot(
-                boot_id=boot_id, no_of_lines=0
-            )
-            matches = [
-                line
-                for line in boot_logs.splitlines()
-                if any(kw in line.lower() for kw in corruption_keywords)
-                and "recovery algorithm" not in line.lower()
-            ]
-            assert_that(matches).described_as(
-                "No filesystem corruption or recovery errors"
-                " should appear in journalctl"
-            ).is_empty()
-
-        check_unmount_errors()
+        self._check_journal_corruption(node)
 
         reboot = node.tools[Reboot]
         reboot.reboot()
 
-        check_unmount_errors(boot_id="-1")
-        check_unmount_errors()  # check again after reboot to ensure no new errors
+        self._check_journal_corruption(node, boot_id="-1")
+        self._check_journal_corruption(
+            node
+        )  # check again after reboot to ensure no new errors
+
+    @TestCaseMetadata(
+        description="""
+        Verify Fedora boots successfully to a usable state.
+
+        Confirms the cloud image reaches its configured systemd target and
+        accepts commands through the connected session.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_os=[Fedora]),
+    )
+    def verify_base_startup(self, node: Node) -> None:
+        default_target = node.execute("systemctl get-default")
+        assert_that(default_target.exit_code).described_as(
+            "systemctl must report the default boot target"
+        ).is_equal_to(0)
+
+        target = default_target.stdout.strip()
+        assert_that(target).described_as(
+            "the configured default boot target must be present"
+        ).is_not_empty()
+
+        active_target = node.execute(f"systemctl is-active {target}")
+        assert_that(active_target.exit_code).described_as(
+            f"Fedora must reach its configured default boot target {target}"
+        ).is_equal_to(0)
+        assert_that(active_target.stdout.strip()).described_as(
+            f"the configured default boot target {target} must be active"
+        ).is_equal_to("active")
+
+        shell_check = node.execute("id -u")
+        assert_that(shell_check.exit_code).described_as(
+            "the connected session must execute commands after boot"
+        ).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Verify SELinux is enabled in Enforcing mode after boot.
+
+        Confirms the Fedora cloud image reports Enforcing through getenforce.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_os=[Fedora]),
+    )
+    def verify_base_selinux(self, node: Node) -> None:
+        getenforce = node.execute("getenforce")
+        assert_that(getenforce.exit_code).described_as(
+            "getenforce must execute successfully"
+        ).is_equal_to(0)
+        assert_that(getenforce.stdout.strip()).described_as(
+            "SELinux must be enabled in Enforcing mode after boot"
+        ).is_equal_to("Enforcing")
+
+    @TestCaseMetadata(
+        description="""
+        Verify Fedora can update packages through the DNF command line.
+
+        Uses the default repositories when updates are available, otherwise
+        enables updates-testing for the update transaction.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_os=[Fedora]),
+        use_new_environment=True,
+    )
+    def verify_update_cli(self, node: Node) -> None:
+        node.mark_dirty()
+
+        update_command = "dnf update -y"
+        check_result = node.execute(
+            "dnf check-update --refresh",
+            sudo=True,
+            no_error_log=True,
+            timeout=600,  # Allow 10 minutes to refresh repository metadata.
+        )
+        assert_that(check_result.exit_code).described_as(
+            "dnf check-update must return 0 when current or 100 when updates "
+            "are available; inspect repository errors in the command output"
+        ).is_in(0, 100)
+
+        if check_result.exit_code == 0:
+            check_result = node.execute(
+                "dnf --enablerepo=updates-testing check-update --refresh",
+                sudo=True,
+                no_error_log=True,
+                timeout=600,  # Allow 10 minutes to refresh testing metadata.
+            )
+            assert_that(check_result.exit_code).described_as(
+                "updates-testing must return 0 when current or 100 when updates "
+                "are available; inspect repository errors in the command output"
+            ).is_in(0, 100)
+            if check_result.exit_code == 0:
+                raise SkippedException(
+                    "No package updates are available from the default or "
+                    "updates-testing repositories. Retry with an older Fedora image."
+                )
+            update_command = "dnf --enablerepo=updates-testing update -y"
+
+        update_result = node.execute(
+            update_command,
+            sudo=True,
+            timeout=1200,  # Allow 20 minutes for metadata and package updates.
+        )
+        assert_that(update_result.exit_code).described_as(
+            "dnf update must complete successfully; inspect repository and "
+            "dependency errors in the command output"
+        ).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Verify systemd service lifecycle operations using chronyd.
+
+        Validates that chronyd can be stopped, started, enabled, and disabled,
+        and that its configured state persists correctly across reboots.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_os=[Fedora]),
+        use_new_environment=True,
+    )
+    def verify_service_manipulation(self, node: Node) -> None:
+        node.mark_dirty()
+        reboot = node.tools[Reboot]
+        systemctl = node.tools[Service]
+
+        try:
+            systemctl.stop_service("chronyd.service")
+            for command in (
+                "systemctl disable chronyd.service",
+                "systemctl disable chrony-wait.service",
+            ):
+                result = node.execute(command, sudo=True)
+                assert_that(result.exit_code).described_as(
+                    f"{command} must succeed before the first reboot"
+                ).is_equal_to(0)
+
+            reboot.reboot()
+            self._assert_chronyd_state(
+                node,
+                systemctl,
+                expected_enabled=False,
+                expected_active=False,
+                context="after disabling it and rebooting",
+            )
+
+            systemctl.start_service("chronyd.service")
+            self._assert_chronyd_state(
+                node,
+                systemctl,
+                expected_enabled=False,
+                expected_active=True,
+                context="after starting it manually",
+            )
+
+            systemctl.stop_service("chronyd.service")
+            self._assert_chronyd_state(
+                node,
+                systemctl,
+                expected_enabled=False,
+                expected_active=False,
+                context="after stopping it manually",
+            )
+
+            systemctl.enable_service("chronyd.service")
+
+            reboot.reboot()
+            self._assert_chronyd_state(
+                node,
+                systemctl,
+                expected_enabled=True,
+                expected_active=True,
+                context="after enabling it and rebooting",
+            )
+
+            disable_result = node.execute(
+                "systemctl disable chronyd.service", sudo=True
+            )
+            assert_that(disable_result.exit_code).described_as(
+                "chronyd must be disabled successfully"
+            ).is_equal_to(0)
+
+            reboot.reboot()
+            self._assert_chronyd_state(
+                node,
+                systemctl,
+                expected_enabled=False,
+                expected_active=False,
+                context="after the final disable and reboot",
+            )
+        finally:
+            systemctl.enable_service("chronyd.service")
+            systemctl.start_service("chronyd.service")
+            systemctl.start_service("chrony-wait.service")
+
+    @TestCaseMetadata(
+        description="""
+        Verify system logging via journalctl is working.
+
+        Tests that journald captures boot logs, audit entries, and
+        validates no filesystem corruption errors before/after reboot.
+        """,
+        priority=1,
+        requirement=simple_requirement(supported_os=[Fedora]),
+        use_new_environment=True,
+    )
+    def verify_system_logging(self, node: Node) -> None:
+        """
+        Validate system logging functionality.
+
+        Verifies journalctl has log entries, audit records, and rsyslog
+        writes to /var/log/secure when installed.
+        """
+        # journalctl current boot must not be empty and must contain audit entries
+        journalctl = node.tools[Journalctl]
+        boot_logs = journalctl.first_n_logs_from_boot(boot_id="", no_of_lines=0)
+        assert_that(boot_logs).described_as(
+            "journalctl must return log content"
+        ).is_not_empty()
+
+        assert_that(boot_logs).described_as(
+            "journalctl must contain audit entries"
+        ).contains("audit")
+
+        test_tag = "lisa-system-logging"
+        test_message = f"lisa-system-logging-validation-{uuid4()}"
+        logger_result = node.execute(
+            f"logger -p authpriv.notice -t {test_tag} {test_message}"
+        )
+        assert_that(logger_result.exit_code).described_as(
+            "logger must submit a current system log message"
+        ).is_equal_to(0)
+
+        def journal_contains_test_message() -> bool:
+            result = node.execute(
+                f"journalctl --since '5 minutes ago' --no-pager -t {test_tag}",
+                no_error_log=True,
+            )
+            return test_message in result.stdout
+
+        check_till_timeout(
+            journal_contains_test_message,
+            timeout_message=(
+                "the current test message did not appear in journald; "
+                "inspect systemd-journald status and configuration"
+            ),
+            timeout=30,  # Allow journald time to persist the message.
+            interval=2,
+        )
+
+        if node.os.package_exists("rsyslog"):  # type: ignore[attr-defined]
+
+            def secure_log_contains_test_message() -> bool:
+                result = node.execute(
+                    f"grep -F '{test_message}' /var/log/secure",
+                    sudo=True,
+                    no_error_log=True,
+                )
+                return result.exit_code == 0
+
+            check_till_timeout(
+                secure_log_contains_test_message,
+                timeout_message=(
+                    "the current authpriv test message did not appear in "
+                    "/var/log/secure; inspect rsyslog status and authpriv routing"
+                ),
+                timeout=30,  # Allow rsyslog time to flush the message.
+                interval=2,
+            )
+
+            secure_log = node.execute(
+                "tail -n 1 /var/log/secure",
+                sudo=True,
+                no_error_log=True,
+            )
+            assert_that(secure_log.stdout.strip()).described_as(
+                "/var/log/secure must contain current log entries"
+            ).is_not_empty()
+
+        # Corruption scan before reboot
+        self._check_journal_corruption(node)
+
+        # Reboot and re-scan
+        reboot = node.tools[Reboot]
+        reboot.reboot()
+
+        self._check_journal_corruption(node, boot_id="-1")
+        self._check_journal_corruption(node)
