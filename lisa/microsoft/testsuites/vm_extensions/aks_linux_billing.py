@@ -17,7 +17,7 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
     description="""
     This test suite validates the Microsoft AKS Linux Billing VM extension.
     """,
-    tags=["VM_Extension", "microsoft.aks.compute.aks.linux.billing"],
+    tags=["VM_Extension"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
@@ -42,6 +42,7 @@ class AksLinuxBillingTests(VmExtensionTestBase):  # type: ignore[misc]
         'aks_linux_billing_version' runbook variable.
         """,
         priority=5,
+        tags=["microsoft.aks.compute.aks.linux.billing"],
         maturity="preview",
     )
     def microsoft_aks_compute_aks_linux_billing_boot_validation_test(

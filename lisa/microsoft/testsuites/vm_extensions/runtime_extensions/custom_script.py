@@ -45,7 +45,7 @@ from lisa.sut_orchestrator.azure.tools import Waagent
         11. Private sas file uri and command in public settings
         12. File uri (pointing to python script) and command in public settings
     """,
-    tags=["VM_Extension", "microsoft.azure.extensions.customscript"],
+    tags=["VM_Extension"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
@@ -74,6 +74,7 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
         'custom_script_version'.
         """,
         priority=5,
+        tags=["microsoft.azure.extensions.customscript"],
         maturity="preview",
     )
     def microsoft_azure_extensions_customscript_boot_validation_test(
