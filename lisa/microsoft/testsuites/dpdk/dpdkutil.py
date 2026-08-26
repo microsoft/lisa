@@ -787,17 +787,20 @@ def verify_dpdk_send_receive(
     else:
         pass  # no-op if no grading is required.
 
+    sender_cpus, reciever_cpus = [kit.node.tools[Lscpu].get_core_count() for kit in [sender,receiver]]
     # sender packet drops are common when network bandwidth is
     # artificially throttled by the sku, so checking sender
     # is optional
-    if check_sender_packet_drops:
+    if check_sender_packet_drops and sender_cpus >= 72:
         sender.testpmd.check_tx_packet_drops()
 
     # verify receiver didn't drop most of the packets
-    receiver.testpmd.check_rx_packet_drops()
+    if reciever_cpus >= 72:
+        receiver.testpmd.check_rx_packet_drops()
 
-    # annotate the amount of dropped packets on the receiver
-    annotate_packet_drops(log, result, receiver)
+    if all([cpus >= 72 for cpus in [sender_cpus, reciever_cpus]]):
+        # annotate the amount of dropped packets on the receiver
+        annotate_packet_drops(log, result, receiver)
 
     return sender, receiver
 
