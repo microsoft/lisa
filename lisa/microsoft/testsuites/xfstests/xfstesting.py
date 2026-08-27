@@ -45,6 +45,7 @@ from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.tools import (
     AzNfs,
+    Chmod,
     Echo,
     FileSystem,
     KernelConfig,
@@ -53,8 +54,14 @@ from lisa.tools import (
     NFSClient,
     Parted,
     Ssh,
+    Whoami,
 )
-from lisa.util import BadEnvironmentStateException, constants, generate_random_chars
+from lisa.util import (
+    BadEnvironmentStateException,
+    LisaException,
+    constants,
+    generate_random_chars,
+)
 
 # =============================================================================
 # Global Configuration Variables
@@ -261,6 +268,10 @@ _test_folder = "/mnt/test"
 # Azure File Share configuration (set via runbook variables in before_case)
 _default_storage_account_name: str = ""
 
+# User-provided share URLs as test/scratch pairs per worker
+# When set, LISA reuses these shares instead of provisioning new ones.
+_file_share_urls: List[str] = []
+
 # Parallel workers for the Azure Files tests only (data-disk/NVMe are sequential).
 # 3 workers ~24 min, 4 workers ~18-20 min. Each worker adds an xfstests copy,
 # a test+scratch share pair, and two mount points.
@@ -288,6 +299,7 @@ class AzureFileShareContext:
         xfstests_mount_opts: options for local.config (NFS includes -o prefix)
         nfs_server: NFS server host (NFS only, e.g. account.file.core.windows.net)
         test_failed: whether the test failed (affects cleanup)
+        provided_shares: True when shares come from user-provided URLs
     """
 
     runner: XfstestsParallelRunner
@@ -299,6 +311,7 @@ class AzureFileShareContext:
     xfstests_mount_opts: str = ""  # Used by NFS, same as mount_opts for SMB
     nfs_server: str = ""  # NFS only
     test_failed: bool = False
+    provided_shares: bool = False  # True when using user-provided share URLs
 
 
 def _prepare_data_disk(
@@ -466,6 +479,7 @@ class Xfstesting(TestSuite):
         global _default_storage_account_name
         global _custom_xfstests_repo, _custom_xfstests_branch
         global _default_worker_count
+        global _file_share_urls
 
         node = kwargs["node"]
         if isinstance(node.os, Oracle) and (node.os.information.version <= "9.0.0"):
@@ -501,6 +515,13 @@ class Xfstesting(TestSuite):
         worker_count = variables.get("xfstests_workers", _default_worker_count)
         if worker_count is not None and str(worker_count).strip():
             _default_worker_count = int(worker_count)
+
+        # User-provided share URLs (test/scratch pairs per worker). When set,
+        # the worker count is derived from them, overriding xfstests_workers.
+        file_share_urls = variables.get("file_share_urls", "")
+        if file_share_urls:
+            _file_share_urls = file_share_urls.split()
+            _default_worker_count = len(_file_share_urls) // 2
 
     @TestCaseMetadata(
         description="""
@@ -978,7 +999,15 @@ class Xfstesting(TestSuite):
         # Step 2: Remove worker xfstests directory copies
         runner.cleanup_workers()
 
-        # Step 3: Delete Azure file shares (respects keep_environment setting)
+        # Step 3: Delete Azure file shares (respects keep_environment setting).
+        # User-provided shares are never deleted (LISA doesn't own them).
+        if ctx.provided_shares:
+            log.info(
+                f"Skipping Azure {ctx.protocol.upper()} file share deletion "
+                "(user-provided shares)"
+            )
+            return
+
         should_cleanup = True
         if environment.platform:
             keep_environment = environment.platform.runbook.keep_environment
@@ -1031,10 +1060,21 @@ class Xfstesting(TestSuite):
                 None,
             )
 
-        # NFS export path format: /storageaccount/sharename
-        account = azure_file_share.storage_account_name
-        test_export = f"/{account}/{test_share_name}"
-        scratch_export = f"/{account}/{scratch_share_name}"
+        if ctx.provided_shares:
+            # User-provided device is already in server:/export form.
+            test_dev = ctx.fs_url_dict[test_share_name]
+            scratch_dev = ctx.fs_url_dict[scratch_share_name]
+            server, _, test_export = test_dev.partition(":")
+            _, _, scratch_export = scratch_dev.partition(":")
+        else:
+            # NFS export path format: /storageaccount/sharename
+            account = azure_file_share.storage_account_name
+            test_export = f"/{account}/{test_share_name}"
+            scratch_export = f"/{account}/{scratch_share_name}"
+            server = ctx.nfs_server
+            test_dev = f"{server}:{test_export}"
+            scratch_dev = f"{server}:{scratch_export}"
+
         log.debug(
             f"Worker {worker_id}: Mounting NFS shares "
             f"(test={test_share_name}, scratch={scratch_share_name})"
@@ -1091,56 +1131,63 @@ class Xfstesting(TestSuite):
         is_nfs = protocol == FileShareProtocol.NFS
         proto_label = "nfs" if is_nfs else "cifs"
 
-        # Initialize context and create share mappings using helper
+        # Initialize context; populate from user-provided URLs or by
+        # provisioning fresh Azure shares.
         ctx = AzureFileShareContext(runner=runner, protocol=proto_label)
-        (
-            share_names,
-            all_share_names,
-            names_dict,
-            per_share_quota,
-        ) = self._create_worker_shares(runner, random_str)
-        ctx.share_names = share_names
-        ctx.all_share_names = all_share_names
 
-        share_desc = "NFS shares" if is_nfs else "file shares"
-        log.info(f"Creating {len(ctx.all_share_names)} Azure {share_desc} for workers")
-
-        # NFS requires:
-        # - allow_shared_key_access=False (NFS uses network-based auth)
-        # - enable_https_traffic_only=False (NFS doesn't use HTTPS)
-        # - skip_mount=True (NFS mounting is done separately with NFSClient)
-        deploy_kwargs: Dict[str, Any] = {
-            "node": node,
-            "environment": environment,
-            "names": names_dict,
-            "azure_file_share": azure_file_share,
-            "file_share_quota_in_gb": per_share_quota,
-            "provisioned_bandwidth_mibps": 110,
-            "provisioned_iops": 3110,
-        }
-        if is_nfs:
-            deploy_kwargs.update(
-                protocol=FileShareProtocol.NFS,
-                allow_shared_key_access=False,
-                enable_private_endpoint=True,
-                enable_https_traffic_only=False,
-                skip_mount=True,
-            )
-        ctx.fs_url_dict = _deploy_azure_file_share(**deploy_kwargs)
-
-        # Configure protocol-specific mount options
-        if is_nfs:
-            ctx.nfs_server = (
-                f"{azure_file_share.storage_account_name}.file.core.windows.net"
-            )
-            ctx.mount_opts = _default_nfs_mount_opts
-            ctx.xfstests_mount_opts = _default_nfs_mount
+        if _file_share_urls:
+            self._setup_provided_shares(log, node, ctx, runner, is_nfs)
         else:
-            ctx.mount_opts = (
-                f"-o {_default_smb_mount},"
-                f"credentials={azure_file_share.credential_file}"
+            (
+                share_names,
+                all_share_names,
+                names_dict,
+                per_share_quota,
+            ) = self._create_worker_shares(runner, random_str)
+            ctx.share_names = share_names
+            ctx.all_share_names = all_share_names
+
+            share_desc = "NFS shares" if is_nfs else "file shares"
+            log.info(
+                f"Creating {len(ctx.all_share_names)} Azure {share_desc} for workers"
             )
-            ctx.xfstests_mount_opts = ctx.mount_opts  # Same for SMB
+
+            # NFS requires:
+            # - allow_shared_key_access=False (NFS uses network-based auth)
+            # - enable_https_traffic_only=False (NFS doesn't use HTTPS)
+            # - skip_mount=True (NFS mounting is done separately with NFSClient)
+            deploy_kwargs: Dict[str, Any] = {
+                "node": node,
+                "environment": environment,
+                "names": names_dict,
+                "azure_file_share": azure_file_share,
+                "file_share_quota_in_gb": per_share_quota,
+                "provisioned_bandwidth_mibps": 110,
+                "provisioned_iops": 3110,
+            }
+            if is_nfs:
+                deploy_kwargs.update(
+                    protocol=FileShareProtocol.NFS,
+                    allow_shared_key_access=False,
+                    enable_private_endpoint=True,
+                    enable_https_traffic_only=False,
+                    skip_mount=True,
+                )
+            ctx.fs_url_dict = _deploy_azure_file_share(**deploy_kwargs)
+
+            # Configure protocol-specific mount options
+            if is_nfs:
+                ctx.nfs_server = (
+                    f"{azure_file_share.storage_account_name}.file.core.windows.net"
+                )
+                ctx.mount_opts = _default_nfs_mount_opts
+                ctx.xfstests_mount_opts = _default_nfs_mount
+            else:
+                ctx.mount_opts = (
+                    f"-o {_default_smb_mount},"
+                    f"credentials={azure_file_share.credential_file}"
+                )
+                ctx.xfstests_mount_opts = ctx.mount_opts  # Same for SMB
 
         # Create worker mount points on the VM
         self._create_worker_mount_points(node, runner)
@@ -1187,7 +1234,138 @@ class Xfstesting(TestSuite):
                 xfstests_path=worker_path,
             )
 
+        # User-provided shares persist across runs; wipe stale contents so this
+        # run starts clean even if a prior run crashed before cleanup.
+        if _file_share_urls:
+            self._wipe_user_supplied_shares(log, node, ctx)
+
         return ctx
+
+    def _setup_provided_shares(
+        self,
+        log: Logger,
+        node: RemoteNode,
+        ctx: AzureFileShareContext,
+        runner: XfstestsParallelRunner,
+        is_nfs: bool,
+    ) -> None:
+        """
+        Populate the context from user-provided share URLs instead of
+        provisioning new Azure shares. URLs are given as test/scratch pairs per
+        worker: SMB as //host/share, NFS as host:/account/share. All shares
+        must live in the same storage account.
+        """
+        account_name = ""
+        for worker_id, pair_start in enumerate(
+            range(0, len(_file_share_urls), 2), start=1
+        ):
+            for share_url, key in (
+                (_file_share_urls[pair_start], f"test_{worker_id}"),
+                (_file_share_urls[pair_start + 1], f"scratch_{worker_id}"),
+            ):
+                if is_nfs:
+                    # host:/account/share -> server, export, share name, account
+                    server, _, export = share_url.partition(":")
+                    share_name = export.rstrip("/").rsplit("/", 1)[-1]
+                    share_account = server.split(".")[0]
+                    ctx.nfs_server = server
+                else:
+                    # //host/share -> share name, account
+                    parts = share_url.lstrip("/").split("/")
+                    share_name = parts[-1]
+                    share_account = parts[0].split(".")[0]
+                if account_name and share_account != account_name:
+                    raise LisaException(
+                        f"Provided share '{share_url}' is in storage account "
+                        f"'{share_account}', but expected '{account_name}'. All "
+                        "shares must be in the same storage account."
+                    )
+                account_name = share_account
+                ctx.share_names[key] = share_name
+                ctx.all_share_names.append(share_name)
+                ctx.fs_url_dict[share_name] = share_url
+
+        if is_nfs:
+            ctx.mount_opts = _default_nfs_mount_opts
+            ctx.xfstests_mount_opts = _default_nfs_mount
+        elif "sec=krb5" in _default_smb_mount:
+            # Kerberos mounts authenticate without a credentials file.
+            ctx.mount_opts = f"-o {_default_smb_mount}"
+            ctx.xfstests_mount_opts = ctx.mount_opts
+        else:
+            # User SCPs the credentials file into the VM home directory.
+            username = node.tools[Whoami].get_username()
+            cred_file = f"/home/{username}/smbcredentials/{account_name}.cred"
+            if not node.shell.exists(node.get_pure_path(cred_file)):
+                raise LisaException(
+                    f"SMB credentials file '{cred_file}' not found. Upload the "
+                    f"credentials file for storage account '{account_name}' to "
+                    "the VM home directory before running with file_share_urls."
+                )
+            node.tools[Chmod].chmod(cred_file, "0600", sudo=True)
+            ctx.mount_opts = f"-o {_default_smb_mount},credentials={cred_file}"
+            ctx.xfstests_mount_opts = ctx.mount_opts
+
+        ctx.provided_shares = True
+        log.info(
+            f"Using {len(ctx.all_share_names)} user-provided "
+            f"{ctx.protocol.upper()} shares from storage account '{account_name}'"
+        )
+
+    def _wipe_user_supplied_shares(
+        self,
+        log: Logger,
+        node: RemoteNode,
+        ctx: AzureFileShareContext,
+    ) -> None:
+        """
+        Wipe the contents of user-provided shares before a run so leftover
+        state from a prior run (including one that crashed before cleanup)
+        cannot pollute results. The shares themselves are preserved.
+        """
+        is_nfs = ctx.protocol == "nfs"
+        for share_name in ctx.all_share_names:
+            device = ctx.fs_url_dict[share_name]
+            wipe_mount = f"/mnt/xfs_wipe_{share_name}"
+            log.info(f"Wiping user-provided share {share_name} for clean state")
+
+            # A mount failure here means a bad URL/credentials; fail clearly.
+            if is_nfs:
+                server, _, export = device.partition(":")
+                node.tools[NFSClient].setup(
+                    server, export, wipe_mount, options=ctx.mount_opts
+                )
+            else:
+                node.shell.mkdir(node.get_pure_path(wipe_mount), exist_ok=True)
+                mount_result = node.execute(
+                    f"mount -t cifs {device} {wipe_mount} {ctx.xfstests_mount_opts}",
+                    sudo=True,
+                    shell=True,
+                )
+                if mount_result.exit_code != 0:
+                    raise LisaException(
+                        f"Failed to mount SMB share {share_name} ({device}) to "
+                        f"wipe stale state: {mount_result.stdout} "
+                        f"{mount_result.stderr}. Verify the share URL and "
+                        "credentials/mount options."
+                    )
+
+            try:
+                wipe_result = node.execute(
+                    f"find {wipe_mount} -mindepth 1 -delete", sudo=True, shell=True
+                )
+                if wipe_result.exit_code != 0:
+                    log.warning(
+                        f"Could not fully wipe share {share_name}; proceeding "
+                        f"with possibly stale contents: {wipe_result.stdout} "
+                        f"{wipe_result.stderr}"
+                    )
+            finally:
+                if is_nfs:
+                    node.tools[NFSClient].stop(wipe_mount)
+                else:
+                    node.tools[Mount].umount("", wipe_mount, erase=False)
+                    node.execute(f"rmdir {wipe_mount}", sudo=True, shell=True)
 
     def _run_azure_file_share_xfstests(
         self,
@@ -1217,6 +1395,14 @@ class Xfstesting(TestSuite):
 
         if _default_storage_account_name:
             azure_file_share.set_storage_account_name(_default_storage_account_name)
+
+        # Provided shares come in test/scratch pairs; an odd count is an
+        # invalid config that would mispair shares, so fail.
+        if _file_share_urls and len(_file_share_urls) % 2 != 0:
+            raise LisaException(
+                "file_share_urls must list a test and scratch share per worker "
+                f"(even count); got {len(_file_share_urls)} URLs."
+            )
         runner = XfstestsParallelRunner(
             xfstests=xfstests,
             log=log,
