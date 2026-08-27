@@ -1741,7 +1741,7 @@ def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
         retry_policy=RetryPolicy(
-            tries=10,
+            retry_total=10,
             retry_connect=10,
             retry_status=5,
             timeout=180,  # absolute retry timeout of 3 minutes
