@@ -7,6 +7,7 @@ from assertpy import assert_that
 
 from lisa.base_tools import Cat, Sed
 from lisa.operating_system import CBLMariner
+from lisa.tools import GrubConfig
 
 
 class OperatingSystemTestCase(TestCase):
@@ -15,6 +16,15 @@ class OperatingSystemTestCase(TestCase):
     ) -> Tuple[CBLMariner, MagicMock]:
         node = MagicMock()
         node.execute.return_value.exit_code = 0 if grub_default_exists else 1
+        mariner = CBLMariner.__new__(CBLMariner)
+        mariner._node = node
+        mariner._log = MagicMock()
+        return mariner, node
+
+    def _create_mariner_for_replace_boot_kernel(
+        self,
+    ) -> Tuple[CBLMariner, MagicMock]:
+        node = MagicMock()
         mariner = CBLMariner.__new__(CBLMariner)
         mariner._node = node
         mariner._log = MagicMock()
@@ -49,6 +59,28 @@ class OperatingSystemTestCase(TestCase):
             sudo=True,
         )
         node.tools[Cat].run.assert_called_once_with("/etc/default/grub", sudo=True)
+
+    def test_replace_boot_kernel_sets_securekernel_arg_for_lvbs(self) -> None:
+        mariner, node = self._create_mariner_for_replace_boot_kernel()
+        entry = "AzureLinux GNU/Linux, with Linux 6.6.135-lvbs-1.azl3"
+        node.execute.return_value.stdout = f"menuentry '{entry}' {{"
+        mariner._replace_default_entry = MagicMock()
+
+        mariner.replace_boot_kernel("kernel-lvbs-6.6.135-1.azl3.x86_64")
+
+        node.tools[GrubConfig].set_kernel_cmdline_arg.assert_called_once_with(
+            "securekernel", "128M@0x8000000"
+        )
+
+    def test_replace_boot_kernel_skips_securekernel_arg_for_non_lvbs(self) -> None:
+        mariner, node = self._create_mariner_for_replace_boot_kernel()
+        entry = "AzureLinux GNU/Linux, with Linux 6.6.135-1.azl3"
+        node.execute.return_value.stdout = f"menuentry '{entry}' {{"
+        mariner._replace_default_entry = MagicMock()
+
+        mariner.replace_boot_kernel("kernel-6.6.135-1.azl3.x86_64")
+
+        node.tools[GrubConfig].set_kernel_cmdline_arg.assert_not_called()
 
     def test_get_kernel_version_candidates_for_standard_kernel(self) -> None:
         candidates = CBLMariner._get_kernel_version_candidates(
