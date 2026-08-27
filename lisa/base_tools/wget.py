@@ -72,7 +72,6 @@ class Wget(Tool):
             else:
                 self._url_file_cache[url] = download_path
                 return download_path
-                
 
         command = f"'{url}' --no-check-certificate"
         if filename:
