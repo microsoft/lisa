@@ -296,8 +296,7 @@ class Ip(Tool):
                 raise LisaException(f"set mtu failed, wanted {mtu} and got {new_mtu}")
             else:
                 # warn if assertion is turned off.
-                # Weird enough situation to justify log.warning
-                self.node.log.warning(
+                self.node.log.debug(
                     f"set_mtu: expected new mtu {mtu}, got {new_mtu} instead. "
                 )
 
