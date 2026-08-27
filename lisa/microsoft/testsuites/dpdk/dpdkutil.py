@@ -333,7 +333,7 @@ class DpdkHotplugTarget(str, Enum):
         return self in (DpdkHotplugTarget.RECEIVER, DpdkHotplugTarget.ALL)
 
     def is_enabled(self) -> bool:
-        return self is not DpdkHotplugTarget.NONE
+        return self != DpdkHotplugTarget.NONE
 
 
 def switch_sriov_for_nic(node: Node, test_nic: NicInfo) -> None:
@@ -1470,7 +1470,7 @@ def run_testpmd_consolidated(
     node_test_nics = _get_multi_port_test_nics(environment, nic_count)
 
     # get test duration variable if set
-    test_duration: int = variables.get("dpdk_test_duration", 15)
+    test_duration: int = variables.get("dpdk_test_duration", 25)
     test_kits = init_nodes_concurrent(
         environment,
         log,
@@ -1483,7 +1483,7 @@ def run_testpmd_consolidated(
     kit_cmd_pairs: Dict[DpdkTestResources,str] = {}
     kit_labels : Dict[DpdkTestResources, str] = {}
     kit_port_stats : Dict[DpdkTestResources, Dict[int,DpdkPortStats]] = {}
-    kit_fwd_modes : Dict[DpdkTestResources, DpdkForwardingMode] = {}
+    hotplug_targets : List[DpdkTestResources] = []
     # single-node mode: txonly or rxonly on one VM
     if test_plan is TestPlan.SINGLE_NODE:
         assert fwd_mode is not None, (
@@ -1510,7 +1510,9 @@ def run_testpmd_consolidated(
         start_order = [kit]
         graded_nics = { graded_kit.node: list(port_map.values()) }
         kit_labels[kit]= f"{str(test_plan)}:{str(fwd_mode)}"
-        kit_fwd_modes[kit]= fwd_mode
+        kit_fwd_modes= { kit: fwd_mode }
+        if hotplug.is_enabled():
+            hotplug_targets+=[kit]
         # proc = kit.node.execute_async(cmd, sudo=True)
         # proc.wait_output("start packet forwarding")
 
@@ -1568,6 +1570,11 @@ def run_testpmd_consolidated(
         graded_kit=receiver
         graded_nics={ graded_kit.node: list(port_maps[graded_kit].values()) }
         kit_fwd_modes = {sender: DpdkForwardingMode.TXONLY, receiver:DpdkForwardingMode.RXONLY}
+        kit_labels= { sender: "sender", receiver: "receiver"}
+        if hotplug.includes_sender():
+            hotplug_targets+=[ sender ]
+        if hotplug.includes_receiver():
+            hotplug_targets+=[ receiver ]
         
 
     test_procs: Dict[DpdkTestResources, Process] = {}
@@ -1606,6 +1613,7 @@ def run_testpmd_consolidated(
         kit_port_stats[kit] = kit.testpmd.get_stats_by_port()
     
     for kit in start_order:
+        kit.node.log.debug(f"kit {kit} in graded_nics: {kit_fwd_modes.keys()}")
         if hotplug is DpdkHotplugTarget.NONE or kit is graded_kit:
             grade_port_stats(
                 log=log,
@@ -1614,7 +1622,7 @@ def run_testpmd_consolidated(
                 port_map=port_maps[kit],
                 port_stats=kit_port_stats[kit],
                 result=result,
-                grade_mode=_select_grade_mode(hotplug, kit.node in graded_nics.keys(),),
+                grade_mode=_select_grade_mode(hotplug, kit in hotplug_targets),
             )
    
     #annotate_packet_drops(log, result, graded_kit)
