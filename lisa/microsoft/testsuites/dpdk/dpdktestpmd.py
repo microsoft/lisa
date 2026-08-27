@@ -612,7 +612,8 @@ class DpdkTestpmd(Tool):
         eal_device_args: str = "",
         core_offset: int = 0,
         extra_eal_args: str = "",
-        stats_period:int = 2,
+        stats_period: int = 2,
+        file_prefix: str = "",
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -750,12 +751,113 @@ class DpdkTestpmd(Tool):
         debug_log_args = " ".join(debug_logging)
         nic_includes = " ".join(nic_include_infos)
         eal_args = f"{core_list} {nic_includes} {debug_log_args}"
+        if file_prefix:
+            eal_args += f" --file-prefix={file_prefix}"
         if extra_eal_args:
             eal_args += f" {extra_eal_args.strip()}"
         return (
             f"{self._testpmd_install_path} {eal_args} -- --forward-mode={mode} "
             f"-a --stats-period {stats_period} "
             f"--nb-cores={forwarding_cores} {extra_args} "
+        )
+
+    def generate_testpmd_secondary_command(
+        self,
+        mode: str,
+        file_prefix: str,
+        proc_id: int = 0,
+        stats_period: int = 2,
+    ) -> str:
+        """Generate a testpmd command that attaches as a secondary process.
+
+        Secondary processes share hugepages and device access with the primary
+        via ``--proc-type=secondary``.  The ``file_prefix`` must match the
+        primary so both map the same shared memory region.
+
+        Each secondary gets its own non-overlapping core range.  ``proc_id``
+        is the 0-based index among secondaries on this node.
+        """
+        core_list = self._secondary_core(proc_id, cores_needed=2)
+        self.register_secondary_process(self._testpmd_install_path)
+
+        return (
+            f"{self._testpmd_install_path} -l {core_list} "
+            f"--proc-type=secondary --file-prefix={file_prefix} "
+            f"-- --forward-mode={mode} "
+            f"-a --stats-period {stats_period} "
+            f"--nb-cores=1 "
+        )
+
+    def generate_secondary_proc_info_command(
+        self,
+        file_prefix: str,
+        proc_id: int = 0,
+        stats_period: int = 2,
+    ) -> str:
+        """Generate a dpdk-proc-info command that attaches as a secondary.
+
+        dpdk-proc-info only needs 1 lcore and does no packet processing,
+        making it the lightest possible secondary for maximising process count.
+        """
+        proc_info_path = self._find_dpdk_sibling_binary("dpdk-proc-info")
+        core = 1 << int(self._secondary_core(proc_id, cores_needed=1))
+        self.register_secondary_process(proc_info_path)
+        return (
+            f"{proc_info_path} --file-prefix={file_prefix}" # #-p {hex(core)[2:]}"
+            f"-m --show-port"
+        )
+
+    def generate_secondary_pdump_command(
+        self,
+        file_prefix: str,
+        proc_id: int = 0,
+    ) -> str:
+        """Generate a dpdk-pdump command that attaches as a secondary.
+
+        dpdk-pdump captures packets to /dev/null so it stays alive without
+        filling disk.  Only needs 1 lcore.
+        """
+        pdump_path = self._find_dpdk_sibling_binary("dpdk-pdump")
+        core = self._secondary_core(proc_id, cores_needed=1)
+        self.register_secondary_process(pdump_path)
+        return (
+            f"{pdump_path} -l {core} "
+            f"--proc-type=secondary --file-prefix={file_prefix} "
+            f"-- --pdump 'port=0,queue=*,rx-dev=/dev/null'"
+        )
+
+    def _secondary_core(self, proc_id: int, cores_needed: int = 1) -> str:
+        """Return a core-list string for a secondary process.
+
+        Secondaries use the upper half of available cores.  ``proc_id``
+        is the 0-based index among all secondaries on this node.
+        """
+        threads_available = self.node.tools[Lscpu].get_thread_count()
+        base_core = (threads_available // 2) + (proc_id * cores_needed)
+        max_core = base_core + cores_needed - 1
+        if max_core >= threads_available:
+            raise LisaException(
+                f"Not enough cores to launch secondary process {proc_id}. "
+                f"Need core {max_core} but only {threads_available} available."
+            )
+        if cores_needed == 1:
+            return str(base_core)
+        return f"{base_core}-{max_core}"
+
+    def _find_dpdk_sibling_binary(self, name: str) -> str:
+        """Locate a DPDK binary that lives next to testpmd."""
+        # try the same directory as testpmd first
+        testpmd_dir = str(PurePosixPath(self._testpmd_install_path).parent)
+        candidate = f"{testpmd_dir}/{name}"
+        result = self.node.execute(f"test -x {candidate}")
+        if result.exit_code == 0:
+            return candidate
+        # fall back to $PATH
+        result = self.node.execute(f"which {name}")
+        if result.exit_code == 0:
+            return result.stdout.strip()
+        raise LisaException(
+            f"Could not find {name} binary next to testpmd or in PATH."
         )
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
@@ -806,7 +908,20 @@ class DpdkTestpmd(Tool):
 
         return len(pids) > 0
 
+    def register_secondary_process(self, binary_path: str) -> None:
+        """Track a secondary process binary name for cleanup."""
+        name = self.node.get_pure_path(binary_path).name
+        if name not in self._secondary_procs:
+            self._secondary_procs.append(name)
+
     def kill_previous_testpmd_command(self) -> None:
+        # Kill secondaries first — they depend on the primary's shared memory.
+        for sec_name in self._secondary_procs:
+            self.node.tools[Kill].by_name(
+                sec_name, signum=SIGINT, ignore_not_exist=True
+            )
+        self._secondary_procs.clear()
+
         # kill testpmd early
         command_name = self.node.get_pure_path(self.command).name
 
@@ -1170,6 +1285,7 @@ class DpdkTestpmd(Tool):
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
         self._expected_install_path = ""
+        self._secondary_procs: List[str] = []
         self._determine_network_hardware()
         if self.use_package_manager_install():
             self.installer: Installer = DpdkPackageManagerInstall(

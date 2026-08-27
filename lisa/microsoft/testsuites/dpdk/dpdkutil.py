@@ -308,6 +308,15 @@ class DpdkForwardingMode(str, Enum):
     RXONLY = "rxonly"
     SEND_RECEIVE = "send_receive"
 
+
+class SecondaryProcessMode(str, Enum):
+    """Type of DPDK secondary process to spawn alongside a primary."""
+
+    TXONLY = "txonly"
+    RXONLY = "rxonly"
+    PROC_INFO = "proc_info"
+    PDUMP = "pdump"
+
 class TestPlan(str, Enum):
     """Forwarding mode for a multi-port test run."""
 
@@ -407,7 +416,19 @@ def generate_send_receive_run_info(
     use_service_cores: int = 1,
     set_mtu: int = 0,
     stats_period: int = 2,
-) -> Dict[DpdkTestResources, str]:
+    secondary_proc_count: int = 0,
+    secondary_mode: SecondaryProcessMode = SecondaryProcessMode.TXONLY,
+) -> Tuple[
+    Dict[DpdkTestResources, str],
+    Dict[DpdkTestResources, List[str]],
+]:
+    """Generate primary and optional secondary testpmd commands.
+
+    Returns:
+        (primary_commands, secondary_commands) — secondary_commands maps each
+        kit to a list of secondary process command strings (empty when
+        secondary_proc_count is 0).
+    """
     snd_nic, rcv_nic = [
         x.node.nics.get_nic_by_subnet("10.0.1.0/24") for x in [sender, receiver]
     ]
@@ -439,6 +460,11 @@ def generate_send_receive_run_info(
         snd_args = extra_args
         rcv_args = extra_args
 
+    # When spawning secondaries the primary needs a file-prefix so
+    # secondaries can attach to its shared memory.
+    snd_prefix = "testpmd_sender" if secondary_proc_count else ""
+    rcv_prefix = "testpmd_receiver" if secondary_proc_count else ""
+
     snd_cmd = sender.testpmd.generate_testpmd_command(
         [snd_nic],
         0,
@@ -450,6 +476,7 @@ def generate_send_receive_run_info(
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
         stats_period=stats_period,
+        file_prefix=snd_prefix,
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         [rcv_nic],
@@ -462,6 +489,7 @@ def generate_send_receive_run_info(
         mbuf_size=maxmtu_int,
         extra_args=rcv_args,
         stats_period=stats_period,
+        file_prefix=rcv_prefix,
     )
 
     kit_cmd_pairs = {
@@ -469,7 +497,41 @@ def generate_send_receive_run_info(
         receiver: rcv_cmd,
     }
 
-    return kit_cmd_pairs
+    # Build secondary process commands based on the requested mode.
+    secondary_cmds: Dict[DpdkTestResources, List[str]] = {
+        sender: [],
+        receiver: [],
+    }
+    for i in range(secondary_proc_count):
+        for kit, testpmd_fwd in [(sender, "txonly"), (receiver, "rxonly")]:
+            prefix = snd_prefix if kit is sender else rcv_prefix
+            if secondary_mode == SecondaryProcessMode.PROC_INFO:
+                secondary_cmds[kit].append(
+                    kit.testpmd.generate_secondary_proc_info_command(
+                        file_prefix=prefix,
+                        proc_id=i,
+                        stats_period=stats_period,
+                    )
+                )
+            elif secondary_mode == SecondaryProcessMode.PDUMP:
+                secondary_cmds[kit].append(
+                    kit.testpmd.generate_secondary_pdump_command(
+                        file_prefix=prefix,
+                        proc_id=i,
+                    )
+                )
+            else:
+                # TXONLY / RXONLY — mirror the primary's forwarding direction
+                secondary_cmds[kit].append(
+                    kit.testpmd.generate_testpmd_secondary_command(
+                        mode=testpmd_fwd,
+                        file_prefix=prefix,
+                        proc_id=i,
+                        stats_period=stats_period,
+                    )
+                )
+
+    return kit_cmd_pairs, secondary_cmds
 
 
 def generate_multi_port_send_receive_run_info(
@@ -1195,6 +1257,8 @@ def verify_dpdk_send_receive(
     set_mtu: int = 0,
     check_sender_packet_drops: bool = False,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
+    secondary_proc_count: int = 0,
+    secondary_mode: SecondaryProcessMode = SecondaryProcessMode.TXONLY,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -1237,13 +1301,15 @@ def verify_dpdk_send_receive(
     if result is not None:
         annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
 
-    kit_cmd_pairs = generate_send_receive_run_info(
+    kit_cmd_pairs, secondary_cmds = generate_send_receive_run_info(
         pmd,
         sender,
         receiver,
         use_service_cores=use_service_cores,
         multiple_queues=multiple_queues,
         set_mtu=set_mtu,
+        secondary_proc_count=secondary_proc_count,
+        secondary_mode=secondary_mode,
     )
 
     receiver_proc = receiver.node.execute_async(
@@ -1258,12 +1324,31 @@ def verify_dpdk_send_receive(
     )
     sender_proc.wait_output("start packet forwarding")
 
+    # Launch secondary processes after the primaries are forwarding.
+    # The generate_secondary_* methods already registered their binary
+    # names on the testpmd instance, so kill_previous_testpmd_command
+    # will clean them all up.
+    secondary_procs: List[Process] = []
+    for kit in [sender, receiver]:
+        for sec_cmd in secondary_cmds[kit]:
+            log.debug(f"Starting secondary process on {kit.node.name}: {sec_cmd}")
+            sec_proc = kit.node.execute_async(sec_cmd, sudo=True)
+            secondary_procs.append(sec_proc)
+
     sleep(test_duration)
 
+    # kill_previous_testpmd_command now kills registered secondaries
+    # before killing the primary.
     sender.testpmd.kill_previous_testpmd_command()
     receiver.testpmd.kill_previous_testpmd_command()
 
     sleep(5)
+
+    # Collect secondary process output before primary so the wait_result
+    # calls don't block indefinitely on already-dead processes.
+    for sec_proc in secondary_procs:
+        sec_result = sec_proc.wait_result()
+        log.debug(f"Secondary process output:\n{sec_result.stdout}")
 
     results = dict()
     results[sender] = sender.testpmd.process_testpmd_output(sender_proc.wait_result())
@@ -1811,6 +1896,8 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         result=result,
         set_mtu=set_mtu,
         grading_metric=grading_metric,
+        secondary_mode=SecondaryProcessMode.PROC_INFO,
+        secondary_proc_count=4,
     )
 
 

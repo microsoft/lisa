@@ -542,7 +542,7 @@ class Dpdk(TestSuite):
             mq_args = (False, True)
 
         # generate the run info
-        kit_cmd_pairs = generate_send_receive_run_info(
+        kit_cmd_pairs, _ = generate_send_receive_run_info(
             pmd,
             sender,
             receiver,
@@ -1201,6 +1201,7 @@ class Dpdk(TestSuite):
                 multiple_queues=True,
                 result=result,
                 hotplug=DpdkHotplugTarget.SENDER,
+                test_plan=TestPlan.MULTIPLE_NODES,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
