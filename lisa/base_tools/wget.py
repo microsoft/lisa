@@ -48,7 +48,6 @@ class Wget(Tool):
         sudo: bool = False,
         force_run: bool = False,
         timeout: int = 600,
-        skip_exists: bool = False,
     ) -> str:
         cached_filename = self._url_file_cache.get(url, None)
         if cached_filename:
@@ -68,11 +67,12 @@ class Wget(Tool):
         # remove existing file and dir to download again.
         download_pure_path = self.node.get_pure_path(download_path)
         if self.node.shell.exists(download_pure_path):
-            if skip_exists or not overwrite:
+            if overwrite:
+                self.node.shell.remove(download_pure_path, recursive=True)
+            else:
                 self._url_file_cache[url] = download_path
                 return download_path
-            else:
-                self.node.shell.remove(download_pure_path, recursive=True)
+                
 
         command = f"'{url}' --no-check-certificate"
         if filename:
@@ -177,7 +177,6 @@ class WindowsWget(Wget):
         sudo: bool = False,
         force_run: bool = False,
         timeout: int = 600,
-        skip_exists: bool = False,
     ) -> str:
         cached_filename = self._url_file_cache.get(url, None)
         if cached_filename:
@@ -195,7 +194,7 @@ class WindowsWget(Wget):
         file_path, download_path = self._ensure_download_path(file_path, filename)
 
         # return early if file exists and caller doesn't want to overwrite
-        if ls.path_exists(download_path, sudo=sudo) and (skip_exists or not overwrite):
+        if ls.path_exists(download_path, sudo=sudo) and not overwrite:
             self._url_file_cache[url] = download_path
             return download_path
 
