@@ -258,6 +258,9 @@ _default_smb_testcases: str = (
 _scratch_folder = "/mnt/scratch"
 _test_folder = "/mnt/test"
 
+# Azure File Share configuration (set via runbook variables in before_case)
+_default_storage_account_name: str = ""
+
 # Parallel workers for the Azure Files tests only (data-disk/NVMe are sequential).
 # 3 workers ~24 min, 4 workers ~18-20 min. Each worker adds an xfstests copy,
 # a test+scratch share pair, and two mount points.
@@ -456,6 +459,9 @@ class Xfstesting(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         global _default_smb_excluded_tests, _default_smb_mount, _default_smb_testcases
+        global _default_storage_account_name
+        global _default_worker_count
+
         node = kwargs["node"]
         if isinstance(node.os, Oracle) and (node.os.information.version <= "9.0.0"):
             self.excluded_tests = self.excluded_tests + " btrfs/299"
@@ -476,6 +482,16 @@ class Xfstesting(TestSuite):
         if addition_mount_opts:
             _default_smb_mount = f"{_default_smb_mount},{addition_mount_opts}"
 
+        # check if the file endpoints are already provided
+        _default_storage_account_name = variables.get(
+            "storage_account_name",
+            "",
+        )
+
+        # allowing the user to set number of worker threads
+        worker_count = variables.get("xfstests_workers", _default_worker_count)
+        if worker_count is not None and str(worker_count).strip():
+            _default_worker_count = int(worker_count)
 
     @TestCaseMetadata(
         description="""
@@ -1190,6 +1206,8 @@ class Xfstesting(TestSuite):
         azure_file_share = node.features[AzureFileShare]
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
 
+        if _default_storage_account_name:
+            azure_file_share.set_storage_account_name(_default_storage_account_name)
         runner = XfstestsParallelRunner(
             xfstests=xfstests,
             log=log,
