@@ -2260,6 +2260,12 @@ class OpenEuler(RPMDistro):
         return re.compile("^(openEuler|openeuler)")
 
 
+# Memory reservation required on the "securekernel" cmdline arg for LVBS
+# (VBS-enabled) kernels to boot their secure kernel (VTL1); without it the
+# secure kernel panics with "No memory reserved in cmdline for secure kernel".
+_LVBS_SECUREKERNEL_ARG = "128M@0x8000000"
+
+
 class CBLMariner(RPMDistro):
     @classmethod
     def name_pattern(cls) -> Pattern[str]:
@@ -2500,15 +2506,31 @@ class CBLMariner(RPMDistro):
         # Set the new kernel as default using the existing method
         self._replace_default_entry(menu_entry_name)
 
-        # Rebuild GRUB configuration to apply the changes
-        self._node.execute(
-            "grub2-mkconfig -o /boot/grub2/grub.cfg",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Failed to rebuild GRUB configuration with new default"
-            ),
-        )
+        if "lvbs" in kernel_version.lower():
+            # LVBS kernels boot a secure kernel (VTL1) that panics with
+            # "No memory reserved in cmdline for secure kernel" unless
+            # memory is reserved for it via the "securekernel" cmdline arg.
+            # set_kernel_cmdline_arg() rebuilds the GRUB configuration, so
+            # the plain grub2-mkconfig rebuild below is skipped in this case.
+            from lisa.tools import GrubConfig
+
+            self._log.info(
+                "LVBS kernel detected, reserving memory for the secure "
+                f"kernel via '{_LVBS_SECUREKERNEL_ARG}'"
+            )
+            self._node.tools[GrubConfig].set_kernel_cmdline_arg(
+                "securekernel", _LVBS_SECUREKERNEL_ARG
+            )
+        else:
+            # Rebuild GRUB configuration to apply the changes
+            self._node.execute(
+                "grub2-mkconfig -o /boot/grub2/grub.cfg",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to rebuild GRUB configuration with new default"
+                ),
+            )
 
         self._log.info(
             f"Successfully configured GRUB to boot into kernel version "
