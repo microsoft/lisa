@@ -91,6 +91,7 @@ class Dpdk(TestSuite):
             More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -119,6 +120,7 @@ class Dpdk(TestSuite):
             More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=3,
@@ -145,6 +147,7 @@ class Dpdk(TestSuite):
             More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -173,6 +176,7 @@ class Dpdk(TestSuite):
             More details: https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -201,6 +205,7 @@ class Dpdk(TestSuite):
             More details: https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -224,6 +229,7 @@ class Dpdk(TestSuite):
            Install and run OVS+DPDK functional tests
         """,
         priority=4,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -286,6 +292,7 @@ class Dpdk(TestSuite):
            Install and run ci test for NFF-Go on ubuntu
         """,
         priority=4,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -318,6 +325,7 @@ class Dpdk(TestSuite):
            Requires 3 nics since client/server needs two ports + 1 nic for LISA
         """,
         priority=4,
+        maturity="preview",
         requirement=simple_requirement(
             min_nic_count=3,
             network_interface=Sriov(),
@@ -413,6 +421,7 @@ class Dpdk(TestSuite):
             test sriov failsafe during vf revoke (receive side)
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -437,6 +446,7 @@ class Dpdk(TestSuite):
             test sriov failsafe during vf revoke (receive side)
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -459,6 +469,7 @@ class Dpdk(TestSuite):
             testpmd with hotplug vf for failsafe pmd (send only version)
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -477,6 +488,7 @@ class Dpdk(TestSuite):
             testpmd with hotplug vf for netvsc pmd (send only version)
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -590,6 +602,7 @@ class Dpdk(TestSuite):
             4. check that azure interfaces are detected by vpp
         """,
         priority=4,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -649,6 +662,7 @@ class Dpdk(TestSuite):
             Not dependent on any specific PMD.
         """,
         priority=4,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -735,6 +749,7 @@ class Dpdk(TestSuite):
             expected order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -765,6 +780,7 @@ class Dpdk(TestSuite):
             Test checks that traffic flowed, and annotates the Gbps throughput.
             """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -803,6 +819,7 @@ class Dpdk(TestSuite):
             Test Gbps throughput is annotated into the test result.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -841,6 +858,7 @@ class Dpdk(TestSuite):
             Test Gbps throughput is annotated into the test result.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -879,6 +897,7 @@ class Dpdk(TestSuite):
             Test Gbps throughput is annotated into the test result.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -917,6 +936,7 @@ class Dpdk(TestSuite):
             order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -947,6 +967,7 @@ class Dpdk(TestSuite):
             order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -983,6 +1004,7 @@ class Dpdk(TestSuite):
             Test uses 1GB hugepages.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -1018,6 +1040,7 @@ class Dpdk(TestSuite):
             order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -1054,6 +1077,7 @@ class Dpdk(TestSuite):
             Test uses 1GB hugepages.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=2,
@@ -1090,6 +1114,7 @@ class Dpdk(TestSuite):
                 single sender / single receiver version of the tests.
             """,
         priority=3,
+        maturity="preview",
         requirement=simple_requirement(
             supported_os=[Ubuntu],
             min_core_count=8,
@@ -1131,6 +1156,7 @@ class Dpdk(TestSuite):
         """
         ),
         priority=3,
+        maturity="preview",
         requirement=simple_requirement(
             supported_os=[Ubuntu],
             min_core_count=8,
@@ -1166,6 +1192,7 @@ class Dpdk(TestSuite):
         """
         ),
         priority=3,
+        maturity="preview",
         requirement=simple_requirement(
             supported_os=[Ubuntu],
             min_core_count=8,
@@ -1205,6 +1232,7 @@ class Dpdk(TestSuite):
                 tool for managing network traffic with DPDK.
             """,
         priority=3,
+        maturity="preview",
         requirement=simple_requirement(
             supported_os=[Ubuntu],
             min_core_count=8,
