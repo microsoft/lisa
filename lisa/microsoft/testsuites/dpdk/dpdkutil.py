@@ -1258,7 +1258,7 @@ def verify_dpdk_send_receive(
     check_sender_packet_drops: bool = False,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
     secondary_proc_count: int = 0,
-    secondary_mode: SecondaryProcessMode = SecondaryProcessMode.TXONLY,
+    secondary_mode: SecondaryProcessMode = SecondaryProcessMode.RXONLY,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
