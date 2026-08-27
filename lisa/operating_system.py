@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import os
 import re
+import shlex
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -2369,6 +2370,7 @@ class CBLMariner(RPMDistro):
 
     def _replace_default_entry(self, entry: str) -> None:
         self._log.debug(f"set boot entry to: {entry}")
+        grub_default_line = f"GRUB_DEFAULT={shlex.quote(entry)}"
 
         # Check if GRUB_DEFAULT already exists in the file
         grep_result = self._node.execute(
@@ -2382,14 +2384,14 @@ class CBLMariner(RPMDistro):
             sed = self._node.tools[Sed]
             sed.substitute(
                 regexp="GRUB_DEFAULT=.*",
-                replacement=f"GRUB_DEFAULT='{entry}'",
+                replacement=grub_default_line,
                 file="/etc/default/grub",
                 sudo=True,
             )
         else:
+            quoted_line = shlex.quote(grub_default_line)
             self._node.execute(
-                f"echo \"GRUB_DEFAULT='{entry}'\" >> /etc/default/grub",
-                sudo=True,
+                f"printf '\n%s\n' {quoted_line} | sudo tee -a /etc/default/grub",
                 shell=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="Failed to append GRUB_DEFAULT",
@@ -2397,7 +2399,7 @@ class CBLMariner(RPMDistro):
 
         # output to log for troubleshooting
         cat = self._node.tools[Cat]
-        cat.run("/etc/default/grub")
+        cat.run("/etc/default/grub", sudo=True)
 
     @staticmethod
     def _get_kernel_version_candidates(kernel_version: str) -> List[str]:
