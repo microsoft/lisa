@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Type
 
 from lisa import feature, schema
 from lisa.environment import Environment
-from lisa.node import Node
+from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
 from lisa.sut_orchestrator import platform_utils
 from lisa.util import LisaException
@@ -149,7 +149,23 @@ class BareMetalPlatform(Platform):
                     self._cluster_runbook.ip_getter
                 )
 
-                node_context.client.connection.address = ip_getter.get_ip()
+                node_context.client.connection.address = ip_getter.get_ip_from_node(
+                    node
+                )
+
+            connection = node_context.client.connection
+            remote_node = node
+            assert isinstance(
+                remote_node, RemoteNode
+            ), f"expected RemoteNode, got {type(remote_node).__name__}"
+            remote_node.set_connection_info(
+                address=connection.address,
+                port=connection.port,
+                username=connection.username,
+                password=connection.password,
+                private_key_file=connection.private_key_file,
+                use_public_address=False,
+            )
 
             node.name = f"node_{index}"
             node.initialize()
