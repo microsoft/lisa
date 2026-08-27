@@ -59,6 +59,7 @@ from lisa.tools import (
 from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
+    check_till_timeout,
     constants,
     generate_random_chars,
 )
@@ -1174,6 +1175,22 @@ class Xfstesting(TestSuite):
                     skip_mount=True,
                 )
             ctx.fs_url_dict = _deploy_azure_file_share(**deploy_kwargs)
+
+            # Private endpoint DNS can lag its creation
+            # Wait until the VM resolves the share host so worker mounts don't fail.
+            share_host = (
+                f"{azure_file_share.storage_account_name}.file.core.windows.net"
+            )
+            log.info(f"Waiting for private DNS resolution of {share_host}")
+            check_till_timeout(
+                lambda: node.execute(
+                    f"getent hosts {share_host}", shell=True, sudo=True
+                ).exit_code
+                == 0,
+                timeout_message=f"private DNS resolution for {share_host}",
+                timeout=300,  # PE DNS propagation can take a few minutes
+                interval=10,
+            )
 
             # Configure protocol-specific mount options
             if is_nfs:
