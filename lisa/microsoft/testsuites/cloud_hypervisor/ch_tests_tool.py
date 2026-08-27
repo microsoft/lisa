@@ -1509,6 +1509,30 @@ exit 0
         elif metadata:
             self._log.info(f"Selected UVM kernel metadata:\n{metadata}")
 
+    def _set_ms_kernel_environment(self) -> None:
+        if self.use_ms_guest_kernel:
+            self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
+        if self.use_ms_bz_image:
+            self.env_vars["USE_MS_BZ_IMAGE"] = self.use_ms_bz_image
+
+        architecture = self.node.tools[Uname].get_machine_architecture()
+        kernel_path = ""
+        if architecture == CpuArchitecture.ARM64:
+            if self.use_ms_guest_kernel:
+                kernel_path = "/usr/share/cloud-hypervisor/Image"
+                self.env_vars["CH_CUSTOM_KERNEL"] = kernel_path
+            if self.use_ms_bz_image:
+                self.env_vars[
+                    "CH_CUSTOM_BZIMAGE"
+                ] = "/usr/share/cloud-hypervisor/bzImage"
+        else:
+            kernel_path = "/usr/share/cloud-hypervisor/vmlinux.bin"
+            self.env_vars["CH_CUSTOM_KERNEL"] = kernel_path
+            self.env_vars["CH_CUSTOM_BZIMAGE"] = "/usr/share/cloud-hypervisor/bzImage"
+
+        if kernel_path:
+            self._log_custom_kernel_metadata(kernel_path)
+
     def _install(self) -> bool:
         git = self.node.tools[Git]
         clone_path = self.get_tool_path(use_global=True)
@@ -1519,16 +1543,8 @@ exit 0
                 auth_token=self.ms_access_token,
             )
             self.env_vars["GUEST_VM_TYPE"] = self.clh_guest_vm_type
-            if self.use_ms_guest_kernel:
-                self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
-                architecture = self.node.tools[Uname].get_machine_architecture()
-                if architecture == CpuArchitecture.ARM64:
-                    kernel_name = "Image"
-                else:
-                    kernel_name = "vmlinux.bin"
-                kernel_path = f"/usr/share/cloud-hypervisor/{kernel_name}"
-                self.env_vars["CH_CUSTOM_KERNEL"] = kernel_path
-                self._log_custom_kernel_metadata(kernel_path)
+            if self.use_ms_guest_kernel or self.use_ms_bz_image:
+                self._set_ms_kernel_environment()
             if self.use_ms_hypervisor_fw:
                 self.env_vars["USE_MS_HV_FW"] = self.use_ms_hypervisor_fw
                 self.env_vars[
@@ -1539,11 +1555,6 @@ exit 0
                 self.env_vars[
                     "CH_CUSTOM_OVMF"
                 ] = "/usr/share/cloud-hypervisor/CLOUDHV_EFI.fd"
-            if self.use_ms_bz_image:
-                self.env_vars["USE_MS_BZ_IMAGE"] = self.use_ms_bz_image
-                self.env_vars[
-                    "CH_CUSTOM_BZIMAGE"
-                ] = "/usr/share/cloud-hypervisor/bzImage"
 
             if self.use_pmem:
                 self.env_vars["USE_DATADISK"] = self.use_pmem
