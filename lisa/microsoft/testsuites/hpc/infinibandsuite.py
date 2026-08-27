@@ -175,6 +175,7 @@ class InfinibandSuite(TestSuite):
         2. Run several ping-pong tests to check RDMA / Infiniband functionality
         """,
         priority=1,
+        maturity="preview",
         requirement=simple_requirement(
             supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
@@ -244,6 +245,7 @@ class InfinibandSuite(TestSuite):
             5. Run other MPI tests
             """,
         priority=4,
+        maturity="preview",
         requirement=simple_requirement(
             supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
@@ -338,6 +340,7 @@ class InfinibandSuite(TestSuite):
             5. Run other MPI tests
             """,
         priority=4,
+        maturity="preview",
         requirement=simple_requirement(
             supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,
@@ -550,6 +553,7 @@ class InfinibandSuite(TestSuite):
             5. Run other MPI tests
             """,
         priority=4,
+        maturity="preview",
         requirement=simple_requirement(
             supported_features=[Infiniband, AvailabilitySetEnabled()],
             min_count=2,

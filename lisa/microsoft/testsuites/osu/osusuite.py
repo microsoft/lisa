@@ -51,6 +51,7 @@ class OSUTestSuite(TestSuite):
 
         """,
         timeout=TIMEOUT,
+        maturity="preview",
         requirement=simple_requirement(
             supported_features=[GpuEnabled(), SerialConsole],
         ),
