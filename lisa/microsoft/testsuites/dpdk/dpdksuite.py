@@ -1130,7 +1130,7 @@ class Dpdk(TestSuite):
         priority=3,
         requirement=simple_requirement(
             min_core_count=8,
-            min_nic_count=3,
+            min_nic_count=8,
             network_interface=Sriov(),
             min_count=2,
             unsupported_features=[Gpu, Infiniband],
@@ -1218,7 +1218,7 @@ class Dpdk(TestSuite):
             supported_os=[Ubuntu],
             min_core_count=8,
             min_count=3,
-            min_nic_count=3,
+            min_nic_count=8,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
         ),

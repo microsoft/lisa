@@ -1,3 +1,4 @@
+import ipaddress
 import itertools
 import re
 from decimal import Decimal
@@ -469,13 +470,6 @@ def generate_send_receive_run_info(
     }
 
     return kit_cmd_pairs
-
-
-# subnets used by the multi-nic dpdk test environments.
-# every VM in the environment has one nic on each of these subnets,
-# so nic N on the sender always has a peer nic N on the receiver.
-def get_dpdk_test_subnets(nic_count: int) -> List[str]:
-    return [f"10.0.{index + 1}.0/24" for index in range(nic_count)]
 
 
 def generate_multi_port_send_receive_run_info(
@@ -1138,7 +1132,7 @@ def init_nodes_concurrent(
                             nic
                             for nic in node.nics.nics.values()
                             if nic is not node.nics.get_primary_nic()
-                        ][:test_nic_count]
+                        ][:test_nic_count if specific_pairings is None else len(specific_pairings[node])]
                     ),
                 )
                 for node in environment.nodes.list()
@@ -1333,15 +1327,17 @@ def _get_multi_port_test_nics(
 ) -> Dict[Node, List[NicInfo]]:
     # pick one nic per subnet on each node, the index of the nic in the
     # list is the same on both nodes since the subnet list is shared.
-    subnets = get_dpdk_test_subnets(nic_count)
+    
+    
     nic_list: Dict[Node, List[NicInfo]] = dict()
     for node in environment.nodes.list():
         try:
-            nic_list[node] = [node.nics.get_nic_by_subnet(subnet) for subnet in subnets]
+            subnets = node.nics.get_subnets()
+            nic_list[node] = [node.nics.get_nic_by_subnet(str(subnet)) for subnet in subnets if subnet != ipaddress.ip_network("10.0.0.0/24")]
         except LisaException as err:
             raise SkippedException(
                 f"Node {node.name} is missing a test nic, this test needs "
-                f"one nic on each of the subnets: {', '.join(subnets)}. {str(err)}"
+                f"one nic on each of the subnets: {', '.join(map(str,subnets))}. {str(err)}"
             )
     return nic_list
 
@@ -1471,7 +1467,7 @@ def run_testpmd_consolidated(
     reset_environment_netvsc_binding(environment, log)
 
     # pick one nic per subnet on each node
-    nic_list = _get_multi_port_test_nics(environment, nic_count)
+    node_test_nics = _get_multi_port_test_nics(environment, nic_count)
 
     # get test duration variable if set
     test_duration: int = variables.get("dpdk_test_duration", 15)
@@ -1481,13 +1477,13 @@ def run_testpmd_consolidated(
         variables,
         pmd,
         hugepage_size=hugepage_size,
-        specific_pairings=nic_list,
+        specific_pairings=node_test_nics,
     )
     port_maps: Dict[DpdkTestResources,Dict[int, NicInfo]] = {}
     kit_cmd_pairs: Dict[DpdkTestResources,str] = {}
     kit_labels : Dict[DpdkTestResources, str] = {}
     kit_port_stats : Dict[DpdkTestResources, Dict[int,DpdkPortStats]] = {}
-    
+    kit_fwd_modes : Dict[DpdkTestResources, DpdkForwardingMode] = {}
     # single-node mode: txonly or rxonly on one VM
     if test_plan is TestPlan.SINGLE_NODE:
         assert fwd_mode is not None, (
@@ -1502,7 +1498,7 @@ def run_testpmd_consolidated(
         cmd, port_map = _generate_multi_port_single_node_run_info(
             pmd,
             kit,
-            nic_list[kit.node],
+            node_test_nics[kit.node],
             fwd_mode,
             multiple_queues=multiple_queues,
             use_service_cores=use_service_cores,
@@ -1514,7 +1510,7 @@ def run_testpmd_consolidated(
         start_order = [kit]
         graded_nics = { graded_kit.node: list(port_map.values()) }
         kit_labels[kit]= f"{str(test_plan)}:{str(fwd_mode)}"
-        kit_fwd_modes[kit] = fwd_mode
+        kit_fwd_modes[kit]= fwd_mode
         # proc = kit.node.execute_async(cmd, sudo=True)
         # proc.wait_output("start packet forwarding")
 
@@ -1563,8 +1559,8 @@ def run_testpmd_consolidated(
             pmd,
             sender,
             receiver,
-            nic_list[sender.node],
-            nic_list[receiver.node],
+            node_test_nics[sender.node],
+            node_test_nics[receiver.node],
             use_service_cores=use_service_cores,
             multiple_queues=multiple_queues,
             set_mtu=set_mtu,
@@ -1593,7 +1589,7 @@ def run_testpmd_consolidated(
     results = dict()
     for kit in start_order[::-1]:
         kit.testpmd.kill_previous_testpmd_command()
-        sleep(5)
+        sleep(10)
         results[kit] = kit.testpmd.process_testpmd_output(test_procs[kit].wait_result())
 
     # helpful to have the outputs labeled

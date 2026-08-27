@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from assertpy import assert_that
 from retry import retry
@@ -166,6 +166,11 @@ class Nics(InitializableMixin):
 
     def get_unpaired_devices(self) -> List[str]:
         return [x.name for x in self.nics.values() if not x.lower]
+
+    def get_subnets(self) -> List[Union[ipaddress.IPv4Network,ipaddress.IPv6Interface]]:
+        for nic in self.nics.values():
+            self._node.log.debug( "checking " + str(ipaddress.ip_network((nic.ip_addr,24), strict=False)))
+        return [ipaddress.ip_network((x.ip_addr,24), strict=False) for x in self.nics.values()]
 
     def get_synthetic_devices(self) -> List[str]:
         synthetic_devices = []
