@@ -959,9 +959,8 @@ class DpdkTestpmd(Tool):
         # Kill secondaries first — they depend on the primary's shared memory.
         if not all(["testpmd" in name for name in self._secondary_procs]):
             self.node.execute(
-                'sudo bash -c "kill '
+                'sudo bash -c "kill -INT'
                 f"{' '.join([f'$(pidof {name})' for name in set(self._secondary_procs)])}"
-                '"'
             )
 
         # self.node.tools[Kill].by_name(

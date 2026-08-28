@@ -62,6 +62,9 @@ class ParallelTestCase(TestCase):
         assert_that(results).is_length(1)
         assert_that(results[0]).is_equal_to("single")
 
+    def test_run_in_parallel_empty(self) -> None:
+        assert_that(run_in_parallel([])).is_empty()
+
     def test_run_in_parallel_with_exception(self) -> None:
         """Test that exceptions in tasks are properly propagated"""
 
@@ -228,6 +231,44 @@ class TaskManagerTestCase(TestCase):
                 "callback should be called for each task"
             ).is_length(5)
             assert_that(set(callback_results)).is_equal_to({0, 10, 20, 30, 40})
+
+    def test_schedules_next_task_before_result_callback(self) -> None:
+        allow_first_task_to_finish = threading.Event()
+        allow_second_task_to_finish = threading.Event()
+        third_task_started = threading.Event()
+        callback_started = threading.Event()
+        callback_observed_third_task = threading.Event()
+
+        def result_callback(result: int) -> None:
+            if result == 1:
+                callback_started.set()
+                if third_task_started.wait(timeout=0.5):
+                    callback_observed_third_task.set()
+
+        def first_task() -> int:
+            allow_first_task_to_finish.wait()
+            return 1
+
+        def second_task() -> int:
+            allow_second_task_to_finish.wait()
+            return 2
+
+        def third_task() -> int:
+            third_task_started.set()
+            return 3
+
+        task_manager = TaskManager[int](max_workers=2, callback=result_callback)
+        task_manager.submit_task(Task(task_id=0, task=first_task, parent_logger=None))
+        task_manager.submit_task(Task(task_id=1, task=second_task, parent_logger=None))
+        task_manager.submit_task(Task(task_id=2, task=third_task, parent_logger=None))
+        allow_first_task_to_finish.set()
+        assert_that(callback_started.wait(timeout=0.5)).is_true()
+        allow_second_task_to_finish.set()
+        task_manager.wait_for_all_workers()
+
+        assert_that(callback_observed_third_task.wait(timeout=0.5)).described_as(
+            "result callbacks should not delay scheduling queued work"
+        ).is_true()
 
     def test_task_manager_immediate_scheduling(self) -> None:
         """Test that next task is scheduled immediately when a worker finishes"""

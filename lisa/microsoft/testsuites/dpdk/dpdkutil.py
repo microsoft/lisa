@@ -192,8 +192,8 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
                 f"firewall is not enabled on OS {node.os.name} with exception {ex}"
             )
 
-    node_permutations = itertools.permutations(nodes, 2)
-    for node_pair in node_permutations:
+    node_combinations = itertools.combinations(nodes, 2)
+    for node_pair in node_combinations:
         node_a, node_b = node_pair  # get nodes and nics
         nic_a, nic_b = [x.nics.get_nic_by_index(1) for x in node_pair]
         ip_a, ip_b = [x.ip_addr for x in [nic_a, nic_b]]  # get ips
@@ -451,6 +451,10 @@ def generate_send_receive_run_info(
         maxmtu_int = int(maxmtu) if maxmtu else 0
     else:
         maxmtu_int = 0
+
+    for kit in [sender, receiver]:
+        kit.node.close()
+        kit.node.execute("reconnected")
 
     # handle case where one is mq and not the other
     if isinstance(multiple_queues, tuple):
@@ -1339,6 +1343,22 @@ def verify_dpdk_send_receive(
         secondary_mode=secondary_mode,
     )
 
+    for kit in [sender, receiver]:
+        # start a bunch of background processes to not increase the ssh channel count.
+        sec_script_path = node.get_working_path().joinpath("testpmd_secondary_procs.sh")
+        sec_script = ["#! /bin/sh"]
+        sec_script += [f"{cmd} &" for cmd in secondary_cmds[kit]]
+        sec_script += ["wait"]
+        for line in sec_script:
+            node.tools[Tee].write_to_file(line, sec_script_path, append=True)
+        node.execute(
+            f"chmod +x {str(sec_script_path)}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Couldn't chmod secondary script",
+        )
+
     receiver_proc = receiver.node.execute_async(
         kit_cmd_pairs[receiver],
         sudo=True,
@@ -1357,10 +1377,13 @@ def verify_dpdk_send_receive(
     # will clean them all up.
     secondary_procs: List[Process] = []
     for kit in [sender, receiver]:
-        for sec_cmd in secondary_cmds[kit]:
-            log.debug(f"Starting secondary process on {kit.node.name}: {sec_cmd}")
-            sec_proc = kit.node.execute_async(sec_cmd, sudo=True)
-            secondary_procs.append(sec_proc)
+        # start a bunch of background processes to not increase the ssh channel count.
+
+        log.debug(
+            f"Starting secondary processes on {kit.node.name}: {map(str, set(kit.testpmd._secondary_procs))}"
+        )
+        sec_proc = kit.node.execute_async(str(sec_script_path), sudo=True, shell=True)
+        secondary_procs.append(sec_proc)
 
     sleep(test_duration)
 
@@ -2063,6 +2086,9 @@ def do_parallel_cleanup(environment: Environment) -> None:
             # cleanup temporary hugepage and driver changes
         try:
             node.reboot()
+            node.close()
+            sleep(2)
+            node.execute("boop")
         except LisaException as e:
             node.log.debug(
                 f"Cleanup reboot failed. Marking node for deletion. {str(e)}"
