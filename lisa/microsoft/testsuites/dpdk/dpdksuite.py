@@ -955,6 +955,7 @@ class Dpdk(TestSuite):
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
+        timeout=600,
     )
     def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
         self,
@@ -965,7 +966,7 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, Pmd.NETVSC, result=result
+                environment, log, variables, Pmd.NETVSC, result=result, 
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -1071,7 +1072,7 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.NETVSC,
                 HugePageSize.HUGE_2MB,
-                result=result,
+                result=result
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -1153,7 +1154,7 @@ class Dpdk(TestSuite):
                 nic_count=2,
                 multiple_queues=True,
                 result=result,
-                test_plan=TestPlan.MULTIPLE_NODES
+                test_plan=TestPlan.MULTIPLE_NODES,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)

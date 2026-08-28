@@ -654,7 +654,12 @@ class DpdkTestpmd(Tool):
                 vdev_id += 1
 
         # infer core count to assign based on number of queues
-        threads_available = self.node.tools[Lscpu].get_thread_count()
+        first, last = self.node.tools[Lscpu].get_cpu_range_in_numa_node(0)
+        if last <= first:
+            raise AssertionError(
+                f"tool.Lscpu bug: cpu range for numa 0 found as {first}-{last}."
+            )
+        threads_available = last - first
         assert_that(threads_available).described_as(
             "DPDK tests need more than 4 threads, recommended more than 8 threads"
         ).is_greater_than(4)
@@ -679,7 +684,14 @@ class DpdkTestpmd(Tool):
         forwarding_cores = max_core_index - service_cores
 
         # core range argument
-        core_list = f"-l {1 + core_offset}-{max_core_index + core_offset}"
+        primary_start = 1 + core_offset
+        primary_end = max_core_index + core_offset
+        core_list = f"-l {primary_start}-{primary_end}"
+
+        # Record which cores the primary owns so secondaries can avoid them.
+        # Also reserve core 0 (OS) unconditionally.
+        self._reserved_cores.add(0)
+        self._reserved_cores.update(range(primary_start, primary_end + 1))
         if extra_args:
             extra_args = extra_args.strip()
         else:
@@ -731,24 +743,7 @@ class DpdkTestpmd(Tool):
             "Testpmd install path was not set, this indicates a logic"
             " error in the DPDK installation process."
         ).is_not_empty()
-        # add debug logging args, EAL ones are very verbose
-        # but netvsc are useful for identifying hotplugs on azure
-        debug_logging = []
-        # omitting eal even though it's good for debugging some issues.
-        # it's extremely verbose.
-        for lib in [
-            "mlx5",
-            "mana",
-            "vmbus",
-            "netvsc",
-            "vmbus",
-            "mbuf",
-            "ring",
-            "app",
-            "ethdev",
-        ]:
-            debug_logging += [f"--log-level {lib},debug"]
-        debug_log_args = " ".join(debug_logging)
+        debug_log_args = self._eal_debug_log_args()
         nic_includes = " ".join(nic_include_infos)
         eal_args = f"{core_list} {nic_includes} {debug_log_args}"
         if file_prefix:
@@ -763,10 +758,15 @@ class DpdkTestpmd(Tool):
 
     def generate_testpmd_secondary_command(
         self,
+        nic_to_include: List[NicInfo],
+        vdev_id: int,
         mode: str,
         file_prefix: str,
+        pmd: Pmd = Pmd.FAILSAFE,
         proc_id: int = 0,
         stats_period: int = 2,
+        extra_args: str = "",
+        eal_device_args: str = "",
     ) -> str:
         """Generate a testpmd command that attaches as a secondary process.
 
@@ -780,12 +780,32 @@ class DpdkTestpmd(Tool):
         core_list = self._secondary_core(proc_id, cores_needed=2)
         self.register_secondary_process(self._testpmd_install_path)
 
+        # build device include flags (same logic as the primary)
+        nic_include_infos = []
+        if eal_device_args:
+            nic_include_infos += [eal_device_args]
+        else:
+            vid = vdev_id
+            for nic in nic_to_include:
+                nic_include_infos += [self.generate_testpmd_include(nic, vid, pmd=pmd)]
+                vid += 1
+
+        debug_log_args = self._eal_debug_log_args()
+        nic_includes = " ".join(nic_include_infos)
+        eal_args = (
+            f"-l {core_list} {nic_includes} {debug_log_args} "
+            f"--proc-type=secondary --file-prefix={file_prefix}"
+        )
+        if extra_args:
+            extra_args = extra_args.strip()
+        else:
+            extra_args = ""
+
         return (
-            f"{self._testpmd_install_path} -l {core_list} "
-            f"--proc-type=secondary --file-prefix={file_prefix} "
+            f"{self._testpmd_install_path} {eal_args} "
             f"-- --forward-mode={mode} "
             f"-a --stats-period {stats_period} "
-            f"--nb-cores=1 "
+            f"--nb-cores=1 {extra_args} "
         )
 
     def generate_secondary_proc_info_command(
@@ -803,8 +823,9 @@ class DpdkTestpmd(Tool):
         core = 1 << int(self._secondary_core(proc_id, cores_needed=1))
         self.register_secondary_process(proc_info_path)
         return (
-            f"{proc_info_path} --file-prefix={file_prefix}" # #-p {hex(core)[2:]}"
-            f"-m --show-port"
+            f"{proc_info_path} --log-level app,debug --log-level mana,debug "
+            f"--file-prefix={file_prefix} -- "  # #-p {hex(core)[2:]}"
+            "--stats"
         )
 
     def generate_secondary_pdump_command(
@@ -829,20 +850,42 @@ class DpdkTestpmd(Tool):
     def _secondary_core(self, proc_id: int, cores_needed: int = 1) -> str:
         """Return a core-list string for a secondary process.
 
-        Secondaries use the upper half of available cores.  ``proc_id``
-        is the 0-based index among all secondaries on this node.
+        Walks the NUMA-0 core range and picks the first ``cores_needed``
+        unreserved cores, then marks them as reserved.  This respects
+        whatever the primary already claimed via generate_testpmd_command.
         """
-        threads_available = self.node.tools[Lscpu].get_thread_count()
-        base_core = (threads_available // 2) + (proc_id * cores_needed)
-        max_core = base_core + cores_needed - 1
-        if max_core >= threads_available:
+        first, last = self.node.tools[Lscpu].get_cpu_range_in_numa_node(0)
+        # all NUMA-0 cores, sorted, excluding already-reserved ones
+        available = sorted(
+            c for c in range(first, last + 1) if c not in self._reserved_cores
+        )
+        if len(available) < cores_needed:
             raise LisaException(
-                f"Not enough cores to launch secondary process {proc_id}. "
-                f"Need core {max_core} but only {threads_available} available."
+                f"Not enough unreserved cores for secondary process {proc_id}. "
+                f"Need {cores_needed} but only {len(available)} available "
+                f"(reserved: {sorted(self._reserved_cores)})."
             )
+        chosen = available[:cores_needed]
+        self._reserved_cores.update(chosen)
         if cores_needed == 1:
-            return str(base_core)
-        return f"{base_core}-{max_core}"
+            return str(chosen[0])
+        return ",".join(str(c) for c in chosen)
+
+    def _eal_debug_log_args(self) -> str:
+        """Return EAL debug logging flags shared by primary and secondary."""
+        debug_logging = []
+        for lib in [
+            # "mlx5",
+            # "mana",
+            # "vmbus",
+            # "netvsc",
+            # "mbuf",
+            # "ring",
+            # "app",
+            # "ethdev",
+        ]:
+            debug_logging += [f"--log-level {lib},debug"]
+        return " ".join(debug_logging)
 
     def _find_dpdk_sibling_binary(self, name: str) -> str:
         """Locate a DPDK binary that lives next to testpmd."""
@@ -856,9 +899,7 @@ class DpdkTestpmd(Tool):
         result = self.node.execute(f"which {name}")
         if result.exit_code == 0:
             return result.stdout.strip()
-        raise LisaException(
-            f"Could not find {name} binary next to testpmd or in PATH."
-        )
+        raise LisaException(f"Could not find {name} binary next to testpmd or in PATH.")
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
@@ -916,10 +957,16 @@ class DpdkTestpmd(Tool):
 
     def kill_previous_testpmd_command(self) -> None:
         # Kill secondaries first — they depend on the primary's shared memory.
-        for sec_name in self._secondary_procs:
-            self.node.tools[Kill].by_name(
-                sec_name, signum=SIGINT, ignore_not_exist=True
+        if not all(["testpmd" in name for name in self._secondary_procs]):
+            self.node.execute(
+                'sudo bash -c "kill '
+                f"{' '.join([f'$(pidof {name})' for name in set(self._secondary_procs)])}"
+                '"'
             )
+
+        # self.node.tools[Kill].by_name(
+        #     sec_name, signum=SIGINT, ignore_not_exist=True
+        # )
         self._secondary_procs.clear()
 
         # kill testpmd early
@@ -1286,6 +1333,7 @@ class DpdkTestpmd(Tool):
         self._testpmd_install_path: str = ""
         self._expected_install_path = ""
         self._secondary_procs: List[str] = []
+        self._reserved_cores: set = set()
         self._determine_network_hardware()
         if self.use_package_manager_install():
             self.installer: Installer = DpdkPackageManagerInstall(

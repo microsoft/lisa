@@ -76,6 +76,7 @@ from lisa.tools import (
     Ntttcp,
     Pidof,
     Ping,
+    Ssh,
     Tee,
     Timeout,
 )
@@ -208,6 +209,7 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
 
 
 def testpmd_start_process(kit: DpdkTestResources, cmd: str) -> Process:
+    kit.node.log.debug(f"Starting process: sudo {cmd}")
     proc = kit.node.execute_async(cmd, sudo=True, shell=True)
     # Note: This is an extremely long timeout for this command...
     # But some timeout here is better than none here.
@@ -314,14 +316,17 @@ class SecondaryProcessMode(str, Enum):
 
     TXONLY = "txonly"
     RXONLY = "rxonly"
+    TESTPMD = "testpmd"
     PROC_INFO = "proc_info"
     PDUMP = "pdump"
+
 
 class TestPlan(str, Enum):
     """Forwarding mode for a multi-port test run."""
 
     SINGLE_NODE = "SINGLE_NODE"
     MULTIPLE_NODES = "MULTIPLE_NODES"
+
 
 class DpdkHotplugTarget(str, Enum):
     """
@@ -417,7 +422,7 @@ def generate_send_receive_run_info(
     set_mtu: int = 0,
     stats_period: int = 2,
     secondary_proc_count: int = 0,
-    secondary_mode: SecondaryProcessMode = SecondaryProcessMode.TXONLY,
+    secondary_mode: SecondaryProcessMode = SecondaryProcessMode.TESTPMD,
 ) -> Tuple[
     Dict[DpdkTestResources, str],
     Dict[DpdkTestResources, List[str]],
@@ -522,10 +527,14 @@ def generate_send_receive_run_info(
                 )
             else:
                 # TXONLY / RXONLY — mirror the primary's forwarding direction
+                nic = snd_nic if kit is sender else rcv_nic
                 secondary_cmds[kit].append(
                     kit.testpmd.generate_testpmd_secondary_command(
+                        nic_to_include=[nic],
+                        vdev_id=0,
                         mode=testpmd_fwd,
                         file_prefix=prefix,
+                        pmd=pmd,
                         proc_id=i,
                         stats_period=stats_period,
                     )
@@ -1008,10 +1017,13 @@ def initialize_node_resources(
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
     test_nics: Union[List[NicInfo], None] = None,
+    hugepage_gb: Optional[int] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     check_pmd_support(node, pmd)
 
+    node.tools[Ssh].set_max_session()
+    node.execute("echo 'SSH reconnected'")
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
     rdma_source = variables.get("rdma_source", "")
@@ -1075,8 +1087,9 @@ def initialize_node_resources(
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
+    hugepage_gb = 8 * numa_nodes if hugepage_gb is None else hugepage_gb
     try:
-        hugepages.init_hugepages(hugepage_size, minimum_gb=8 * numa_nodes)
+        hugepages.init_hugepages(hugepage_size, minimum_gb=hugepage_gb)
     except NotEnoughMemoryException as err:
         raise SkippedException(err)
 
@@ -1168,6 +1181,7 @@ def init_nodes_concurrent(
     sample_apps: Union[List[str], None] = None,
     test_nic_count: int = 1,
     specific_pairings: Optional[Dict[Node, List[NicInfo]]] = None,
+    hugepage_gb: Optional[int] = None,
 ) -> List[DpdkTestResources]:
     assert test_nic_count > 0, "Test Bug: test_nic_count must be > 0"
     # quick check when initializing, have each node ping the other nodes.
@@ -1186,6 +1200,7 @@ def init_nodes_concurrent(
                     variables,
                     pmd,
                     hugepage_size=hugepage_size,
+                    hugepage_gb=hugepage_gb,
                     sample_apps=sample_apps,
                     test_nics=(
                         specific_pairings[node]
@@ -1194,7 +1209,13 @@ def init_nodes_concurrent(
                             nic
                             for nic in node.nics.nics.values()
                             if nic is not node.nics.get_primary_nic()
-                        ][:test_nic_count if specific_pairings is None else len(specific_pairings[node])]
+                        ][
+                            : (
+                                test_nic_count
+                                if specific_pairings is None
+                                else len(specific_pairings[node])
+                            )
+                        ]
                     ),
                 )
                 for node in environment.nodes.list()
@@ -1258,7 +1279,7 @@ def verify_dpdk_send_receive(
     check_sender_packet_drops: bool = False,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
     secondary_proc_count: int = 0,
-    secondary_mode: SecondaryProcessMode = SecondaryProcessMode.RXONLY,
+    secondary_mode: SecondaryProcessMode = SecondaryProcessMode.TESTPMD,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -1285,6 +1306,8 @@ def verify_dpdk_send_receive(
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     test_duration: int = variables.get("dpdk_test_duration", 15)
+    # request more memory if starting a bunch of seconday processes
+    hugepage_gb = (secondary_proc_count * 2) + 8 if secondary_proc_count else None
     test_kits = init_nodes_concurrent(
         environment,
         log,
@@ -1292,6 +1315,7 @@ def verify_dpdk_send_receive(
         pmd,
         hugepage_size=hugepage_size,
         specific_pairings=nic_list,
+        hugepage_gb=hugepage_gb,
     )
 
     check_send_receive_compatibility(test_kits)
@@ -1301,6 +1325,8 @@ def verify_dpdk_send_receive(
     if result is not None:
         annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
 
+    stats_period = 2 if secondary_proc_count < 2 else secondary_proc_count
+
     kit_cmd_pairs, secondary_cmds = generate_send_receive_run_info(
         pmd,
         sender,
@@ -1308,6 +1334,7 @@ def verify_dpdk_send_receive(
         use_service_cores=use_service_cores,
         multiple_queues=multiple_queues,
         set_mtu=set_mtu,
+        stats_period=stats_period,
         secondary_proc_count=secondary_proc_count,
         secondary_mode=secondary_mode,
     )
@@ -1412,13 +1439,16 @@ def _get_multi_port_test_nics(
 ) -> Dict[Node, List[NicInfo]]:
     # pick one nic per subnet on each node, the index of the nic in the
     # list is the same on both nodes since the subnet list is shared.
-    
-    
+
     nic_list: Dict[Node, List[NicInfo]] = dict()
     for node in environment.nodes.list():
         try:
             subnets = node.nics.get_subnets()
-            nic_list[node] = [node.nics.get_nic_by_subnet(str(subnet)) for subnet in subnets if subnet != ipaddress.ip_network("10.0.0.0/24")]
+            nic_list[node] = [
+                node.nics.get_nic_by_subnet(str(subnet))
+                for subnet in subnets
+                if subnet != ipaddress.ip_network("10.0.0.0/24")
+            ]
         except LisaException as err:
             raise SkippedException(
                 f"Node {node.name} is missing a test nic, this test needs "
@@ -1510,7 +1540,7 @@ def run_testpmd_consolidated(
     set_mtu: int = 0,
     hotplug: DpdkHotplugTarget = DpdkHotplugTarget.NONE,
     test_plan: TestPlan = TestPlan.MULTIPLE_NODES,
-    fwd_mode : Optional[DpdkForwardingMode] = None,
+    fwd_mode: Optional[DpdkForwardingMode] = None,
 ) -> None:
     """
     Multi-port testpmd test. Supports three modes controlled by test_fwd_mode:
@@ -1564,16 +1594,16 @@ def run_testpmd_consolidated(
         hugepage_size=hugepage_size,
         specific_pairings=node_test_nics,
     )
-    port_maps: Dict[DpdkTestResources,Dict[int, NicInfo]] = {}
-    kit_cmd_pairs: Dict[DpdkTestResources,str] = {}
-    kit_labels : Dict[DpdkTestResources, str] = {}
-    kit_port_stats : Dict[DpdkTestResources, Dict[int,DpdkPortStats]] = {}
-    hotplug_targets : List[DpdkTestResources] = []
+    port_maps: Dict[DpdkTestResources, Dict[int, NicInfo]] = {}
+    kit_cmd_pairs: Dict[DpdkTestResources, str] = {}
+    kit_labels: Dict[DpdkTestResources, str] = {}
+    kit_port_stats: Dict[DpdkTestResources, Dict[int, DpdkPortStats]] = {}
+    hotplug_targets: List[DpdkTestResources] = []
     # single-node mode: txonly or rxonly on one VM
     if test_plan is TestPlan.SINGLE_NODE:
-        assert fwd_mode is not None, (
-            "Test bug: must provide fwd_mode for single node test"
-        )
+        assert (
+            fwd_mode is not None
+        ), "Test bug: must provide fwd_mode for single node test"
         check_send_receive_compatibility(test_kits)
         kit = test_kits[0]
 
@@ -1593,11 +1623,11 @@ def run_testpmd_consolidated(
         port_maps[kit] = port_map
         graded_kit = kit
         start_order = [kit]
-        graded_nics = { graded_kit.node: list(port_map.values()) }
-        kit_labels[kit]= f"{str(test_plan)}:{str(fwd_mode)}"
-        kit_fwd_modes= { kit: fwd_mode }
+        graded_nics = {graded_kit.node: list(port_map.values())}
+        kit_labels[kit] = f"{str(test_plan)}:{str(fwd_mode)}"
+        kit_fwd_modes = {kit: fwd_mode}
         if hotplug.is_enabled():
-            hotplug_targets+=[kit]
+            hotplug_targets += [kit]
         # proc = kit.node.execute_async(cmd, sudo=True)
         # proc.wait_output("start packet forwarding")
 
@@ -1627,7 +1657,7 @@ def run_testpmd_consolidated(
         #     grade_mode=_select_grade_mode(hotplug, was_hotplugged),
         # )
 
-        #return kit, None
+        # return kit, None
 
     # two-node send+receive mode (original behaviour)
     else:
@@ -1636,7 +1666,6 @@ def run_testpmd_consolidated(
         check_multi_port_send_receive_compatibility(test_kits)
         sender, receiver = test_kits
         start_order = [receiver, sender]
-        
 
         # annotate test result before starting
         if result is not None:
@@ -1652,15 +1681,17 @@ def run_testpmd_consolidated(
             multiple_queues=multiple_queues,
             set_mtu=set_mtu,
         )
-        graded_kit=receiver
-        graded_nics={ graded_kit.node: list(port_maps[graded_kit].values()) }
-        kit_fwd_modes = {sender: DpdkForwardingMode.TXONLY, receiver:DpdkForwardingMode.RXONLY}
-        kit_labels= { sender: "sender", receiver: "receiver"}
+        graded_kit = receiver
+        graded_nics = {graded_kit.node: list(port_maps[graded_kit].values())}
+        kit_fwd_modes = {
+            sender: DpdkForwardingMode.TXONLY,
+            receiver: DpdkForwardingMode.RXONLY,
+        }
+        kit_labels = {sender: "sender", receiver: "receiver"}
         if hotplug.includes_sender():
-            hotplug_targets+=[ sender ]
+            hotplug_targets += [sender]
         if hotplug.includes_receiver():
-            hotplug_targets+=[ receiver ]
-        
+            hotplug_targets += [receiver]
 
     test_procs: Dict[DpdkTestResources, Process] = {}
 
@@ -1668,7 +1699,7 @@ def run_testpmd_consolidated(
         test_proc = kit.node.execute_async(kit_cmd_pairs[kit], sudo=True)
         test_proc.wait_output("start packet forwarding")
         test_procs[kit] = test_proc
-    
+
     if hotplug.is_enabled():
         sleep(10)
         _trigger_multi_port_hotplug(log, nic_list=graded_nics)
@@ -1687,16 +1718,15 @@ def run_testpmd_consolidated(
     # helpful to have the outputs labeled
     for kit in start_order:
         log.debug(f"\n{kit_labels[kit]}:\n{results[kit]}")
-    
+
     for kit in start_order:
         kit.dmesg.check_kernel_errors(force_run=True)
-        
 
     # grade each port on its own, an aggregate would hide a port
     # which sent or received nothing at all.
     for kit in start_order:
         kit_port_stats[kit] = kit.testpmd.get_stats_by_port()
-    
+
     for kit in start_order:
         kit.node.log.debug(f"kit {kit} in graded_nics: {kit_fwd_modes.keys()}")
         if hotplug is DpdkHotplugTarget.NONE or kit is graded_kit:
@@ -1709,13 +1739,12 @@ def run_testpmd_consolidated(
                 result=result,
                 grade_mode=_select_grade_mode(hotplug, kit in hotplug_targets),
             )
-   
-    #annotate_packet_drops(log, result, graded_kit)
+
+    # annotate_packet_drops(log, result, graded_kit)
 
 
-def _get_grading_key(fwd_mode:DpdkForwardingMode) -> str:
+def _get_grading_key(fwd_mode: DpdkForwardingMode) -> str:
     return "TX" if fwd_mode == DpdkForwardingMode.TXONLY else "RX"
-
 
 
 class DpdkPortGradeMode(str, Enum):
@@ -1896,8 +1925,8 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         result=result,
         set_mtu=set_mtu,
         grading_metric=grading_metric,
-        secondary_mode=SecondaryProcessMode.PROC_INFO,
-        secondary_proc_count=4,
+        secondary_mode=SecondaryProcessMode.TESTPMD,
+        secondary_proc_count=8,
     )
 
 
