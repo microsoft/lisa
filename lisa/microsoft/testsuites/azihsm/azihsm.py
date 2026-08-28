@@ -96,19 +96,34 @@ class AziHsm(TestSuite):
             )
         if isinstance(node.os, CBLMariner):
             arch_name = node.os.get_kernel_information().hardware_platform
-            node.os.add_repository(
-                repo=(
-                    "https://packages.microsoft.com/azurelinux/"
-                    f"{node.os.information.release}/preview/"
-                    f"ms-oss/{arch_name}/"
-                ),
-                repo_file="preview-ms-oss.repo",
-                repo_name="AZIHSM Packages",
-                keys_location=[
-                    "https://packages.microsoft.com/keys/microsoft.asc",
-                    "https://packages.microsoft.com/keys/microsoft-rolling.asc",
-                ],
-            )
+            if node.os.information.release == "3.0":
+                node.os.add_repository(
+                    repo=(
+                        "https://packages.microsoft.com/azurelinux/"
+                        f"{node.os.information.release}/preview/"
+                        f"ms-oss/{arch_name}/"
+                    ),
+                    repo_file="preview-ms-oss.repo",
+                    repo_name="AZIHSM Packages",
+                    keys_location=[
+                        "https://packages.microsoft.com/keys/microsoft.asc",
+                        "https://packages.microsoft.com/keys/microsoft-rolling.asc",
+                    ],
+                )
+            else:
+                node.os.add_repository(
+                    repo=(
+                        "https://packages.microsoft.com/azurelinux/"
+                        f"{node.os.information.release}/preview/"
+                        f"microsoft/{arch_name}/"
+                    ),
+                    repo_file="preview-microsoft.repo",
+                    repo_name="AZIHSM Packages",
+                    keys_location=[
+                        "https://packages.microsoft.com/keys/microsoft.asc",
+                        "https://packages.microsoft.com/keys/microsoft-rolling.asc",
+                    ],
+                )
 
         # Indicate we have done this step already
         _TESTING_REPO_ADDED_NODES.add(node)
