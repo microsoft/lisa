@@ -18,8 +18,7 @@
  * drops every vmbus, net and infiniband event.
  *
  * Build:
- *   gcc -O2 -Wall -Wextra -o azure-hotplug-mon azure_hotplug_mon.c
- *
+ *   gcc -O2 -Wall -Wextra -o azure-hotplug-mon azure_uevent_listener.c
  * Run (needs CAP_NET_ADMIN, i.e. root in practice):
  *   sudo ./azure-hotplug-mon          # relevant events only
  *   sudo ./azure-hotplug-mon -a       # every subsystem
