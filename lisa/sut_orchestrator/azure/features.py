@@ -1040,7 +1040,9 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
         sriov_enabled: bool = True
         vm = get_vm(azure_platform, self._node)
         for nic in vm.network_profile.network_interfaces:
-            assert_that(nic.id).described_as("Azure NIC reference must include a resource ID").is_not_none()
+            assert_that(nic.id).described_as(
+                "Azure NIC reference must include a resource ID"
+            ).is_not_none()
             nic_name = nic.id.split("/")[-1]
             nic_info = network_client.network_interfaces.get(
                 self._resource_group_name, nic_name
