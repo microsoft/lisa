@@ -150,7 +150,6 @@ class TarDownloader(Downloader):
                 self._tar_url,
                 overwrite=False,
                 file_path=str(work_path),
-                skip_exists=True,
             )
             remote_path = node.get_pure_path(tarfile)
             self.tar_filename = remote_path.name
@@ -188,7 +187,7 @@ class Installer:
     # First we download the assets to ensure asset_path is set
     # even if we end up skipping re-installation
     def _setup_node(self) -> None:
-        if not hasattr(self, "asset_path"):
+        if not self._asset_path_exists():
             self._download_assets()
 
     # check if the package is already installed:
@@ -219,7 +218,6 @@ class Installer:
         if not self._asset_path_exists():
             return
         asset_path = self.asset_path
-        delattr(self, "asset_path")
         working_path = str(self._node.get_working_path())
         assert_that(str(asset_path)).described_as(
             "Test bug: Installer source path was empty during attempted cleanup!"
@@ -233,6 +231,7 @@ class Installer:
             f"'{working_path}' during attempted cleanup!"
         ).is_not_equal_to(working_path)
         self._node.shell.remove(asset_path, recursive=True)
+        delattr(self, "asset_path")
 
     def _rollback_installation(self) -> None:
         try:
@@ -244,8 +243,7 @@ class Installer:
                 f"Installer cleanup failed; marking node dirty. {str(err)}"
             )
             self._node.mark_dirty()
-            self._node.log.debug("")
-            raise AssertionError(err, "Test bug: rollback of installation failed")
+            raise AssertionError(f"Test bug: rollback of installation failed: {str(err)}")
 
     # install the dependencies
     def _install_dependencies(self) -> None:
@@ -267,7 +265,7 @@ class Installer:
     # run the defined setup and installation steps.
     def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
         self._setup_node()
-        if self._should_install():
+        if self._should_install(required_version=required_version):
             # any issues here could result in a broken installation.
             # If the node is still usable, we don't want to discard it.
             # So attempt to roll back a broken installation and re-raise the problem.
@@ -281,7 +279,7 @@ class Installer:
                 self._install()
             except Exception as e:
                 self._rollback_installation()
-                raise e
+                raise
 
     def __init__(
         self,
