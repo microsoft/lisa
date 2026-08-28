@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from decimal import Decimal
+from time import sleep
 from typing import Any, List, cast
 
 from assertpy import assert_that
@@ -34,6 +35,11 @@ from lisa.util.perf_timer import create_timer
 # VMHibernateFailed on every attempt, so we treat it as an unmet precondition
 # rather than a transient failure that can be recovered with retry delay.
 _HIBERNATE_FAILED_MARKER = "VMHibernateFailed"
+# Azure may also return VMHibernateFailed as a transient internal error when the
+# guest is not yet ready shortly after boot. Azure guidance is to retry after
+# ~5 minutes before treating it as a real failure.
+# https://learn.microsoft.com/azure/virtual-machines/hibernate-resume-troubleshooting
+_HIBERNATE_RETRY_INTERVAL_SECONDS = 300
 
 
 def _is_fips_kernel(node: Node) -> bool:
@@ -178,14 +184,29 @@ def _perform_hibernation_cycle(
 
     boot_time_before_hibernation = who.last_boot()
 
-    try:
-        startstop.stop(state=features.StopState.Hibernate)
-    except Exception as ex:
+    # Retry a VMHibernateFailed result once, spaced by the Azure-recommended
+    # interval. A rejected hibernate leaves the VM running, so the guest is
+    # reachable for diagnostics and the request can be re-issued. Any other
+    # failure is raised immediately.
+    max_attempts = 2
+    for attempt in range(1, max_attempts + 1):
         try:
-            dmesg.get_output(force_run=True)
-        except Exception as e:
-            log.debug(f"error on get dmesg output: {e}")
-        raise LisaException(f"fail to hibernate: {ex}")
+            startstop.stop(state=features.StopState.Hibernate)
+            break
+        except Exception as ex:
+            try:
+                dmesg.get_output(force_run=True)
+            except Exception as e:
+                log.debug(f"error on get dmesg output: {e}")
+            if attempt < max_attempts and _HIBERNATE_FAILED_MARKER in str(ex):
+                log.info(
+                    f"hibernation attempt {attempt}/{max_attempts} returned "
+                    f"{_HIBERNATE_FAILED_MARKER}; retrying in "
+                    f"{_HIBERNATE_RETRY_INTERVAL_SECONDS}s per Azure guidance"
+                )
+                sleep(_HIBERNATE_RETRY_INTERVAL_SECONDS)
+                continue
+            raise LisaException(f"fail to hibernate: {ex}")
 
     is_ready = True
     timeout = 900
