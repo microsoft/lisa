@@ -275,11 +275,10 @@ class Installer:
             # installation doesn't propagate failures into future tests on
             # that same node.
             try:
-                self._download_assets()
                 self._uninstall()
                 self._install_dependencies()
                 self._install()
-            except Exception as e:
+            except Exception:
                 self._rollback_installation()
                 raise
 
