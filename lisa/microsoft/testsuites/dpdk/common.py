@@ -243,7 +243,9 @@ class Installer:
                 f"Installer cleanup failed; marking node dirty. {str(err)}"
             )
             self._node.mark_dirty()
-            raise AssertionError(f"Test bug: rollback of installation failed: {str(err)}")
+            raise AssertionError(
+                f"Test bug: rollback of installation failed: {str(err)}"
+            )
 
     # install the dependencies
     def _install_dependencies(self) -> None:
