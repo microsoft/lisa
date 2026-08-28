@@ -34,6 +34,7 @@ from lisa import development, schema
 from lisa.util import (
     InitializableMixin,
     LisaException,
+    SshSessionNotActiveException,
     SshSpawnTimeoutException,
     TcpConnectionException,
     filter_ansi_escape,
@@ -458,6 +459,14 @@ class SshShell(InitializableMixin):
                     "the process wait for inputs, "
                     "the paramiko/spur not support the shell of node."
                 )
+            except SSHException as e:
+                if str(e) != "SSH session not active":
+                    raise
+                raise SshSessionNotActiveException(
+                    "SSH session became inactive while opening a command channel. "
+                    "Close the stale connection and reconnect before retrying the "
+                    "command."
+                ) from e
             except spur.errors.CommandInitializationError as e:
                 # *Second* chance in getting a clue about no POSIX shell
                 # support (still not Windows). Set minimal shell type if

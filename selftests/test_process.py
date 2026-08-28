@@ -2,18 +2,79 @@
 # Licensed under the MIT license.
 
 from unittest import TestCase
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock, patch
 
 from assertpy import assert_that
+from paramiko.ssh_exception import SSHException
 
-from lisa.util import LisaException
+from lisa.util import LisaException, SshSessionNotActiveException
 from lisa.util.process import Process
+from lisa.util.shell import SshShell
 
 
 class ProcessTestCase(TestCase):
-    def test_wait_result_caching_prevents_reprocessing(self) -> None:
-        from unittest.mock import MagicMock, patch
+    def test_start_reconnects_after_inactive_ssh_session(self) -> None:
+        shell = Mock(spec=SshShell)
+        shell.is_posix = True
+        shell.is_remote = True
+        ssh_process = MagicMock()
+        shell.spawn.side_effect = [
+            SshSessionNotActiveException("SSH session became inactive"),
+            ssh_process,
+        ]
+        process = Process("test", shell)
 
+        with patch("retry.api.time.sleep"):
+            process.start("echo test")
+
+        assert_that(shell.close.call_count).is_equal_to(1)
+        assert_that(shell.spawn.call_count).is_equal_to(2)
+        assert_that(process._process).is_same_as(ssh_process)
+
+    def test_start_stops_after_inactive_ssh_retry_limit(self) -> None:
+        shell = Mock(spec=SshShell)
+        shell.is_posix = True
+        shell.is_remote = True
+        shell.spawn.side_effect = SshSessionNotActiveException(
+            "SSH session became inactive"
+        )
+        process = Process("test", shell)
+
+        with patch("retry.api.time.sleep"), self.assertRaises(
+            SshSessionNotActiveException
+        ):
+            process.start("echo test")
+
+        assert_that(shell.close.call_count).is_equal_to(3)
+        assert_that(shell.spawn.call_count).is_equal_to(3)
+
+    def test_shell_converts_inactive_ssh_exception(self) -> None:
+        shell = self._create_initialized_ssh_shell()
+
+        with patch(
+            "lisa.util.shell._spawn_ssh_process",
+            side_effect=SSHException("SSH session not active"),
+        ), self.assertRaises(SshSessionNotActiveException):
+            shell.spawn(["echo", "test"])
+
+    def test_shell_does_not_convert_unrelated_ssh_exception(self) -> None:
+        shell = self._create_initialized_ssh_shell()
+
+        with patch(
+            "lisa.util.shell._spawn_ssh_process",
+            side_effect=SSHException("authentication failed"),
+        ), self.assertRaises(SSHException):
+            shell.spawn(["echo", "test"])
+
+    def _create_initialized_ssh_shell(self) -> SshShell:
+        shell = SshShell.__new__(SshShell)
+        shell._is_initialized = True
+        shell._inner_shell = MagicMock()
+        shell._inner_shell._spur._shell_type = MagicMock()
+        shell.spawn_timeout = 20
+        return shell
+
+    def test_wait_result_caching_prevents_reprocessing(self) -> None:
         shell = Mock()
         shell.is_posix = True
         shell.is_remote = False
@@ -44,8 +105,6 @@ class ProcessTestCase(TestCase):
             assert_that(mock_process.wait_for_result.call_count).is_equal_to(1)
 
     def test_wait_result_timeout_with_raise_on_timeout_true(self) -> None:
-        from unittest.mock import MagicMock, patch
-
         shell = Mock()
         shell.is_posix = True
         shell.is_remote = False
@@ -77,8 +136,6 @@ class ProcessTestCase(TestCase):
             assert_that(str(context.exception)).contains("timeout after 10 seconds")
 
     def test_wait_result_timeout_with_raise_on_timeout_false(self) -> None:
-        from unittest.mock import MagicMock, patch
-
         shell = Mock()
         shell.is_posix = True
         shell.is_remote = False

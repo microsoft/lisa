@@ -22,6 +22,7 @@ from spur.errors import NoSuchCommandError
 from lisa.util import (
     LisaException,
     RequireUserPasswordException,
+    SshSessionNotActiveException,
     SshSpawnTimeoutException,
     create_timer,
     filter_ansi_escape,
@@ -121,7 +122,7 @@ def _retry_spawn(func: Callable[..., Any]) -> Any:
     # wrap to pass in the logger object of the current process.
     def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
         return retry(
-            exceptions=SshSpawnTimeoutException,
+            exceptions=(SshSpawnTimeoutException, SshSessionNotActiveException),
             tries=3,
             delay=1,
             backoff=3,
@@ -350,7 +351,7 @@ class Process:
                 "", e.strerror, 1, split_command, self._id_, self._timer.elapsed()
             )
             self._log.log(stderr_level, f"not found command: {e}")
-        except SshSpawnTimeoutException:
+        except (SshSpawnTimeoutException, SshSessionNotActiveException):
             # close the shell and try again, see if the ssh connection is interrupted.
             self._shell.close()
             raise
