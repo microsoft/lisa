@@ -168,12 +168,23 @@ class TarDownloader(Downloader):
         # add option to skip files which already exist on disk
         # in the event we have already extracted this specific tar
         if not node.shell.exists(self.asset_path):
-            node.tools[Tar].extract(
-                file=str(remote_path),
-                dest_dir=str(work_path),
-                gzip=True,
-                skip_existing_files=True,
-            )
+            try:
+                node.tools[Tar].extract(
+                    file=str(remote_path),
+                    dest_dir=str(work_path),
+                    gzip=True,
+                    skip_existing_files=True,
+                )
+            except AssertionError:
+                # tar extraction failed,
+                # ensure potential broken dir and
+                # download are removed before reraising.
+                if node.shell.exists(self.asset_path):
+                    node.shell.remove(self.asset_path, recursive=True)
+                if node.shell.exists(remote_path):
+                    node.shell.remove(remote_path)
+                raise
+
         return self.asset_path
 
 
