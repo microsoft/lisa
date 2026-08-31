@@ -34,6 +34,9 @@ _PCI_BDF_PATTERN = re.compile(
 )
 _NVME_CONTROLLER_PATTERN = re.compile(r"^nvme\d+$")
 _NVME_NAMESPACE_PATTERN = re.compile(r"^nvme\d+n\d+$")
+_NVME_CONTROLLER_NAMESPACE_PATTERN = re.compile(
+    r"^nvme(?P<subsystem>\d+)c\d+n(?P<namespace>\d+)$"
+)
 _PASSTHROUGH_NVME_MOUNT_PREFIX = "/mnt/passthrough_nvme"
 _UNSAFE_BLOCK_TYPES = {"crypt", "dm", "lvm", "md", "mpath", "raid"}
 _MAX_FIO_CASES = 4
@@ -483,22 +486,29 @@ class StoragePassthroughPerfTests(TestSuite):
 
         controller = controllers[0]
         namespace_entries = ls.list(f"/sys/class/nvme/{controller}", sudo=True)
-        namespaces = sorted(
-            {
-                PurePosixPath(path.rstrip("/")).name
-                for path in namespace_entries
-                if _NVME_NAMESPACE_PATTERN.fullmatch(
-                    PurePosixPath(path.rstrip("/")).name
+        namespaces = set()
+        for path in namespace_entries:
+            namespace_name = PurePosixPath(path.rstrip("/")).name
+            if _NVME_NAMESPACE_PATTERN.fullmatch(namespace_name):
+                namespaces.add(namespace_name)
+                continue
+            controller_namespace = _NVME_CONTROLLER_NAMESPACE_PATTERN.fullmatch(
+                namespace_name
+            )
+            if controller_namespace:
+                namespaces.add(
+                    f"nvme{controller_namespace.group('subsystem')}n"
+                    f"{controller_namespace.group('namespace')}"
                 )
-            }
-        )
-        if len(namespaces) != 1:
+        sorted_namespaces = sorted(namespaces)
+        if len(sorted_namespaces) != 1:
             raise LisaException(
                 f"Expected exactly one namespace for guest NVMe controller "
-                f"'{controller}', found {len(namespaces)}: {namespaces}"
+                f"'{controller}', found {len(sorted_namespaces)}: "
+                f"{sorted_namespaces}"
             )
 
-        namespace = f"/dev/{namespaces[0]}"
+        namespace = f"/dev/{sorted_namespaces[0]}"
         if not ls.path_exists(namespace, sudo=True):
             raise LisaException(
                 f"Resolved passthrough NVMe namespace '{namespace}' does not exist"

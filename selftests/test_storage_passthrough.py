@@ -165,6 +165,22 @@ class StoragePassthroughTestCase(TestCase):
         with self.assertRaisesRegex(LisaException, "found 2"):
             suite_class._get_guest_nvme_device_by_pci_ids(node, ("144d", "a821"))
 
+    def test_resolves_controller_namespace_to_block_device(self) -> None:
+        guest_ls = MagicMock()
+        guest_ls.list.side_effect = [
+            ["/sys/bus/pci/devices/0000:00:06.0/nvme/nvme0/"],
+            ["/sys/class/nvme/nvme0/nvme0c0n1/"],
+        ]
+        guest_ls.path_exists.return_value = True
+        node = MagicMock()
+        node.tools.__getitem__.side_effect = {Ls: guest_ls}.__getitem__
+
+        suite_class = cast(Any, StoragePassthroughPerfTests).__wrapped__
+        namespace = suite_class._get_namespace_for_guest_bdf(node, "0000:00:06.0")
+
+        self.assertEqual("/dev/nvme0n1", namespace)
+        guest_ls.path_exists.assert_called_once_with("/dev/nvme0n1", sudo=True)
+
     def test_resolves_nvme_when_domain_xml_omits_guest_address(self) -> None:
         domain_xml = """
             <domain>
