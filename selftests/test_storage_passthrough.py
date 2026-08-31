@@ -141,9 +141,8 @@ class StoragePassthroughTestCase(TestCase):
             expected_device
         ]
 
-        device = StoragePassthroughPerfTests._get_guest_nvme_device_by_pci_ids(
-            node, ("144d", "a821")
-        )
+        suite_class = cast(Any, StoragePassthroughPerfTests).__wrapped__
+        device = suite_class._get_guest_nvme_device_by_pci_ids(node, ("144d", "a821"))
 
         self.assertIs(expected_device, device)
 
@@ -151,10 +150,9 @@ class StoragePassthroughTestCase(TestCase):
         node = MagicMock()
         node.tools.__getitem__.return_value.get_devices_by_type.return_value = []
 
+        suite_class = cast(Any, StoragePassthroughPerfTests).__wrapped__
         with self.assertRaisesRegex(LisaException, "found 0"):
-            StoragePassthroughPerfTests._get_guest_nvme_device_by_pci_ids(
-                node, ("144d", "a821")
-            )
+            suite_class._get_guest_nvme_device_by_pci_ids(node, ("144d", "a821"))
 
     def test_rejects_ambiguous_guest_nvme_pci_ids(self) -> None:
         node = MagicMock()
@@ -163,10 +161,9 @@ class StoragePassthroughTestCase(TestCase):
             MagicMock(slot="0000:07:00.0", vendor_id="144d", device_id="a821"),
         ]
 
+        suite_class = cast(Any, StoragePassthroughPerfTests).__wrapped__
         with self.assertRaisesRegex(LisaException, "found 2"):
-            StoragePassthroughPerfTests._get_guest_nvme_device_by_pci_ids(
-                node, ("144d", "a821")
-            )
+            suite_class._get_guest_nvme_device_by_pci_ids(node, ("144d", "a821"))
 
     def test_resolves_nvme_when_domain_xml_omits_guest_address(self) -> None:
         domain_xml = """
