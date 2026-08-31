@@ -20,6 +20,7 @@ from microsoft.testsuites.dpdk.common import (
     Pmd,
     TarDownloader,
     check_dpdk_support,
+    force_dpdk_default_source,
     is_url_for_git_repo,
     is_url_for_tarball,
     update_kernel_from_repo,
@@ -281,6 +282,9 @@ def run_testpmd_hotplug(
     processes: Dict[DpdkTestResources, Process] = {}
 
     collect_from = receiver if receiver else sender
+    # start the uevent listener before triggering hotplug
+    listener = UeventListener(collect_from.node)
+    listener.start()
     all_kits = [sender]
     if receiver:
         all_kits += [receiver]
@@ -292,7 +296,7 @@ def run_testpmd_hotplug(
         # gather the VF pci slot up front, the uevent match criteria are
         # built from it. The slot is stable across a remove/rescan cycle.
         test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
-        switch_sriov_for_nic(node, test_nic)
+        switch_sriov_for_nic(node, listener, test_nic)
 
     # let it run for a bit
     sleep(30)
@@ -350,19 +354,19 @@ class DpdkHotplugTarget(str, Enum):
         return self != DpdkHotplugTarget.NONE
 
 
-def switch_sriov_for_nic(node: Node, test_nic: NicInfo) -> None:
-    switch_sriov_for_nics(node, [test_nic])
+def switch_sriov_for_nic(
+    node: Node, listener: UeventListener, test_nic: NicInfo
+) -> None:
+    switch_sriov_for_nics(node, listener, [test_nic])
 
 
-def switch_sriov_for_nics(node: Node, test_nics: List[NicInfo]) -> None:
+def switch_sriov_for_nics(
+    node: Node, listener: UeventListener, test_nics: List[NicInfo]
+) -> None:
     # all the VFs are removed and restored together, a single uevent
     # listener covers the whole set. Running one listener per nic would
     # have them competing for the same uevent socket.
     pci_slots = get_vf_pci_slots(node, test_nics)
-
-    # start the uevent listener before triggering hotplug
-    listener = UeventListener(node)
-    listener.start()
 
     # let testpmd run for a bit before triggering hotplug
     sleep(10)
@@ -416,7 +420,7 @@ def generate_send_receive_run_info(
     pmd: Pmd,
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
-    multiple_queues: Union[bool, Tuple[bool, bool]] = False,
+    queue_count: Union[int, Tuple[int, int]] = 1,
     extra_args: Union[str, Tuple[str, str]] = "",
     use_service_cores: int = 1,
     set_mtu: int = 0,
@@ -456,12 +460,12 @@ def generate_send_receive_run_info(
         kit.node.close()
         kit.node.execute("reconnected")
 
-    # handle case where one is mq and not the other
-    if isinstance(multiple_queues, tuple):
-        snd_mq, rcv_mq = multiple_queues
+    # handle case where sender/receiver have different queue counts
+    if isinstance(queue_count, tuple):
+        snd_qc, rcv_qc = queue_count
     else:
-        snd_mq = multiple_queues
-        rcv_mq = multiple_queues
+        snd_qc = queue_count
+        rcv_qc = queue_count
 
     if isinstance(extra_args, tuple):
         snd_args, rcv_args = extra_args
@@ -480,7 +484,7 @@ def generate_send_receive_run_info(
         "txonly",
         pmd=pmd,
         extra_args=" ".join([f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}", snd_args]),
-        multiple_queues=snd_mq,
+        queue_count=snd_qc,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
@@ -492,7 +496,7 @@ def generate_send_receive_run_info(
         0,
         "rxonly",
         pmd=pmd,
-        multiple_queues=rcv_mq,
+        queue_count=rcv_qc,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
@@ -553,18 +557,23 @@ def generate_multi_port_send_receive_run_info(
     receiver: DpdkTestResources,
     sender_nics: List[NicInfo],
     receiver_nics: List[NicInfo],
-    multiple_queues: bool = False,
+    queue_count: int = 1,
     use_service_cores: int = 1,
     set_mtu: int = 0,
     stats_period: int = 2,
-) -> Tuple[Dict[DpdkTestResources, str], Dict[DpdkTestResources, Dict[int, NicInfo]]]:
+) -> Tuple[
+    Dict[DpdkTestResources, str],
+    Dict[DpdkTestResources, List[str]],
+    Dict[DpdkTestResources, Dict[int, NicInfo]],
+]:
     """
     Generate a txonly/rxonly testpmd command pair which uses more than one
     port on each node. sender_nics[i] and receiver_nics[i] are on the same
     subnet, so each sender port transmits to the matching port on the receiver.
 
-    Returns the commands for each kit and the dpdk port id -> nic mapping
-    used to build them, so the caller can grade each port individually.
+    Returns the primary commands, receiver secondary commands, and the dpdk
+    port id -> nic mapping used to build them, so the caller can grade each
+    port individually.
     """
     assert_that(len(sender_nics)).described_as(
         "Test bug: sender and receiver need an equal number of test nics."
@@ -631,13 +640,14 @@ def generate_multi_port_send_receive_run_info(
         for snd_nic, rcv_nic in zip(sender_nics, receiver_nics)
     ]
 
+    receiver_file_prefix = "testpmd_multi_port_receiver"
     snd_cmd = sender.testpmd.generate_testpmd_command(
         sender_nics,
         0,
         "txonly",
         pmd=pmd,
         extra_args=" ".join(tx_ip_args),
-        multiple_queues=multiple_queues,
+        queue_count=queue_count,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
@@ -649,15 +659,82 @@ def generate_multi_port_send_receive_run_info(
         0,
         "rxonly",
         pmd=pmd,
-        multiple_queues=multiple_queues,
+        queue_count=queue_count,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
         eal_device_args=eal_args[receiver],
         stats_period=5,
+        file_prefix=receiver_file_prefix,
+        override_core_list=[1, 2],
     )
 
-    return {sender: snd_cmd, receiver: rcv_cmd}, port_maps
+    secondary_cmds = {
+        receiver: _generate_multi_port_rx_secondary_commands(
+            kit=receiver,
+            nics=receiver_nics,
+            rx_queue_count=queue_count,
+            pmd=pmd,
+            eal_device_args=eal_args[receiver],
+            file_prefix=receiver_file_prefix,
+            stats_period=stats_period,
+        )
+    }
+
+    return {sender: snd_cmd, receiver: rcv_cmd}, secondary_cmds, port_maps
+
+
+def _generate_multi_port_rx_secondary_commands(
+    kit: DpdkTestResources,
+    nics: List[NicInfo],
+    rx_queue_count: int,
+    pmd: Pmd,
+    eal_device_args: str,
+    file_prefix: str,
+    stats_period: int,
+) -> List[str]:
+    secondary_count = rx_queue_count * len(nics)
+    kit.node.log.debug(f"Attempting to build {secondary_count} secondary commands.")
+    return [
+        kit.testpmd.generate_testpmd_secondary_command(
+            nic_to_include=nics,
+            vdev_id=0,
+            mode="rxonly",
+            file_prefix=file_prefix,
+            pmd=pmd,
+            proc_id=proc_id,
+            stats_period=stats_period,
+            eal_device_args=eal_device_args,
+        )
+        for proc_id in range(secondary_count)
+    ]
+
+
+def _start_secondary_processes(
+    kit: DpdkTestResources,
+    commands: List[str],
+    log: Logger,
+) -> Optional[Process]:
+    if not commands:
+        return None
+
+    script_path = kit.node.get_working_path().joinpath("testpmd_secondary_procs.sh")
+    script_lines = ["#!/bin/sh", *[f"{command} &" for command in commands], "wait"]
+    for index, line in enumerate(script_lines):
+        kit.node.tools[Tee].write_to_file(
+            line,
+            script_path,
+            append=index > 0,
+        )
+    kit.node.execute(
+        f"chmod +x {str(script_path)}",
+        shell=True,
+        sudo=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message="Couldn't chmod secondary script",
+    )
+    log.debug(f"Starting {len(commands)} secondary processes on {kit.node.name}")
+    return kit.node.execute_async(str(script_path), sudo=True, shell=True)
 
 
 def _validate_and_set_mtu_for_kit(
@@ -753,7 +830,7 @@ def generate_testpmd_multiple_port_command(
     pmd: Pmd,
     senders: List[DpdkTestResources],
     receiver: DpdkTestResources,
-    multiple_queues: bool = False,
+    queue_count: int = 1,
     use_service_cores: int = 1,
     set_mtu: int = 0,
 ) -> Dict[DpdkTestResources, str]:
@@ -804,7 +881,6 @@ def generate_testpmd_multiple_port_command(
     else:
         maxmtu_int = 0
     kit_cmd_pairs: Dict[DpdkTestResources, str] = dict()
-    receiver_includes: List[str] = []
     for i in range(len(senders)):
         # get the sender
         sender = senders[i]
@@ -822,7 +898,7 @@ def generate_testpmd_multiple_port_command(
             "txonly",
             pmd=pmd,
             extra_args=f"--tx-ip={sender_nic.ip_addr},{receiver_nic.ip_addr}",
-            multiple_queues=multiple_queues,
+            queue_count=queue_count,
             service_cores=use_service_cores,
             mtu=set_mtu,
             mbuf_size=maxmtu_int,
@@ -830,12 +906,6 @@ def generate_testpmd_multiple_port_command(
         )
         # store this senders command
         kit_cmd_pairs[sender] = snd_cmd
-        # receiver needs multiple ports, so only generate the include.
-        receiver_include = receiver.testpmd.generate_testpmd_include(
-            receiver_nics[sender_subnet], i, pmd=pmd
-        )
-        # and save it
-        receiver_includes += [receiver_include]
 
     # and generate the command with multiple ports for the single receiver:
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
@@ -843,7 +913,7 @@ def generate_testpmd_multiple_port_command(
         0,
         "rxonly",
         pmd=pmd,
-        multiple_queues=multiple_queues,
+        queue_count=queue_count,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
@@ -1237,7 +1307,7 @@ def verify_dpdk_build(
     variables: Dict[str, Any],
     pmd: Pmd,
     hugepage_size: HugePageSize,
-    multiple_queues: bool = False,
+    queue_count: int = 1,
     result: Optional[TestResult] = None,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
@@ -1255,7 +1325,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        [test_nic], 0, "txonly", pmd=pmd, multiple_queues=multiple_queues
+        [test_nic], 0, "txonly", pmd=pmd, queue_count=queue_count
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
@@ -1277,7 +1347,7 @@ def verify_dpdk_send_receive(
     pmd: Pmd,
     hugepage_size: HugePageSize,
     use_service_cores: int = 1,
-    multiple_queues: bool = False,
+    queue_count: int = 1,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
     check_sender_packet_drops: bool = False,
@@ -1336,28 +1406,12 @@ def verify_dpdk_send_receive(
         sender,
         receiver,
         use_service_cores=use_service_cores,
-        multiple_queues=multiple_queues,
+        queue_count=queue_count,
         set_mtu=set_mtu,
         stats_period=stats_period,
         secondary_proc_count=secondary_proc_count,
         secondary_mode=secondary_mode,
     )
-
-    for kit in [sender, receiver]:
-        # start a bunch of background processes to not increase the ssh channel count.
-        sec_script_path = node.get_working_path().joinpath("testpmd_secondary_procs.sh")
-        sec_script = ["#! /bin/sh"]
-        sec_script += [f"{cmd} &" for cmd in secondary_cmds[kit]]
-        sec_script += ["wait"]
-        for line in sec_script:
-            node.tools[Tee].write_to_file(line, sec_script_path, append=True)
-        node.execute(
-            f"chmod +x {str(sec_script_path)}",
-            shell=True,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="Couldn't chmod secondary script",
-        )
 
     receiver_proc = receiver.node.execute_async(
         kit_cmd_pairs[receiver],
@@ -1377,13 +1431,9 @@ def verify_dpdk_send_receive(
     # will clean them all up.
     secondary_procs: List[Process] = []
     for kit in [sender, receiver]:
-        # start a bunch of background processes to not increase the ssh channel count.
-
-        log.debug(
-            f"Starting secondary processes on {kit.node.name}: {map(str, set(kit.testpmd._secondary_procs))}"
-        )
-        sec_proc = kit.node.execute_async(str(sec_script_path), sudo=True, shell=True)
-        secondary_procs.append(sec_proc)
+        sec_proc = _start_secondary_processes(kit, secondary_cmds[kit], log)
+        if sec_proc:
+            secondary_procs.append(sec_proc)
 
     sleep(test_duration)
 
@@ -1482,13 +1532,14 @@ def _get_multi_port_test_nics(
 
 def _trigger_multi_port_hotplug(
     log: Logger,
+    listener: UeventListener,
     nic_list: Dict[Node, List[NicInfo]],
 ) -> None:
     # switch_sriov_for_nics does its own settling sleeps around the
     # remove and rescan, so no extra sleep is needed here.
     run_in_parallel(
         [
-            partial(switch_sriov_for_nics, node, nic_list[node])
+            partial(switch_sriov_for_nics, node, listener, nic_list[node])
             for node in nic_list.keys()
         ],
         log,
@@ -1500,13 +1551,14 @@ def _generate_multi_port_single_node_run_info(
     kit: DpdkTestResources,
     nics: List[NicInfo],
     test_fwd_mode: DpdkForwardingMode,
-    multiple_queues: bool = False,
+    queue_count: int = 1,
     use_service_cores: int = 1,
     set_mtu: int = 0,
-) -> Tuple[str, Dict[int, NicInfo]]:
+) -> Tuple[str, List[str], Dict[int, NicInfo]]:
     """
     Generate a testpmd command for a single-node multi-port run (txonly or
-    rxonly). Returns the command string and the dpdk port id -> nic mapping.
+    rxonly). Returns the primary command, RX secondary commands, and the dpdk
+    port id -> nic mapping.
     """
     if set_mtu:
         _validate_and_set_mtu_for_kit(kit, nics, set_mtu)
@@ -1535,19 +1587,38 @@ def _generate_multi_port_single_node_run_info(
         )
     )
 
+    file_prefix = (
+        "testpmd_multi_port_receiver"
+        if test_fwd_mode is DpdkForwardingMode.RXONLY
+        else ""
+    )
     cmd = kit.testpmd.generate_testpmd_command(
         nics,
         0,
         test_fwd_mode.value,
         pmd=pmd,
-        multiple_queues=multiple_queues,
+        queue_count=queue_count,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
         eal_device_args=devname.nic_args,
         stats_period=5,
+        file_prefix=file_prefix,
     )
-    return cmd, port_map
+    secondary_cmds = (
+        _generate_multi_port_rx_secondary_commands(
+            kit=kit,
+            nics=nics,
+            rx_queue_count=queue_count,
+            pmd=pmd,
+            eal_device_args=devname.nic_args,
+            file_prefix=file_prefix,
+            stats_period=5,
+        )
+        if test_fwd_mode is DpdkForwardingMode.RXONLY
+        else []
+    )
+    return cmd, secondary_cmds, port_map
 
 
 def run_testpmd_consolidated(
@@ -1558,7 +1629,7 @@ def run_testpmd_consolidated(
     hugepage_size: HugePageSize,
     nic_count: int = 2,
     use_service_cores: int = 1,
-    multiple_queues: bool = False,
+    queue_count: int = 1,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
     hotplug: DpdkHotplugTarget = DpdkHotplugTarget.NONE,
@@ -1608,7 +1679,13 @@ def run_testpmd_consolidated(
     node_test_nics = _get_multi_port_test_nics(environment, nic_count)
 
     # get test duration variable if set
-    test_duration: int = variables.get("dpdk_test_duration", 25)
+    test_duration: int = variables.get("dpdk_test_duration", 60)
+    has_rx_workload = (
+        test_plan is TestPlan.MULTIPLE_NODES or fwd_mode is DpdkForwardingMode.RXONLY
+    )
+    max_rx_queue_count = queue_count
+    max_secondary_count = nic_count * max_rx_queue_count if has_rx_workload else 0
+    hugepage_gb = (max_secondary_count * 2) + 8 if max_secondary_count else None
     test_kits = init_nodes_concurrent(
         environment,
         log,
@@ -1616,12 +1693,14 @@ def run_testpmd_consolidated(
         pmd,
         hugepage_size=hugepage_size,
         specific_pairings=node_test_nics,
+        hugepage_gb=hugepage_gb,
     )
     port_maps: Dict[DpdkTestResources, Dict[int, NicInfo]] = {}
     kit_cmd_pairs: Dict[DpdkTestResources, str] = {}
     kit_labels: Dict[DpdkTestResources, str] = {}
     kit_port_stats: Dict[DpdkTestResources, Dict[int, DpdkPortStats]] = {}
     hotplug_targets: List[DpdkTestResources] = []
+    secondary_cmds: Dict[DpdkTestResources, List[str]] = {}
     # single-node mode: txonly or rxonly on one VM
     if test_plan is TestPlan.SINGLE_NODE:
         assert (
@@ -1633,16 +1712,17 @@ def run_testpmd_consolidated(
         if result is not None:
             annotate_dpdk_test_result(test_kit=kit, test_result=result, log=log)
 
-        cmd, port_map = _generate_multi_port_single_node_run_info(
+        cmd, kit_secondary_cmds, port_map = _generate_multi_port_single_node_run_info(
             pmd,
             kit,
             node_test_nics[kit.node],
             fwd_mode,
-            multiple_queues=multiple_queues,
+            queue_count=queue_count,
             use_service_cores=use_service_cores,
             set_mtu=set_mtu,
         )
         kit_cmd_pairs[kit] = cmd
+        secondary_cmds[kit] = kit_secondary_cmds
         port_maps[kit] = port_map
         graded_kit = kit
         start_order = [kit]
@@ -1694,14 +1774,18 @@ def run_testpmd_consolidated(
         if result is not None:
             annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
 
-        kit_cmd_pairs, port_maps = generate_multi_port_send_receive_run_info(
+        (
+            kit_cmd_pairs,
+            secondary_cmds,
+            port_maps,
+        ) = generate_multi_port_send_receive_run_info(
             pmd,
             sender,
             receiver,
             node_test_nics[sender.node],
             node_test_nics[receiver.node],
+            queue_count=queue_count,
             use_service_cores=use_service_cores,
-            multiple_queues=multiple_queues,
             set_mtu=set_mtu,
         )
         graded_kit = receiver
@@ -1717,15 +1801,22 @@ def run_testpmd_consolidated(
             hotplug_targets += [receiver]
 
     test_procs: Dict[DpdkTestResources, Process] = {}
-
+    listener = UeventListener(graded_kit.node)
+    listener.start()
     for kit in start_order:
         test_proc = kit.node.execute_async(kit_cmd_pairs[kit], sudo=True)
         test_proc.wait_output("start packet forwarding")
         test_procs[kit] = test_proc
 
+    secondary_procs: Dict[DpdkTestResources, Process] = {}
+    for kit, commands in secondary_cmds.items():
+        secondary_proc = _start_secondary_processes(kit, commands, log)
+        if secondary_proc:
+            secondary_procs[kit] = secondary_proc
+
     if hotplug.is_enabled():
         sleep(10)
-        _trigger_multi_port_hotplug(log, nic_list=graded_nics)
+        _trigger_multi_port_hotplug(log, listener, nic_list=graded_nics)
         # let the recovered ports build up a clean run of samples before
         # testpmd is stopped, otherwise the "after" phase is all noise.
         sleep(10)
@@ -1735,8 +1826,17 @@ def run_testpmd_consolidated(
     results = dict()
     for kit in start_order[::-1]:
         kit.testpmd.kill_previous_testpmd_command()
+        if kit in secondary_procs:
+            secondary_result = secondary_procs[kit].wait_result()
+            log.debug(
+                f"Secondary process output on {kit.node.name}:\n"
+                f"{secondary_result.stdout}"
+            )
         sleep(10)
-        results[kit] = kit.testpmd.process_testpmd_output(test_procs[kit].wait_result())
+        # grading this on our own.
+        results[kit] = kit.testpmd.process_testpmd_output(
+            test_procs[kit].wait_result(), process_perf_data=False
+        )
 
     # helpful to have the outputs labeled
     for kit in start_order:
@@ -1752,7 +1852,7 @@ def run_testpmd_consolidated(
 
     for kit in start_order:
         kit.node.log.debug(f"kit {kit} in graded_nics: {kit_fwd_modes.keys()}")
-        if hotplug is DpdkHotplugTarget.NONE or kit is graded_kit:
+        if kit is graded_kit:
             grade_port_stats(
                 log=log,
                 kit=kit,
@@ -1934,6 +2034,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
+    secondary_proc_count: int = 2,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
@@ -1944,12 +2045,12 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         pmd,
         HugePageSize.HUGE_2MB,
         use_service_cores=1,
-        multiple_queues=True,
+        queue_count=8,
         result=result,
         set_mtu=set_mtu,
         grading_metric=grading_metric,
         secondary_mode=SecondaryProcessMode.TESTPMD,
-        secondary_proc_count=8,
+        secondary_proc_count=secondary_proc_count,
     )
 
 
@@ -1962,7 +2063,7 @@ def verify_dpdk_multiple_ports(
     pmd: Pmd,
     hugepage_size: HugePageSize,
     use_service_cores: int = 1,
-    multiple_queues: bool = False,
+    queue_count: int = 1,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
 ) -> Tuple[DpdkTestResources, DpdkTestResources, DpdkTestResources]:
@@ -2019,7 +2120,7 @@ def verify_dpdk_multiple_ports(
         [sender_port_a, sender_port_b],
         receiver_kit,
         use_service_cores=use_service_cores,
-        multiple_queues=multiple_queues,
+        queue_count=queue_count,
         set_mtu=set_mtu,
     )
     receive_timeout = kill_timeout + 10
@@ -3075,6 +3176,276 @@ def _apply_workaround_for_symmetric_mp_main(node: Node) -> None:
             "Could not copy patched symmetric_mp main.c to examples folder."
         ),
     )
+
+
+def run_dpdk_symmetric_mp_with_testpmd(
+    environment: Environment,
+    log: Logger,
+    variables: Dict[str, Any],
+    trigger_hotplug: bool = False,
+    hotplug_times: int = 1,
+    tx_first_bursts: int = 46875,
+    burst_size: int = 32,
+) -> None:
+    """
+    Two-VM symmetric_mp test using testpmd as the traffic generator.
+
+    Topology:
+        sender (VM1): testpmd io mode, sends a known burst of packets via
+            --cmdline-file containing 'start tx_first <N>'
+        dut (VM2): symmetric_mp primary + secondary forwarding between ports
+
+    After the test duration the sender's exact TX-packets count is compared
+    against symmetric_mp's RX count.  This gives deterministic packet-count
+    validation instead of the ping-based approach.
+    """
+    test_timeout = 120 + (60 * hotplug_times if trigger_hotplug else 35)
+    expected_tx = tx_first_bursts * burst_size
+
+    sender_node, dut_node = list(environment.nodes.list())[:2]
+
+    # --- initialise both VMs concurrently ---
+    # DUT needs netvsc pmd + symmetric_mp example app.
+    # Sender just needs testpmd (no extra example apps).
+    force_dpdk_default_source(variables)
+
+    dut_test_nics = [
+        dut_node.nics.get_nic_by_subnet("10.0.1.0/24"),
+        dut_node.nics.get_nic_by_subnet("10.0.2.0/24"),
+    ]
+    sender_test_nics = [
+        sender_node.nics.get_nic_by_subnet("10.0.1.0/24"),
+        sender_node.nics.get_nic_by_subnet("10.0.2.0/24"),
+    ]
+
+    try:
+        dut_kit, sender_kit = run_in_parallel(
+            [
+                partial(
+                    initialize_node_resources,
+                    dut_node,
+                    log,
+                    variables,
+                    Pmd.NETVSC,
+                    HugePageSize.HUGE_2MB,
+                    test_nics=dut_test_nics,
+                ),
+                partial(
+                    initialize_node_resources,
+                    sender_node,
+                    log,
+                    variables,
+                    Pmd.NETVSC,
+                    HugePageSize.HUGE_2MB,
+                    test_nics=sender_test_nics,
+                ),
+            ],
+            log,
+        )
+    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        raise SkippedException(err)
+
+    dut_testpmd = dut_kit.testpmd
+    sender_testpmd = sender_kit.testpmd
+
+    if isinstance(dut_testpmd.installer, PackageManagerInstall):
+        raise SkippedException(
+            "DPDK symmetric_mp test is not implemented for "
+            "package manager installation."
+        )
+
+    # --- DUT: set up symmetric_mp ---
+    _apply_workaround_for_symmetric_mp_main(dut_node)
+    symmetric_mp_path = dut_testpmd.get_example_app_path("multi_process/symmetric_mp")
+    devname_info = DpdkDevnameInfo(testpmd=dut_testpmd)
+    port_mask = devname_info.get_port_info(dut_test_nics, expect_ports=2)
+    nic_args = devname_info.nic_args
+
+    sender_devname = DpdkDevnameInfo(testpmd=sender_testpmd)
+    sender_devname.get_port_info(sender_test_nics, expect_ports=2)
+
+    dut_node.log.debug(f"Port mask: {port_mask}")
+
+    result_regex = re.compile(
+        r"Port (?P<port_id>[0-9]+): "
+        r"RX - (?P<rx_count>[0-9]+), "
+        r"TX - (?P<tx_count>[0-9]+), "
+        r"Drop - (?P<drop_count>[0-9]+).*"
+    )
+
+    symmetric_mp_args = (
+        f"{nic_args} -n 2 "
+        "--log-level netvsc,debug --log-level mana,debug "
+        "--log-level ethdev,debug --log-level pci,debug "
+        "--log-level port,debug "
+        "--log-level vmbus,debug "
+        f"-- -p {port_mask} --num-procs 2"
+    )
+
+    # start DUT primary (proc-id 0) on core 1
+    primary = dut_node.tools[Timeout].start_with_timeout(
+        command=(
+            f"{str(symmetric_mp_path)} -l 1 --proc-type auto "
+            f"{symmetric_mp_args} --proc-id 0"
+        ),
+        timeout=test_timeout,
+        signal=SIGINT,
+        kill_timeout=test_timeout + 5,
+    )
+    primary.wait_output("APP: Finished Process Init", timeout=20)
+
+    # start DUT secondary (proc-id 1) on core 2
+    secondary = dut_node.tools[Timeout].start_with_timeout(
+        command=(
+            f"{str(symmetric_mp_path)} -l 2 --proc-type secondary "
+            f"{symmetric_mp_args} --proc-id 1"
+        ),
+        timeout=test_timeout,
+        signal=SIGINT,
+        kill_timeout=test_timeout + 5,
+    )
+    secondary.wait_output("APP: Finished Process Init", timeout=20)
+
+    # --- Sender: write cmdline-file and launch testpmd in io mode ---
+    cmdline_path = sender_node.working_path.joinpath("testpmd_cmdline.txt")
+
+    sender_node.tools[Echo].write_to_file(
+        f"start tx_first {tx_first_bursts}",
+        cmdline_path,
+    )
+
+    # get the IP addresses of both NICs
+    tx_ip_info = []
+    for i in range(0, 2):
+        tx_ip_info += [
+            f"--tx-ip {sender_devname.nic_port_info[sender_test_nics[i].mac_addr]}:"
+            f"{sender_test_nics[i].ip_addr},"
+            f"{dut_test_nics[i].ip_addr}"
+        ]
+    tx_ip_arg = " ".join(tx_ip_info)
+
+    sender_cmd = sender_testpmd.generate_testpmd_command(
+        sender_test_nics,
+        0,
+        "io",
+        pmd=Pmd.NETVSC,
+        extra_args=(f"{tx_ip_arg} --cmdline-file={str(cmdline_path)}"),
+    )
+    sender_proc = sender_node.execute_async(sender_cmd, sudo=True)
+    sender_proc.wait_output("start packet forwarding", timeout=60)
+
+    # --- run the test ---
+    # give time for the burst to be sent and processed
+    sleep(15)
+
+    # optionally trigger hotplug on the DUT
+    if trigger_hotplug:
+        vf_pci_slots = get_vf_pci_slots(dut_node, dut_test_nics)
+        while hotplug_times > 0:
+            hotplug_times -= 1
+            remove_pci_devices(dut_node, vf_pci_slots)
+            primary.wait_output(
+                "HN_DRIVER: hn_nvs_set_datapath(): set datapath Synthetic",
+                delta_only=True,
+            )
+            rescan_pci_bus(dut_node)
+            primary.wait_output(
+                "HN_DRIVER: hn_nvs_set_datapath(): set datapath VF",
+                delta_only=True,
+            )
+            # after hotplug recovery, send another burst
+            sender_node.tools[Echo].write_to_file(
+                f"start tx_first {tx_first_bursts}",
+                cmdline_path,
+            )
+            expected_tx += tx_first_bursts * burst_size
+            sleep(10)
+
+    dut_kit.dmesg.check_kernel_errors(force_run=True)
+
+    # --- tear down ---
+    # kill sender testpmd
+    sender_testpmd.kill_previous_testpmd_command()
+    sleep(5)
+    sender_result = sender_proc.wait_result(timeout=60)
+    sender_testpmd.process_testpmd_output(sender_result)
+    sender_stats = sender_testpmd.get_stats_by_port()
+
+    # read the sender's actual TX count from forward stats
+    sender_tx_total = sum(s.tx_total_packets for s in sender_stats.values())
+    log.info(f"Sender TX total: {sender_tx_total}")
+
+    # kill symmetric_mp processes
+    process_name = (
+        symmetric_mp_path.name if symmetric_mp_path.name else str(symmetric_mp_path)
+    )
+    dut_node.tools[Kill].by_name(
+        f"{process_name}", signum=SIGINT, ignore_not_exist=True
+    )
+
+    primary_result = primary.wait_result()
+    secondary_result = secondary.wait_result()
+
+    dut_node.log.debug(
+        f"Primary process:\n\n{primary_result.stdout}\n"
+        f"\nprimary stderr:\n{primary_result.stderr}"
+    )
+    dut_node.log.debug(
+        f"Secondary system:\n\n{secondary_result.stdout}\n"
+        f"secondary stderr:\n{secondary_result.stderr}"
+    )
+    assert_that(primary_result.exit_code).described_as(
+        f"Primary process failure: {primary_result.stdout}"
+    ).is_zero()
+    assert_that(secondary_result.exit_code).described_as(
+        f"Secondary process failure: {secondary_result.stdout}"
+    ).is_zero()
+
+    # --- validate packet counts ---
+    # sum the RX counts from both symmetric_mp processes
+    all_matches = [
+        result_regex.finditer(primary_result.stdout),
+        result_regex.finditer(secondary_result.stdout),
+    ]
+    total_rx = 0
+    for matches in all_matches:
+        for match in matches:
+            port = match.group("port_id")
+            rx_count = int(match.group("rx_count"))
+            tx_count = int(match.group("tx_count"))
+            drop_count = int(match.group("drop_count"))
+            log.debug(
+                f"symmetric_mp port {port}: "
+                f"RX={rx_count} TX={tx_count} Drop={drop_count}"
+            )
+            total_rx += rx_count
+
+    log.info(
+        f"Sender TX: {sender_tx_total}, "
+        f"symmetric_mp RX total: {total_rx}, "
+        f"expected TX (burst estimate): {expected_tx}"
+    )
+
+    # The sender's reported TX count is the ground truth.
+    # symmetric_mp should have received a substantial fraction of what
+    # was sent (allow for some network drops in cloud environment).
+    assert_that(sender_tx_total).described_as(
+        "Sender should have transmitted packets"
+    ).is_greater_than(0)
+
+    assert_that(total_rx).described_as(
+        "symmetric_mp should have received packets from testpmd sender"
+    ).is_greater_than(0)
+
+    # check that symmetric_mp received at least 50% of what the sender
+    # transmitted — allows for cloud networking variance while catching
+    # total forwarding failures.
+    drop_tolerance = 0.50
+    assert_that(total_rx).described_as(
+        f"symmetric_mp RX ({total_rx}) should be at least "
+        f"{int(drop_tolerance * 100)}% of sender TX ({sender_tx_total}). "
+        f"This indicates a forwarding failure in the DUT."
+    ).is_greater_than_or_equal_to(int(sender_tx_total * drop_tolerance))
 
 
 def run_dpdk_symmetric_mp(

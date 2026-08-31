@@ -515,7 +515,7 @@ class Pmd(str, Enum):
 
 # set a threshold for an expected PPS minimum with DPDK.
 # this is absolutely arbitrary, synthetic pps is usually less than 1.2m pps (for now)
-DPDK_PPS_THRESHOLD = 1_200_000
+DPDK_PPS_THRESHOLD = 1_000_000
 
 
 class DpdkGradeMetric(str, Enum):

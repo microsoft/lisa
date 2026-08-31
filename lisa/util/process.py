@@ -655,9 +655,7 @@ class Process:
         self.log_buffer_offset = last_search_len
 
         if error_on_missing:
-            raise LisaException(
-                f"{keyword} not found in stdout after {timeout} seconds"
-            )
+            raise LisaException(f"{keyword}  {timeout} seconds")
         else:
             self._log.debug(
                 f"not found '{keyword}' in {timeout} seconds, but ignore it."

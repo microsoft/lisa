@@ -29,6 +29,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     reset_environment_netvsc_binding,
     reset_node_netvsc_bindings,
     run_dpdk_symmetric_mp,
+    run_dpdk_symmetric_mp_with_testpmd,
     run_testpmd_consolidated,
     run_testpmd_hotplug,
     verify_dpdk_build,
@@ -117,40 +118,41 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            netvsc pmd version.
-            This test case checks DPDK can be built and installed correctly.
+            Two-VM symmetric_mp test using testpmd as the traffic generator.
+            Sender VM runs testpmd in io mode with start tx_first to send a
+            known burst of packets. DUT VM runs symmetric_mp primary/secondary.
+            Validates packet counts match between sender TX and DUT RX.
             Prerequisites, accelerated networking must be enabled.
-            The VM should have at least two network interfaces,
-             with one interface for management.
-            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
         """,
         priority=2,
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=3,
+            min_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_symmetric_mp(
         self,
-        node: Node,
+        environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        run_dpdk_symmetric_mp(node, log, variables)
+        run_dpdk_symmetric_mp_with_testpmd(environment, log, variables)
 
     @TestCaseMetadata(
         description="""
-            netvsc pmd version.
-            This test case checks dpdk symmetic mp app, plus an sriov hotplug.
-            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+            Two-VM symmetric_mp test with testpmd traffic and sriov hotplug.
+            Sender VM runs testpmd in io mode, DUT VM runs symmetric_mp.
+            VF is removed and restored on the DUT mid-test.
         """,
         priority=2,
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=3,
+            min_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
         ),
@@ -158,25 +160,25 @@ class Dpdk(TestSuite):
     )
     def verify_dpdk_symmetric_mp_hotplug(
         self,
-        node: Node,
+        environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        run_dpdk_symmetric_mp(
-            node, log, variables, trigger_hotplug=True, hotplug_times=1
+        run_dpdk_symmetric_mp_with_testpmd(
+            environment, log, variables, trigger_hotplug=True, hotplug_times=1
         )
 
     @TestCaseMetadata(
         description="""
-            netvsc pmd version.
-            This test case checks dpdk symmetic mp app, plus an sriov hotplug.
-            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+            Two-VM symmetric_mp stress test with testpmd traffic and
+            repeated sriov hotplug (40 cycles) on the DUT.
         """,
         priority=4,
         requirement=simple_requirement(
             min_core_count=8,
             min_nic_count=3,
+            min_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
         ),
@@ -184,13 +186,13 @@ class Dpdk(TestSuite):
     )
     def stress_dpdk_symmetric_mp_hotplug(
         self,
-        node: Node,
+        environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        run_dpdk_symmetric_mp(
-            node, log, variables, trigger_hotplug=True, hotplug_times=40
+        run_dpdk_symmetric_mp_with_testpmd(
+            environment, log, variables, trigger_hotplug=True, hotplug_times=40
         )
 
     @TestCaseMetadata(
@@ -588,17 +590,17 @@ class Dpdk(TestSuite):
         # unless we really want to stress things.
         if stress:
             extra_args: Union[str, Tuple[str, str]] = ""
-            mq_args: Union[bool, Tuple[bool, bool]] = True
+            qc_args: Union[int, Tuple[int, int]] = 8
         else:
             extra_args = ("--burst=5", "")
-            mq_args = (False, True)
+            qc_args = (1, 8)
 
         # generate the run info
         kit_cmd_pairs, _ = generate_send_receive_run_info(
             pmd,
             sender,
             receiver,
-            multiple_queues=mq_args,
+            queue_count=qc_args,
             extra_args=extra_args,
             stats_period=5,
         )
@@ -627,7 +629,9 @@ class Dpdk(TestSuite):
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
         testpmd = test_kit.testpmd
-        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd, stats_period=5)
+        testpmd_cmd = testpmd.generate_testpmd_command(
+            [test_nic], 0, "txonly", pmd=pmd, stats_period=5
+        )
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }
@@ -1018,7 +1022,11 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, Pmd.NETVSC, result=result, 
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                result=result,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -1124,7 +1132,7 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.NETVSC,
                 HugePageSize.HUGE_2MB,
-                result=result
+                result=result,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -1182,7 +1190,7 @@ class Dpdk(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_core_count=8,
+            min_core_count=32,
             min_nic_count=8,
             network_interface=Sriov(),
             min_count=2,
@@ -1203,8 +1211,8 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.NETVSC,
                 HugePageSize.HUGE_2MB,
-                nic_count=2,
-                multiple_queues=True,
+                nic_count=8,
+                queue_count=4,
                 result=result,
                 test_plan=TestPlan.MULTIPLE_NODES,
             )
@@ -1229,7 +1237,7 @@ class Dpdk(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            min_core_count=8,
+            min_core_count=32,
             min_nic_count=3,
             network_interface=Sriov(),
             min_count=2,
@@ -1250,8 +1258,8 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.NETVSC,
                 HugePageSize.HUGE_2MB,
-                nic_count=2,
-                multiple_queues=True,
+                nic_count=4,
+                queue_count=4,
                 result=result,
                 hotplug=DpdkHotplugTarget.SENDER,
                 test_plan=TestPlan.MULTIPLE_NODES,
@@ -1293,12 +1301,11 @@ class Dpdk(TestSuite):
             hugepage_size=HugePageSize.HUGE_2MB,
             pmd=pmd,
             result=result,
-            multiple_queues=True,
+            queue_count=8,
         )
 
     @TestCaseMetadata(
-        description=(
-            """
+        description=("""
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1306,8 +1313,7 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """
-        ),
+        """),
         priority=3,
         requirement=simple_requirement(
             supported_os=[Ubuntu],
@@ -1332,8 +1338,7 @@ class Dpdk(TestSuite):
         )
 
     @TestCaseMetadata(
-        description=(
-            """
+        description=("""
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1341,8 +1346,7 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """
-        ),
+        """),
         priority=3,
         requirement=simple_requirement(
             supported_os=[Ubuntu],

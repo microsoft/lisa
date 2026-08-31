@@ -363,9 +363,12 @@ class Lscpu(Tool):
         # for 0 indexing
         return max([int(cpu.numa_node) for cpu in self.get_cpu_info()]) + 1
 
-    def get_cpu_range_in_numa_node(self, numa_node_index: int = 0) -> Tuple[int, int]:
+    def get_cpu_range(self, numa_node_index: Optional[int] = None) -> Tuple[int, int]:
         cpus = self.get_cpu_info()
-        cpu_indexes = [cpu.cpu for cpu in cpus if cpu.numa_node == numa_node_index]
+        if numa_node_index:
+            cpu_indexes = [cpu.cpu for cpu in cpus if cpu.numa_node == numa_node_index]
+        else:
+            cpu_indexes = [cpu.cpu for cpu in cpus]
         return min(cpu_indexes), max(cpu_indexes)
 
     def is_virtualization_enabled(self) -> bool:

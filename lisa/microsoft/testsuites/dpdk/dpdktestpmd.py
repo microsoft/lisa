@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, Dict, List, Optional, Pattern, Tuple, Type
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Pattern, Tuple, Type
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
@@ -25,6 +25,10 @@ from semver import VersionInfo
 from lisa.executable import ExecutableResult, Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora, Suse, Ubuntu
+
+if TYPE_CHECKING:
+    from lisa.node import Node
+
 from lisa.tools import (
     Echo,
     Git,
@@ -536,35 +540,18 @@ class DpdkTestpmd(Tool):
         else:
             return False
 
-    def generate_testpmd_include(
+    def _generate_single_nic_include(
         self,
         node_nic: NicInfo,
         vdev_id: int,
         pmd: Pmd,
+        include_flag: str,
     ) -> str:
-        # MANA and mlnx both don't require these arguments if all VFs are in use.
-        # We have a primary nic to exclude in our tests, so we include the
-        # test nic by either bus address and mac (MANA)
-        # or by interface name (mlnx failsafe)
-        #
-        # include flag changed to 'allowlist' in 20.11
-        # use 'allow' instead of 'deny' for envionments where
-        # there is 1 shared bus address (MANA)
-        # NOTE: I keep running into weird special cases of this.
-        # 21.11 on ubuntu has -a even though 20.11+ shouldn't...
-        help_output = self.node.execute(
-            f"{self.command} --help", no_debug_log=True, no_info_log=True
-        )
-        allow_flag = "-a, --allow" in (help_output.stderr + help_output.stdout)
-        if allow_flag:
-            include_flag = "-a"
-        else:
-            include_flag = "-w"
-
+        # Generate the EAL include/vdev arguments for a single NIC.
         if self.is_mana:
-            include_flag = f"{include_flag} {node_nic.dev_uuid}"
+            nic_include = f"{include_flag} {node_nic.dev_uuid}"
         else:
-            include_flag = f' {include_flag} "{node_nic.pci_slot}"'
+            nic_include = f' {include_flag} "{node_nic.pci_slot}"'
 
         # build pmd argument
         if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
@@ -574,7 +561,7 @@ class DpdkTestpmd(Tool):
             # MANA netvsc mode selects by mac.
             if pmd == Pmd.NETVSC:
                 return (
-                    f" {include_flag} "
+                    f" {nic_include} "
                     f'--vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
                 )
             # if mana_ib is present, use mana friendly args
@@ -589,14 +576,59 @@ class DpdkTestpmd(Tool):
                 pmd_name = "net_vdev_netvsc"
                 pmd_flags = f"iface={node_nic.name}"
                 # reset include flag for MANA since there is only one interface
-                include_flag = ""
+                nic_include = ""
         else:
             if pmd == Pmd.NETVSC:
-                return include_flag
+                return nic_include
             # mlnx setup for failsafe
             pmd_name = "net_vdev_netvsc"
             pmd_flags = f"iface={node_nic.name},force=1"
-        return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + include_flag
+        return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + nic_include
+
+    def generate_testpmd_include(
+        self,
+        node: "Node",
+        nics_to_include: List[NicInfo],
+        vdev_id: int,
+        pmd: Pmd,
+    ) -> str:
+        # Generate EAL device include flags for the test nics,
+        # and block flags for all other PCI nics on the node.
+        #
+        # include flag changed to 'allowlist' in 20.11
+        # NOTE: I keep running into weird special cases of this.
+        # 21.11 on ubuntu has -a even though 20.11+ shouldn't...
+        help_output = self.node.execute(
+            f"{self.command} --help", no_debug_log=True, no_info_log=True
+        )
+        allow_flag = "-a, --allow" in (help_output.stderr + help_output.stdout)
+        include_flag = "-a" if allow_flag else "-w"
+
+        # generate include args for each test nic
+        include_args: List[str] = []
+        vid = vdev_id
+        for nic in nics_to_include:
+            include_args.append(
+                self._generate_single_nic_include(nic, vid, pmd, include_flag)
+            )
+            vid += 1
+
+        # collect identifiers for the nics we're including
+        include_names = {nic.name for nic in nics_to_include}
+
+        # block all other PCI nics on the node
+        block_args: List[str] = []
+        for nic in node.nics.nics.values():
+            if nic.name in include_names:
+                continue
+            if not nic.pci_slot:
+                continue
+            if self.is_mana and nic.dev_uuid:
+                block_args.append(f"-b {nic.dev_uuid}")
+            elif nic.pci_slot:
+                block_args.append(f'-b "{nic.pci_slot}"')
+
+        return " ".join(include_args + block_args)
 
     def generate_testpmd_command(
         self,
@@ -605,7 +637,7 @@ class DpdkTestpmd(Tool):
         mode: str,
         pmd: Pmd = Pmd.FAILSAFE,
         extra_args: str = "",
-        multiple_queues: bool = False,
+        queue_count: int = 1,
         service_cores: int = 1,
         mtu: int = 0,
         mbuf_size: int = 0,
@@ -614,6 +646,7 @@ class DpdkTestpmd(Tool):
         extra_eal_args: str = "",
         stats_period: int = 2,
         file_prefix: str = "",
+        override_core_list: Optional[List[int]] = None,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -627,14 +660,7 @@ class DpdkTestpmd(Tool):
         #   --stats-period <display interval in seconds>
 
         # pick amount of queues for tx/rx (txq/rxq flag)
-        # our tests use equal amounts for rx and tx
-        if multiple_queues:
-            if self.is_mana and mode == "txonly":
-                queues = 8
-            else:
-                queues = 4
-        else:
-            queues = 1
+        queues = queue_count
 
         # MANA needs a file descriptor argument, mlnx doesn't.
         txd = 256
@@ -647,51 +673,64 @@ class DpdkTestpmd(Tool):
         if eal_device_args:
             nic_include_infos += [eal_device_args]
         else:
-            for nic in nic_to_include:
-                nic_include_infos += [
-                    self.generate_testpmd_include(nic, vdev_id, pmd=pmd)
-                ]
-                vdev_id += 1
+            nic_include_infos += [
+                self.generate_testpmd_include(
+                    self.node, nic_to_include, vdev_id, pmd=pmd
+                )
+            ]
 
-        # infer core count to assign based on number of queues
-        first, last = self.node.tools[Lscpu].get_cpu_range_in_numa_node(0)
-        if last <= first:
-            raise AssertionError(
-                f"tool.Lscpu bug: cpu range for numa 0 found as {first}-{last}."
-            )
-        threads_available = last - first
-        assert_that(threads_available).described_as(
-            "DPDK tests need more than 4 threads, recommended more than 8 threads"
-        ).is_greater_than(4)
+        # When the caller provides an explicit core list (e.g. because
+        # secondary processes handle the per-queue forwarding), skip the
+        # automatic core/queue fitting loop entirely.
+        if override_core_list:
+            core_list = "-l " + ",".join(str(c) for c in override_core_list)
+            forwarding_cores = len(override_core_list) - service_cores
+            self._reserved_cores.add(0)
+            self._reserved_cores.update(override_core_list)
+            max_core_index = max(override_core_list)
+        else:
+            # infer core count to assign based on number of queues
+            first, last = self.node.tools[Lscpu].get_cpu_range()
+            if last <= first:
+                raise AssertionError(
+                    f"tool.Lscpu bug: cpu range for numa 0 found as " f"{first}-{last}."
+                )
+            threads_available = last - first
+            assert_that(threads_available).described_as(
+                "DPDK tests need more than 4 threads, "
+                "recommended more than 8 threads"
+            ).is_greater_than(4)
 
-        queues_and_servicing_core = (queues * len(nic_to_include)) + service_cores
-
-        # core_offset reserves the low cores for another testpmd process on the
-        # same node, so they're not available to this one.
-        while queues_and_servicing_core > (threads_available - 2 - core_offset):
-            # if less, split the number of queues
-            queues = queues // 2
             queues_and_servicing_core = (queues * len(nic_to_include)) + service_cores
-            txd = 64  # txd has to be >= 64 for MANA.
-            assert_that(queues).described_as(
-                "txq value must be greater than 1"
-            ).is_greater_than_or_equal_to(1)
 
-        # label core index for future use
-        max_core_index = queues_and_servicing_core
+            # core_offset reserves the low cores for another testpmd process
+            # on the same node, so they're not available to this one.
+            while queues_and_servicing_core > (threads_available - 2 - core_offset):
+                # if less, split the number of queues
+                queues = queues // 2
+                queues_and_servicing_core = (
+                    queues * len(nic_to_include)
+                ) + service_cores
+                txd = 64  # txd has to be >= 64 for MANA.
+                assert_that(queues).described_as(
+                    "txq value must be greater than 1"
+                ).is_greater_than_or_equal_to(1)
 
-        # service cores excluded from forwarding cores count
-        forwarding_cores = max_core_index - service_cores
+            # label core index for future use
+            max_core_index = queues_and_servicing_core
 
-        # core range argument
-        primary_start = 1 + core_offset
-        primary_end = max_core_index + core_offset
-        core_list = f"-l {primary_start}-{primary_end}"
+            # service cores excluded from forwarding cores count
+            forwarding_cores = max_core_index - service_cores
 
-        # Record which cores the primary owns so secondaries can avoid them.
-        # Also reserve core 0 (OS) unconditionally.
-        self._reserved_cores.add(0)
-        self._reserved_cores.update(range(primary_start, primary_end + 1))
+            # core range argument
+            primary_start = 1 + core_offset
+            primary_end = max_core_index + core_offset
+            core_list = f"-l {primary_start}-{primary_end}"
+
+            # Record which cores the primary owns so secondaries can
+            # avoid them.  Also reserve core 0 (OS) unconditionally.
+            self._reserved_cores.add(0)
+            self._reserved_cores.update(range(primary_start, primary_end + 1))
         if extra_args:
             extra_args = extra_args.strip()
         else:
@@ -785,10 +824,11 @@ class DpdkTestpmd(Tool):
         if eal_device_args:
             nic_include_infos += [eal_device_args]
         else:
-            vid = vdev_id
-            for nic in nic_to_include:
-                nic_include_infos += [self.generate_testpmd_include(nic, vid, pmd=pmd)]
-                vid += 1
+            nic_include_infos += [
+                self.generate_testpmd_include(
+                    self.node, nic_to_include, vdev_id, pmd=pmd
+                )
+            ]
 
         debug_log_args = self._eal_debug_log_args()
         nic_includes = " ".join(nic_include_infos)
@@ -854,7 +894,7 @@ class DpdkTestpmd(Tool):
         unreserved cores, then marks them as reserved.  This respects
         whatever the primary already claimed via generate_testpmd_command.
         """
-        first, last = self.node.tools[Lscpu].get_cpu_range_in_numa_node(0)
+        first, last = self.node.tools[Lscpu].get_cpu_range(0)
         # all NUMA-0 cores, sorted, excluding already-reserved ones
         available = sorted(
             c for c in range(first, last + 1) if c not in self._reserved_cores
@@ -921,7 +961,7 @@ class DpdkTestpmd(Tool):
         )
         return self.process_testpmd_output(proc_result)
 
-    def process_testpmd_output(self, result: ExecutableResult) -> str:
+    def process_testpmd_output(self, result: ExecutableResult, process_perf_data:bool=True) -> str:
         self._last_run_output = result.stdout
         self.populate_performance_data()
         return result.stdout
