@@ -102,6 +102,7 @@ class DpdkPerformance(TestSuite):
         DPDK Performance: failsafe mode, minimal core count
         """,
         priority=3,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=16,
             min_count=1,
@@ -175,6 +176,7 @@ class DpdkPerformance(TestSuite):
         DPDK Performance: netvsc mode, minimal core count
         """,
         priority=3,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_count=2,
@@ -224,6 +226,7 @@ class DpdkPerformance(TestSuite):
         DPDK Performance: direct use of VF, multiple tx/rx queues
         """,
         priority=3,
+        maturity="preview",
         requirement=simple_requirement(
             min_count=2,
             network_interface=Sriov(),
@@ -259,6 +262,7 @@ class DpdkPerformance(TestSuite):
         """
         ),
         priority=3,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=8,
             min_count=3,
