@@ -4,7 +4,7 @@
 import re
 import uuid
 from pathlib import PurePosixPath
-from typing import Any, Dict, List, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 from xml.etree import ElementTree
 
 from lisa import (
@@ -68,14 +68,16 @@ def _address_element_to_bdf(address: ElementTree.Element) -> str:
     return f"{domain:04x}:{bus:02x}:{slot:02x}.{function:x}"
 
 
-def _get_guest_pci_bdf_from_domain_xml(domain_xml: str, host_pci_bdf: str) -> str:
+def _get_guest_pci_bdf_from_domain_xml(
+    domain_xml: str, host_pci_bdf: str
+) -> Optional[str]:
     try:
         domain = ElementTree.fromstring(domain_xml)
     except ElementTree.ParseError as error:
         raise LisaException("Cannot parse libvirt domain XML") from error
 
     normalized_host_bdf = _normalize_pci_bdf(host_pci_bdf)
-    guest_bdfs: List[str] = []
+    matching_host_devices: List[ElementTree.Element] = []
     for host_device in domain.findall("./devices/hostdev"):
         if host_device.attrib.get("type") != "pci":
             continue
@@ -84,21 +86,18 @@ def _get_guest_pci_bdf_from_domain_xml(domain_xml: str, host_pci_bdf: str) -> st
             continue
         if _address_element_to_bdf(source_address) != normalized_host_bdf:
             continue
+        matching_host_devices.append(host_device)
 
-        guest_address = host_device.find("./address")
-        if guest_address is None:
-            raise LisaException(
-                f"Libvirt host device '{normalized_host_bdf}' does not expose a "
-                "guest PCI address"
-            )
-        guest_bdfs.append(_address_element_to_bdf(guest_address))
-
-    if len(guest_bdfs) != 1:
+    if len(matching_host_devices) != 1:
         raise LisaException(
-            f"Expected exactly one guest PCI address for assigned host device "
-            f"'{normalized_host_bdf}', found {len(guest_bdfs)}: {guest_bdfs}"
+            f"Expected exactly one libvirt hostdev for assigned host device "
+            f"'{normalized_host_bdf}', found {len(matching_host_devices)}"
         )
-    return guest_bdfs[0]
+
+    guest_address = matching_host_devices[0].find("./address")
+    if guest_address is None:
+        return None
+    return _address_element_to_bdf(guest_address)
 
 
 def _get_descendants(partitions: List[PartitionInfo]) -> List[PartitionInfo]:
@@ -375,10 +374,18 @@ class StoragePassthroughPerfTests(TestSuite):
             domain_xml = cast(str, domain.XMLDesc(0))
         except Exception as error:
             raise LisaException("Failed to read live libvirt domain XML") from error
-        guest_bdf = _get_guest_pci_bdf_from_domain_xml(domain_xml, host_bdf)
-
         host_ids = self._get_pci_ids(cast(Node, host_node), host_bdf)
-        guest_device = self._get_guest_nvme_device(node, guest_bdf)
+        guest_bdf = _get_guest_pci_bdf_from_domain_xml(domain_xml, host_bdf)
+        if guest_bdf is None:
+            guest_device = self._get_guest_nvme_device_by_pci_ids(node, host_ids)
+            guest_bdf = _normalize_pci_bdf(guest_device.slot)
+            log.debug(
+                f"Libvirt omitted the guest PCI address for host NVMe "
+                f"'{host_bdf}'; uniquely resolved guest '{guest_bdf}' by "
+                "matching its vendor/device IDs"
+            )
+        else:
+            guest_device = self._get_guest_nvme_device(node, guest_bdf)
         guest_ids = (guest_device.vendor_id.lower(), guest_device.device_id.lower())
         if guest_ids != host_ids:
             raise LisaException(
@@ -431,6 +438,25 @@ class StoragePassthroughPerfTests(TestSuite):
             raise LisaException(
                 f"Expected exactly one NVMe controller at guest PCI address "
                 f"'{guest_bdf}', found {len(matches)}"
+            )
+        return matches[0]
+
+    @staticmethod
+    def _get_guest_nvme_device_by_pci_ids(node: Node, host_ids: Tuple[str, str]) -> Any:
+        devices = node.tools[Lspci].get_devices_by_type(
+            DEVICE_TYPE_NVME, force_run=True
+        )
+        matches = [
+            device
+            for device in devices
+            if (device.vendor_id.lower(), device.device_id.lower()) == host_ids
+        ]
+        if len(matches) != 1:
+            guest_bdfs = sorted(_normalize_pci_bdf(device.slot) for device in matches)
+            raise LisaException(
+                "Expected exactly one guest NVMe controller matching assigned host "
+                f"vendor/device IDs {host_ids[0]}:{host_ids[1]}, found "
+                f"{len(matches)}: {guest_bdfs}"
             )
         return matches[0]
 
