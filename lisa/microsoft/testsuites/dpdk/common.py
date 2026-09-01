@@ -17,7 +17,7 @@ from lisa.tools import Git, Lscpu, Tar, Wget
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import UnsupportedDistroException
 
-DPDK_STABLE_GIT_REPO = "https://dpdk.org/git/dpdk-stable"
+DPDK_STABLE_GIT_REPO = "https://github.com/dpdk/dpdk-stable.git"
 
 # azure routing table magic subnet prefix
 # signals 'route all traffic on this subnet'
@@ -167,12 +167,24 @@ class TarDownloader(Downloader):
         # force name as tarfile name
         # add option to skip files which already exist on disk
         # in the event we have already extracted this specific tar
-        node.tools[Tar].extract(
-            file=str(remote_path),
-            dest_dir=str(work_path),
-            gzip=True,
-            skip_existing_files=True,
-        )
+        if not node.shell.exists(self.asset_path):
+            try:
+                node.tools[Tar].extract(
+                    file=str(remote_path),
+                    dest_dir=str(work_path),
+                    gzip=True,
+                    skip_existing_files=True,
+                )
+            except AssertionError:
+                # tar extraction failed,
+                # ensure potential broken dir and
+                # download are removed before reraising.
+                if node.shell.exists(self.asset_path):
+                    node.shell.remove(self.asset_path, recursive=True)
+                if node.shell.exists(remote_path):
+                    node.shell.remove(remote_path)
+                raise
+
         return self.asset_path
 
 
@@ -186,7 +198,8 @@ class Installer:
     # First we download the assets to ensure asset_path is set
     # even if we end up skipping re-installation
     def _setup_node(self) -> None:
-        self._download_assets()
+        if not self._asset_path_exists():
+            self._download_assets()
 
     # check if the package is already installed:
     # Is the package installed from source? Or from the package manager?
@@ -209,6 +222,42 @@ class Installer:
     def _uninstall(self) -> None:
         raise NotImplementedError(f"_clean_previous_installation {self._err_msg}")
 
+    def _asset_path_exists(self) -> bool:
+        return hasattr(self, "asset_path") and self._node.shell.exists(self.asset_path)
+
+    def _delete_assets(self) -> None:
+        if not self._asset_path_exists():
+            return
+        asset_path = self.asset_path
+        working_path = str(self._node.get_working_path())
+        assert_that(str(asset_path)).described_as(
+            "Test bug: Installer source path was empty during attempted cleanup!"
+        ).is_not_empty()
+        assert_that(str(asset_path)).described_as(
+            "Test bug: Installer source path was set to root dir '/' "
+            "during attempted cleanup!"
+        ).is_not_equal_to("/")
+        assert_that(str(asset_path)).described_as(
+            f"Test bug: Installer source path {asset_path} was set to working path "
+            f"'{working_path}' during attempted cleanup!"
+        ).is_not_equal_to(working_path)
+        self._node.shell.remove(asset_path, recursive=True)
+        delattr(self, "asset_path")
+
+    def _rollback_installation(self) -> None:
+        try:
+            if self._check_if_installed():
+                self._uninstall()
+            self._delete_assets()
+        except Exception as err:
+            self._node.log.debug(
+                f"Installer cleanup failed; marking node dirty. {str(err)}"
+            )
+            self._node.mark_dirty()
+            raise AssertionError(
+                f"Test bug: rollback of installation failed: {str(err)}"
+            )
+
     # install the dependencies
     def _install_dependencies(self) -> None:
         if self._os_dependencies is not None:
@@ -229,10 +278,20 @@ class Installer:
     # run the defined setup and installation steps.
     def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
         self._setup_node()
-        if self._should_install():
-            self._uninstall()
-            self._install_dependencies()
-            self._install()
+        if self._should_install(required_version=required_version):
+            # any issues here could result in a broken installation.
+            # If the node is still usable, we don't want to discard it.
+            # So attempt to roll back a broken installation and re-raise the problem.
+            # This avoids re-deployments and ensures a transient issue causing a broken
+            # installation doesn't propagate failures into future tests on
+            # that same node.
+            try:
+                self._uninstall()
+                self._install_dependencies()
+                self._install()
+            except Exception:
+                self._rollback_installation()
+                raise
 
     def __init__(
         self,
@@ -289,7 +348,7 @@ def force_dpdk_default_source(variables: Dict[str, Any]) -> None:
         variables["dpdk_source"] = DPDK_STABLE_GIT_REPO
 
 
-_UBUNTU_LTS_VERSIONS = ["24.4.0", "22.4.0", "20.4.0", "18.4.0"]
+_UBUNTU_LTS_VERSIONS = ["26.4.0", "24.4.0", "22.4.0", "20.4.0", "18.4.0"]
 
 
 # see https://ubuntu.com/about/release-cycle
