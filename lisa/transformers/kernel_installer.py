@@ -272,7 +272,7 @@ class RepoInstaller(BaseInstaller):
             repo_entry = f"deb {self.repo_url} {version_name} {repo_component}"
 
         self._log.info(f"Adding repository: {repo_entry}")
-        ubuntu.add_repository(repo_entry)
+        ubuntu.add_repository(repo_entry, repo_file="kernel-team.list")
         full_package_name = runbook.source
         if "fips" in full_package_name:
             # Remove default fips repository before kernel installation.

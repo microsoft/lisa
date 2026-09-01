@@ -82,12 +82,12 @@ class Dom0SecureBootTestSuite(TestSuite):
         # Can provide: mshv, mshv-bootloader-lx
         source_mshv_tarball = variables.get("mshv_rpm_tarball")
         if source_mshv_tarball:
-            os.add_repository(source_mshv_tarball)
+            os.add_repository(source_mshv_tarball, repo_file="mshv.repo")
 
         # Can provide: kernel-mshv, hvloader
         source_base_tarball = variables.get("base_rpm_tarball")
         if source_base_tarball:
-            os.add_repository(source_base_tarball)
+            os.add_repository(source_base_tarball, repo_file="base.repo")
 
         components = ["kernel-mshv", "mshv", "mshv-bootloader-lx", "hvloader"]
         os.install_packages(components)

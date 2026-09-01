@@ -98,7 +98,10 @@ class XdpTool(Tool):
             if self.node.os.information.version < "18.4.0":
                 raise UnsupportedDistroException(self.node.os)
             elif self.node.os.information.version == "18.4.0":
-                self.node.os.add_repository("ppa:ubuntu-toolchain-r/test")
+                self.node.os.add_repository(
+                    "ppa:ubuntu-toolchain-r/test",
+                    repo_file="ubuntu-toolchain-r-test.list",
+                )
             else:
                 toolchain = f"llvm-toolchain-{self.node.os.information.codename}"
                 self.node.os.add_repository(
@@ -106,6 +109,7 @@ class XdpTool(Tool):
                         f"deb http://apt.llvm.org/{self.node.os.information.codename}/ "
                         f"{toolchain} main"
                     ),
+                    repo_file=f"{toolchain}.list",
                     keys_location=["https://apt.llvm.org/llvm-snapshot.gpg.key"],
                 )
             package_list = [

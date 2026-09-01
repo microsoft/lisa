@@ -213,15 +213,18 @@ class Docker(Tool):
             else:
                 self.node.os.add_repository(
                     repo="https://download.docker.com/linux/centos/docker-ce.repo",
-                    repo_name="docker-ce.repo",
+                    repo_file="docker-ce.repo",
+                    repo_name="docker-ce",
                 )
                 self.node.os.add_repository(
                     repo="https://vault.centos.org/centos/7/extras/x86_64",
+                    repo_file="centos-extras.repo",
                     repo_name="Centos extras",
                 )
                 self.node.os.add_repository(
                     repo="https://vault.centos.org/centos/7/os/x86_64",
-                    repo_name="Centos extras",
+                    repo_file="centos-os.repo",
+                    repo_name="Centos OS",
                 )
                 gpg_donwload_path = self.node.tools[Wget].get(
                     "https://vault.centos.org/centos/7/os/x86_64/RPM-GPG-KEY-CentOS-7",
@@ -276,6 +279,8 @@ class Docker(Tool):
                     "deb [arch=amd64] https://download.docker.com/linux/debian"
                     f" {lsb_release_code} stable"
                 ),
+                repo_file="docker-ce.list",
+                repo_name="docker-ce",
             )
             self.node.execute("apt update", sudo=True, shell=True)
             self.node.os.install_packages("docker-ce")
