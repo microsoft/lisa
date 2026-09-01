@@ -17,6 +17,7 @@ from lisa.base_tools import (
 )
 
 from .aria import Aria
+from .aznfs import AzNfs
 from .b4 import B4
 from .blkid import Blkid
 from .bootctl import BootCtl
@@ -163,6 +164,7 @@ from .zstd import Zstd
 __all__ = [
     "AptAddRepository",
     "Aria",
+    "AzNfs",
     "B4",
     "Blkid",
     "BootCtl",
