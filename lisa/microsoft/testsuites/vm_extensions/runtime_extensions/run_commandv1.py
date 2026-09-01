@@ -44,7 +44,7 @@ from lisa.sut_orchestrator.azure.tools import Waagent
     12. File uri (pointing to python script) and command in public settings
 
     """,
-    tags=["VM_Extension", "RunCommandLinux"],
+    tags=["VM_Extension"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
@@ -72,6 +72,7 @@ class RunCommandV1Tests(VmExtensionTestBase):  # type: ignore[misc]
         '<publisher>_<extension_type>_boot_validation_test'.
         """,
         priority=5,
+        tags=["microsoft.cplat.core.runcommandlinux"],
         maturity="preview",
     )
     def microsoft_cplat_core_runcommandlinux_boot_validation_test(

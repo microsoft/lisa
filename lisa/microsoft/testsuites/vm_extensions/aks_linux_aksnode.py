@@ -17,7 +17,7 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
     description="""
     This test suite validates the Microsoft AKS Linux AKSNode VM extension.
     """,
-    tags=["VM_Extension", "Microsoft.AKS.Compute.AKS.Linux.AKSNode"],
+    tags=["VM_Extension"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
@@ -45,6 +45,7 @@ class AksLinuxAksNodeTests(VmExtensionTestBase):  # type: ignore[misc]
         'aks_linux_aksnode_version' runbook variable.
         """,
         priority=5,
+        tags=["microsoft.aks.compute.aks.linux.aksnode"],
         maturity="preview",
     )
     def microsoft_aks_compute_aks_linux_aksnode_boot_validation_test(
