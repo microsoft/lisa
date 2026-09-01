@@ -135,7 +135,7 @@ class EnvironmentSpace(search_space.RequirementMixin):
 
         return result
 
-    def _choose_value(self, capability: Any) -> Any:
+    def _generate_min_capability(self, capability: Any) -> Any:
         env = EnvironmentSpace(topology=self.topology)
         assert isinstance(capability, EnvironmentSpace), f"actual: {type(capability)}"
         assert capability.nodes
@@ -145,7 +145,7 @@ class EnvironmentSpace(search_space.RequirementMixin):
             else:
                 current_cap = capability.nodes[index]
 
-            env.nodes.append(current_req.choose_value(current_cap))
+            env.nodes.append(current_req.generate_min_capability(current_cap))
 
         return env
 
@@ -327,11 +327,12 @@ class Environment(ContextMixin, InitializableMixin):
     ) -> Node:
         min_requirement = cast(
             schema.Capability,
-            node_requirement.choose_value(node_requirement),
+            node_requirement.generate_min_capability(node_requirement),
         )
-        assert isinstance(
-            min_requirement.node_count, int
-        ), f"must be int after choose_value, actual: {min_requirement.node_count}"
+        assert isinstance(min_requirement.node_count, int), (
+            f"must be int after generate_min_capability, "
+            f"actual: {min_requirement.node_count}"
+        )
         # node count should be expanded in platform already
         assert min_requirement.node_count == 1, f"actual: {min_requirement.node_count}"
         mock_runbook = schema.RemoteNode(

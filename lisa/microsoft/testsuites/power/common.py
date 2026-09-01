@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from decimal import Decimal
+from time import sleep
 from typing import Any, List, cast
 
 from assertpy import assert_that
@@ -29,8 +30,41 @@ from lisa.tools import (
 from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 
+# Some Azure guest/kernel combinations, including certified FIPS kernels,
+# do not support hibernation at all. In those cases the platform returns
+# VMHibernateFailed on every attempt, so we treat it as an unmet precondition
+# rather than a transient failure that can be recovered with retry delay.
+_HIBERNATE_FAILED_MARKER = "VMHibernateFailed"
+# Azure may also return VMHibernateFailed as a transient internal error when the
+# guest is not yet ready shortly after boot. Azure guidance is to retry after
+# ~5 minutes before treating it as a real failure.
+# https://learn.microsoft.com/azure/virtual-machines/hibernate-resume-troubleshooting
+_HIBERNATE_RETRY_INTERVAL_SECONDS = 300
+
+
+def _is_fips_kernel(node: Node) -> bool:
+    # Azure hibernation is unsupported on the certified FIPS kernel (e.g. Ubuntu
+    # Pro *-azure-fips): it returns VMHibernateFailed on every attempt, so this
+    # is an unmet precondition rather than a test failure.
+    fips_enabled = "0"
+    if node.tools[Ls].path_exists("/proc/sys/crypto/fips_enabled"):
+        fips_enabled = (
+            node.tools[Cat]
+            .read("/proc/sys/crypto/fips_enabled", force_run=True)
+            .strip()
+        )
+    kernel_version = node.execute("uname -r", shell=True).stdout.strip()
+    return fips_enabled == "1" or "fips" in kernel_version.lower()
+
 
 def is_distro_supported(node: Node) -> None:
+    if _is_fips_kernel(node):
+        raise SkippedException(
+            "Azure hibernation is not supported on FIPS-enabled kernels; "
+            f"the platform returns {_HIBERNATE_FAILED_MARKER} on every attempt. "
+            f"Kernel: {node.execute('uname -r', shell=True).stdout.strip()}"
+        )
+
     if not node.tools[KernelConfig].is_enabled("CONFIG_HIBERNATION"):
         raise SkippedException(
             f"CONFIG_HIBERNATION is not enabled in current distro {node.os.name}, "
@@ -136,12 +170,12 @@ def _perform_hibernation_cycle(
     Returns (boot_time_before, boot_time_after) for verification.
     """
 
-    # This is a temporary workaround for a bug observed in Redhat Distros
-    # where the VM is not able to hibernate immediately after installing
-    # the hibernation-setup tool.
-    # A sleep(100) also works, but we are unsure of the exact time required.
-    # So it is safer to reboot the VM.
-    if type(node.os) in (Redhat, AlmaLinux, SLES):
+    # The hibernation-setup tool writes resume=/resume_offset= to the
+    # bootloader, which only takes effect after a reboot; without it the VM
+    # accepts the hibernate uevent but never suspends (seen on Debian and
+    # Ubuntu). A sleep(100) also works, but we are unsure of the exact time
+    # required. So it is safer to reboot the VM.
+    if type(node.os) in (Redhat, AlmaLinux, SLES, Debian, Ubuntu):
         node.reboot()
 
     startstop = node.features[StartStop]
@@ -150,14 +184,29 @@ def _perform_hibernation_cycle(
 
     boot_time_before_hibernation = who.last_boot()
 
-    try:
-        startstop.stop(state=features.StopState.Hibernate)
-    except Exception as ex:
+    # Retry a VMHibernateFailed result once, spaced by the Azure-recommended
+    # interval. A rejected hibernate leaves the VM running, so the guest is
+    # reachable for diagnostics and the request can be re-issued. Any other
+    # failure is raised immediately.
+    max_attempts = 2
+    for attempt in range(1, max_attempts + 1):
         try:
-            dmesg.get_output(force_run=True)
-        except Exception as e:
-            log.debug(f"error on get dmesg output: {e}")
-        raise LisaException(f"fail to hibernate: {ex}")
+            startstop.stop(state=features.StopState.Hibernate)
+            break
+        except Exception as ex:
+            try:
+                dmesg.get_output(force_run=True)
+            except Exception as e:
+                log.debug(f"error on get dmesg output: {e}")
+            if attempt < max_attempts and _HIBERNATE_FAILED_MARKER in str(ex):
+                log.info(
+                    f"hibernation attempt {attempt}/{max_attempts} returned "
+                    f"{_HIBERNATE_FAILED_MARKER}; retrying in "
+                    f"{_HIBERNATE_RETRY_INTERVAL_SECONDS}s per Azure guidance"
+                )
+                sleep(_HIBERNATE_RETRY_INTERVAL_SECONDS)
+                continue
+            raise LisaException(f"fail to hibernate: {ex}")
 
     is_ready = True
     timeout = 900
