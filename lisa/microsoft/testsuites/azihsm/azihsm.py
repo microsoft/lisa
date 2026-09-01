@@ -111,10 +111,11 @@ class AziHsm(TestSuite):
                     ],
                 )
             else:
+                # Assume Azure Linux 4 for now. Will have to refector when Azl5 happens.
                 node.os.add_repository(
                     repo=(
                         "https://packages.microsoft.com/azurelinux/"
-                        f"{node.os.information.release}/preview/"
+                        "4/preview/"
                         f"microsoft/{arch_name}/"
                     ),
                     repo_file="preview-microsoft.repo",
