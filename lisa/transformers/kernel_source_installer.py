@@ -535,25 +535,31 @@ class SourceInstaller(BaseInstaller):
                 ]
             )
         elif isinstance(os, CBLMariner):
-            os.install_packages(
-                [
-                    "build-essential",
-                    "bison",
-                    "flex",
-                    "bc",
-                    "ccache",
-                    "elfutils-libelf",
-                    "elfutils-libelf-devel",
-                    "ncurses-libs",
-                    "ncurses-compat",
-                    "xz",
-                    "xz-devel",
-                    "xz-libs",
-                    "openssl-libs",
-                    "openssl-devel",
-                    "xxhash-devel",
-                ]
-            )
+            packages = [
+                "bison",
+                "flex",
+                "bc",
+                "ccache",
+                "elfutils-libelf",
+                "elfutils-libelf-devel",
+                "ncurses-libs",
+                "xz",
+                "xz-devel",
+                "xz-libs",
+                "openssl-libs",
+                "openssl-devel",
+                "xxhash-devel",
+            ]
+            if os.information.version >= "4.0.0":
+                # build-essential not available on Azure Linux 4.0
+                # ncurses-compat is renamed ncurses-compat-libs in 4.0,
+                # but is unused here (olddefconfig only).
+                packages.extend(
+                    ["kernel-headers", "binutils", "glibc-devel", "gcc", "make"]
+                )
+            else:
+                packages.extend(["build-essential", "ncurses-compat"])
+            os.install_packages(packages)
         else:
             raise LisaException(
                 f"os '{os.name}' doesn't support in {self.type_name()}. "
