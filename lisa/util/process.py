@@ -22,11 +22,12 @@ from spur.errors import NoSuchCommandError
 from lisa.util import (
     LisaException,
     RequireUserPasswordException,
+    SshSessionNotActiveException,
     SshSpawnTimeoutException,
     create_timer,
     filter_ansi_escape,
 )
-from lisa.util.logger import Logger, LogWriter, add_handler, get_logger
+from lisa.util.logger import Logger, LogWriter, add_handler, get_logger, remove_handler
 from lisa.util.shell import Shell, SshShell
 
 # Prompt strings that sudo writes when it requires a password.
@@ -121,7 +122,7 @@ def _retry_spawn(func: Callable[..., Any]) -> Any:
     # wrap to pass in the logger object of the current process.
     def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
         return retry(
-            exceptions=SshSpawnTimeoutException,
+            exceptions=(SshSpawnTimeoutException, SshSessionNotActiveException),
             tries=3,
             delay=1,
             backoff=3,
@@ -350,8 +351,12 @@ class Process:
                 "", e.strerror, 1, split_command, self._id_, self._timer.elapsed()
             )
             self._log.log(stderr_level, f"not found command: {e}")
-        except SshSpawnTimeoutException:
+        except (SshSpawnTimeoutException, SshSessionNotActiveException):
             # close the shell and try again, see if the ssh connection is interrupted.
+            self._stdout_writer.close()
+            self._stderr_writer.close()
+            remove_handler(self._log_handler, self.stdout_logger)
+            remove_handler(self._log_handler, self.stderr_logger)
             self._shell.close()
             raise
 
