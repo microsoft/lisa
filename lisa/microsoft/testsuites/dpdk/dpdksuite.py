@@ -126,7 +126,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            #unsupported_features=[Gpu, Infiniband],
         ),
     )
     def verify_dpdk_symmetric_mp(
@@ -175,7 +175,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            #unsupported_features=[Gpu, Infiniband],
         ),
         timeout=6000,
     )
