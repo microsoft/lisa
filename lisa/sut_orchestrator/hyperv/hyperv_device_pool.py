@@ -36,6 +36,7 @@ class HyperVDevicePool(BaseDevicePool):
         self.supported_pool_type = [
             HostDevicePoolType.PCI_NIC,
             HostDevicePoolType.PCI_GPU,
+            HostDevicePoolType.PCI_NVME,
         ]
         self._server = node
         self._hyperv_runbook = runbook
@@ -55,6 +56,14 @@ class HyperVDevicePool(BaseDevicePool):
             vendor_id=vendor_id,
             device_id=device_id,
         )
+        if pool_type == HostDevicePoolType.PCI_NVME:
+            if len(devices) != 1:
+                raise LisaException(
+                    "Hyper-V PCI NVMe vendor/device selection must resolve "
+                    f"exactly one DDA-assignable device, found {len(devices)}. "
+                    "Use 'location_path' to select a specific device."
+                )
+            self._validate_nvme_devices(devices)
         self._append_devices_to_pool(pool_type=pool_type, devices=devices)
 
     def create_device_pool_from_pci_addresses(
@@ -78,7 +87,123 @@ class HyperVDevicePool(BaseDevicePool):
             log=self.log,
         )
         devices = hv_dev.get_assignable_devices_by_location_paths(location_paths)
+        if pool_type == HostDevicePoolType.PCI_NVME:
+            self._validate_nvme_devices(devices)
         self._append_devices_to_pool(pool_type=pool_type, devices=devices)
+
+    def _validate_nvme_devices(self, devices: List[DeviceAddressSchema]) -> None:
+        powershell = self._server.tools[PowerShell]
+        for device in devices:
+            escaped_instance_id = device.instance_id.replace("'", "''")
+            disk_records = powershell.run_cmdlet(
+                cmdlet=f"""
+$controllerId = '{escaped_instance_id}'
+$pending = [System.Collections.Generic.Queue[string]]::new()
+$seen = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::OrdinalIgnoreCase
+)
+$pending.Enqueue($controllerId)
+while ($pending.Count -gt 0) {{
+    $currentId = $pending.Dequeue()
+    if (-not $seen.Add($currentId)) {{
+        continue
+    }}
+
+    $childrenProperty = Get-PnpDeviceProperty `
+        -InstanceId $currentId `
+        -KeyName 'DEVPKEY_Device_Children' `
+        -ErrorAction SilentlyContinue
+    if ($currentId -eq $controllerId -and $null -eq $childrenProperty) {{
+        throw "Could not query PnP children for NVMe controller '$controllerId'"
+    }}
+    foreach ($childId in @($childrenProperty.Data)) {{
+        if ($childId) {{
+            $pending.Enqueue([string]$childId)
+        }}
+    }}
+}}
+
+$diskDrives = @(
+    Get-CimInstance Win32_DiskDrive |
+    Where-Object {{ $seen.Contains([string]$_.PNPDeviceID) }}
+)
+$diskRecords = foreach ($diskDrive in $diskDrives) {{
+    $disk = Get-Disk -Number ([int]$diskDrive.Index) -ErrorAction Stop
+    $mountedPartitions = @(
+        Get-CimInstance `
+            -Namespace ROOT/Microsoft/Windows/Storage `
+            -ClassName MSFT_Partition `
+            -Filter "DiskNumber = $($disk.Number)" `
+            -ErrorAction Stop |
+        Where-Object {{ @($_.AccessPaths).Count -gt 0 }}
+    )
+    [PSCustomObject]@{{
+        Number = [int]$disk.Number
+        FriendlyName = [string]$disk.FriendlyName
+        BusType = [string]$disk.BusType
+        IsBoot = [bool]$disk.IsBoot
+        IsSystem = [bool]$disk.IsSystem
+        IsMounted = ($mountedPartitions.Count -gt 0)
+    }}
+}}
+$diskRecords
+""",
+                output_json=True,
+                force_run=True,
+            )
+            if disk_records is None or disk_records == "":
+                normalized_records: List[Dict[str, Any]] = []
+            elif isinstance(disk_records, list):
+                normalized_records = disk_records
+            else:
+                normalized_records = [disk_records]
+
+            if len(normalized_records) != 1 or not isinstance(
+                normalized_records[0], dict
+            ):
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' must map "
+                    "to exactly one Windows disk, found "
+                    f"{len(normalized_records)}"
+                )
+
+            disk = normalized_records[0]
+            required_properties = {
+                "Number",
+                "BusType",
+                "IsBoot",
+                "IsSystem",
+                "IsMounted",
+            }
+            missing_properties = required_properties.difference(disk)
+            if missing_properties:
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' returned "
+                    "an incomplete Windows disk safety record. Missing: "
+                    f"{', '.join(sorted(missing_properties))}"
+                )
+
+            bus_type = str(disk["BusType"]).strip()
+            if bus_type.lower() != "nvme":
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' maps to "
+                    f"Windows disk bus type '{bus_type or 'unknown'}', not NVMe"
+                )
+
+            unsafe_reasons = []
+            if disk.get("IsBoot"):
+                unsafe_reasons.append("boot")
+            if disk.get("IsSystem"):
+                unsafe_reasons.append("system")
+            if disk.get("IsMounted"):
+                unsafe_reasons.append("mounted")
+            if unsafe_reasons:
+                disk_number = disk.get("Number", "unknown")
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' maps to "
+                    f"unsafe Windows disk {disk_number}: "
+                    f"{', '.join(unsafe_reasons)}"
+                )
 
     def _prepare_devices_on_host(self, location_paths: List[str]) -> None:
         normalized_paths = [path.strip() for path in location_paths if path.strip()]
@@ -242,7 +367,11 @@ Get-VM | ForEach-Object {{
         pool_type: HostDevicePoolType,
         devices: List[DeviceAddressSchema],
     ) -> None:
-        primary_nic_id_list = self.get_primary_nic_id()
+        primary_nic_id_list = (
+            []
+            if pool_type == HostDevicePoolType.PCI_NVME
+            else self.get_primary_nic_id()
+        )
         pool = self.available_host_devices.get(pool_type, [])
         known_instance_ids = {device.instance_id for device in pool}
         for dev in devices:
@@ -274,6 +403,17 @@ Get-VM | ForEach-Object {{
         self.available_host_devices[pool_type] = pool
 
         return devices
+
+    def _return_devices_to_pool(
+        self,
+        pool_type: HostDevicePoolType,
+        devices: List[DeviceAddressSchema],
+    ) -> None:
+        pool = self.available_host_devices.get(pool_type, [])
+        for device in devices:
+            if device not in pool:
+                pool.append(device)
+        self.available_host_devices[pool_type] = pool
 
     def release_devices(
         self,
@@ -307,6 +447,10 @@ Get-VM | ForEach-Object {{
                     device.instance_id,
                     device.location_path,
                 )
+
+        for ctx in devices_ctx:
+            self._return_devices_to_pool(ctx.pool_type, ctx.device_list)
+        node_context.passthrough_devices.clear()
 
     def get_primary_nic_id(self) -> List[str]:
         powershell = self._server.tools[PowerShell]
@@ -404,6 +548,7 @@ Get-VM | ForEach-Object {{
     def _assign_devices_to_vm(
         self,
         vm_name: str,
+        pool_type: HostDevicePoolType,
         devices: List[DeviceAddressSchema],
     ) -> None:
         # Assign the devices to the VM
@@ -414,6 +559,9 @@ Get-VM | ForEach-Object {{
         powershell = self._server.tools[PowerShell]
 
         try:
+            if pool_type == HostDevicePoolType.PCI_NVME:
+                self._validate_nvme_devices(devices)
+
             for device in devices:
                 escaped_instance_id = device.instance_id.replace("'", "''")
                 escaped_location_path = device.location_path.replace("'", "''")
@@ -457,6 +605,7 @@ Get-VM | ForEach-Object {{
                     f"'{vm_name}': {err}. Rollback also failed: "
                     f"{'; '.join(rollback_errors)}"
                 ) from err
+            self._return_devices_to_pool(pool_type, devices)
             raise
 
     def _rollback_dda_assignment(
@@ -578,6 +727,7 @@ Get-VM | ForEach-Object {{
             )
             self._assign_devices_to_vm(
                 vm_name=vm_name,
+                pool_type=config.pool_type,
                 devices=devices,
             )
             device_context = DevicePassthroughContext()
