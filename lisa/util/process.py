@@ -357,7 +357,6 @@ class Process:
             self._stderr_writer.close()
             remove_handler(self._log_handler, self.stdout_logger)
             remove_handler(self._log_handler, self.stderr_logger)
-            self._log_handler.close()
             self._shell.close()
             raise
 
