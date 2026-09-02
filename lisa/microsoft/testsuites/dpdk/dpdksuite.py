@@ -149,7 +149,7 @@ class Dpdk(TestSuite):
             min_core_count=8,
             min_nic_count=3,
             network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
+            #unsupported_features=[Gpu, Infiniband],
         ),
         timeout=600,
     )
@@ -161,7 +161,7 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         run_dpdk_symmetric_mp(
-            node, log, variables, trigger_hotplug=True, hotplug_times=1
+            node, log, variables, trigger_hotplug=True, hotplug_times=2
         )
 
     @TestCaseMetadata(
