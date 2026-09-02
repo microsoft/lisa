@@ -98,8 +98,7 @@ class BareMetalPlatform(Platform):
         assert self.cluster.runbook.client, "no client is specified in the runbook"
 
         assert environment.runbook.nodes_requirement, "nodes requirement is required"
-        if len(environment.runbook.nodes_requirement) > 1:
-            # so far only supports one node
+        if len(environment.runbook.nodes_requirement) > len(self.cluster.clients):
             return False
 
         # Convert test requirements to platform-specific feature types
@@ -107,7 +106,7 @@ class BareMetalPlatform(Platform):
             for node_requirement in environment.runbook.nodes_requirement:
                 convert_to_baremetal_node_space(node_requirement)
 
-        return self._check_capability(environment, log, self.cluster.client)
+        return self._check_capability(environment, log, self.cluster.clients)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         ready_checker: Optional[ReadyChecker] = None
@@ -266,13 +265,14 @@ class BareMetalPlatform(Platform):
         self,
         environment: Environment,
         log: Logger,
-        client_capability: schema.NodeSpace,
+        client_capabilities: List[schema.Capability],
     ) -> bool:
         if not environment.runbook.nodes_requirement:
             return True
 
         nodes_requirement = []
-        for node_space in environment.runbook.nodes_requirement:
+        for index, node_space in enumerate(environment.runbook.nodes_requirement):
+            client_capability = client_capabilities[index]
             if not node_space.check(client_capability):
                 return False
 

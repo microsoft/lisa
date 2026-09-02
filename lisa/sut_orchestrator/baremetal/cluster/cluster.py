@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, Type
+from typing import Any, List, Type
 
 from lisa import features, schema, search_space
 from lisa.environment import Environment
@@ -55,20 +55,22 @@ class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         pass
 
     def prepare_clients(self) -> None:
-        client_runbook = self.runbook.client[0]
-        client_capability = self.get_client_capability(client_runbook)
+        self.clients: List[schema.Capability] = []
+        for client_runbook in self.runbook.client:
+            client_capability = self.get_client_capability(client_runbook)
 
-        # to compatible with previous schema, use the whole client as extended
-        # runbook.
-        schema_type = self.runbook.type
-        extended_schema = client_runbook.to_dict()
+            # to compatible with previous schema, use the whole client as extended
+            # runbook.
+            schema_type = self.runbook.type
+            extended_schema = client_runbook.to_dict()
 
-        if client_capability.extended_schemas is None:
-            client_capability.extended_schemas = {}
-        client_capability.extended_schemas[schema_type] = extended_schema
-        self._fill_capability(client_capability)
+            if client_capability.extended_schemas is None:
+                client_capability.extended_schemas = {}
+            client_capability.extended_schemas[schema_type] = extended_schema
+            self._fill_capability(client_capability)
+            self.clients.append(client_capability)
 
-        self.client = client_capability
+        self.client = self.clients[0]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self.prepare_clients()

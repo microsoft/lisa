@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -33,6 +34,22 @@ def _who_last(who: Who) -> datetime:
 
 
 class Reboot(Tool):
+    _serial_ip_start_marker = "__LISA_REBOOT_IP_START__"
+    _serial_ip_end_marker = "__LISA_REBOOT_IP_END__"
+    _serial_ip_regex = re.compile(
+        r"(?<![\d.])(?P<ip_addr>(?!127\.)(?:\d{1,3}\.){3}\d{1,3})(?![\d.])",
+        re.M,
+    )
+    _serial_ip_command = (
+        "DEV=$(ip -4 -o route show default | "
+        "sed -n 's/.* dev \\([^ ]*\\).*/\\1/p' | sed -n '1p'); "
+        'if [ -n "$DEV" ]; then '
+        'ip -4 -o addr show dev "$DEV" scope global | '
+        "sed -n 's/.* inet \\([0-9.]*\\)\\/.*/\\1/p' | sed -n '1p'; "
+        "else ip -4 -o addr show scope global | "
+        "sed -n 's/.* inet \\([0-9.]*\\)\\/.*/\\1/p' | sed -n '1p'; fi"
+    )
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         # timeout to wait
         self._command = "/sbin/reboot"
@@ -106,6 +123,76 @@ class Reboot(Tool):
             self._command = command_result.stdout.strip()
         self.run(force_run=True, sudo=True, timeout=10)
 
+    def _is_baremetal_node(self) -> bool:
+        platform = getattr(self.node.features, "_platform", None)
+        return bool(platform and platform.type_name() == "baremetal")
+
+    def _refresh_address_from_serial(self, time_out: int) -> bool:
+        from lisa.node import RemoteNode
+
+        if not self.node.features.is_supported(SerialConsole):
+            return False
+
+        remote_node = cast(RemoteNode, self.node)
+        connection = remote_node.connection_info
+        serial_console = self.node.features[SerialConsole]
+
+        previous_output = serial_console.get_console_log(force_run=True)
+        deadline = time.time() + max(1, time_out)
+
+        while time.time() < deadline:
+            try:
+                serial_console.write(
+                    f"echo {self._serial_ip_start_marker}; "
+                    f"{self._serial_ip_command}; "
+                    f"echo {self._serial_ip_end_marker}"
+                )
+                output = serial_console.get_console_log(force_run=True)
+                fresh_output = (
+                    output[len(previous_output) :]
+                    if output.startswith(previous_output)
+                    else output
+                )
+
+                marker_start = fresh_output.rfind(self._serial_ip_start_marker)
+                marker_end = fresh_output.find(
+                    self._serial_ip_end_marker, marker_start + 1
+                )
+                if marker_start >= 0 and marker_end > marker_start:
+                    command_output = fresh_output[
+                        marker_start + len(self._serial_ip_start_marker) : marker_end
+                    ]
+                    matched = self._serial_ip_regex.search(command_output)
+                    if matched:
+                        new_address = matched.group("ip_addr")
+                        if new_address != connection.address:
+                            self._log.info(
+                                "detected new IP from serial console after reboot: "
+                                f"{new_address}"
+                            )
+                            remote_node.set_connection_info(
+                                address=new_address,
+                                public_address=new_address,
+                                port=connection.port,
+                                public_port=connection.port,
+                                username=connection.username,
+                                password=connection.password or "",
+                                private_key_file=connection.private_key_file or "",
+                                use_public_address=False,
+                            )
+                        else:
+                            self._log.debug(
+                                f"serial console reported unchanged IP: {new_address}"
+                            )
+                        return True
+            except Exception as e:
+                self._log.debug(f"ignorable serial IP refresh exception: {e}")
+
+            sleep(2)
+
+        self._log.debug("serial IP refresh timed out, continue with existing address")
+        return False
+
     def reboot_and_check_panic(self, log_path: Path) -> None:
         try:
             self.reboot()
@@ -174,6 +261,13 @@ class Reboot(Tool):
         except Exception as e:
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {e}")
+
+        if self._is_baremetal_node():
+            baremetal_timeout = max(600, time_out)
+            self._refresh_address_from_serial(min(180, baremetal_timeout))
+            self._wait_ssh_session_stable(baremetal_timeout)
+            self._log.info(f"SSH connection stable after reboot in {timer}")
+            return
 
         connected: bool = False
         # The previous steps may take longer time than time out. After that, it

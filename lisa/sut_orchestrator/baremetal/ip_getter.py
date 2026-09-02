@@ -124,13 +124,13 @@ class SerialSchema(IpGetterSchema):
     command: str = (
         "DEV=$(ip -4 -o route show default | "
         "sed -n 's/.* dev \\([^ ]*\\).*/\\1/p' | sed -n '1p'); "
-        "if [ -n \"$DEV\" ]; then "
-        "ip -4 -o addr show dev \"$DEV\" scope global | "
+        'if [ -n "$DEV" ]; then '
+        'ip -4 -o addr show dev "$DEV" scope global | '
         "sed -n 's/.* inet \\([0-9.]*\\)\\/.*/\\1/p' | sed -n '1p'; "
         "else ip -4 -o addr show scope global | "
         "sed -n 's/.* inet \\([0-9.]*\\)\\/.*/\\1/p' | sed -n '1p'; fi"
     )
-    timeout: int = 300
+    timeout: int = 600
 
 
 class SerialChecker(IpGetterChecker):

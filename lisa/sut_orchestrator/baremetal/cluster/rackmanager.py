@@ -1,12 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
+import time
 from pathlib import Path
 from typing import Any, Optional, Type, cast
 
 from lisa import features, schema
 from lisa.environment import Environment
-from lisa.node import Node
-from lisa.node import quick_connect
+from lisa.node import Node, quick_connect
 from lisa.platform_ import Platform
 from lisa.schema import FeatureSettings
 from lisa.util import LisaException
@@ -17,9 +18,17 @@ from ..schema import RackManagerClientSchema, RackManagerSchema
 from .cluster import Cluster
 
 SERIAL_LOGIN_TIMEOUT = 300
+SERIAL_PASSWORD_TIMEOUT = 10
+SERIAL_LOGIN_RETRY_TIMEOUT = 3
+SERIAL_PROMPT_WAKE_TIMEOUT = 5
+SERIAL_PROMPT_WAKE_ATTEMPTS = 3
 
 
 class RackManagerSerialConsole(features.SerialConsole):
+    panic_ignorable_patterns = features.SerialConsole.panic_ignorable_patterns + [
+        re.compile(r"^(.*firmware bug.*)$", re.MULTILINE | re.IGNORECASE),
+    ]
+
     def __init__(
         self, settings: FeatureSettings, node: Node, platform: Platform
     ) -> None:
@@ -64,47 +73,75 @@ class RackManagerSerialConsole(features.SerialConsole):
         self._username = client.connection.username
         self._password = client.connection.password
 
+    def _get_prompt_state(self, output_offset: int = 0) -> str:
+        output = self._get_console_log(saved_path=None).decode("utf-8", errors="ignore")
+        output = output[output_offset:]
+        prompt = output.rstrip()
+        if prompt.endswith(("$", "#")):
+            return "shell"
+        if prompt.lower().endswith("login:"):
+            return "login"
+        if prompt.lower().endswith("password:"):
+            return "password"
+        return "unknown" if prompt else "empty"
+
+    def _wait_for_prompt_state(self, timeout: int, output_offset: int = 0) -> str:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            state = self._get_prompt_state(output_offset)
+            if state in ("shell", "login", "password"):
+                return state
+        return self._get_prompt_state(output_offset)
+
     def _login(self) -> None:
-        current_output = self._get_console_log(saved_path=None).decode(
-            "utf-8", errors="ignore"
-        )
-        current_prompt = current_output.rstrip()
-        if current_prompt.endswith(("$", "#")):
+        prompt_state = self._get_prompt_state()
+        if prompt_state == "shell":
             return
 
-        if not current_prompt.lower().endswith("login:"):
-            login_found = self._process.wait_output(
-                "login:",
-                timeout=SERIAL_LOGIN_TIMEOUT,
+        for _ in range(SERIAL_PROMPT_WAKE_ATTEMPTS):
+            if prompt_state != "empty" and prompt_state != "unknown":
+                break
+            self._process.input("\n")
+            prompt_state = self._wait_for_prompt_state(SERIAL_PROMPT_WAKE_TIMEOUT)
+
+        if prompt_state == "shell":
+            return
+        if prompt_state in ("empty", "unknown"):
+            prompt_state = self._wait_for_prompt_state(SERIAL_LOGIN_TIMEOUT)
+        if prompt_state in ("empty", "unknown"):
+            raise LisaException(
+                "serial console produced no recognizable shell, login, or password "
+                "prompt after wake attempts"
+            )
+
+        if prompt_state == "login":
+            self._process.input(f"{self._username}\n")
+            password_found = self._process.wait_output(
+                "Password:",
+                timeout=SERIAL_PASSWORD_TIMEOUT,
                 error_on_missing=False,
-                interval=1,
+                interval=0.5,
                 delta_only=True,
             )
-            if not login_found:
-                raise LisaException("serial console login prompt was not found")
-
-        self._process.input(f"{self._username}\n")
-        password_found = self._process.wait_output(
-            "Password:",
-            timeout=10,
-            error_on_missing=False,
-            interval=0.5,
-            delta_only=True,
-        )
-        if password_found:
+            if not password_found:
+                raise LisaException("serial console password prompt was not found")
+            prompt_state = "password"
+        if prompt_state == "password":
+            output_offset = len(
+                self._get_console_log(saved_path=None).decode("utf-8", errors="ignore")
+            )
             self._process.input(f"{self._password}\n")
 
-        # Some serial consoles don't present a standard '$'/'#' prompt reliably.
-        # Treat a repeated login prompt as authentication failure; otherwise continue.
-        login_retry = self._process.wait_output(
-            "login:",
-            timeout=3,
-            error_on_missing=False,
-            interval=0.5,
-            delta_only=True,
-        )
-        if login_retry:
-            raise LisaException("serial console login failed and returned to login prompt")
+        deadline = time.time() + SERIAL_LOGIN_RETRY_TIMEOUT
+        while time.time() < deadline:
+            output = self._get_console_log(saved_path=None).decode(
+                "utf-8", errors="ignore"
+            )
+            if re.search(r"(?im)^.*login:\s*$", output[output_offset:]):
+                raise LisaException(
+                    "serial console login failed and returned to login prompt"
+                )
+            time.sleep(0.5)
 
 
 class RackManagerStartStop(features.StartStop):
@@ -158,8 +195,29 @@ class RackManager(Cluster):
         )
 
     def deploy(self, environment: Environment) -> Any:
-        self.reset("off")
-        self.reset("on")
+        clients = self.rm_runbook.client
+        assert clients, "client is required for rackmanager"
+
+        iso_clients = [client for client in clients if client.iso_name]
+        if not iso_clients:
+            return
+
+        self.connect_to_rack_manager()
+        for client in iso_clients:
+            management_port = client.management_port
+            assert (
+                management_port
+            ), "management_port is required when rackmanager iso_name is set"
+            self.rm_node.execute(
+                f"set system boot -b 0 -m 1 -p 0 -i {management_port} -t 5"
+            ).assert_exit_code()
+            self.rm_node.execute(
+                "set system remotedrive mount -b 0 -m 2 "
+                f"-i {management_port} -n {client.iso_name}"
+            ).assert_exit_code()
+            self.rm_node.execute(
+                f"set sys reset -i {management_port}"
+            ).assert_exit_code()
 
     def reset(self, operation: str) -> None:
         self.connect_to_rack_manager()
