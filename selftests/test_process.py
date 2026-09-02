@@ -4,6 +4,7 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, Mock, patch
 
+import spur
 from assertpy import assert_that
 from paramiko.ssh_exception import SSHException
 
@@ -24,11 +25,14 @@ class ProcessTestCase(TestCase):
         ]
         process = Process("test", shell)
 
-        with patch("retry.api.time.sleep"):
+        with patch("retry.api.time.sleep"), patch(
+            "lisa.util.process.remove_handler"
+        ) as remove_handler:
             process.start("echo test")
 
         assert_that(shell.close.call_count).is_equal_to(1)
         assert_that(shell.spawn.call_count).is_equal_to(2)
+        assert_that(remove_handler.call_count).is_equal_to(2)
         assert_that(process._process).is_same_as(ssh_process)
 
     def test_start_stops_after_inactive_ssh_retry_limit(self) -> None:
@@ -40,13 +44,14 @@ class ProcessTestCase(TestCase):
         )
         process = Process("test", shell)
 
-        with patch("retry.api.time.sleep"), self.assertRaises(
-            SshSessionNotActiveException
-        ):
+        with patch("retry.api.time.sleep"), patch(
+            "lisa.util.process.remove_handler"
+        ) as remove_handler, self.assertRaises(SshSessionNotActiveException):
             process.start("echo test")
 
         assert_that(shell.close.call_count).is_equal_to(3)
         assert_that(shell.spawn.call_count).is_equal_to(3)
+        assert_that(remove_handler.call_count).is_equal_to(6)
 
     def test_shell_converts_inactive_ssh_exception(self) -> None:
         shell = self._create_initialized_ssh_shell()
@@ -70,7 +75,7 @@ class ProcessTestCase(TestCase):
         shell = SshShell.__new__(SshShell)
         shell._is_initialized = True
         shell._inner_shell = MagicMock()
-        shell._inner_shell._spur._shell_type = MagicMock()
+        shell._inner_shell._spur._shell_type = spur.ssh.ShellTypes.sh
         shell.spawn_timeout = 20
         return shell
 
