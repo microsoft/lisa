@@ -115,6 +115,14 @@ VENDOR_ID_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_AMD_GPU: [VENDOR_ID_AMD],
 }
 
+NETWORK_DEVICE_MODULE_DICT: Dict[str, str] = {
+    f"{VENDOR_ID_MICROSOFT}:00ba": "mana",
+    f"{VENDOR_ID_MELLANOX}:1004": "mlx4_core",
+    f"{VENDOR_ID_MELLANOX}:1016": "mlx5_core",
+    f"{VENDOR_ID_MELLANOX}:1018": "mlx5_core",
+    f"{VENDOR_ID_MELLANOX}:101a": "mlx5_core",
+}
+
 CONTROLLER_ID_DICT: Dict[str, List[str]] = {
     constants.DEVICE_TYPE_SRIOV: [
         "0200",  # Ethernet controller
@@ -386,6 +394,10 @@ class Lspci(Tool):
         )
         matched = get_matched_str(result.stdout, PATTERN_MODULE_IN_USE)
         return matched
+
+    def get_network_device_module(self, device: PciDevice) -> str:
+        pci_id = f"{device.vendor_id}:{device.device_id}".lower()
+        return NETWORK_DEVICE_MODULE_DICT.get(pci_id, "")
 
     def get_gpu_devices(self, force_run: bool = False) -> List[PciDevice]:
         class_names = DEVICE_TYPE_DICT[constants.DEVICE_TYPE_GPU]

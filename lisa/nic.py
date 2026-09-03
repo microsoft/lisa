@@ -144,16 +144,6 @@ class Nics(InitializableMixin):
         ),
     }
 
-    # The PCI device may be visible even when its driver fails to load. Keep this
-    # mapping here so callers can identify the expected driver in either state.
-    _sriov_device_driver_map = {
-        "1414:00ba": "mana",
-        "15b3:1004": "mlx4_core",
-        "15b3:1016": "mlx5_core",
-        "15b3:1018": "mlx5_core",
-        "15b3:101a": "mlx5_core",
-    }
-
     def __init__(self, node: "Node"):
         super().__init__()
         self._node = node
@@ -247,12 +237,12 @@ class Nics(InitializableMixin):
             if module_name in self._device_module_map and module_name not in drivers:
                 drivers.append(module_name)
 
-        pci_devices = self._node.tools[Lspci].get_devices_by_type(
+        lspci = self._node.tools[Lspci]
+        pci_devices = lspci.get_devices_by_type(
             constants.DEVICE_TYPE_SRIOV, force_run=True
         )
         for pci_device in pci_devices:
-            pci_id = f"{pci_device.vendor_id}:{pci_device.device_id}".lower()
-            driver = self._sriov_device_driver_map.get(pci_id)
+            driver = lspci.get_network_device_module(pci_device)
             if driver and driver not in drivers:
                 drivers.append(driver)
 
