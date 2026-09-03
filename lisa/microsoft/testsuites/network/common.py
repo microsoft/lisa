@@ -18,9 +18,7 @@ _NETWORK_DRIVER_ERROR_PATTERNS: Dict[str, List[Pattern[str]]] = {
         # Sample: mana 7870:00:00.0: gdma probe failed
         re.compile(r"\bmana\s+\S+:\s+gdma probe failed\b", re.IGNORECASE),
         # Sample: mana: probe of 7870:00:00.0 failed with error -71
-        re.compile(
-            r"\bmana:\s+probe of \S+ failed with error\b", re.IGNORECASE
-        ),
+        re.compile(r"\bmana:\s+probe of \S+ failed with error\b", re.IGNORECASE),
     ],
     "mlx4_core": [
         # Sample: mlx4_core 0001:00:00.0: probe with driver mlx4_core failed...
