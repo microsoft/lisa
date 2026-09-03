@@ -7,9 +7,10 @@ from typing import TYPE_CHECKING, Any, cast
 from assertpy import assert_that
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, Debian
 from lisa.tools import Blkid, Cat
 from lisa.util import UnsupportedDistroException, get_matched_str, to_bool
+from lisa.util.process import ExecutableResult
 
 from .grub_config import GrubConfig
 
@@ -35,9 +36,12 @@ class Fips(Tool):
                 return AzlV2Fips(node, args, kwargs)
             if node.os.information.release == "3.0":
                 return AzlV3Fips(node, args, kwargs)
+        if isinstance(node.os, Debian):
+            return Fips(node, args, kwargs)
 
         raise UnsupportedDistroException(
-            os=node.os, message="FIPS tool only supported on CBLMariner 2.0 and 3.0."
+            os=node.os,
+            message="FIPS tool only supports CBLMariner 2.0/3.0 and Debian-based OS.",
         )
 
     def __init__(self, node: "Node", *args: Any, **kwargs: Any) -> None:
@@ -96,11 +100,20 @@ class Fips(Tool):
         This method checks if the dracut-fips package is installed and if the
         kernel FIPS mode is enabled.
         """
-        fips_enabled = self.node.tools[Cat].read(
-            "/proc/sys/crypto/fips_enabled", force_run=True
-        )
+        fips_result = self._get_kernel_fips_mode()
+        return fips_result.exit_code == 0 and to_bool(fips_result.stdout)
 
-        return to_bool(fips_enabled)
+    def is_kernel_fips_supported(self) -> bool:
+        """Return whether the running kernel exposes the FIPS mode interface."""
+        return self._get_kernel_fips_mode().exit_code == 0
+
+    def _get_kernel_fips_mode(self) -> ExecutableResult:
+        fips_result = self.node.tools[Cat].run(
+            "/proc/sys/crypto/fips_enabled",
+            force_run=True,
+            no_error_log=True,
+        )
+        return fips_result
 
     def _enable_fips(self) -> None:
         # dracut-fips provides FIPS support in the bootloader.
