@@ -242,7 +242,7 @@ class Nics(InitializableMixin):
             constants.DEVICE_TYPE_SRIOV, force_run=True
         )
         for pci_device in pci_devices:
-            driver = lspci.get_network_device_module(pci_device)
+            driver = lspci.get_device_module(constants.DEVICE_TYPE_SRIOV, pci_device)
             if driver and driver not in drivers:
                 drivers.append(driver)
 
