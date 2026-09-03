@@ -632,11 +632,9 @@ def generate_testpmd_multiple_port_command(
         # store this senders command
         kit_cmd_pairs[sender] = snd_cmd
         # receiver needs multiple ports, so only generate the include.
-        receiver_include = receiver.testpmd.generate_testpmd_include(
-            receiver_nics[sender_subnet], i, pmd=pmd
+        receiver_includes += receiver.testpmd.generate_testpmd_include(
+            [receiver_nics[sender_subnet]], i, pmd=pmd
         )
-        # and save it
-        receiver_includes += [receiver_include]
 
     # and generate the command with multiple ports for the single receiver:
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
@@ -717,7 +715,11 @@ def set_mtu_for_nics(node: Node, nics: List[NicInfo], mtu: int) -> None:
 def do_pmd_driver_setup(
     node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: Pmd = Pmd.FAILSAFE
 ) -> None:
-    if pmd == Pmd.NETVSC:
+    if pmd == Pmd.MANA:
+        for nic in test_nics:
+            node.tools[Ip].down(nic.name)
+        return
+    elif pmd == Pmd.NETVSC:
         # setup system for netvsc pmd
         # https://doc.dpdk.org/guides/nics/netvsc.html
         enable_uio_hv_generic(node)
@@ -899,13 +901,13 @@ def initialize_node_resources(
 
     test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
 
-    # check an assumption that our nics are bound to hv_netvsc
-    # at test start.
+    # check an assumption that our nics are bound to either
+    # hv_netvsc or mana at test start.
 
     assert_that(test_nic.module_name).described_as(
         f"Error: Expected test nic {test_nic.name} to be "
-        f"bound to hv_netvsc. Found {test_nic.module_name}."
-    ).is_equal_to("hv_netvsc")
+        f"bound to hv_netvsc or mana. Found {test_nic.module_name}."
+    ).is_in(["hv_netvsc", "mana"])
 
     # netvsc pmd requires uio_hv_generic to be loaded before use
 

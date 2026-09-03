@@ -521,6 +521,8 @@ class Pmd(str, Enum):
     # librte_net_netvsc
     # https://doc.dpdk.org/guides/nics/netvsc.html
     NETVSC = "netvsc"
+    # direct use of MANA pmd.
+    MANA = "MANA"
 
 
 # set a threshold for an expected PPS minimum with DPDK.

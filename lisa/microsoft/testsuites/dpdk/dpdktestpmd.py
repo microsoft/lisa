@@ -460,6 +460,32 @@ class DpdkTestpmd(Tool):
 
     def generate_testpmd_include(
         self,
+        nics: List[NicInfo],
+        vdev_id: int,
+        pmd: Pmd,
+    ) -> List[str]:
+        nic_include_infos = []
+        # handle them all at once for mana
+        if pmd == pmd.MANA:
+            macs = []
+            bus_to_mac: Dict[str, List[str]] = {}
+            for nic in nics:
+                bus_to_mac[nic.pci_slot] = [
+                    n.mac_addr for n in nics if n.pci_slot == nic.pci_slot
+                ]
+
+            for bus, macs in bus_to_mac.items():
+                nic_include_infos += [f"--vdev={bus}," + ",".join(macs)]
+        else:
+            for node_nic in nics:
+                nic_include_infos.append(
+                    self._generate_testpmd_include(node_nic, vdev_id, pmd)
+                )
+                vdev_id += 1
+        return nic_include_infos
+
+    def _generate_testpmd_include(
+        self,
         node_nic: NicInfo,
         vdev_id: int,
         pmd: Pmd,
@@ -559,9 +585,13 @@ class DpdkTestpmd(Tool):
 
         # generate the flags for which devices to include in the tests
         nic_include_infos = []
-        for nic in nic_to_include:
-            nic_include_infos += [self.generate_testpmd_include(nic, vdev_id, pmd=pmd)]
-            vdev_id += 1
+
+        if eal_device_args:
+            nic_include_infos += [eal_device_args]
+        else:
+            nic_include_infos += self.generate_testpmd_include(
+                nic_to_include, vdev_id, pmd=pmd
+            )
 
         # infer core count to assign based on number of queues
         threads_available = self.node.tools[Lscpu].get_thread_count()
@@ -639,8 +669,135 @@ class DpdkTestpmd(Tool):
             "Testpmd install path was not set, this indicates a logic"
             " error in the DPDK installation process."
         ).is_not_empty()
-        # add debug logging args, EAL ones are very verbose
-        # but netvsc are useful for identifying hotplugs on azure
+        debug_log_args = self._eal_debug_log_args()
+        nic_includes = " ".join(nic_include_infos)
+        eal_args = f"{core_list} {nic_includes} {debug_log_args}"
+        if file_prefix:
+            eal_args += f" --file-prefix={file_prefix}"
+        if extra_eal_args:
+            eal_args += f" {extra_eal_args.strip()}"
+        return (
+            f"{self._testpmd_install_path} {eal_args} -- --forward-mode={mode} "
+            f"-a --stats-period {stats_period} "
+            f"--nb-cores={forwarding_cores} {extra_args} "
+        )
+
+    def generate_testpmd_secondary_command(
+        self,
+        nic_to_include: List[NicInfo],
+        vdev_id: int,
+        mode: str,
+        file_prefix: str,
+        pmd: Pmd = Pmd.FAILSAFE,
+        proc_id: int = 0,
+        stats_period: int = 2,
+        extra_args: str = "",
+        eal_device_args: str = "",
+    ) -> str:
+        """Generate a testpmd command that attaches as a secondary process.
+
+        Secondary processes share hugepages and device access with the primary
+        via ``--proc-type=secondary``.  The ``file_prefix`` must match the
+        primary so both map the same shared memory region.
+
+        Each secondary gets its own non-overlapping core range.  ``proc_id``
+        is the 0-based index among secondaries on this node.
+        """
+        core_list = self._secondary_core(proc_id, cores_needed=2)
+        self.register_secondary_process(self._testpmd_install_path)
+
+        # build device include flags (same logic as the primary)
+        nic_include_infos = []
+        if eal_device_args:
+            nic_include_infos += [eal_device_args]
+        else:
+            nic_include_infos += self.generate_testpmd_include(
+                nic_to_include, vdev_id, pmd=pmd
+            )
+
+        debug_log_args = self._eal_debug_log_args()
+        nic_includes = " ".join(nic_include_infos)
+        eal_args = (
+            f"-l {core_list} {nic_includes} {debug_log_args} "
+            f"--proc-type=secondary --file-prefix={file_prefix}"
+        )
+        if extra_args:
+            extra_args = extra_args.strip()
+        else:
+            extra_args = ""
+
+        return (
+            f"{self._testpmd_install_path} {eal_args} "
+            f"-- --forward-mode={mode} "
+            f"-a --stats-period {stats_period} "
+            f"--nb-cores=1 {extra_args} "
+        )
+
+    def generate_secondary_proc_info_command(
+        self,
+        file_prefix: str,
+        proc_id: int = 0,
+        stats_period: int = 2,
+    ) -> str:
+        """Generate a dpdk-proc-info command that attaches as a secondary.
+
+        dpdk-proc-info only needs 1 lcore and does no packet processing,
+        making it the lightest possible secondary for maximising process count.
+        """
+        proc_info_path = self._find_dpdk_sibling_binary("dpdk-proc-info")
+        core = 1 << int(self._secondary_core(proc_id, cores_needed=1))
+        self.register_secondary_process(proc_info_path)
+        return (
+            f"{proc_info_path} --log-level app,debug --log-level mana,debug "
+            f"--file-prefix={file_prefix} -- "  # #-p {hex(core)[2:]}"
+            "--stats"
+        )
+
+    def generate_secondary_pdump_command(
+        self,
+        file_prefix: str,
+        proc_id: int = 0,
+    ) -> str:
+        """Generate a dpdk-pdump command that attaches as a secondary.
+
+        dpdk-pdump captures packets to /dev/null so it stays alive without
+        filling disk.  Only needs 1 lcore.
+        """
+        pdump_path = self._find_dpdk_sibling_binary("dpdk-pdump")
+        core = self._secondary_core(proc_id, cores_needed=1)
+        self.register_secondary_process(pdump_path)
+        return (
+            f"{pdump_path} -l {core} "
+            f"--proc-type=secondary --file-prefix={file_prefix} "
+            f"-- --pdump 'port=0,queue=*,rx-dev=/dev/null'"
+        )
+
+    def _secondary_core(self, proc_id: int, cores_needed: int = 1) -> str:
+        """Return a core-list string for a secondary process.
+
+        Walks the NUMA-0 core range and picks the first ``cores_needed``
+        unreserved cores, then marks them as reserved.  This respects
+        whatever the primary already claimed via generate_testpmd_command.
+        """
+        first, last = self.node.tools[Lscpu].get_cpu_range_in_numa_node(0)
+        # all NUMA-0 cores, sorted, excluding already-reserved ones
+        available = sorted(
+            c for c in range(first, last + 1) if c not in self._reserved_cores
+        )
+        if len(available) < cores_needed:
+            raise LisaException(
+                f"Not enough unreserved cores for secondary process {proc_id}. "
+                f"Need {cores_needed} but only {len(available)} available "
+                f"(reserved: {sorted(self._reserved_cores)})."
+            )
+        chosen = available[:cores_needed]
+        self._reserved_cores.update(chosen)
+        if cores_needed == 1:
+            return str(chosen[0])
+        return ",".join(str(c) for c in chosen)
+
+    def _eal_debug_log_args(self) -> str:
+        """Return EAL debug logging flags shared by primary and secondary."""
         debug_logging = []
         # omitting eal even though it's good for debugging some issues.
         # it's extremely verbose.
