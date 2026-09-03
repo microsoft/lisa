@@ -404,6 +404,62 @@ class DeviceRssHashKey:
         self.rss_hash_key = hash_key_pattern.group("value")
 
 
+class DeviceRssIndirectionTable:
+    # The indirection table shares the "ethtool -x" output with the hash key:
+    #   RX flow hash indirection table for eth0 with 4 RX ring(s):
+    #       0:      0     1     2     3     0     1     2     3
+    #       8:      0     1     2     3     0     1     2     3
+    #   RSS hash key:
+    #   6d:5a:56:da:25:5b:0e:c2:...
+    #
+    # The RX ring count in the header and the number of table entries are two
+    # different numbers, for example a 64 entry table spread over 4 rings. Both
+    # are exposed separately so callers do not compare one against the other.
+    _rx_ring_count_pattern = re.compile(
+        r"indirection table for \S+ with (?P<count>\d+) RX ring", re.MULTILINE
+    )
+    # Table rows are "<offset>: <queue> <queue> ...". The RSS hash key line also
+    # contains colons, but its bytes are colon separated, so it can never match
+    # a pattern that allows only digits and blanks up to the end of the line.
+    _table_row_pattern = re.compile(
+        r"^[ \t]*(?P<offset>\d+):(?P<entries>[ \t0-9]+?)[ \t]*\r?$", re.MULTILINE
+    )
+
+    def __init__(self, interface: str, device_rss_info_raw: str) -> None:
+        self._parse_indirection_table(interface, device_rss_info_raw)
+
+    def _parse_indirection_table(self, interface: str, raw_str: str) -> None:
+        ring_count = self._rx_ring_count_pattern.search(raw_str)
+        if not ring_count:
+            raise LisaException(
+                f"Cannot get {interface} RX flow hash indirection table header."
+                " Verify the driver exposes an RSS indirection table through"
+                " 'ethtool -x'."
+            )
+
+        table: List[int] = []
+        last_row_offset = -1
+        last_row_length = 0
+        for row in self._table_row_pattern.finditer(raw_str):
+            last_row_offset = int(row.group("offset"))
+            entries = [int(entry) for entry in row.group("entries").split()]
+            last_row_length = len(entries)
+            table.extend(entries)
+
+        if not table:
+            raise LisaException(
+                f"Cannot get {interface} RSS indirection table entries."
+                " Verify the output format of 'ethtool -x'."
+            )
+
+        self.interface = interface
+        self.rx_ring_count = int(ring_count.group("count"))
+        self.table = table
+        # Expected size derived from the final row offset, used to detect a
+        # truncated or over-reported table.
+        self.indirection_size = last_row_offset + last_row_length
+
+
 class DeviceRxHashLevel:
     # ethtool device rx hash level is in the below format
     # ethtool -n eth0 rx-flow-hash tcp4
@@ -480,6 +536,7 @@ class DeviceSettings:
     device_ringbuffer_settings: Optional[DeviceRingBufferSettings] = None
     device_gro_lro_settings: Optional[DeviceGroLroSettings] = None
     device_rss_hash_key: Optional[DeviceRssHashKey] = None
+    device_rss_indirection_table: Optional[DeviceRssIndirectionTable] = None
     device_rx_hash_level: Optional[DeviceRxHashLevel] = None
     device_sg_settings: Optional[DeviceSgSettings] = None
     device_firmware_version: Optional[str] = None
@@ -819,6 +876,56 @@ class Ethtool(Tool):
         )
 
         return self.get_device_rss_hash_key(interface, force_run=True)
+
+    def get_device_rss_indirection_table(
+        self, interface: str, force_run: bool = False
+    ) -> DeviceRssIndirectionTable:
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_rss_indirection_table:
+            return device.device_rss_indirection_table
+
+        result = self.run(f"-x {interface}", force_run=force_run, shell=True)
+        if (result.exit_code != 0) and _is_unsupported(result):
+            raise UnsupportedOperationException(
+                f"ethtool -x {interface} operation not supported."
+            )
+        result.assert_exit_code(
+            message=f"Couldn't get device {interface} RSS indirection table."
+        )
+        device.device_rss_indirection_table = DeviceRssIndirectionTable(
+            interface, result.stdout
+        )
+
+        return device.device_rss_indirection_table
+
+    def set_device_rss_indirection_table(
+        self, interface: str, spec: str
+    ) -> ExecutableResult:
+        """
+        Apply an RSS indirection table specification, for example
+        "equal 4" or "default". The raw result is returned so callers can
+        assert on rejection of invalid specifications.
+        """
+        return self.run(
+            f"-X {interface} {spec}",
+            sudo=True,
+            force_run=True,
+            shell=True,
+        )
+
+    def change_device_rss_indirection_table(
+        self, interface: str, spec: str
+    ) -> DeviceRssIndirectionTable:
+        result = self.set_device_rss_indirection_table(interface, spec)
+        if (result.exit_code != 0) and _is_unsupported(result):
+            raise UnsupportedOperationException(
+                f"ethtool -X {interface} {spec} operation not supported."
+            )
+        result.assert_exit_code(
+            message=f"Couldn't apply RSS indirection table '{spec}' on {interface}."
+        )
+
+        return self.get_device_rss_indirection_table(interface, force_run=True)
 
     def get_device_rx_hash_level(
         self, interface: str, protocol: str, force_run: bool = False
