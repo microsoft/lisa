@@ -16,7 +16,7 @@ from lisa import (
 )
 from lisa.operating_system import CBLMariner, Debian, Ubuntu
 from lisa.sut_orchestrator.azure.common import METADATA_ENDPOINT
-from lisa.tools import Cat, Curl, Fips
+from lisa.tools import Curl, Fips
 from lisa.tools.grub_config import GrubConfig
 from lisa.util import SkippedException, to_bool
 
@@ -76,6 +76,12 @@ class FipsTests(TestSuite):
     def verify_fips_enablement(self, log: Logger, node: Node) -> None:
         if isinstance(node.os, CBLMariner):
             fips = node.tools[Fips]
+            if not fips.is_kernel_fips_supported():
+                raise SkippedException(
+                    "The running Azure Linux kernel does not expose "
+                    "/proc/sys/crypto/fips_enabled and cannot enable FIPS mode. "
+                    "Use an Azure Linux kernel built with FIPS support."
+                )
             starting_fips_mode = fips.is_kernel_fips_mode()
 
             # Swap the FIPS mode.
@@ -104,10 +110,8 @@ class FipsTests(TestSuite):
         On images with a FIPS kernel but FIPS not enabled, enable it via
         GRUB boot parameters, reboot, and verify. On non-FIPS images, skip.
         """
-        fips_enabled_str = node.tools[Cat].read(
-            "/proc/sys/crypto/fips_enabled", force_run=True
-        )
-        starting_fips_mode = to_bool(fips_enabled_str)
+        fips = node.tools[Fips]
+        starting_fips_mode = fips.is_kernel_fips_mode()
 
         kernel_version = node.execute("uname -r", shell=True).stdout.strip()
         is_fips_kernel = "fips" in kernel_version.lower()
@@ -125,16 +129,16 @@ class FipsTests(TestSuite):
                 f"FIPS kernel '{kernel_version}' detected but FIPS mode "
                 "is not enabled. Enabling fips=1 via GRUB boot parameters."
             )
+            node.mark_dirty()
             node.tools[GrubConfig].set_kernel_cmdline_arg("fips", "1")
             node.reboot()
 
-            fips_after_enable = node.tools[Cat].read(
-                "/proc/sys/crypto/fips_enabled", force_run=True
-            )
-            assert_that(to_bool(fips_after_enable)).described_as(
+            fips_after_enable = fips.is_kernel_fips_mode()
+            assert_that(fips_after_enable).described_as(
                 f"Failed to enable FIPS on kernel '{kernel_version}'. "
-                "Added fips=1 to GRUB_CMDLINE_LINUX but "
-                "/proc/sys/crypto/fips_enabled is still 0."
+                "Added fips=1 to GRUB_CMDLINE_LINUX, but "
+                "/proc/sys/crypto/fips_enabled is missing or not 1. "
+                "Verify that the FIPS kernel and required FIPS packages are installed."
             ).is_true()
             log.info(f"FIPS mode successfully enabled on kernel '{kernel_version}'.")
         else:
