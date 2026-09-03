@@ -15,6 +15,7 @@ from lisa.microsoft.testsuites.device_passthrough.storage_tests import (
     _get_num_jobs,
 )
 from lisa.microsoft.testsuites.performance.common import perf_disk
+from lisa.sut_orchestrator import OPENVMM
 from lisa.sut_orchestrator.util.schema import HostDevicePoolType
 from lisa.tools import Cat, Ls, Lspci
 from lisa.tools.lsblk import DiskInfo, PartitionInfo
@@ -247,6 +248,63 @@ class StoragePassthroughTestCase(TestCase):
         ):
             resolved = suite._resolve_passthrough_nvme_namespace(
                 node, environment, MagicMock()
+            )
+
+        self.assertEqual(("0000:3b:00.0", "0000:06:00.0", "/dev/nvme0n1"), resolved)
+
+    def test_resolves_openvmm_nvme_from_passthrough_context(self) -> None:
+        assigned_device = MagicMock(domain="0000", bus="3b", slot="00", function="0")
+        passthrough_context = MagicMock(
+            pool_type=HostDevicePoolType.PCI_NVME,
+            requested_count=1,
+            device_list=[assigned_device],
+        )
+
+        host_lspci = MagicMock()
+        host_lspci.get_devices_by_type.return_value = [MagicMock(slot="0000:3b:00.0")]
+        host_cat = MagicMock()
+        host_cat.read.side_effect = lambda path, **_: (
+            "0x144d" if path.endswith("/vendor") else "0xa821"
+        )
+        host_node = MagicMock()
+        host_node.tools.__getitem__.side_effect = {
+            Lspci: host_lspci,
+            Cat: host_cat,
+        }.__getitem__
+        node_context = MagicMock(
+            passthrough_devices=[passthrough_context],
+            host=host_node,
+        )
+
+        guest_lspci = MagicMock()
+        guest_lspci.get_devices_by_type.return_value = [
+            MagicMock(slot="0000:06:00.0", vendor_id="144d", device_id="a821")
+        ]
+        guest_ls = MagicMock()
+        guest_ls.list.side_effect = [
+            ["/sys/bus/pci/devices/0000:06:00.0/nvme/nvme0"],
+            ["/sys/class/nvme/nvme0/nvme0n1"],
+        ]
+        guest_ls.path_exists.return_value = True
+        node = MagicMock()
+        node.type_name.return_value = OPENVMM
+        node.tools.__getitem__.side_effect = {
+            Lspci: guest_lspci,
+            Ls: guest_ls,
+        }.__getitem__
+
+        suite_class = cast(Any, StoragePassthroughPerfTests).__wrapped__
+        suite = object.__new__(suite_class)
+        context_module = ModuleType("lisa.sut_orchestrator.openvmm.context")
+        context_module.__dict__["get_node_context"] = MagicMock(
+            return_value=node_context
+        )
+        with patch.dict(
+            sys.modules,
+            {"lisa.sut_orchestrator.openvmm.context": context_module},
+        ):
+            resolved = suite._resolve_passthrough_nvme_namespace(
+                node, MagicMock(), MagicMock()
             )
 
         self.assertEqual(("0000:3b:00.0", "0000:06:00.0", "/dev/nvme0n1"), resolved)

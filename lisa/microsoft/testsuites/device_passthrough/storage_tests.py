@@ -19,7 +19,7 @@ from lisa import (
 from lisa.messages import DiskSetupType, DiskType
 from lisa.microsoft.testsuites.performance.common import perf_disk
 from lisa.operating_system import Windows
-from lisa.sut_orchestrator import CLOUD_HYPERVISOR
+from lisa.sut_orchestrator import CLOUD_HYPERVISOR, OPENVMM
 from lisa.sut_orchestrator.util.schema import HostDevicePoolType
 from lisa.testsuite import TestResult
 from lisa.tools import Cat, FileSystem, Kill, Ls, Lsblk, Lscpu, Lspci, Mkfs, Mount, Rm
@@ -159,11 +159,11 @@ def _get_disk_safety_issues(
     category="performance",
     description=(
         "Validates visibility and bounded FIO operation on an NVMe namespace "
-        "assigned to a Cloud Hypervisor guest through PCI passthrough."
+        "assigned to a Cloud Hypervisor or OpenVMM guest through PCI passthrough."
     ),
     owner="v-aratakonda",
     requirement=simple_requirement(
-        supported_platform_type=[CLOUD_HYPERVISOR],
+        supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
         unsupported_os=[Windows],
     ),
 )
@@ -181,7 +181,7 @@ class StoragePassthroughPerfTests(TestSuite):
         priority=4,
         timeout=1800,
         requirement=simple_requirement(
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
         ),
         tags=["ai-generated"],
     )
@@ -208,7 +208,7 @@ class StoragePassthroughPerfTests(TestSuite):
         priority=3,
         timeout=TIME_OUT,
         requirement=simple_requirement(
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
         ),
         tags=["ai-generated"],
     )
@@ -232,7 +232,7 @@ class StoragePassthroughPerfTests(TestSuite):
         priority=3,
         timeout=TIME_OUT,
         requirement=simple_requirement(
-            supported_platform_type=[CLOUD_HYPERVISOR],
+            supported_platform_type=[CLOUD_HYPERVISOR, OPENVMM],
         ),
         tags=["ai-generated"],
     )
@@ -328,9 +328,22 @@ class StoragePassthroughPerfTests(TestSuite):
         environment: Environment,
         log: Logger,
     ) -> Tuple[str, str, str]:
-        from lisa.sut_orchestrator.libvirt.context import get_node_context
+        if node.type_name() == OPENVMM:
+            from lisa.sut_orchestrator.openvmm.context import (
+                get_node_context as get_openvmm_node_context,
+            )
 
-        node_context = get_node_context(node)
+            node_context: Any = get_openvmm_node_context(node)
+            host_node = node_context.host
+        else:
+            from lisa.sut_orchestrator.libvirt.context import (
+                get_node_context as get_libvirt_node_context,
+            )
+
+            node_context = get_libvirt_node_context(node)
+            platform = environment.platform
+            host_node = getattr(platform, "host_node", None) if platform else None
+
         nvme_contexts = [
             context
             for context in node_context.passthrough_devices
@@ -346,15 +359,13 @@ class StoragePassthroughPerfTests(TestSuite):
                 f"PCI_NVME device; requested={requested_count}"
             )
 
-        platform = environment.platform
-        host_node = getattr(platform, "host_node", None) if platform else None
         if host_node is None:
-            raise LisaException("No libvirt host node is available")
+            raise LisaException("No passthrough host node is available")
         host_nvme_bdfs = {
             _normalize_pci_bdf(device.slot)
-            for device in cast(Node, host_node)
-            .tools[Lspci]
-            .get_devices_by_type(DEVICE_TYPE_NVME, force_run=True)
+            for device in host_node.tools[Lspci].get_devices_by_type(
+                DEVICE_TYPE_NVME, force_run=True
+            )
         }
         assigned_bdfs = [
             self._device_address_to_bdf(device) for device in assigned_devices
@@ -370,25 +381,34 @@ class StoragePassthroughPerfTests(TestSuite):
             )
 
         host_bdf = assigned_nvme_bdfs[0]
-        domain = cast(Any, node_context.domain)
-        if domain is None:
-            raise LisaException("No libvirt domain is available for the guest node")
-        try:
-            domain_xml = cast(str, domain.XMLDesc(0))
-        except Exception as error:
-            raise LisaException("Failed to read live libvirt domain XML") from error
-        host_ids = self._get_pci_ids(cast(Node, host_node), host_bdf)
-        guest_bdf = _get_guest_pci_bdf_from_domain_xml(domain_xml, host_bdf)
-        if guest_bdf is None:
+        host_ids = self._get_pci_ids(host_node, host_bdf)
+        if node.type_name() == OPENVMM:
             guest_device = self._get_guest_nvme_device_by_pci_ids(node, host_ids)
             guest_bdf = _normalize_pci_bdf(guest_device.slot)
             log.debug(
-                f"Libvirt omitted the guest PCI address for host NVMe "
-                f"'{host_bdf}'; uniquely resolved guest '{guest_bdf}' by "
-                "matching its vendor/device IDs"
+                f"Uniquely resolved OpenVMM guest NVMe '{guest_bdf}' for host "
+                f"'{host_bdf}' by matching its vendor/device IDs"
             )
         else:
-            guest_device = self._get_guest_nvme_device(node, guest_bdf)
+            domain = cast(Any, node_context.domain)
+            if domain is None:
+                raise LisaException("No libvirt domain is available for the guest node")
+            try:
+                domain_xml = cast(str, domain.XMLDesc(0))
+            except Exception as error:
+                raise LisaException("Failed to read live libvirt domain XML") from error
+            libvirt_guest_bdf = _get_guest_pci_bdf_from_domain_xml(domain_xml, host_bdf)
+            if libvirt_guest_bdf is None:
+                guest_device = self._get_guest_nvme_device_by_pci_ids(node, host_ids)
+                guest_bdf = _normalize_pci_bdf(guest_device.slot)
+                log.debug(
+                    f"Libvirt omitted the guest PCI address for host NVMe "
+                    f"'{host_bdf}'; uniquely resolved guest '{guest_bdf}' by "
+                    "matching its vendor/device IDs"
+                )
+            else:
+                guest_bdf = libvirt_guest_bdf
+                guest_device = self._get_guest_nvme_device(node, guest_bdf)
         guest_ids = (guest_device.vendor_id.lower(), guest_device.device_id.lower())
         if guest_ids != host_ids:
             raise LisaException(
