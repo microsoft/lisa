@@ -639,7 +639,13 @@ class Iperf3(Tool):
 
     def _install_dep_packages(self) -> None:
         if isinstance(self.node.os, CBLMariner):
-            self.node.os.install_packages(["binutils", "glibc-devel"])
+            packages = ["binutils", "glibc-devel"]
+            if self.node.os.information.version >= "4.0.0":
+                # build-essential not available on Azure Linux 4.0
+                packages.extend(["gcc", "make"])
+            else:
+                packages.append("build-essential")
+            self.node.os.install_packages(packages)
 
     def _install_from_src(self) -> None:
         self._install_dep_packages()
