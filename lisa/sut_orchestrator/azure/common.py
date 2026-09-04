@@ -70,7 +70,12 @@ from azure.mgmt.privatedns.models import (
 )
 from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
 from azure.mgmt.storage import StorageManagementClient
-from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters
+from azure.mgmt.storage.models import (
+    DeleteRetentionPolicy,
+    FileServiceProperties,
+    Sku,
+    StorageAccountCreateParameters,
+)
 from azure.storage.blob import (
     BlobClient,
     BlobSasPermissions,
@@ -2293,6 +2298,40 @@ def list_file_shares(
         return []
 
 
+def _disable_share_soft_delete(
+    credential: Any,
+    subscription_id: str,
+    cloud: Cloud,
+    account_name: str,
+    resource_group_name: str,
+    log: Logger,
+) -> None:
+    try:
+        storage_client = get_storage_client(credential, subscription_id, cloud)
+        current_props = storage_client.file_services.get_service_properties(
+            resource_group_name=resource_group_name,
+            account_name=account_name,
+        )
+        retention_policy = current_props.share_delete_retention_policy
+        if retention_policy and retention_policy.enabled:
+            log.debug(
+                f"Disabling share soft-delete on storage account {account_name} "
+                f"to prevent provisioned capacity leaks from previous test runs"
+            )
+            storage_client.file_services.set_service_properties(
+                resource_group_name=resource_group_name,
+                account_name=account_name,
+                parameters=FileServiceProperties(
+                    share_delete_retention_policy=DeleteRetentionPolicy(
+                        enabled=False,
+                    )
+                ),
+            )
+            log.debug(f"Disabled share soft-delete on storage account {account_name}")
+    except Exception as e:
+        log.warning(f"Failed to disable share soft-delete on {account_name}: {e}")
+
+
 def get_or_create_file_share(
     credential: Any,
     subscription_id: str,
@@ -2365,6 +2404,17 @@ def get_or_create_file_share(
             cloud,
             account_name,
             resource_group_name,
+        )
+        # Disable share soft-delete to prevent soft-deleted shares from previous
+        # test runs consuming provisioned capacity, which causes
+        # TotalSharesProvisionedCapacityExceedsAccountLimit errors.
+        _disable_share_soft_delete(
+            credential=credential,
+            subscription_id=subscription_id,
+            cloud=cloud,
+            account_name=account_name,
+            resource_group_name=resource_group_name,
+            log=log,
         )
         all_shares = list(share_service_client.list_shares())
         if file_share_name not in (x.name for x in all_shares):

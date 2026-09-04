@@ -118,6 +118,8 @@ from .common import (
     AZURE_SHARED_RG_NAME,
     AZURE_SUBNET_PREFIX,
     AZURE_VIRTUAL_NETWORK_NAME,
+    NIC_NAME_PATTERN,
+    PATTERN_PUBLIC_IP_NAME,
     SAS_URL_PATTERN,
     AzureArmParameter,
     AzureCapability,
@@ -139,6 +141,7 @@ from .common import (
     get_deployable_storage_path,
     get_environment_context,
     get_marketplace_ordering_client,
+    get_network_client,
     get_node_context,
     get_or_create_storage_container,
     get_primary_ip_addresses,
@@ -737,10 +740,26 @@ class AzurePlatform(Platform):
         assert self._azure_runbook
 
         if not environment_context.resource_group_is_specified:
-            log.info(
-                f"skipped to delete resource group: {resource_group_name}, "
-                f"as it's specified in runbook."
-            )
+            if self._azure_runbook.deploy:
+                log.info(
+                    f"skipped to delete resource group: {resource_group_name}, "
+                    f"as it's specified in runbook. "
+                    f"Deleting individual LISA-created resources instead."
+                )
+                try:
+                    self._delete_nodes_resources(environment, log)
+                except Exception as e:
+                    log.warning(
+                        f"error during per-resource cleanup in "
+                        f"{resource_group_name}: {e}"
+                    )
+            else:
+                log.info(
+                    f"skipped to delete resource group: {resource_group_name}, "
+                    f"as it's specified in runbook. Skipped per-resource "
+                    f"cleanup because LISA reused pre-existing resources "
+                    f"(deploy is false)."
+                )
         elif self._azure_runbook.dry_run:
             log.info(
                 f"skipped to delete resource group: {resource_group_name}, "
@@ -770,6 +789,146 @@ class AzurePlatform(Platform):
                 )
             else:
                 log.debug("not wait deleting")
+
+    def _delete_nodes_resources(self, environment: Environment, log: Logger) -> None:
+        """Delete individual LISA-created resources (VM, NICs, Public IPs,
+        disks) when the resource group is user-specified and should not be
+        deleted as a whole."""
+        environment_context = get_environment_context(environment=environment)
+        resource_group_name = environment_context.resource_group_name
+        compute_client = get_compute_client(self)
+        network_client = get_network_client(self)
+
+        for node in environment.nodes.list():
+            node_context = get_node_context(node)
+            vm_name = node_context.vm_name
+            if not vm_name:
+                continue
+
+            try:
+                vm = compute_client.virtual_machines.get(resource_group_name, vm_name)
+            except ResourceNotFoundError:
+                log.debug(f"VM {vm_name} not found, skipping resource cleanup")
+                continue
+
+            nic_names, public_ip_names = self._collect_vm_network_resources(
+                vm, resource_group_name, network_client, log
+            )
+            os_disk_name, data_disk_names = self._collect_vm_disk_resources(vm)
+
+            # Delete VM first (must be gone before its NICs and disks)
+            log.info(f"deleting VM: {vm_name}")
+            try:
+                operation = compute_client.virtual_machines.begin_delete(
+                    resource_group_name, vm_name
+                )
+                wait_operation(operation, failure_identity=f"delete VM {vm_name}")
+            except Exception as e:
+                log.warning(f"error deleting VM {vm_name}: {e}")
+                # If VM deletion fails, skip dependent resource cleanup
+                continue
+
+            # Delete dependent resources in order: NICs -> Public IPs -> Disks
+            self._delete_resource_list(
+                network_client.network_interfaces,
+                resource_group_name,
+                nic_names,
+                "NIC",
+                log,
+            )
+            self._delete_resource_list(
+                network_client.public_ip_addresses,
+                resource_group_name,
+                public_ip_names,
+                "Public IP",
+                log,
+            )
+            all_disks = ([os_disk_name] if os_disk_name else []) + data_disk_names
+            self._delete_resource_list(
+                compute_client.disks,
+                resource_group_name,
+                all_disks,
+                "Disk",
+                log,
+            )
+
+            log.info(
+                f"finished cleaning up resources for VM {vm_name}: "
+                f"NICs={nic_names}, PublicIPs={public_ip_names}, "
+                f"OSDisk={os_disk_name}, DataDisks={data_disk_names}"
+            )
+
+    @staticmethod
+    def _collect_vm_network_resources(
+        vm: VirtualMachine,
+        resource_group_name: str,
+        network_client: Any,
+        log: Logger,
+    ) -> Tuple[List[str], List[str]]:
+        """Extract NIC names and public IP names from a VM's network
+        profile."""
+        nic_names: List[str] = []
+        public_ip_names: List[str] = []
+        if not (vm.network_profile and vm.network_profile.network_interfaces):
+            return nic_names, public_ip_names
+
+        for nic_ref in vm.network_profile.network_interfaces:
+            nic_name = get_matched_str(nic_ref.id, NIC_NAME_PATTERN)
+            if not nic_name:
+                continue
+            nic_names.append(nic_name)
+            try:
+                nic = network_client.network_interfaces.get(
+                    resource_group_name, nic_name
+                )
+                for ip_config in nic.ip_configurations:
+                    if ip_config.public_ip_address and ip_config.public_ip_address.id:
+                        pip_name = get_matched_str(
+                            ip_config.public_ip_address.id,
+                            PATTERN_PUBLIC_IP_NAME,
+                        )
+                        if pip_name:
+                            public_ip_names.append(pip_name)
+            except Exception as e:
+                log.debug(f"error getting NIC {nic_name} details: {e}")
+
+        return nic_names, public_ip_names
+
+    @staticmethod
+    def _collect_vm_disk_resources(
+        vm: VirtualMachine,
+    ) -> Tuple[str, List[str]]:
+        """Extract OS disk name and data disk names from a VM's storage
+        profile."""
+        os_disk_name = ""
+        data_disk_names: List[str] = []
+        if vm.storage_profile:
+            if vm.storage_profile.os_disk:
+                os_disk_name = vm.storage_profile.os_disk.name
+            if vm.storage_profile.data_disks:
+                data_disk_names = [d.name for d in vm.storage_profile.data_disks]
+        return os_disk_name, data_disk_names
+
+    @staticmethod
+    def _delete_resource_list(
+        client_operations: Any,
+        resource_group_name: str,
+        resource_names: List[str],
+        resource_type: str,
+        log: Logger,
+    ) -> None:
+        """Delete a list of Azure resources using the given client
+        operations (e.g. network_interfaces, public_ip_addresses, disks)."""
+        for name in resource_names:
+            log.info(f"deleting {resource_type}: {name}")
+            try:
+                operation = client_operations.begin_delete(resource_group_name, name)
+                wait_operation(
+                    operation,
+                    failure_identity=f"delete {resource_type} {name}",
+                )
+            except Exception as e:
+                log.debug(f"error deleting {resource_type} {name}: {e}")
 
     def _save_console_log_and_check_panic(
         self,
@@ -1566,6 +1725,23 @@ class AzurePlatform(Platform):
             },
         )
 
+    def _generate_node_name(self, index: int, name_prefix: str) -> str:
+        # the max length of vm name is 64 chars. Below logic takes last 45
+        # chars in resource group name and keep the leading 5 chars.
+        # name_prefix can contain any of customized (existing) or
+        # generated (starts with "lisa-") resource group name,
+        # so, pass the first 5 chars as prefix to truncate_keep_prefix
+        # to handle both cases.
+        # When a resource group is provided by the user, include a
+        # timestamp in the VM name to ensure uniqueness across
+        # multiple deployments into the same resource group.
+        if self._azure_runbook.resource_group_name:
+            time_stamp = get_datetime_path()
+            node_name = f"{name_prefix}-{time_stamp}-n{index}"
+        else:
+            node_name = f"{name_prefix}-n{index}"
+        return truncate_keep_prefix(node_name, 50, node_name[:5])
+
     def _create_node_runbook(
         self,
         index: int,
@@ -1583,14 +1759,7 @@ class AzurePlatform(Platform):
         #  if user gives the vm name, azure_node_runbook.name stores the given user name
         #  if user doesn't give the vm name, it will be filled in initialize_environment
         if self._azure_runbook.deploy and not azure_node_runbook.name:
-            # the max length of vm name is 64 chars. Below logic takes last 45
-            # chars in resource group name and keep the leading 5 chars.
-            # name_prefix can contain any of customized (existing) or
-            # generated (starts with "lisa-") resource group name,
-            # so, pass the first 5 chars as prefix to truncate_keep_prefix
-            # to handle both cases
-            node_name = f"{name_prefix}-n{index}"
-            azure_node_runbook.name = truncate_keep_prefix(node_name, 50, node_name[:5])
+            azure_node_runbook.name = self._generate_node_name(index, name_prefix)
         if azure_node_runbook.name:
             # It's used as computer name only. Windows doesn't support name more
             # than 15 chars
