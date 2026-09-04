@@ -4,6 +4,8 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, call, patch
 
+from semver import VersionInfo
+
 from lisa.operating_system import CBLMariner
 from lisa.tools import Gcc, Git, Make
 from lisa.tools.iperf3 import Iperf3
@@ -29,11 +31,24 @@ class Iperf3TestCase(TestCase):
 
     def test_source_build_installs_cbl_mariner_linker_dependencies(self) -> None:
         cbl_mariner = MagicMock(spec=CBLMariner)
+        cbl_mariner.information.version = VersionInfo.parse("3.0.0")
         iperf3 = Iperf3.__new__(Iperf3)
         iperf3.node = MagicMock(os=cbl_mariner)
 
         iperf3._install_dep_packages()
 
         cbl_mariner.install_packages.assert_called_once_with(
-            ["binutils", "glibc-devel"]
+            ["binutils", "glibc-devel", "build-essential"]
+        )
+
+    def test_source_build_installs_azure_linux_4_dependencies(self) -> None:
+        azure_linux = MagicMock(spec=CBLMariner)
+        azure_linux.information.version = VersionInfo.parse("4.0.0")
+        iperf3 = Iperf3.__new__(Iperf3)
+        iperf3.node = MagicMock(os=azure_linux)
+
+        iperf3._install_dep_packages()
+
+        azure_linux.install_packages.assert_called_once_with(
+            ["binutils", "glibc-devel", "gcc", "make"]
         )
