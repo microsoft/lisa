@@ -511,6 +511,21 @@ class Ntttcp(Tool):
         other_fields["sender_cycles_per_byte"] = client_result.cycles_per_byte
         other_fields["receiver_cycles_rer_byte"] = server_result.cycles_per_byte
 
+        self._log.info(
+            "NTTTCP TCP result: "
+            f"connections={connections_num}, "
+            f"throughput={client_result.throughput_in_gbps} Gbps, "
+            f"latency={latency} us, "
+            f"retrans_segments={client_result.retrans_segs}, "
+            f"tx_packets={client_result.tx_packets}, "
+            f"rx_packets={server_result.rx_packets}, "
+            f"connections_created_time="
+            f"{client_result.connections_created_time} us, "
+            f"sender_cycles_per_byte={client_result.cycles_per_byte}, "
+            f"receiver_cycles_per_byte={server_result.cycles_per_byte}, "
+            f"client_mtu={client_mtu}, server_mtu={server_mtu}"
+        )
+
         # Send unified performance messages
         self.send_ntttcp_tcp_unified_perf_messages(
             server_result,
@@ -559,6 +574,18 @@ class Ntttcp(Tool):
             100
             * (client_result.throughput_in_gbps - server_result.throughput_in_gbps)
             / client_result.throughput_in_gbps
+        )
+
+        self._log.info(
+            "NTTTCP UDP result: "
+            f"connections={connections_num}, "
+            f"tx_throughput={client_result.throughput_in_gbps} Gbps, "
+            f"rx_throughput={server_result.throughput_in_gbps} Gbps, "
+            f"data_loss={other_fields['data_loss']}%, "
+            f"connections_created_time="
+            f"{client_result.connections_created_time} us, "
+            f"receiver_cycles_per_byte={server_result.cycles_per_byte}, "
+            f"client_mtu={client_mtu}, server_mtu={server_mtu}"
         )
 
         # Send unified performance messages
