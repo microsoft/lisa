@@ -30,6 +30,7 @@ import requests
 from assertpy import assert_that
 from azure.core.credentials import AccessToken, TokenCredential
 from azure.core.exceptions import HttpResponseError, ResourceExistsError
+from azure.core.pipeline.policies import RetryPolicy
 from azure.keyvault.certificates import (
     CertificateClient,
     CertificatePolicy,
@@ -1739,6 +1740,12 @@ def get_network_client(platform: "AzurePlatform") -> NetworkManagementClient:
         subscription_id=platform.subscription_id,
         base_url=platform.cloud.endpoints.resource_manager,
         credential_scopes=[platform.cloud.endpoints.resource_manager + "/.default"],
+        retry_policy=RetryPolicy(
+            retry_total=10,
+            retry_connect=10,
+            retry_status=5,
+            timeout=180,  # absolute retry timeout of 3 minutes
+        ),
     )
 
 
