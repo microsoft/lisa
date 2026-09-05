@@ -418,6 +418,18 @@ class Iperf3(Tool):
                 "retransmits"
             ]
 
+        self._log.info(
+            "iperf3 TCP result: "
+            f"connections={connections_num}, "
+            f"tx_throughput={other_fields['tx_throughput_in_gbps']} Gbps, "
+            f"rx_throughput={other_fields['rx_throughput_in_gbps']} Gbps, "
+            f"congestion_window="
+            f"{other_fields['congestion_windowsize_kb']} KB, "
+            f"retransmitted_segments="
+            f"{other_fields.get('retransmitted_segments', 0)}, "
+            f"buffer_size={buffer_length} bytes"
+        )
+
         # Send unified performance messages
         self.send_iperf3_tcp_unified_perf_messages(
             other_fields,
@@ -509,6 +521,15 @@ class Iperf3(Tool):
         )
         other_fields["send_buffer_size"] = Decimal(buffer_length)
         other_fields["connections_num"] = connections_num
+
+        self._log.info(
+            "iperf3 UDP result: "
+            f"connections={connections_num}, "
+            f"tx_throughput={other_fields['tx_throughput_in_gbps']} Gbps, "
+            f"rx_throughput={other_fields['rx_throughput_in_gbps']} Gbps, "
+            f"data_loss={other_fields['data_loss']}%, "
+            f"send_buffer_size={buffer_length} bytes"
+        )
 
         # Send unified performance messages
         self.send_iperf3_udp_unified_perf_messages(
