@@ -445,6 +445,13 @@ class SshSpawnTimeoutException(LisaException):
     """
 
 
+class SshSessionNotActiveException(LisaException):
+    """
+    This exception indicates that an SSH transport became inactive while
+    opening a command channel.
+    """
+
+
 class ContextMixin:
     def get_context(self, context_type: Type[T]) -> T:
         if not hasattr(self, "_context"):
