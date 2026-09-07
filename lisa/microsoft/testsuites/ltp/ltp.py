@@ -443,6 +443,7 @@ class Ltp(Tool):
                 "kernel-headers",
                 "binutils",
                 "diffutils",
+                "gawk",
                 "glibc-devel",
             ]
             if self.node.os.information.version >= "4.0.0":
