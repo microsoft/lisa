@@ -131,6 +131,7 @@ def perf_disk(
     overwrite: bool = False,
     ioengine: IoEngine = IoEngine.LIBAIO,
     cwd: Optional[pathlib.PurePath] = None,
+    fio_modes: Optional[List[str]] = None,
 ) -> None:
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
@@ -148,7 +149,8 @@ def perf_disk(
     # This limitation is only needed for 'libaio' ioengine but not for 'io_uring'.
     if ioengine == IoEngine.LIBAIO:
         numjob = min(numjob, 256)
-    for mode in FIOMODES:
+    modes = [mode.name for mode in FIOMODES] if fio_modes is None else fio_modes
+    for mode in modes:
         iodepth = start_iodepth
         numjobindex = 0
         while iodepth <= max_iodepth:
@@ -157,7 +159,7 @@ def perf_disk(
             fio_result = fio.launch(
                 name=f"iteration{numjobiterator}",
                 filename=filename,
-                mode=mode.name,
+                mode=mode,
                 time=time,
                 size_gb=size_mb,
                 block_size=f"{block_size}K",
