@@ -444,6 +444,7 @@ class Ltp(Tool):
                     "kernel-headers",
                     "binutils",
                     "diffutils",
+                    "gawk",
                     "glibc-devel",
                     "zlib-devel",
                 ]

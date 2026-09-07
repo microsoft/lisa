@@ -23,6 +23,7 @@ class ClientSchema:
 @dataclass
 class RackManagerClientSchema(ClientSchema):
     management_port: Optional[int] = field(default=-1)
+    iso_name: str = ""
 
 
 @dataclass_json()
