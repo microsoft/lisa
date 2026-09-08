@@ -464,6 +464,11 @@ class DpdkTestpmd(Tool):
         descriptions = "|".join(re.escape(event) for event in events)
         return re.compile(rf"Port\s+{port_id}:\s+(?:{descriptions})\s+event")
 
+    # testpmd --help entry for the --tx-ip flag, the per-port form
+    # (--tx-ip=[port:]src,dst) is not upstream yet.
+    _tx_ip_help_regex = re.compile(r"--tx-ip=")
+    _multi_port_tx_ip_help_regex = re.compile(r"--tx-ip=\[\s*port\s*:\s*\]")
+
     _source_build_dest_dir = "/usr/local/bin"
 
     @property
@@ -493,6 +498,41 @@ class DpdkTestpmd(Tool):
 
         # black doesn't like to direct return VersionInfo comparison
         return bool(self.get_dpdk_version() >= "19.11.0")
+
+    def has_multi_port_tx_ip_flag(self) -> bool:
+        # The per-port form of --tx-ip (--tx-ip=[port:]src,dst) is not
+        # available in upstream DPDK yet. It allows a distinct src/dst
+        # address pair to be assigned to each DPDK port, which is required
+        # to run a txonly test with more than one port.
+        # see https://github.com/mcgov/dpdk-next-net
+        #   commit cf3a5d459a9484a5cd055f1552a456bc8ce1e45e
+        if not hasattr(self, "_has_multi_port_tx_ip"):
+            # NOTE: '--help' before the '--' separator is consumed by the EAL,
+            # which may exit before testpmd prints its own usage. If the
+            # testpmd usage is not in the output, ask for it again after the
+            # separator so the application argument parser prints it.
+            help_output = self._get_testpmd_usage(f"{self.command} --help")
+            if self._tx_ip_help_regex.search(help_output) is None:
+                help_output = self._get_testpmd_usage(
+                    f"{self.command} -- --help", sudo=True
+                )
+            assert_that(self._tx_ip_help_regex.search(help_output)).described_as(
+                "Could not find the --tx-ip flag in the testpmd usage output. "
+                "The testpmd usage information is needed to check whether this "
+                "dpdk build supports assigning an ip address pair per port."
+            ).is_not_none()
+            self._has_multi_port_tx_ip = bool(
+                self._multi_port_tx_ip_help_regex.search(help_output)
+            )
+        return bool(self._has_multi_port_tx_ip)
+
+    def _get_testpmd_usage(self, command: str, sudo: bool = False) -> str:
+        # testpmd prints usage to stdout and the EAL prints to stderr,
+        # the caller just wants whatever usage text was produced.
+        usage_output = self.node.execute(
+            command, sudo=sudo, no_debug_log=True, no_info_log=True
+        )
+        return usage_output.stdout + usage_output.stderr
 
     def use_package_manager_install(self) -> bool:
         assert_that(hasattr(self, "_dpdk_source")).described_as(
@@ -606,6 +646,7 @@ class DpdkTestpmd(Tool):
         service_cores: int = 1,
         mtu: int = 0,
         mbuf_size: int = 0,
+        eal_device_args: str = "",
         stats_period: int = 2,
     ) -> str:
         #   testpmd \
@@ -633,9 +674,15 @@ class DpdkTestpmd(Tool):
         txd = 256
 
         # generate the flags for which devices to include in the tests
-        nic_include_infos = self.generate_testpmd_include(
-            nic_to_include, vdev_id, pmd=pmd
-        )
+        # eal_device_args allows a caller which has already resolved the
+        # EAL device arguments (ex: with the devname helper app) to reuse them,
+        # this guarantees the DPDK port ids match the ones the caller resolved.
+        if eal_device_args:
+            nic_include_infos = [eal_device_args]
+        else:
+            nic_include_infos = self.generate_testpmd_include(
+                nic_to_include, vdev_id, pmd=pmd
+            )
 
         # one forwarding core per queue per port: this is the only place a
         # caller with more than one nic (i.e. a multi-port test) differs from

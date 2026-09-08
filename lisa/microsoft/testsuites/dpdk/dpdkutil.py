@@ -1,3 +1,4 @@
+import ipaddress
 import itertools
 import re
 from decimal import Decimal
@@ -23,7 +24,11 @@ from microsoft.testsuites.dpdk.common import (
     is_url_for_tarball,
     update_kernel_from_repo,
 )
-from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
+from microsoft.testsuites.dpdk.dpdktestpmd import (
+    PACKAGE_MANAGER_SOURCE,
+    DpdkPortStats,
+    DpdkTestpmd,
+)
 from microsoft.testsuites.dpdk.rdmacore import (
     RDMA_CORE_MANA_DEFAULT_SOURCE,
     RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES,
@@ -264,6 +269,43 @@ def rescan_pci_bus(node: Node) -> None:
     )
 
 
+class DpdkForwardingMode(str, Enum):
+    """Forwarding mode for a multi-port test run."""
+
+    TXONLY = "txonly"
+    RXONLY = "rxonly"
+    SEND_RECEIVE = "send_receive"
+
+
+class TestPlan(str, Enum):
+    """Whether a multi-port run uses one VM or a sender/receiver pair."""
+
+    SINGLE_NODE = "SINGLE_NODE"
+    MULTIPLE_NODES = "MULTIPLE_NODES"
+
+
+class DpdkHotplugTarget(str, Enum):
+    """
+    Which side of a send/receive run should have its VFs hotplugged.
+    Kept separate from the test flow so new hotplug variants only need
+    to pass a different target.
+    """
+
+    NONE = "none"
+    SENDER = "sender"
+    RECEIVER = "receiver"
+    ALL = "both"
+
+    def includes_sender(self) -> bool:
+        return self in (DpdkHotplugTarget.SENDER, DpdkHotplugTarget.ALL)
+
+    def includes_receiver(self) -> bool:
+        return self in (DpdkHotplugTarget.RECEIVER, DpdkHotplugTarget.ALL)
+
+    def is_enabled(self) -> bool:
+        return self != DpdkHotplugTarget.NONE
+
+
 def switch_sriov_for_nic(node: Node, test_nic: NicInfo) -> None:
     switch_sriov_for_nics(node, [test_nic])
 
@@ -369,16 +411,15 @@ def generate_send_receive_run_info(
     snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
-        check_nic = sender.node.nics.get_primary_nic().lower
+        run_in_parallel(
+            [
+                partial(_validate_and_set_mtu_for_kit, sender, [snd_nic], set_mtu),
+                partial(_validate_and_set_mtu_for_kit, receiver, [rcv_nic], set_mtu),
+            ]
+        )
+        check_nic = snd_nic.lower if snd_nic.lower else snd_nic.name
         maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
-        if not maxmtu:
-            raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
-        maxmtu_int = int(maxmtu)
-        if set_mtu > maxmtu_int:
-            raise SkippedException(
-                "Requested MTU size exceeds max mtu for DPDK mtu test: "
-                f"{set_mtu} > {maxmtu}."
-            )
+        maxmtu_int = int(maxmtu) if maxmtu else 0
     else:
         maxmtu_int = 0
     snd_cmd = sender.testpmd.generate_testpmd_command(
@@ -411,6 +452,225 @@ def generate_send_receive_run_info(
     return kit_cmd_pairs
 
 
+def generate_multi_port_send_receive_run_info(
+    pmd: Pmd,
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+    sender_nics: List[NicInfo],
+    receiver_nics: List[NicInfo],
+    queues: int = 1,
+    use_service_cores: int = 1,
+    set_mtu: int = 0,
+    stats_period: int = 2,
+) -> Tuple[Dict[DpdkTestResources, str], Dict[DpdkTestResources, Dict[int, NicInfo]]]:
+    """
+    Generate a txonly/rxonly testpmd command pair which uses more than one
+    port on each node. sender_nics[i] and receiver_nics[i] are on the same
+    subnet, so each sender port transmits to the matching port on the receiver.
+
+    Each port is assigned its own dedicated block of ``queues`` forwarding
+    cores (one core per queue per port), so the forwarding core count for
+    this multi-port command scales with the port count, unlike the
+    single-port helpers.
+
+    Returns the commands for each kit and the dpdk port id -> nic mapping
+    used to build them, so the caller can grade each port individually.
+    """
+    assert_that(len(sender_nics)).described_as(
+        "Test bug: sender and receiver need an equal number of test nics."
+    ).is_equal_to(len(receiver_nics))
+    assert_that(len(sender_nics)).described_as(
+        "Test bug: the multiple port send/receive test needs more than one nic."
+    ).is_greater_than(1)
+
+    # for MTU test: check that we can fetch the max MTU size for the NIC
+    if set_mtu:
+        run_in_parallel(
+            [
+                partial(_validate_and_set_mtu_for_kit, sender, sender_nics, set_mtu),
+                partial(
+                    _validate_and_set_mtu_for_kit, receiver, receiver_nics, set_mtu
+                ),
+            ]
+        )
+        first_nic = sender_nics[0]
+        check_nic = first_nic.lower if first_nic.lower else first_nic.name
+        maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
+        maxmtu_int = int(maxmtu) if maxmtu else 0
+    else:
+        maxmtu_int = 0
+
+    # DPDK assigns port ids at probe time, the order does not necessarily
+    # match the order of the EAL device arguments. Use the devname helper app
+    # to get the real port id for each nic (and the EAL args which produce
+    # exactly those port ids).
+    eal_args: Dict[DpdkTestResources, str] = dict()
+    port_maps: Dict[DpdkTestResources, Dict[int, NicInfo]] = dict()
+    nic_ports: Dict[DpdkTestResources, Dict[str, int]] = dict()
+    for kit, nics in [(sender, sender_nics), (receiver, receiver_nics)]:
+        devname = DpdkDevnameInfo(kit.testpmd)
+        devname.get_port_info(nics, expect_ports=len(nics))
+        eal_args[kit] = devname.nic_args
+        nic_ports[kit] = dict()
+        port_maps[kit] = dict()
+        for nic in nics:
+            mac_addr = nic.mac_addr.lower()
+            assert_that(devname.nic_port_info).described_as(
+                f"dpdk-devname did not report a port id for {nic.name} "
+                f"({mac_addr}) on {kit.node.name}, the per-port test "
+                "arguments cannot be generated."
+            ).contains_key(mac_addr)
+            nic_ports[kit][mac_addr] = devname.nic_port_info[mac_addr]
+            port_maps[kit][devname.nic_port_info[mac_addr]] = nic
+        _log_port_assignment(kit, port_maps[kit])
+
+    # one --tx-ip per port so each sender port uses the address pair for
+    # its own subnet. NOTE: the per-port form of --tx-ip is not upstream yet,
+    # see DpdkTestpmd.has_multi_port_tx_ip_flag.
+    tx_ip_args = [
+        (
+            f"--tx-ip={nic_ports[sender][snd_nic.mac_addr.lower()]}:"
+            f"{snd_nic.ip_addr},{rcv_nic.ip_addr}"
+        )
+        for snd_nic, rcv_nic in zip(sender_nics, receiver_nics)
+    ]
+
+    snd_cmd = sender.testpmd.generate_testpmd_command(
+        sender_nics,
+        0,
+        "txonly",
+        pmd=pmd,
+        extra_args=" ".join(tx_ip_args),
+        queues=queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+        eal_device_args=eal_args[sender],
+        stats_period=stats_period,
+    )
+    rcv_cmd = receiver.testpmd.generate_testpmd_command(
+        receiver_nics,
+        0,
+        "rxonly",
+        pmd=pmd,
+        queues=queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+        eal_device_args=eal_args[receiver],
+        stats_period=stats_period,
+    )
+
+    return {sender: snd_cmd, receiver: rcv_cmd}, port_maps
+
+
+def _log_port_assignment(kit: DpdkTestResources, port_map: Dict[int, NicInfo]) -> None:
+    kit.node.log.debug(
+        "DPDK port assignment: "
+        + ", ".join(
+            f"port {port_id}={nic.name}/{nic.ip_addr}"
+            for port_id, nic in sorted(port_map.items())
+        )
+    )
+
+
+def _validate_and_set_mtu_for_kit(
+    kit: DpdkTestResources, nics: List[NicInfo], mtu: int
+) -> None:
+    """
+    Validate the requested MTU is supported by the kit's nics and apply it.
+
+    Raises:
+        SkippedException: If MTU validation fails
+    """
+    if not nics:
+        return
+
+    # Check max MTU for the nics in the test kit
+    validate_mtu_size_for_nic_type(kit.node, mtu=mtu)
+    # Set MTU on all NICs for this kit
+    set_mtu_for_nics(kit.node, nics, mtu)
+
+
+def validate_mtu_size_for_nic_type(node: Node, mtu: int) -> None:
+    if mtu == 0:
+        return
+    validated = False
+    vendor = ""
+    info = ""
+    # then verify the MTU size is supported
+    for nic in node.tools[Lspci].get_devices_by_type(DEVICE_TYPE_SRIOV, force_run=True):
+        # verify mtu is not too large for the NIC
+        # there should only be a single item in this list
+        ethdevs = [
+            dev.lower for dev in node.nics.nics.values() if dev.pci_slot == nic.slot
+        ]
+        if not ethdevs:
+            break
+        ethdev = ethdevs[0]
+        maxmtu = node.tools[Ip].get_detail(ethdev, "maxmtu")
+        if not maxmtu:
+            raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
+        maxmtu_int = int(maxmtu)
+        if mtu > maxmtu_int:
+            raise SkippedException(
+                "Requested MTU size exceeds max mtu for DPDK mtu test: "
+                f"{mtu} > {maxmtu}."
+            )
+        node.log.debug(f"nic info found as: {str(nic)}")
+        info = nic.device_info.lower()
+        vendor = nic.vendor
+        # restict jumbo frame to supported sizes for that nic
+        # I'm attempting to strike a balance between not breaking when a new nic
+        # is encountered and enforcing restrictions that I know about.
+        #
+        # Connect-X3 has a hard 'only 1500' restriction,
+        # Connect-X4 and X5 both support 1400,1500, 2k, 4k and 9k
+        if "Mellanox" in vendor:
+            if "connect-x3" in info:
+                validated = mtu == 1500
+            else:
+                validated = mtu in [1400, 1500, 4000]
+        # mana and the rest of the mlx nics have better jumbo support.
+        # So we'll be more permissive with the validation.
+        # We're still restricting the value based on whatever the test case calls
+        # for, so we shouldn't have any surprises here unless a new NIC is
+        # encountered (i.e. CX6+)
+        #
+        # If you find this comment because some jumbo test is failing,
+        # check the nic type and the supported MTU size list from the manufacturer
+        # to see if the size that is failing isn't supported by the NIC.
+        #
+        # note the supported max size for cx4, cx5, and MANA is 9k
+        # but I'll trust `ip` to give us the right max mtu to future proof
+        # this check. Also in case we add a larger jumbo test later.
+        else:
+            validated = mtu >= 1400 and mtu <= maxmtu_int
+    # if there is an unknown nic, we should skip the mtu tests until it's added
+    if not validated:
+        if vendor and info:
+            err_msg = (
+                f"This MTU test size ({mtu})"
+                f" is not supported for this nic: {vendor, info}"
+            )
+        else:
+            err_msg = "Could not locate MTU information on this node, skipping..."
+        raise SkippedException(err_msg)
+
+
+def set_mtu_for_nics(node: Node, nics: List[NicInfo], mtu: int) -> None:
+    """
+    Set MTU for a list of network interfaces on the given node.
+    """
+    validate_mtu_size_for_nic_type(node=node, mtu=mtu)
+    ip_tool = node.tools[Ip]
+    for nic in nics:
+        ip_tool.set_mtu(nic.name, mtu, assert_success=False)
+        if nic.lower:
+            ip_tool.set_mtu(nic.lower, mtu)
+        node.log.debug(f"Set MTU to {mtu} for interface {nic.name}")
+
+
 def generate_testpmd_multiple_port_command(
     pmd: Pmd,
     senders: List[DpdkTestResources],
@@ -439,18 +699,24 @@ def generate_testpmd_multiple_port_command(
 
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
-        for sender in senders:
-            # fixme: this will break with mana direct vf
-            check_nic = sender_nics[sender].lower
-            maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
-            if not maxmtu:
-                raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
-            maxmtu_int = int(maxmtu)
-            if set_mtu > maxmtu_int:
-                raise SkippedException(
-                    "Requested MTU size exceeds max mtu for DPDK mtu test: "
-                    f"{set_mtu} > {maxmtu}."
-                )
+        # Build list of (kit, nics) pairs for parallel validation and configuration
+        kit_nic_pairs = [(sender, [sender_nics[sender]]) for sender in senders] + [
+            (receiver, list(receiver_nics.values()))
+        ]
+        run_in_parallel(
+            [
+                partial(_validate_and_set_mtu_for_kit, kit, nics, set_mtu)
+                for kit, nics in kit_nic_pairs
+            ]
+        )
+
+        # the mbuf size is derived from the max mtu, any of the test nics
+        # will report the same value.
+        first_sender = senders[0]
+        first_nic = sender_nics[first_sender]
+        check_nic = first_nic.lower if first_nic.lower else first_nic.name
+        maxmtu = first_sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
+        maxmtu_int = int(maxmtu) if maxmtu else 0
     else:
         maxmtu_int = 0
     kit_cmd_pairs: Dict[DpdkTestResources, str] = dict()
@@ -696,6 +962,30 @@ def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None
             )
 
 
+def check_multi_port_send_receive_compatibility(
+    test_kits: List[DpdkTestResources],
+) -> None:
+    # a multiple port txonly run needs a source/destination address pair
+    # for each port, which requires the per-port form of --tx-ip.
+    # It is not upstream yet, so it is only available when building
+    # dpdk from a source which carries the patch. ex:
+    # dpdk_source: https://github.com/mcgov/dpdk-next-net.git
+    check_send_receive_compatibility(test_kits)
+    for kit in test_kits:
+        if isinstance(kit.testpmd.installer, PackageManagerInstall):
+            raise SkippedException(
+                "The multiple port send/receive test requires a dpdk source "
+                "build which supports the per-port --tx-ip flag."
+            )
+        if not kit.testpmd.has_multi_port_tx_ip_flag():
+            raise UnsupportedPackageVersionException(
+                kit.node.os,
+                "dpdk",
+                kit.testpmd.get_dpdk_version(),
+                "--tx-ip=[port:]src,dst flag for per-port ip addresses",
+            )
+
+
 def init_nodes_concurrent(
     environment: Environment,
     log: Logger,
@@ -915,6 +1205,494 @@ def annotate_packet_drops(
         receiver.node.log.debug(f"Could not add rx packet drop percentage: {str(err)}")
 
 
+def _get_multi_port_test_nics(environment: Environment) -> Dict[Node, List[NicInfo]]:
+    # pick one nic per subnet on each node, the index of the nic in the
+    # list is the same on both nodes since the subnet list is shared.
+    nic_list: Dict[Node, List[NicInfo]] = dict()
+    for node in environment.nodes.list():
+        subnets = node.nics.get_subnets()
+        try:
+            nic_list[node] = [
+                node.nics.get_nic_by_subnet(str(subnet))
+                for subnet in subnets
+                if subnet != ipaddress.ip_network("10.0.0.0/24")
+            ]
+        except LisaException as err:
+            subnet_names = ", ".join(str(subnet) for subnet in subnets)
+            raise SkippedException(
+                f"Node {node.name} is missing a test nic, this test needs "
+                f"one nic on each of the subnets: {subnet_names}. {str(err)}"
+            )
+    return nic_list
+
+
+def _trigger_multi_port_hotplug(
+    log: Logger,
+    nic_list: Dict[Node, List[NicInfo]],
+) -> None:
+    # switch_sriov_for_nics does its own settling sleeps around the
+    # remove and rescan, so no extra sleep is needed here.
+    run_in_parallel(
+        [
+            partial(switch_sriov_for_nics, node, nic_list[node])
+            for node in nic_list.keys()
+        ],
+        log,
+    )
+
+
+def _generate_multi_port_single_node_run_info(
+    pmd: Pmd,
+    kit: DpdkTestResources,
+    nics: List[NicInfo],
+    test_fwd_mode: DpdkForwardingMode,
+    queues: int = 1,
+    use_service_cores: int = 1,
+    set_mtu: int = 0,
+    stats_period: int = 2,
+) -> Tuple[str, Dict[int, NicInfo]]:
+    """
+    Generate a testpmd command for a single-node multi-port run (txonly or
+    rxonly). Returns the command string and the dpdk port id -> nic mapping.
+    """
+    if set_mtu:
+        _validate_and_set_mtu_for_kit(kit, nics, set_mtu)
+        first_nic = nics[0]
+        check_nic = first_nic.lower if first_nic.lower else first_nic.name
+        maxmtu = kit.node.tools[Ip].get_detail(check_nic, "maxmtu")
+        maxmtu_int = int(maxmtu) if maxmtu else 0
+    else:
+        maxmtu_int = 0
+
+    devname = DpdkDevnameInfo(kit.testpmd)
+    devname.get_port_info(nics, expect_ports=len(nics))
+    port_map: Dict[int, NicInfo] = dict()
+    for nic in nics:
+        mac_addr = nic.mac_addr.lower()
+        assert_that(devname.nic_port_info).described_as(
+            f"dpdk-devname did not report a port id for {nic.name} "
+            f"({mac_addr}) on {kit.node.name}."
+        ).contains_key(mac_addr)
+        port_map[devname.nic_port_info[mac_addr]] = nic
+    _log_port_assignment(kit, port_map)
+
+    cmd = kit.testpmd.generate_testpmd_command(
+        nics,
+        0,
+        test_fwd_mode.value,
+        pmd=pmd,
+        queues=queues,
+        service_cores=use_service_cores,
+        mtu=set_mtu,
+        mbuf_size=maxmtu_int,
+        eal_device_args=devname.nic_args,
+        stats_period=stats_period,
+    )
+    return cmd, port_map
+
+
+def run_testpmd_consolidated(
+    environment: Environment,
+    log: Logger,
+    variables: Dict[str, Any],
+    pmd: Pmd,
+    hugepage_size: HugePageSize,
+    nic_count: int = 2,
+    use_service_cores: int = 1,
+    queues: int = 1,
+    result: Optional[TestResult] = None,
+    set_mtu: int = 0,
+    hotplug: DpdkHotplugTarget = DpdkHotplugTarget.NONE,
+    test_plan: TestPlan = TestPlan.MULTIPLE_NODES,
+    fwd_mode: Optional[DpdkForwardingMode] = None,
+) -> None:
+    """
+    Multi-port testpmd test. Supports three modes:
+
+    MULTIPLE_NODES (default): two-node sender/receiver test. Each VM has one
+        test nic per subnet, every sender port transmits to its matching
+        peer on the receiver using per-port --tx-ip, and every port is
+        graded individually.
+    SINGLE_NODE + TXONLY: single-node send-only test. Runs txonly on all
+        ports and grades TX throughput per port.
+    SINGLE_NODE + RXONLY: single-node receive-only test. Runs rxonly on all
+        ports and grades RX throughput per port.
+
+    When hotplug names a side, that side's VFs are removed and restored
+    mid-run and graded on removal/recovery behaviour.
+    """
+    assert_that(nic_count).described_as(
+        "Test bug: multiple port send/receive needs at least two test nics."
+    ).is_greater_than(1)
+
+    # the devname helper app is used to resolve dpdk port ids and it only
+    # reports netvsc pmd ports.
+    if pmd != Pmd.NETVSC:
+        raise SkippedException(
+            "The multiple port send/receive test is only implemented "
+            "for the netvsc pmd."
+        )
+
+    # pick one nic per subnet on each node
+    node_test_nics = _get_multi_port_test_nics(environment)
+
+    # get test duration variable if set
+    test_duration: int = variables.get("dpdk_test_duration", 25)
+    test_kits = init_nodes_concurrent(
+        environment,
+        log,
+        variables,
+        pmd,
+        hugepage_size=hugepage_size,
+        specific_pairings=node_test_nics,
+    )
+    if test_plan is TestPlan.SINGLE_NODE:
+        run_info = _prepare_single_node_multi_port_run(
+            log=log,
+            pmd=pmd,
+            test_kits=test_kits,
+            node_test_nics=node_test_nics,
+            fwd_mode=fwd_mode,
+            queues=queues,
+            use_service_cores=use_service_cores,
+            set_mtu=set_mtu,
+            result=result,
+            hotplug=hotplug,
+        )
+    else:
+        run_info = _prepare_two_node_multi_port_run(
+            log=log,
+            pmd=pmd,
+            test_kits=test_kits,
+            node_test_nics=node_test_nics,
+            queues=queues,
+            use_service_cores=use_service_cores,
+            set_mtu=set_mtu,
+            result=result,
+            hotplug=hotplug,
+        )
+
+    test_procs: Dict[DpdkTestResources, Process] = {}
+    for kit in run_info.start_order:
+        test_proc = kit.node.execute_async(run_info.commands[kit], sudo=True)
+        test_proc.wait_output("start packet forwarding")
+        test_procs[kit] = test_proc
+
+    if hotplug.is_enabled():
+        sleep(10)
+        _trigger_multi_port_hotplug(log, nic_list=run_info.hotplug_nics)
+        # let the recovered ports build up a clean run of samples before
+        # testpmd is stopped, otherwise the "after" phase is all noise.
+        sleep(10)
+    else:
+        sleep(test_duration)
+
+    results = dict()
+    for kit in run_info.start_order[::-1]:
+        kit.testpmd.kill_previous_testpmd_command()
+        sleep(10)
+        results[kit] = kit.testpmd.process_testpmd_output(test_procs[kit].wait_result())
+
+    # helpful to have the outputs labeled
+    for kit in run_info.start_order:
+        log.debug(f"\n{run_info.labels[kit]}:\n{results[kit]}")
+        kit.dmesg.check_kernel_errors(force_run=True)
+
+    # grade each port on its own, an aggregate would hide a port
+    # which sent or received nothing at all.
+    for kit in run_info.start_order:
+        if hotplug.is_enabled() and kit is not run_info.graded_kit:
+            continue
+        grade_port_stats(
+            log=log,
+            kit=kit,
+            direction=_get_grading_key(run_info.fwd_modes[kit]),
+            port_map=run_info.port_maps[kit],
+            port_stats=kit.testpmd.get_stats_by_port(),
+            result=result,
+            grade_mode=_select_grade_mode(hotplug, kit in run_info.hotplug_targets),
+        )
+
+
+class _MultiPortRunInfo:
+    """Everything run_testpmd_consolidated needs to start and grade a run."""
+
+    def __init__(
+        self,
+        commands: Dict[DpdkTestResources, str],
+        port_maps: Dict[DpdkTestResources, Dict[int, NicInfo]],
+        labels: Dict[DpdkTestResources, str],
+        fwd_modes: Dict[DpdkTestResources, DpdkForwardingMode],
+        start_order: List[DpdkTestResources],
+        graded_kit: DpdkTestResources,
+        hotplug_targets: List[DpdkTestResources],
+        hotplug_nics: Dict[Node, List[NicInfo]],
+    ) -> None:
+        self.commands = commands
+        self.port_maps = port_maps
+        self.labels = labels
+        self.fwd_modes = fwd_modes
+        self.start_order = start_order
+        self.graded_kit = graded_kit
+        self.hotplug_targets = hotplug_targets
+        self.hotplug_nics = hotplug_nics
+
+
+def _prepare_single_node_multi_port_run(
+    log: Logger,
+    pmd: Pmd,
+    test_kits: List[DpdkTestResources],
+    node_test_nics: Dict[Node, List[NicInfo]],
+    fwd_mode: Optional[DpdkForwardingMode],
+    queues: int,
+    use_service_cores: int,
+    set_mtu: int,
+    result: Optional[TestResult],
+    hotplug: DpdkHotplugTarget,
+) -> _MultiPortRunInfo:
+    assert fwd_mode is not None, "Test bug: must provide fwd_mode for single node test"
+    check_send_receive_compatibility(test_kits)
+    kit = test_kits[0]
+
+    if result is not None:
+        annotate_dpdk_test_result(test_kit=kit, test_result=result, log=log)
+
+    cmd, port_map = _generate_multi_port_single_node_run_info(
+        pmd,
+        kit,
+        node_test_nics[kit.node],
+        fwd_mode,
+        queues=queues,
+        use_service_cores=use_service_cores,
+        set_mtu=set_mtu,
+        stats_period=5,
+    )
+    return _MultiPortRunInfo(
+        commands={kit: cmd},
+        port_maps={kit: port_map},
+        labels={kit: f"{test_plan_label(TestPlan.SINGLE_NODE, fwd_mode)}"},
+        fwd_modes={kit: fwd_mode},
+        start_order=[kit],
+        graded_kit=kit,
+        hotplug_targets=[kit] if hotplug.is_enabled() else [],
+        hotplug_nics={kit.node: list(port_map.values())},
+    )
+
+
+def _prepare_two_node_multi_port_run(
+    log: Logger,
+    pmd: Pmd,
+    test_kits: List[DpdkTestResources],
+    node_test_nics: Dict[Node, List[NicInfo]],
+    queues: int,
+    use_service_cores: int,
+    set_mtu: int,
+    result: Optional[TestResult],
+    hotplug: DpdkHotplugTarget,
+) -> _MultiPortRunInfo:
+    check_multi_port_send_receive_compatibility(test_kits)
+    sender, receiver = test_kits
+
+    # annotate test result before starting
+    if result is not None:
+        annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
+
+    commands, port_maps = generate_multi_port_send_receive_run_info(
+        pmd,
+        sender,
+        receiver,
+        node_test_nics[sender.node],
+        node_test_nics[receiver.node],
+        use_service_cores=use_service_cores,
+        queues=queues,
+        set_mtu=set_mtu,
+        stats_period=5,
+    )
+    hotplug_targets: List[DpdkTestResources] = []
+    if hotplug.includes_sender():
+        hotplug_targets += [sender]
+    if hotplug.includes_receiver():
+        hotplug_targets += [receiver]
+    return _MultiPortRunInfo(
+        commands=commands,
+        port_maps=port_maps,
+        labels={sender: "sender", receiver: "receiver"},
+        fwd_modes={
+            sender: DpdkForwardingMode.TXONLY,
+            receiver: DpdkForwardingMode.RXONLY,
+        },
+        # the receiver has to be forwarding before the sender starts
+        start_order=[receiver, sender],
+        graded_kit=receiver,
+        hotplug_targets=hotplug_targets,
+        hotplug_nics={receiver.node: list(port_maps[receiver].values())},
+    )
+
+
+def test_plan_label(test_plan: TestPlan, fwd_mode: DpdkForwardingMode) -> str:
+    return f"{test_plan.value}:{fwd_mode.value}"
+
+
+def _get_grading_key(fwd_mode: DpdkForwardingMode) -> str:
+    return "TX" if fwd_mode == DpdkForwardingMode.TXONLY else "RX"
+
+
+class DpdkPortGradeMode(str, Enum):
+    """
+    How a port's throughput samples should be graded.
+
+    STEADY:       no hotplug, the mean over the whole run is meaningful.
+    HOTPLUG:      this port's VF was removed and restored, grade the
+                  before/during/after phases separately.
+    HOTPLUG_PEER: the peer was hotplugged, so this port's samples span the
+                  outage. Only its best sustained throughput is meaningful.
+    """
+
+    STEADY = "steady"
+    HOTPLUG = "hotplug"
+    HOTPLUG_PEER = "hotplug_peer"
+
+
+def _select_grade_mode(
+    hotplug: DpdkHotplugTarget, was_hotplugged: bool
+) -> DpdkPortGradeMode:
+    if was_hotplugged:
+        return DpdkPortGradeMode.HOTPLUG
+    if hotplug.is_enabled():
+        # this side kept its VF but its samples still span the peer's
+        # outage, so only its best sustained throughput is meaningful.
+        return DpdkPortGradeMode.HOTPLUG_PEER
+    return DpdkPortGradeMode.STEADY
+
+
+def grade_port_stats(
+    log: Logger,
+    kit: DpdkTestResources,
+    direction: str,
+    port_map: Dict[int, NicInfo],
+    port_stats: Dict[int, DpdkPortStats],
+    result: Optional[TestResult] = None,
+    grade_mode: DpdkPortGradeMode = DpdkPortGradeMode.STEADY,
+) -> None:
+    """
+    Grade the throughput of each dpdk port used by a test kit.
+
+    Ports are graded individually, an aggregate would hide a port which
+    sent or received nothing at all, and a disparity between the ports is
+    an important clue when debugging.
+
+    In HOTPLUG mode the run is expected to contain a VF removal and
+    recovery for each port. The throughput before the removal and after
+    the recovery is graded against the usual threshold, and the synthetic
+    path is only expected to keep forwarding.
+    """
+    direction = direction.upper()
+    for port_id, nic in sorted(port_map.items()):
+        nic_label = f"{kit.node.name} {nic.name}/{nic.ip_addr} (dpdk port {port_id})"
+        stats = port_stats.get(port_id, None)
+        assert_that(stats).described_as(
+            f"No statistics were found for {nic_label}."
+        ).is_not_none()
+        assert stats is not None  # appease the type checker
+        log.info(f"{nic_label} {str(stats)}")
+
+        if grade_mode is DpdkPortGradeMode.STEADY:
+            _grade_steady_port(log, nic_label, direction, port_id, stats, result)
+        elif grade_mode is DpdkPortGradeMode.HOTPLUG_PEER:
+            _grade_hotplug_peer_port(nic_label, direction, port_id, stats, result)
+        else:
+            _grade_hotplug_port(log, kit, nic_label, direction, port_id, result)
+
+
+def _grade_steady_port(
+    log: Logger,
+    nic_label: str,
+    direction: str,
+    port_id: int,
+    stats: DpdkPortStats,
+    result: Optional[TestResult],
+) -> None:
+    port_pps = stats.get_mean_pps(direction)
+    if result is not None:
+        result.information[f"{direction.lower()}_port_{port_id}_pps"] = str(port_pps)
+    assert_that(port_pps).described_as(
+        f"Throughput for {direction} on {nic_label} was below "
+        "the correct order-of-magnitude"
+    ).is_greater_than(DPDK_PPS_THRESHOLD)
+
+
+def _grade_hotplug_peer_port(
+    nic_label: str,
+    direction: str,
+    port_id: int,
+    stats: DpdkPortStats,
+    result: Optional[TestResult],
+) -> None:
+    # the peer dropped to the synthetic path partway through this run, so
+    # the mean is meaningless. Require that the port hit full speed at some
+    # point and never stalled out entirely.
+    peak_pps = stats.get_peak_pps(direction)
+    mean_pps = stats.get_mean_pps(direction)
+    if result is not None:
+        prefix = f"{direction.lower()}_port_{port_id}"
+        result.information[f"{prefix}_peak_pps"] = str(peak_pps)
+        result.information[f"{prefix}_pps"] = str(mean_pps)
+    assert_that(peak_pps).described_as(
+        f"Throughput for {direction} on {nic_label} never reached the "
+        "correct order-of-magnitude while its peer was hotplugged"
+    ).is_greater_than(DPDK_PPS_THRESHOLD)
+    assert_that(mean_pps).described_as(
+        f"Traffic for {direction} on {nic_label} stopped completely "
+        "while its peer was hotplugged"
+    ).is_greater_than(0)
+
+
+def _grade_hotplug_port(
+    log: Logger,
+    kit: DpdkTestResources,
+    nic_label: str,
+    direction: str,
+    port_id: int,
+    result: Optional[TestResult],
+) -> None:
+    # split the run at this port's device removal and recovery events, then
+    # check the throughput of each window. split_testpmd_output raises if the
+    # port never lost its device or never got one back, which covers
+    # "did the hotplug happen at all".
+    before_stats, during_stats, after_stats = kit.testpmd.split_testpmd_output(port_id)
+    before = before_stats.get_mean_pps(direction)
+    during = during_stats.get_mean_pps(direction)
+    after = after_stats.get_mean_pps(direction)
+    log.info(
+        f"{nic_label} {direction} pps before/during/after hotplug: "
+        f"{before}/{during}/{after}"
+    )
+    if result is not None:
+        for phase, phase_pps in [
+            ("before", before),
+            ("during", during),
+            ("after", after),
+        ]:
+            result.information[
+                f"{direction.lower()}_port_{port_id}_{phase}_hotplug_pps"
+            ] = str(phase_pps)
+
+    assert_that(before).described_as(
+        f"Throughput for {direction} on {nic_label} was below the "
+        "correct order-of-magnitude before the VF was removed"
+    ).is_greater_than(DPDK_PPS_THRESHOLD)
+    # the synthetic path is much slower than the VF, so it is only
+    # checked for forward progress, not for a throughput threshold.
+    assert_that(during).described_as(
+        f"Traffic for {direction} on {nic_label} stopped completely "
+        "while the VF was removed, the synthetic path did not take over"
+    ).is_greater_than(0)
+    assert_that(after).described_as(
+        f"Throughput for {direction} on {nic_label} did not recover to "
+        "the correct order-of-magnitude after the VF was restored"
+    ).is_greater_than(DPDK_PPS_THRESHOLD)
+
+
 def verify_dpdk_send_receive_multi_txrx_queue(
     environment: Environment,
     log: Logger,
@@ -943,7 +1721,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
 
 # Multiple ports test
 #  to simplify this
-def verify_dpdk_mutliple_ports(
+def verify_dpdk_multiple_ports(
     environment: Environment,
     log: Logger,
     variables: Dict[str, Any],
@@ -1692,7 +2470,9 @@ def annotate_dpdk_test_result(
 
 
 devname_port_regex = re.compile(
-    r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc .*\n"
+    r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc "
+    r"get_name_by_port_name=.* owner_id=.* owner_name=.* "
+    r"macaddr=(?P<macaddr>(?:[0-9A-Fa-f]{2}:){5}(?:[0-9A-Fa-f]{2}))"
 )
 
 
@@ -1708,6 +2488,8 @@ class DpdkDevnameInfo:
     def __init__(self, testpmd: DpdkTestpmd) -> None:
         self._node = testpmd.node
         self._testpmd = testpmd
+        # mac address (lowercase) -> dpdk port id, filled in by get_port_info
+        self.nic_port_info: Dict[str, int] = dict()
 
     def get_port_info(self, nics: List[NicInfo], expect_ports: int = 1) -> str:
         # since we only need this for netvsc, we'll only generate
@@ -1719,13 +2501,15 @@ class DpdkDevnameInfo:
             # mana needs a vdev argument of pci info
             # followed by kv pairs for mac addresses.
             # https://doc.dpdk.org/guides/nics/mana.html
-            nic_args = (
+            nic_includes = [f"-a {nic.dev_uuid}" for nic in nics]
+            vdev_args = [
                 ",".join(
                     [f'--vdev="{nics[0].pci_slot}']
                     + [f"mac={nic.mac_addr}" for nic in nics],
                 )
-                + '"'
-            )
+                + '" '
+            ]
+            nic_args = " ".join(nic_includes + vdev_args)
         else:
             # mlx nics; we get to cheat and just disallow the SSH interface.
             # the driver and EAL handles the rest.
@@ -1750,9 +2534,11 @@ class DpdkDevnameInfo:
         found_ports = 0
         for match in matches:
             found_ports += 1
-            port_id = int(match)
+            port_id_str, mac_addr = match
+            port_id = int(port_id_str)
             self.port_ids += [port_id]
             port_mask ^= 1 << (port_id)
+            self.nic_port_info[mac_addr.lower()] = port_id
         if found_ports != expect_ports:
             self._node.execute("dmesg", sudo=True)
             fail(

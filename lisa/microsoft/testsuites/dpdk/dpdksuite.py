@@ -17,6 +17,8 @@ from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
+    DpdkHotplugTarget,
+    TestPlan,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
     do_parallel_cleanup,
@@ -25,10 +27,11 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     init_nodes_concurrent,
     initialize_node_resources,
     run_dpdk_symmetric_mp,
+    run_testpmd_consolidated,
     run_testpmd_hotplug,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
-    verify_dpdk_mutliple_ports,
+    verify_dpdk_multiple_ports,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
@@ -1337,6 +1340,100 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
+            Tests a sender/receiver setup which uses multiple ports on
+            each VM with the netvsc pmd.
+            Each VM has one test nic per subnet, so every sender port has a
+            matching peer port on the receiver. Each sender port transmits to
+            the address of its own peer port and each port is graded on its
+            own, so a single port failing to send or receive fails the test.
+
+            NOTE: this test requires a dpdk build which supports assigning
+            an ip address pair per port with --tx-ip=[port:]src,dst.
+            That flag is not upstream yet, use a dpdk_source which carries
+            the patch, ex:
+            dpdk_source: https://github.com/mcgov/dpdk-next-net.git
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            min_count=2,
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_multi_port_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        try:
+            run_testpmd_consolidated(
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                HugePageSize.HUGE_2MB,
+                nic_count=2,
+                queues=4,
+                result=result,
+                test_plan=TestPlan.MULTIPLE_NODES,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
+            Multi-port sender/receiver test which removes and restores the
+            sender's VFs while traffic is running.
+            Each port is checked for the device removal event, for continued
+            forwarding on the synthetic path while the VF is gone, and for a
+            return to full throughput once the VF is restored. The receiver
+            is checked for the throughput it reached while its peer was
+            being hotplugged.
+
+            NOTE: this test requires a dpdk build which supports assigning
+            an ip address pair per port with --tx-ip=[port:]src,dst.
+            That flag is not upstream yet, use a dpdk_source which carries
+            the patch, ex:
+            dpdk_source: https://github.com/mcgov/dpdk-next-net.git
+        """,
+        priority=3,
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=3,
+            network_interface=Sriov(),
+            min_count=2,
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_multi_port_hotplug_sender_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        try:
+            run_testpmd_consolidated(
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                HugePageSize.HUGE_2MB,
+                nic_count=2,
+                queues=4,
+                result=result,
+                hotplug=DpdkHotplugTarget.SENDER,
+                test_plan=TestPlan.MULTIPLE_NODES,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
                 Run testpmd with multiple senders to a single receiver
                 using the netvsc pmd. This test checks how the receiver VM
                 handles a large volume of traffic on multiple ports.
@@ -1362,7 +1459,7 @@ class Dpdk(TestSuite):
     ) -> None:
         force_dpdk_default_source(variables)
         pmd = Pmd.NETVSC
-        verify_dpdk_mutliple_ports(
+        verify_dpdk_multiple_ports(
             environment,
             log,
             variables,
