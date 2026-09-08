@@ -580,10 +580,11 @@ class DpdkTestpmd(Tool):
         vdev_id: int,
         mode: str,
         extra_args: str = "",
-        multiple_queues: bool = False,
+        queues: int = 1,
         service_cores: int = 1,
         mtu: int = 0,
         mbuf_size: int = 0,
+        stats_period: int = 2,
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -596,15 +597,15 @@ class DpdkTestpmd(Tool):
         #   --eth-peer=<port id>,<receiver peer MAC address> \
         #   --stats-period <display interval in seconds>
 
-        # pick amount of queues for tx/rx (txq/rxq flag)
-        # our tests use equal amounts for rx and tx
-        if multiple_queues:
-            if self.is_mana and mode == "txonly":
-                queues = 8
-            else:
-                queues = 4
-        else:
-            queues = 1
+        # `queues` (txq/rxq) is an explicit value chosen by the caller: our
+        # tests use equal amounts for rx and tx. The forwarding core count is
+        # derived directly from it (one core per queue per port) instead of
+        # being silently shrunk to fit whatever the node happens to have,
+        # which used to make the actual queue/core count unpredictable.
+        assert_that(queues).described_as(
+            "queues must be a positive number. Callers must pick an explicit "
+            "queue count instead of relying on this tool to infer one."
+        ).is_greater_than_or_equal_to(1)
 
         # MANA needs a file descriptor argument, mlnx doesn't.
         txd = 256
@@ -615,31 +616,44 @@ class DpdkTestpmd(Tool):
             nic_include_infos += [self.generate_testpmd_include(nic, vdev_id)]
             vdev_id += 1
 
-        # infer core count to assign based on number of queues
-        threads_available = self.node.tools[Lscpu].get_thread_count()
-        assert_that(threads_available).described_as(
-            "DPDK tests need more than 4 threads, recommended more than 8 threads"
-        ).is_greater_than(4)
+        # one forwarding core per queue per port: this is the only place a
+        # caller with more than one nic (i.e. a multi-port test) differs from
+        # the rest, since its forwarding core count scales with port count.
+        forwarding_cores = queues * len(nic_to_include)
+        max_core_index = forwarding_cores + service_cores
 
-        queues_and_servicing_core = (queues * len(nic_to_include)) + service_cores
-
-        while queues_and_servicing_core > (threads_available - 2):
-            # if less, split the number of queues
-            queues = queues // 2
-            queues_and_servicing_core = queues + service_cores
-            txd = 64  # txd has to be >= 64 for MANA.
-            assert_that(queues).described_as(
-                "txq value must be greater than 1"
-            ).is_greater_than_or_equal_to(1)
-
-        # label core index for future use
-        max_core_index = queues_and_servicing_core
-
-        # service cores excluded from forwarding cores count
-        forwarding_cores = max_core_index - service_cores
+        # verify the requested queue/core count actually fits on this node's
+        # NUMA-0 core range instead of silently shrinking it: a test either
+        # runs with the exact queue count it asked for, or fails immediately
+        # with a clear explanation of what didn't fit.
+        first, last = self.node.tools[Lscpu].get_cpu_range_in_numa_node(0)
+        if last <= first:
+            raise AssertionError(
+                f"tool.Lscpu bug: cpu range for numa 0 found as {first}-{last}."
+            )
+        threads_available = last - first + 1
+        # 1 core is always reserved for the OS/management.
+        available_for_this_process = threads_available - 1
+        assert_that(available_for_this_process).described_as(
+            f"DPDK test requested {queues} queue(s) across "
+            f"{len(nic_to_include)} port(s) ({forwarding_cores} forwarding "
+            f"core(s)) plus {service_cores} service core(s) = "
+            f"{max_core_index} core(s) on NUMA node 0, but only "
+            f"{available_for_this_process} core(s) are available there "
+            f"(node has {threads_available} total). "
+            "Pick a smaller queue count for this SKU, or run this test on a "
+            "bigger one."
+        ).is_greater_than_or_equal_to(max_core_index)
 
         # core range argument
         core_list = f"-l 1-{max_core_index}"
+        self._log_core_queue_mapping(
+            nics=nic_to_include,
+            mode=mode,
+            queues=queues,
+            first_forwarding_core=1,
+            service_cores=service_cores,
+        )
         if extra_args:
             extra_args = extra_args.strip()
         else:
@@ -675,31 +689,71 @@ class DpdkTestpmd(Tool):
             and bool(self.get_dpdk_version() > "23.7.0")
         ):
             extra_args += " --txonly-multi-flow"
-        else:
+        elif mode == "txonly":
             self.node.log.debug(
                 "note: skipping use of testpmd txonly-multi-flow flag "
                 "before dpdk 24.11. perf on receive side may be suboptimal."
             )
 
-        assert_that(forwarding_cores).described_as(
-            ("DPDK tests need at least one forwading core. ")
-        ).is_greater_than(0)
-        assert_that(max_core_index).described_as(
-            "Test needs at least 1 core for servicing and one core for forwarding"
-        ).is_greater_than(0)
         assert_that(self._testpmd_install_path).described_as(
             "Testpmd install path was not set, this indicates a logic"
             " error in the DPDK installation process."
         ).is_not_empty()
-        # add debug logging args, EAL ones are very verbose
-        # but netvsc are useful for identifying hotplugs on azure
-        debug_logging = "--log-level netvsc,debug"
+        debug_log_args = self._eal_debug_log_args()
         nic_includes = " ".join(nic_include_infos)
         return (
             f"{self._testpmd_install_path} {core_list} "
-            f"{nic_includes} {debug_logging} -- --forward-mode={mode} "
-            f"-a --stats-period 2 --nb-cores={forwarding_cores} {extra_args} "
+            f"{nic_includes} {debug_log_args} -- --forward-mode={mode} "
+            f"-a --stats-period {stats_period} "
+            f"--nb-cores={forwarding_cores} {extra_args} "
         )
+
+    def _log_core_queue_mapping(
+        self,
+        nics: List[NicInfo],
+        mode: str,
+        queues: int,
+        first_forwarding_core: int,
+        service_cores: int,
+    ) -> None:
+        """Log a machine-parseable record of the core -> queue assignment a
+        generated command used, one line per port plus one for the service
+        cores, tagged with DPDK_CORE_QUEUE_MAP so it's easy to grep out of
+        the test log, e.g.:
+
+            DPDK_CORE_QUEUE_MAP mode=txonly port=0 pci=0002:00:02.0 queues=4 \
+cores=1-4
+            DPDK_CORE_QUEUE_MAP mode=txonly role=service cores=5-5
+
+        Each port gets its own contiguous block of ``queues`` cores (one
+        dedicated forwarding core per queue), assigned in port order
+        starting at ``first_forwarding_core``.
+        """
+        core = first_forwarding_core
+        for port_id, nic in enumerate(nics):
+            first_core = core
+            core += queues
+            self.node.log.info(
+                f"DPDK_CORE_QUEUE_MAP mode={mode} port={port_id} "
+                f"pci={nic.pci_slot} queues={queues} "
+                f"cores={first_core}-{core - 1}"
+            )
+        if service_cores:
+            self.node.log.info(
+                f"DPDK_CORE_QUEUE_MAP mode={mode} role=service "
+                f"cores={core}-{core + service_cores - 1}"
+            )
+
+    def _eal_debug_log_args(self) -> str:
+        """Return the EAL debug logging flags used by generated commands.
+
+        netvsc's debug log is the fallback used to locate a VF hotplug when
+        testpmd's own ethdev event message is not available, so it stays on.
+        """
+        debug_logging = []
+        for lib in ["netvsc"]:
+            debug_logging += [f"--log-level {lib},debug"]
+        return " ".join(debug_logging)
 
     def run_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout

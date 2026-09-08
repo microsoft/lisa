@@ -216,7 +216,7 @@ class DpdkPerformance(TestSuite):
             result,
             log,
             variables,
-            use_queues=True,
+            queues=4,
         )
 
     @TestCaseMetadata(
@@ -243,7 +243,7 @@ class DpdkPerformance(TestSuite):
             result,
             log,
             variables,
-            use_queues=True,
+            queues=4,
         )
 
     @TestCaseMetadata(
@@ -286,7 +286,7 @@ class DpdkPerformance(TestSuite):
         test_result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
-        use_queues: bool = False,
+        queues: int = 1,
     ) -> None:
         environment = test_result.environment
         assert environment, "fail to get environment from testresult"
@@ -294,12 +294,13 @@ class DpdkPerformance(TestSuite):
         # run build + validation to populate results
         self._validate_core_counts_are_equal(test_result)
         try:
-            if use_queues:
+            if queues > 1:
                 send_kit, receive_kit = verify_dpdk_send_receive_multi_txrx_queue(
                     environment,
                     log,
                     variables,
                     pmd,
+                    queues=queues,
                     result=test_result,
                 )
             else:
