@@ -3013,10 +3013,15 @@ def run_dpdk_symmetric_mp(
     - start primary
     - start secondary
     - ping both
-    - [ recind sriov, optional ]
+    - [ hotplug the VFs out and back in, optional ]
     - count packets received on tx/rx side of each process and port
 
     """
+    # a stress run does many hotplug cycles, so the timeout has to track the
+    # requested count instead of being a fixed number which is either far too
+    # long for one cycle or far too short for forty.
+    test_timeout = 120 + (60 * hotplug_times if trigger_hotplug else 35)
+
     # setup and unwrap the resources for this test
     # get a list of the upper non-primary nics and select two of them
     test_nics = [
@@ -3024,8 +3029,12 @@ def run_dpdk_symmetric_mp(
         for nic in node.nics.nics.values()
         if nic != node.nics.get_primary_nic() and nic.lower
     ][:2]
+
+    # make sure ping is installed before the test starts, a package install
+    # in the middle of a hotplug cycle would skew the ping counts.
     ping = node.tools[Ping]
-    ping.install()
+    if not ping.exists:
+        ping.install()
 
     # initialize for netvsc, we rely on the debug messages in this test
     # to identify the hotplug events.
@@ -3089,9 +3098,9 @@ def run_dpdk_symmetric_mp(
             f"{str(symmetric_mp_path)} -l 1 --proc-type auto "
             f"{symmetric_mp_args} --proc-id 0"
         ),
-        timeout=660,
+        timeout=test_timeout,
         signal=SIGINT,
-        kill_timeout=30,
+        kill_timeout=test_timeout + 5,
     )
 
     # wait for it to start
@@ -3103,9 +3112,9 @@ def run_dpdk_symmetric_mp(
             f"{str(symmetric_mp_path)} -l 2 --proc-type secondary "
             f"{symmetric_mp_args} --proc-id 1"
         ),
-        timeout=600,
+        timeout=test_timeout,
         signal=SIGINT,
-        kill_timeout=35,
+        kill_timeout=test_timeout + 5,
     )
     secondary.wait_output("APP: Finished Process Init", timeout=20)
 
@@ -3126,29 +3135,32 @@ def run_dpdk_symmetric_mp(
     )
     # optionally trigger hotplug
     if trigger_hotplug:
+        # the VF pci slots stay the same across a remove/rescan cycle, so
+        # they only need to be collected once.
+        vf_pci_slots = get_vf_pci_slots(node, test_nics)
         # allow multiple hotplugs for stress testing
         while hotplug_times > 0:
             hotplug_times -= 1
-            # turn SRIOV off
+            # detach the VFs from the guest. This is done through sysfs
+            # rather than the platform's SRIOV toggle: a stress run does
+            # dozens of cycles and the platform api throttles long before
+            # that, and sysfs also exercises the removal path the host uses
+            # during a live migration.
+            remove_pci_devices(node, vf_pci_slots)
 
-            node.features[NetworkInterface].switch_sriov(
-                enable=False, wait=False, reset_connections=False
-            )
-
-            # wait for the RTE_DEV_EVENT_REMOVE message
+            # netvsc reports the datapath switch back to the synthetic
+            # device once it has processed RTE_DEV_EVENT_REMOVE.
             primary.wait_output(
-                "HN_DRIVER: netvsc_hotadd_callback(): "
-                "Device notification type=1",  # RTE_DEV_EVENT_REMOVE
+                "HN_DRIVER: hn_nvs_set_datapath(): set datapath Synthetic",
                 delta_only=True,
-            )  # relying on compiler defaults here, not great.
-
-            # turn SRIOV on
-            node.features[NetworkInterface].switch_sriov(
-                enable=True, wait=False, reset_connections=False
             )
 
+            # re-attach the VFs
+            rescan_pci_bus(node)
+
+            # ...and back to the VF once the device has been probed again.
             primary.wait_output(
-                "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=0",
+                "HN_DRIVER: hn_nvs_set_datapath(): set datapath VF",
                 delta_only=True,
             )
             ping.ping_async(
@@ -3166,6 +3178,8 @@ def run_dpdk_symmetric_mp(
             )
             # expect additional pings for each post-hotplug instance
             expected_pings += 100
+            # give the guest a moment to settle before the next cycle
+            sleep(1)
 
     ping.ping_async(
         target=test_nics[0].ip_addr,
