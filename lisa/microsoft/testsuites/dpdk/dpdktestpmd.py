@@ -3,7 +3,7 @@
 
 import re
 from pathlib import PurePath, PurePosixPath
-from typing import Any, Dict, List, Optional, Pattern, Tuple, Type
+from typing import Any, Dict, List, Optional, Pattern, Set, Tuple, Type
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
@@ -648,6 +648,7 @@ class DpdkTestpmd(Tool):
         mbuf_size: int = 0,
         eal_device_args: str = "",
         stats_period: int = 2,
+        file_prefix: str = "",
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -715,6 +716,11 @@ class DpdkTestpmd(Tool):
 
         # core range argument
         core_list = f"-l 1-{max_core_index}"
+
+        # record the cores this process owns, plus core 0 for the OS, so any
+        # secondary started later picks cores which are actually free.
+        self._reserved_cores.add(0)
+        self._reserved_cores.update(range(1, max_core_index + 1))
         self._log_core_queue_mapping(
             nics=nic_to_include,
             mode=mode,
@@ -769,12 +775,158 @@ class DpdkTestpmd(Tool):
         ).is_not_empty()
         debug_log_args = self._eal_debug_log_args()
         nic_includes = " ".join(nic_include_infos)
+        eal_args = f"{core_list} {nic_includes} {debug_log_args}"
+        # a file prefix is what lets a secondary process find this process's
+        # hugepage runtime data, so it is only needed when one is expected.
+        if file_prefix:
+            eal_args += f" --file-prefix={file_prefix}"
         return (
-            f"{self._testpmd_install_path} {core_list} "
-            f"{nic_includes} {debug_log_args} -- --forward-mode={mode} "
+            f"{self._testpmd_install_path} {eal_args} -- --forward-mode={mode} "
             f"-a --stats-period {stats_period} "
             f"--nb-cores={forwarding_cores} {extra_args} "
         )
+
+    def generate_testpmd_secondary_command(
+        self,
+        nic_to_include: List[NicInfo],
+        vdev_id: int,
+        mode: str,
+        file_prefix: str,
+        pmd: Pmd = Pmd.FAILSAFE,
+        proc_id: int = 0,
+        stats_period: int = 2,
+        extra_args: str = "",
+        eal_device_args: str = "",
+    ) -> str:
+        """Generate a testpmd command which attaches as a secondary process.
+
+        A secondary shares hugepages and device access with the primary via
+        ``--proc-type=secondary``. ``file_prefix`` has to match the primary's
+        or the two will not map the same shared memory.
+
+        ``proc_id`` is the 0-based index of this secondary on the node and is
+        only used to make core assignment failures easier to read: the cores
+        themselves come from whatever is still unreserved.
+        """
+        core_list = self._secondary_core(proc_id, cores_needed=2)
+        self.register_secondary_process(self._testpmd_install_path)
+
+        # the device arguments have to match the primary's, otherwise the
+        # secondary attaches to a different set of ports than the one it is
+        # meant to be sharing.
+        if eal_device_args:
+            nic_include_infos = [eal_device_args]
+        else:
+            nic_include_infos = self.generate_testpmd_include(
+                nic_to_include, vdev_id, pmd=pmd
+            )
+
+        debug_log_args = self._eal_debug_log_args()
+        nic_includes = " ".join(nic_include_infos)
+        eal_args = (
+            f"-l {core_list} {nic_includes} {debug_log_args} "
+            f"--proc-type=secondary --file-prefix={file_prefix}"
+        )
+        return (
+            f"{self._testpmd_install_path} {eal_args} "
+            f"-- --forward-mode={mode} "
+            f"-a --stats-period {stats_period} "
+            f"--nb-cores=1 {extra_args.strip()} "
+        )
+
+    def generate_secondary_proc_info_command(
+        self,
+        file_prefix: str,
+        proc_id: int = 0,
+    ) -> str:
+        """Generate a dpdk-proc-info command which attaches as a secondary.
+
+        dpdk-proc-info needs a single lcore and does no packet processing,
+        which makes it the cheapest secondary available when the point of the
+        test is the number of attached processes rather than the traffic.
+        """
+        proc_info_path = self._find_dpdk_sibling_binary("dpdk-proc-info")
+        core = self._secondary_core(proc_id, cores_needed=1)
+        self.register_secondary_process(proc_info_path)
+        return (
+            f"{proc_info_path} -l {core} "
+            f"--proc-type=secondary --file-prefix={file_prefix} -- --stats"
+        )
+
+    def generate_secondary_pdump_command(
+        self,
+        file_prefix: str,
+        proc_id: int = 0,
+    ) -> str:
+        """Generate a dpdk-pdump command which attaches as a secondary.
+
+        The capture is pointed at /dev/null so the process stays attached for
+        the length of the run without filling the disk.
+        """
+        pdump_path = self._find_dpdk_sibling_binary("dpdk-pdump")
+        core = self._secondary_core(proc_id, cores_needed=1)
+        self.register_secondary_process(pdump_path)
+        return (
+            f"{pdump_path} -l {core} "
+            f"--proc-type=secondary --file-prefix={file_prefix} "
+            '-- --pdump "port=0,queue=*,rx-dev=/dev/null"'
+        )
+
+    def _secondary_core(self, proc_id: int, cores_needed: int = 1) -> str:
+        """Return a core list string for a secondary process.
+
+        Picks the lowest unreserved NUMA-0 cores and marks them reserved, so
+        repeated calls hand out disjoint sets and never collide with whatever
+        generate_testpmd_command already claimed for the primary.
+        """
+        first, last = self.node.tools[Lscpu].get_cpu_range_in_numa_node(0)
+        available = sorted(
+            core for core in range(first, last + 1) if core not in self._reserved_cores
+        )
+        if len(available) < cores_needed:
+            raise LisaException(
+                f"Not enough unreserved cores for secondary process {proc_id}. "
+                f"Need {cores_needed} but only {len(available)} are available "
+                f"(reserved: {sorted(self._reserved_cores)})."
+            )
+        chosen = available[:cores_needed]
+        self._reserved_cores.update(chosen)
+        return ",".join(str(core) for core in chosen)
+
+    def _find_dpdk_sibling_binary(self, name: str) -> str:
+        """Locate a DPDK binary which is installed alongside testpmd."""
+        testpmd_dir = str(PurePosixPath(self._testpmd_install_path).parent)
+        candidate = f"{testpmd_dir}/{name}"
+        if self.node.execute(f"test -x {candidate}").exit_code == 0:
+            return candidate
+        result = self.node.execute(f"which {name}")
+        if result.exit_code == 0:
+            return result.stdout.strip()
+        raise LisaException(f"Could not find {name} binary next to testpmd or in PATH.")
+
+    def register_secondary_process(self, binary_path: str) -> None:
+        """Track a secondary process binary so teardown can find it."""
+        name = self.node.get_pure_path(binary_path).name
+        if name not in self._secondary_procs:
+            self._secondary_procs.append(name)
+
+    def get_secondary_process_names(self) -> List[str]:
+        return list(self._secondary_procs)
+
+    def _kill_secondary_processes(self) -> None:
+        """SIGINT every registered secondary and forget about them.
+
+        The primary's own binary name is skipped here, killing it is the
+        caller's job and doing it early would defeat the ordering.
+        """
+        primary_name = self.node.get_pure_path(self.command).name
+        secondaries = {name for name in self._secondary_procs if name != primary_name}
+        # a testpmd secondary shares the primary's binary name, so it cannot
+        # be singled out by name. It is covered by the primary's kill below.
+        for name in sorted(secondaries):
+            self.node.tools[Kill].by_name(name, signum=SIGINT, ignore_not_exist=True)
+        self._secondary_procs.clear()
+        self._reserved_cores.clear()
 
     def _log_core_queue_mapping(
         self,
@@ -872,6 +1024,11 @@ cores=1-4
         return len(pids) > 0
 
     def kill_previous_testpmd_command(self) -> None:
+        # secondaries have to go first: they map the primary's hugepage
+        # runtime data, and killing the primary out from under them leaves
+        # them spinning on memory which no longer has an owner.
+        self._kill_secondary_processes()
+
         # kill testpmd early
         command_name = self.node.get_pure_path(self.command).name
 
@@ -1235,6 +1392,12 @@ cores=1-4
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
         self._expected_install_path = ""
+        # binary names of the secondary processes started against this
+        # instance, so they can be torn down before the primary is.
+        self._secondary_procs: List[str] = []
+        # cores already handed out to a process on this node, so a secondary
+        # never lands on a core the primary is polling on.
+        self._reserved_cores: Set[int] = set()
         self._determine_network_hardware()
         if self.use_package_manager_install():
             self.installer: Installer = DpdkPackageManagerInstall(

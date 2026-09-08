@@ -277,6 +277,19 @@ class DpdkForwardingMode(str, Enum):
     SEND_RECEIVE = "send_receive"
 
 
+class SecondaryProcessMode(str, Enum):
+    """Which kind of DPDK secondary process to attach to a primary.
+
+    TESTPMD forwards traffic like the primary does, PROC_INFO and PDUMP are
+    the cheap options for tests which only care about how many processes are
+    attached rather than what they do.
+    """
+
+    TESTPMD = "testpmd"
+    PROC_INFO = "proc_info"
+    PDUMP = "pdump"
+
+
 class TestPlan(str, Enum):
     """Whether a multi-port run uses one VM or a sender/receiver pair."""
 
@@ -404,10 +417,23 @@ def generate_send_receive_run_info(
     pmd: Pmd,
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
-    queues: int = 1,
+    queues: Union[int, Tuple[int, int]] = 1,
     use_service_cores: int = 1,
     set_mtu: int = 0,
-) -> Dict[DpdkTestResources, str]:
+    extra_args: Union[str, Tuple[str, str]] = "",
+    stats_period: int = 2,
+    secondary_proc_count: int = 0,
+    secondary_mode: SecondaryProcessMode = SecondaryProcessMode.TESTPMD,
+) -> Tuple[Dict[DpdkTestResources, str], Dict[DpdkTestResources, List[str]]]:
+    """Generate the primary and secondary testpmd commands for a run.
+
+    Returns (primary_commands, secondary_commands). secondary_commands maps
+    each kit to the list of secondary process commands to start once its
+    primary is forwarding, and is empty when secondary_proc_count is 0.
+
+    ``queues`` and ``extra_args`` accept a (sender, receiver) tuple for runs
+    where the two sides are not configured the same way.
+    """
     snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
@@ -422,26 +448,44 @@ def generate_send_receive_run_info(
         maxmtu_int = int(maxmtu) if maxmtu else 0
     else:
         maxmtu_int = 0
+
+    snd_queues, rcv_queues = queues if isinstance(queues, tuple) else (queues, queues)
+    snd_args, rcv_args = (
+        extra_args if isinstance(extra_args, tuple) else (extra_args, extra_args)
+    )
+
+    # a primary only needs a file prefix when a secondary has to find it, and
+    # the two sides need different ones so a single-node run can't cross them.
+    snd_prefix = "testpmd_sender" if secondary_proc_count else ""
+    rcv_prefix = "testpmd_receiver" if secondary_proc_count else ""
+
     snd_cmd = sender.testpmd.generate_testpmd_command(
         [snd_nic],
         0,
         "txonly",
         pmd=pmd,
-        extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
-        queues=queues,
+        extra_args=" ".join(
+            [f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}", snd_args]
+        ).strip(),
+        queues=snd_queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
+        stats_period=stats_period,
+        file_prefix=snd_prefix,
     )
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         [rcv_nic],
         0,
         "rxonly",
         pmd=pmd,
-        queues=queues,
+        extra_args=rcv_args,
+        queues=rcv_queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
+        stats_period=stats_period,
+        file_prefix=rcv_prefix,
     )
 
     kit_cmd_pairs = {
@@ -449,7 +493,61 @@ def generate_send_receive_run_info(
         receiver: rcv_cmd,
     }
 
-    return kit_cmd_pairs
+    secondary_cmds: Dict[DpdkTestResources, List[str]] = {sender: [], receiver: []}
+    for proc_id in range(secondary_proc_count):
+        for kit, nic, mode, prefix in [
+            (sender, snd_nic, "txonly", snd_prefix),
+            (receiver, rcv_nic, "rxonly", rcv_prefix),
+        ]:
+            secondary_cmds[kit].append(
+                _generate_secondary_command(
+                    kit=kit,
+                    nic=nic,
+                    mode=mode,
+                    file_prefix=prefix,
+                    pmd=pmd,
+                    proc_id=proc_id,
+                    stats_period=stats_period,
+                    secondary_mode=secondary_mode,
+                )
+            )
+
+    return kit_cmd_pairs, secondary_cmds
+
+
+def _generate_secondary_command(
+    kit: DpdkTestResources,
+    nic: NicInfo,
+    mode: str,
+    file_prefix: str,
+    pmd: Pmd,
+    proc_id: int,
+    stats_period: int,
+    secondary_mode: SecondaryProcessMode,
+) -> str:
+    command: str
+    if secondary_mode == SecondaryProcessMode.PROC_INFO:
+        command = kit.testpmd.generate_secondary_proc_info_command(
+            file_prefix=file_prefix,
+            proc_id=proc_id,
+        )
+    elif secondary_mode == SecondaryProcessMode.PDUMP:
+        command = kit.testpmd.generate_secondary_pdump_command(
+            file_prefix=file_prefix,
+            proc_id=proc_id,
+        )
+    else:
+        # a testpmd secondary mirrors the direction the primary is forwarding in.
+        command = kit.testpmd.generate_testpmd_secondary_command(
+            nic_to_include=[nic],
+            vdev_id=0,
+            mode=mode,
+            file_prefix=file_prefix,
+            pmd=pmd,
+            proc_id=proc_id,
+            stats_period=stats_period,
+        )
+    return command
 
 
 def generate_multi_port_send_receive_run_info(
@@ -848,6 +946,7 @@ def initialize_node_resources(
     hugepage_size: HugePageSize,
     sample_apps: Union[List[str], None] = None,
     test_nics: Union[List[NicInfo], None] = None,
+    hugepage_gb: Optional[int] = None,
 ) -> DpdkTestResources:
     _set_forced_source_by_distro(node, variables)
     check_pmd_support(node, pmd)
@@ -908,8 +1007,12 @@ def initialize_node_resources(
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
+    # a run which attaches secondary processes needs more than the default,
+    # every attached process maps its own share of the hugepage pool.
+    if hugepage_gb is None:
+        hugepage_gb = 4 * numa_nodes
     try:
-        hugepages.init_hugepages(hugepage_size, minimum_gb=4 * numa_nodes)
+        hugepages.init_hugepages(hugepage_size, minimum_gb=hugepage_gb)
     except NotEnoughMemoryException as err:
         raise SkippedException(err)
 
@@ -995,6 +1098,7 @@ def init_nodes_concurrent(
     sample_apps: Union[List[str], None] = None,
     test_nic_count: int = 1,
     specific_pairings: Optional[Dict[Node, List[NicInfo]]] = None,
+    hugepage_gb: Optional[int] = None,
 ) -> List[DpdkTestResources]:
     assert test_nic_count > 0, "Test Bug: test_nic_count must be > 0"
     # quick check when initializing, have each node ping the other nodes.
@@ -1013,6 +1117,7 @@ def init_nodes_concurrent(
                     variables,
                     pmd,
                     hugepage_size=hugepage_size,
+                    hugepage_gb=hugepage_gb,
                     sample_apps=sample_apps,
                     test_nics=specific_pairings[node]
                     if specific_pairings
@@ -1082,6 +1187,8 @@ def verify_dpdk_send_receive(
     set_mtu: int = 0,
     check_sender_packet_drops: bool = False,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
+    secondary_proc_count: int = 0,
+    secondary_mode: SecondaryProcessMode = SecondaryProcessMode.TESTPMD,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
     # helpful to have the public ips labeled for debugging
     external_ips = []
@@ -1100,9 +1207,16 @@ def verify_dpdk_send_receive(
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
     test_duration: int = variables.get("dpdk_test_duration", 15)
-    kill_timeout = test_duration + 5
+    # every attached process maps its own share of the hugepage pool, so ask
+    # for more memory when secondaries are part of the run.
+    hugepage_gb = (secondary_proc_count * 2) + 8 if secondary_proc_count else None
     test_kits = init_nodes_concurrent(
-        environment, log, variables, pmd, hugepage_size=hugepage_size
+        environment,
+        log,
+        variables,
+        pmd,
+        hugepage_size=hugepage_size,
+        hugepage_gb=hugepage_gb,
     )
 
     check_send_receive_compatibility(test_kits)
@@ -1112,33 +1226,56 @@ def verify_dpdk_send_receive(
     if result is not None:
         annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
 
-    kit_cmd_pairs = generate_send_receive_run_info(
+    # more attached processes means more contention on the stats lock, so
+    # slow the reporting interval down to keep it from dominating the run.
+    stats_period = max(2, secondary_proc_count)
+
+    kit_cmd_pairs, secondary_cmds = generate_send_receive_run_info(
         pmd,
         sender,
         receiver,
         use_service_cores=use_service_cores,
         queues=queues,
         set_mtu=set_mtu,
-    )
-    receive_timeout = kill_timeout + 10
-    receive_result = receiver.node.tools[Timeout].start_with_timeout(
-        kit_cmd_pairs[receiver],
-        receive_timeout,
-        constants.SIGINT,
-        kill_timeout=receive_timeout,
-    )
-    receive_result.wait_output("start packet forwarding")
-    sender_result = sender.node.tools[Timeout].start_with_timeout(
-        kit_cmd_pairs[sender],
-        test_duration,
-        constants.SIGINT,
-        kill_timeout=kill_timeout,
+        stats_period=stats_period,
+        secondary_proc_count=secondary_proc_count,
+        secondary_mode=secondary_mode,
     )
 
+    # the primaries are started without a timeout and killed explicitly below,
+    # so the secondaries can be torn down first. Killing a primary while a
+    # secondary still has its hugepage runtime data mapped leaves the
+    # secondary spinning on memory with no owner.
+    receiver_proc = receiver.node.execute_async(
+        kit_cmd_pairs[receiver], sudo=True, shell=True
+    )
+    receiver_proc.wait_output("start packet forwarding", timeout=test_duration + 60)
+
+    sender_proc = sender.node.execute_async(
+        kit_cmd_pairs[sender], sudo=True, shell=True
+    )
+    sender_proc.wait_output("start packet forwarding", timeout=test_duration + 60)
+
+    # start the secondaries only once both primaries are forwarding, a
+    # secondary which attaches before the primary has finished initializing
+    # will fail to find the shared memory and exit.
+    secondary_procs = _start_secondary_processes(
+        log, {sender: secondary_cmds[sender], receiver: secondary_cmds[receiver]}
+    )
+
+    sleep(test_duration)
+
+    # kill_previous_testpmd_command tears down the registered secondaries
+    # before the primary.
+    sender.testpmd.kill_previous_testpmd_command()
+    receiver.testpmd.kill_previous_testpmd_command()
+
     results = dict()
-    results[sender] = sender.testpmd.process_testpmd_output(sender_result.wait_result())
+    for secondary_proc in secondary_procs:
+        log.debug(f"Secondary process output:\n{secondary_proc.wait_result().stdout}")
+    results[sender] = sender.testpmd.process_testpmd_output(sender_proc.wait_result())
     results[receiver] = receiver.testpmd.process_testpmd_output(
-        receive_result.wait_result()
+        receiver_proc.wait_result()
     )
 
     # helpful to have the outputs labeled
@@ -1190,6 +1327,45 @@ def verify_dpdk_send_receive(
     annotate_packet_drops(log, result, receiver)
 
     return sender, receiver
+
+
+def _start_secondary_processes(
+    log: Logger, secondary_cmds: Dict[DpdkTestResources, List[str]]
+) -> List[Process]:
+    """Start each kit's secondary processes from a single shell script.
+
+    All of a node's secondaries are backgrounded from one script so the run
+    only costs one ssh channel per node no matter how many processes are
+    started, otherwise a large secondary count exhausts the channel limit
+    before it exhausts anything in DPDK.
+    """
+    secondary_procs: List[Process] = []
+    for kit, commands in secondary_cmds.items():
+        if not commands:
+            continue
+        node = kit.node
+        script_path = node.get_working_path().joinpath("testpmd_secondary_procs.sh")
+        script_lines = ["#!/bin/sh"]
+        script_lines += [f"{command} &" for command in commands]
+        script_lines += ["wait"]
+        node.tools[Tee].write_to_file("\n".join(script_lines), script_path)
+        node.execute(
+            f"chmod +x {str(script_path)}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Could not make the secondary process script executable."
+            ),
+        )
+        log.debug(
+            f"Starting {len(commands)} secondary process(es) on {node.name}: "
+            f"{', '.join(sorted(set(kit.testpmd.get_secondary_process_names())))}"
+        )
+        secondary_procs.append(
+            node.execute_async(str(script_path), sudo=True, shell=True)
+        )
+    return secondary_procs
 
 
 def annotate_packet_drops(

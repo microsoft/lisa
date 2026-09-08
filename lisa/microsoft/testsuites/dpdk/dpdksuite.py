@@ -521,7 +521,7 @@ class Dpdk(TestSuite):
         receiver.switch_sriov = True
         sender.switch_sriov = False
 
-        kit_cmd_pairs = generate_send_receive_run_info(pmd, sender, receiver)
+        kit_cmd_pairs, _ = generate_send_receive_run_info(pmd, sender, receiver)
 
         run_testpmd_hotplug(
             kit_cmd_pairs=kit_cmd_pairs,
