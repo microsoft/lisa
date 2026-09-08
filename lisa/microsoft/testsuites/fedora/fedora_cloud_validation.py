@@ -66,13 +66,19 @@ class FedoraCloudValidation(TestSuite):
             "recovering",
             "tree-log replay",
         ]
+        # Lines that contain a corruption keyword but are known-benign.
+        exclusion_patterns = [
+            "recovery algorithm",
+            # aarch64 CPU feature announcement, not a filesystem dirty-bit
+            "hardware dirty bit management",
+        ]
         journalctl = node.tools[Journalctl]
         boot_logs = journalctl.first_n_logs_from_boot(boot_id=boot_id, no_of_lines=0)
         matches = [
             line
             for line in boot_logs.splitlines()
             if any(kw in line.lower() for kw in corruption_keywords)
-            and "recovery algorithm" not in line.lower()
+            and not any(excl in line.lower() for excl in exclusion_patterns)
         ]
         assert_that(matches).described_as(
             "No filesystem corruption or recovery errors should appear in journalctl"
