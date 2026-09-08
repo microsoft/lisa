@@ -2365,6 +2365,18 @@ class AzurePlatform(Platform):
                 max=node_space.disk.max_data_disk_count
             )
 
+        uncached_disk_iops = azure_raw_capabilities.get("UncachedDiskIOPS", None)
+        if uncached_disk_iops:
+            node_space.disk.max_uncached_data_disk_iops = int(uncached_disk_iops)
+
+        uncached_disk_bytes_per_second = azure_raw_capabilities.get(
+            "UncachedDiskBytesPerSecond", None
+        )
+        if uncached_disk_bytes_per_second:
+            node_space.disk.max_uncached_data_disk_throughput = int(
+                int(uncached_disk_bytes_per_second) / 1024 / 1024
+            )
+
         max_nic_count = azure_raw_capabilities.get("MaxNetworkInterfaces", None)
         if max_nic_count:
             # set a min value for nic_count work around for an azure python sdk bug
@@ -2850,7 +2862,38 @@ class AzurePlatform(Platform):
                     f"current VM size {runbook.vm_size} "
                     f"only offers {node.capability.disk.max_data_disk_count} data disks"
                 )
+
+        self._check_data_disk_provisioned_iops(node, data_disks, runbook.vm_size)
         return data_disks
+
+    def _check_data_disk_provisioned_iops(
+        self, node: Node, data_disks: List[DataDiskSchema], vm_size: str
+    ) -> None:
+        # A disk performance run can only reach the VM's uncached IOPS limit if
+        # the attached disks provide at least that much between them. Warn early,
+        # otherwise the run silently measures the disk set instead of the VM.
+        disk_capability = node.capability.disk
+        if not isinstance(disk_capability, features.AzureDiskOptionSettings):
+            return
+        sku_iops = disk_capability.max_uncached_data_disk_iops
+        empty_disks = [
+            disk
+            for disk in data_disks
+            if disk.create_option
+            == DataDiskCreateOption.DATADISK_CREATE_OPTION_TYPE_EMPTY
+        ]
+        if not sku_iops or not empty_disks:
+            return
+        provisioned_iops = sum(disk.iops for disk in empty_disks)
+        if provisioned_iops and provisioned_iops < sku_iops:
+            node.log.warning(
+                f"{len(empty_disks)} x {empty_disks[0].size}GiB "
+                f"{empty_disks[0].type} data disks provide {provisioned_iops} "
+                f"provisioned IOPS in total, below the {sku_iops} uncached IOPS "
+                f"of VM size {vm_size}. A disk performance test cannot reach the "
+                "VM limit with this disk set; raise data_disk_size and/or "
+                "data_disk_count in the test requirement."
+            )
 
     @lru_cache(maxsize=10)  # noqa: B019
     def get_image_info(

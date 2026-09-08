@@ -1393,12 +1393,16 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
 _disk_size_performance_map: Dict[schema.DiskType, List[Tuple[int, int, int]]] = {
     schema.DiskType.PremiumSSDLRS: [
         (4, 120, 25),
+        (8, 120, 25),
+        (16, 120, 25),
+        (32, 120, 25),
         (64, 240, 50),
         (128, 500, 100),
         (256, 1100, 125),
         (512, 2300, 150),
         (1024, 5000, 200),
         (2048, 7500, 250),
+        (4096, 7500, 250),
         (8192, 16000, 500),
         (16384, 18000, 750),
         (32767, 20000, 900),
@@ -1468,6 +1472,11 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
             )
         ),
     )
+    # VM level uncached remote disk limits, as reported by the resource SKU. They
+    # bound the whole data disk set, not a single disk, so they are what a disk
+    # performance run has to be sized against.
+    max_uncached_data_disk_iops: Optional[int] = None
+    max_uncached_data_disk_throughput: Optional[int] = None
 
     def __hash__(self) -> int:
         return super().__hash__()
@@ -1479,6 +1488,9 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         return (
             f"has_resource_disk: {self.has_resource_disk},"
             f"ephemeral_disk_placement_type: {self.ephemeral_disk_placement_type},"
+            f"max_uncached_data_disk_iops: {self.max_uncached_data_disk_iops},"
+            "max_uncached_data_disk_throughput: "
+            f"{self.max_uncached_data_disk_throughput},"
             f"{super().__repr__()}"
         )
 
@@ -1756,7 +1768,22 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
                         "Consider specifiying a different disk type, "
                         "or changing your requirements."
                     )
-                value.data_disk_size = min(compliant_sizes)
+                # Sizing up is opt-in: without it the smallest compliant disk is
+                # picked, which caps a perf run well below the VM's own limit.
+                maximize_performance = any(
+                    isinstance(count_space, search_space.IntRange)
+                    and count_space.choose_max_value
+                    for count_space in (
+                        self.data_disk_iops,
+                        self.data_disk_throughput,
+                        self.data_disk_size,
+                    )
+                )
+                value.data_disk_size = (
+                    max(compliant_sizes)
+                    if maximize_performance
+                    else min(compliant_sizes)
+                )
 
                 (
                     value.data_disk_iops,
@@ -1785,6 +1812,10 @@ class AzureDiskOptionSettings(schema.DiskOptionSettings):
         if not check_result.result:
             raise NotMeetRequirementException("capability doesn't support requirement")
         value.has_resource_disk = capability.has_resource_disk
+        value.max_uncached_data_disk_iops = capability.max_uncached_data_disk_iops
+        value.max_uncached_data_disk_throughput = (
+            capability.max_uncached_data_disk_throughput
+        )
 
         return value
 

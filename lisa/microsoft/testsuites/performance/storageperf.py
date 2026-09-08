@@ -39,6 +39,16 @@ from lisa.tools.fio import IoEngine
 from lisa.tools.kernel_config import KernelConfig
 from lisa.util import SkippedException
 
+# Premium SSD v1 derives IOPS from the disk size, so the aggregate IOPS of the
+# attached set - not the VM - is what a perf run measures unless the set is sized
+# up. P40 (2048 GiB / 7500 IOPS) at the SKU's full data disk count clears the
+# highest published v6 uncached limits, and needs a quarter of the capacity that
+# a P80 set would need for the same IOPS.
+PREMIUM_PERF_DISK_SIZE = search_space.IntRange(
+    min=1024, max=2048, choose_max_value=True
+)
+PREMIUM_PERF_DISK_COUNT = search_space.IntRange(min=16, choose_max_value=True)
+
 
 @TestSuiteMetadata(
     area="storage",
@@ -156,7 +166,8 @@ class StoragePerformance(TestSuite):
                 data_disk_type=schema.DiskType.PremiumSSDLRS,
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=16),
+                data_disk_size=PREMIUM_PERF_DISK_SIZE,
+                data_disk_count=PREMIUM_PERF_DISK_COUNT,
             ),
         ),
     )
@@ -175,7 +186,8 @@ class StoragePerformance(TestSuite):
                 data_disk_type=schema.DiskType.PremiumSSDLRS,
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=16),
+                data_disk_size=PREMIUM_PERF_DISK_SIZE,
+                data_disk_count=PREMIUM_PERF_DISK_COUNT,
             ),
         ),
     )
@@ -194,7 +206,8 @@ class StoragePerformance(TestSuite):
                 data_disk_type=schema.DiskType.PremiumSSDLRS,
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=16),
+                data_disk_size=PREMIUM_PERF_DISK_SIZE,
+                data_disk_count=PREMIUM_PERF_DISK_COUNT,
             ),
         ),
     )
@@ -221,7 +234,8 @@ class StoragePerformance(TestSuite):
                 data_disk_type=schema.DiskType.PremiumSSDLRS,
                 os_disk_type=schema.DiskType.PremiumSSDLRS,
                 data_disk_iops=search_space.IntRange(min=5000),
-                data_disk_count=search_space.IntRange(min=16),
+                data_disk_size=PREMIUM_PERF_DISK_SIZE,
+                data_disk_count=PREMIUM_PERF_DISK_COUNT,
             ),
         ),
     )
