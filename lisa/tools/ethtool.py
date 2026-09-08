@@ -10,10 +10,21 @@ from lisa.util import (
     find_group_in_lines,
     find_groups_in_lines,
 )
+from lisa.util.process import ExecutableResult
 
 from .find import Find
 from .ip import Ip
 from .lscpu import Lscpu
+
+
+def _is_unsupported(result: ExecutableResult, *patterns: str) -> bool:
+    # ethtool writes a refused operation to stderr, which lisa keeps separate
+    # from stdout, so both streams have to be searched.
+    output = f"{result.stdout}\n{result.stderr}"
+    return any(
+        pattern in output for pattern in patterns or ("Operation not supported",)
+    )
+
 
 # Few ethtool device settings follow similar pattern like -
 #   ethtool device channel info from "ethtool -l eth0"
@@ -556,9 +567,9 @@ class Ethtool(Tool):
             return device.device_channel
 
         result = self.run(f"-l {interface}", force_run=force_run, shell=True)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
-                "ethtool -l {interface} operation not supported."
+                f"ethtool -l {interface} operation not supported."
             )
         result.assert_exit_code(
             message=f"Couldn't get device {interface} channels info."
@@ -673,7 +684,7 @@ class Ethtool(Tool):
             return device.device_msg_level
 
         result = self.run(interface, force_run=force_run, shell=True)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool {interface} operation not supported."
             )
@@ -743,7 +754,7 @@ class Ethtool(Tool):
             return device.device_ringbuffer_settings
 
         result = self.run(f"-g {interface}", force_run=force_run, shell=True)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool -g {interface} operation not supported."
             )
@@ -779,7 +790,7 @@ class Ethtool(Tool):
             return device.device_rss_hash_key
 
         result = self.run(f"-x {interface}", force_run=force_run, shell=True)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool -x {interface} operation not supported."
             )
@@ -799,7 +810,7 @@ class Ethtool(Tool):
             force_run=True,
             shell=True,
         )
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"Changing RSS hash key with 'ethtool -X {interface}' not supported."
             )
@@ -823,7 +834,7 @@ class Ethtool(Tool):
         result = self.run(
             f"-n {interface} rx-flow-hash {protocol}", force_run=force_run, shell=True
         )
-        if "Operation not supported" in result.stdout:
+        if _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool -n {interface} operation not supported."
             )
@@ -856,7 +867,7 @@ class Ethtool(Tool):
             shell=True,
             force_run=True,
         )
-        if "Operation not supported" in result.stdout:
+        if _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool -N {interface} rx-flow-hash {protocol} {param}"
                 " operation not supported."
@@ -904,9 +915,8 @@ class Ethtool(Tool):
             return device.device_statistics
 
         result = self.run(f"-S {interface}", force_run=True, shell=True)
-        if (result.exit_code != 0) and (
-            "Operation not supported" in result.stdout
-            or "no stats available" in result.stdout
+        if (result.exit_code != 0) and _is_unsupported(
+            result, "Operation not supported", "no stats available"
         ):
             raise UnsupportedOperationException(
                 f"ethtool -S {interface} operation not supported."
@@ -943,7 +953,7 @@ class Ethtool(Tool):
             return device.device_firmware_version
 
         result = self.run(f"-i {interface}", force_run=force_run, shell=True)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool -i {interface} operation not supported."
             )
@@ -1153,9 +1163,8 @@ class EthtoolFreebsd(Ethtool):
         result = self.run(
             f"sysctl dev.{device_name}.{number}", force_run=True, shell=True
         )
-        if (result.exit_code != 0) and (
-            "Operation not supported" in result.stdout
-            or "no stats available" in result.stdout
+        if (result.exit_code != 0) and _is_unsupported(
+            result, "Operation not supported", "no stats available"
         ):
             raise UnsupportedOperationException(
                 f"Stats retrieval for {interface} operation not supported."
