@@ -239,5 +239,6 @@ class PxeCluster(ClusterSchema):
 @dataclass_json()
 @dataclass
 class BareMetalPlatformSchema:
+    maximize_capability: bool = False
     source: Optional[SourceSchema] = field(default=None)
     cluster: List[ClusterSchema] = field(default_factory=list)
