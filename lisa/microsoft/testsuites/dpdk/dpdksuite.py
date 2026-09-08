@@ -26,6 +26,8 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     generate_send_receive_run_info,
     init_nodes_concurrent,
     initialize_node_resources,
+    reset_environment_netvsc_binding,
+    reset_node_netvsc_bindings,
     run_dpdk_symmetric_mp,
     run_testpmd_consolidated,
     run_testpmd_hotplug,
@@ -560,6 +562,10 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
         pmd: Pmd = Pmd.FAILSAFE,
     ) -> None:
+        # a previous run which did not clean up leaves nics bound to
+        # uio_hv_generic without an address, which breaks nic discovery.
+        reset_environment_netvsc_binding(environment, log)
+
         test_kits = init_nodes_concurrent(
             environment,
             log,
@@ -597,6 +603,9 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
         pmd: Pmd = Pmd.FAILSAFE,
     ) -> None:
+        # a previous run which did not clean up leaves nics bound to
+        # uio_hv_generic without an address, which breaks nic discovery.
+        reset_node_netvsc_bindings(node)
         try:
             test_kit = initialize_node_resources(
                 node, log, variables, pmd, HugePageSize.HUGE_2MB

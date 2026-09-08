@@ -938,6 +938,82 @@ def do_pmd_driver_setup(
                 ip.down(test_nic.lower)
 
 
+def get_vmbus_network_device_ids(node: Node, filter_driver: str) -> List[str]:
+    """Return the vmbus device uuids of network devices bound to a driver.
+
+    The class id for synthetic network devices is well-known and stable, see
+    https://github.com/torvalds/linux/blob/master/tools/hv/lsvmbus
+    """
+    # find every vmbus device which reports the synthetic network class id
+    result = node.execute(
+        "grep -l f8615163-df3e-46c5-913f-f2d2f965ed0e "
+        "/sys/bus/vmbus/devices/*/class_id "
+        "| cut -f 1-6 -d / ",
+        shell=True,
+    )
+    # grep exits 1 when nothing matched, which is a valid answer here.
+    if result.exit_code not in [0, 1]:
+        raise AssertionError(
+            f"Shell check for vmbus devices bound to driver {filter_driver} "
+            "returned an error."
+        )
+
+    device_paths = result.stdout.splitlines()
+    if not device_paths:
+        return []
+
+    # ...then keep the ones whose driver symlink points at the wanted driver.
+    drivers = node.execute(
+        f"for i in {' '.join(device_paths)}; do readlink -f $i/driver; done",
+        shell=True,
+    ).stdout.splitlines()
+    return [
+        PurePath(device_path).name
+        for driver, device_path in zip(drivers, device_paths)
+        if driver == f"/sys/bus/vmbus/drivers/{filter_driver}"
+    ]
+
+
+def get_dpdk_pids(node: Node) -> List[str]:
+    apps = ["testpmd", "l3fwd", "devname", "symmetric_mp"]
+    apps += [f"dpdk-{app}" for app in apps]
+    return node.execute(f"pidof {' '.join(apps)}", shell=True).stdout.split()
+
+
+def check_dpdk_is_running(node: Node) -> bool:
+    return len(get_dpdk_pids(node)) != 0
+
+
+def rebind_uio_devices_to_hv_netvsc(node: Node) -> None:
+    # unbind any uio_hv_generic devices and re-bind them to hv_netvsc
+    device_ids = get_vmbus_network_device_ids(node, filter_driver="uio_hv_generic")
+    for device_id in device_ids:
+        node.nics.unbind_by_uuid(device_id, "/sys/bus/vmbus/drivers/uio_hv_generic")
+        node.nics.bind_by_uuid(device_id, "/sys/bus/vmbus/drivers/hv_netvsc")
+
+
+def reset_node_netvsc_bindings(node: Node) -> None:
+    """Hand any test nics left with dpdk back to hv_netvsc.
+
+    A run which did not clean up after itself leaves its nics bound to
+    uio_hv_generic with no address, which makes the next run's nic discovery
+    fail on a node it could have used. Rebinding is enough, the node does not
+    have to be rebooted or redeployed.
+    """
+    rebind_uio_devices_to_hv_netvsc(node)
+    node.nics.reload()
+
+
+def reset_environment_netvsc_binding(environment: Environment, log: Logger) -> None:
+    run_in_parallel(
+        [
+            partial(reset_node_netvsc_bindings, node)
+            for node in environment.nodes.list()
+        ],
+        log,
+    )
+
+
 def initialize_node_resources(
     node: Node,
     log: Logger,
@@ -1203,6 +1279,10 @@ def verify_dpdk_send_receive(
         if set_mtu and not node.nics.is_mana_device_present():
             raise SkippedException("set mtu test is intended for MANA VMs only.")
     log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
+
+    # a previous run which did not clean up leaves nics bound to
+    # uio_hv_generic without an address, which breaks nic discovery below.
+    reset_environment_netvsc_binding(environment, log)
 
     # get test duration variable if set
     # enables long-running tests to shakeQoS and SLB issue
@@ -1508,6 +1588,10 @@ def run_testpmd_consolidated(
             "The multiple port send/receive test is only implemented "
             "for the netvsc pmd."
         )
+
+    # a previous run which did not clean up leaves nics bound to
+    # uio_hv_generic without an address, which breaks the nic discovery below.
+    reset_environment_netvsc_binding(environment, log)
 
     # pick one nic per subnet on each node
     node_test_nics = _get_multi_port_test_nics(environment)
