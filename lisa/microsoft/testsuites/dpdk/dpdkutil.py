@@ -1,12 +1,10 @@
 import itertools
 import re
-import time
-from collections import deque
 from decimal import Decimal
 from enum import Enum
 from functools import partial
 from pathlib import PurePath
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Pattern, Sequence, Tuple, Union
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
@@ -60,6 +58,7 @@ from lisa.tools import (
     Dmesg,
     Echo,
     Firewall,
+    Gcc,
     Hugepages,
     Ip,
     KernelConfig,
@@ -70,12 +69,14 @@ from lisa.tools import (
     Modprobe,
     Ntttcp,
     Ping,
+    Tee,
     Timeout,
 )
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
+from lisa.util import sleep
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
-from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
+from lisa.util.parallel import run_in_parallel
 
 
 # DPDK added new flags in 19.11 that some tests rely on for send/recv
@@ -198,6 +199,163 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
                 f"{node_b.name} {ip_b} -> {node_a.name} {ip_a} : {ping_b}\n"
             )
         ).is_true()
+
+
+def testpmd_start_process(kit: DpdkTestResources, cmd: str) -> Process:
+    kit.node.log.debug(f"Starting process: sudo {cmd}")
+    proc = kit.node.execute_async(cmd, sudo=True, shell=True)
+    # Note: This is an extremely long timeout for this command...
+    # But some timeout here is better than none here.
+    # The hotplug tests have really long timeouts, but testpmd
+    # should be able to start within a few seconds.
+    proc.wait_output("start packet forwarding", timeout=60)
+    return proc
+
+
+# tags emitted by azure_uevent_listener for the pci device itself.
+# match the suffix so the plain PCI_ADD/PCI_REMOVE tags are caught too,
+# the device is identified by its pci slot, not by the azure_vf flag.
+_PCI_ADD_TAG = re.compile(r"PCI_ADD$")
+_PCI_REMOVE_TAG = re.compile(r"PCI_REMOVE$")
+
+_PCI_DEVICES_PATH = "/sys/bus/pci/devices"
+_PCI_RESCAN_PATH = "/sys/bus/pci/rescan"
+
+
+def get_vf_pci_slots(node: Node, nics: Optional[List[NicInfo]] = None) -> List[str]:
+    """Get the pci slots of the VF devices attached to the given nics.
+
+    Defaults to every nic on the node. Nics without a VF are skipped.
+    """
+    if nics is None:
+        nics = list(node.nics.nics.values())
+    slots = set([nic.pci_slot for nic in nics if nic.pci_slot])
+    assert_that(slots).described_as(
+        f"Node[{node.name}] has no VF pci devices to hotplug."
+    ).is_not_empty()
+    return list(slots)
+
+
+def remove_pci_devices(node: Node, pci_slots: List[str]) -> None:
+    """Detach pci devices from the guest, the equivalent of a surprise removal.
+
+    echo 1 | sudo tee /sys/bus/pci/devices/$slot/remove
+    """
+    tee = node.tools[Tee]
+    for slot in set(pci_slots):
+        node.log.debug(f"Removing pci device {slot}")
+        tee.write_to_file(
+            "1",
+            node.get_pure_path(f"{_PCI_DEVICES_PATH}/{slot}/remove"),
+            sudo=True,
+        )
+
+
+def rescan_pci_bus(node: Node) -> None:
+    """Re-discover any removed pci devices.
+
+    echo 1 | sudo tee /sys/bus/pci/rescan
+    """
+    node.log.debug("Rescanning the pci bus")
+    node.tools[Tee].write_to_file(
+        "1",
+        node.get_pure_path(_PCI_RESCAN_PATH),
+        sudo=True,
+    )
+
+
+def switch_sriov_for_nic(node: Node, test_nic: NicInfo) -> None:
+    switch_sriov_for_nics(node, [test_nic])
+
+
+def switch_sriov_for_nics(node: Node, test_nics: List[NicInfo]) -> None:
+    # all the VFs are removed and restored together, a single uevent
+    # listener covers the whole set. Running one listener per nic would
+    # have them competing for the same uevent socket.
+    pci_slots = get_vf_pci_slots(node, test_nics)
+
+    # start the uevent listener before triggering hotplug
+    listener = UeventListener(node)
+    listener.start()
+
+    # let testpmd run for a bit before triggering hotplug
+    sleep(10)
+
+    # remove the VF via sysfs instead of asking azure to disable
+    # accelerated networking, it's faster and doesn't touch the platform.
+    remove_pci_devices(node, pci_slots)
+    # wait for uevent listener to see each VF pci device go away
+    listener.wait_for_events(
+        [UeventListener.device_criteria(slot, _PCI_REMOVE_TAG) for slot in pci_slots],
+        timeout=60,
+    )
+
+    # let it run on synthetic path before restoring the VF
+    sleep(10)
+
+    rescan_pci_bus(node)
+    # wait for uevent listener to see each VF pci device come back.
+    # The VF may be paired with a different netdev after the rescan,
+    # seeing the same pci device added back is enough.
+    listener.wait_for_events(
+        [UeventListener.device_criteria(slot, _PCI_ADD_TAG) for slot in pci_slots],
+        timeout=60,
+    )
+
+    # stop the listener and validate that we saw the expected uevents
+    events = listener.stop()
+    node.log.debug(f"uevent listener captured {len(events)} events: {events}")
+    for slot in pci_slots:
+        removes = [
+            e
+            for e in events
+            if e.matches(UeventListener.device_criteria(slot, _PCI_REMOVE_TAG))
+        ]
+        adds = [
+            e
+            for e in events
+            if e.matches(UeventListener.device_criteria(slot, _PCI_ADD_TAG))
+        ]
+        assert_that(removes).described_as(
+            f"Expected a removal uevent for VF {slot} after sysfs remove"
+        ).is_not_empty()
+        assert_that(adds).described_as(
+            f"Expected an add uevent for VF {slot} after pci rescan"
+        ).is_not_empty()
+    # the nic/VF pairing may have changed, refresh the cached info
+    node.nics.reload()
+
+
+# run the send/receive hotplug test.
+def run_testpmd_hotplug(
+    kit_cmd_pairs: Dict[DpdkTestResources, str],
+    sender: DpdkTestResources,
+    receiver: Optional[DpdkTestResources] = None,
+    hotplug: bool = True,
+) -> None:
+    processes: Dict[DpdkTestResources, Process] = {}
+
+    collect_from = receiver if receiver else sender
+    all_kits = [sender]
+    if receiver:
+        all_kits += [receiver]
+        processes[receiver] = testpmd_start_process(receiver, kit_cmd_pairs[receiver])
+
+    processes[sender] = testpmd_start_process(sender, kit_cmd_pairs[sender])
+    if hotplug:
+        node = collect_from.node
+        # gather the VF pci slot up front, the uevent match criteria are
+        # built from it. The slot is stable across a remove/rescan cycle.
+        test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
+        switch_sriov_for_nic(node, test_nic)
+
+    # let it run for a bit
+    sleep(30)
+    # kill testpmd and process the output
+    for kit in all_kits:
+        kit.testpmd.kill_previous_testpmd_command()
+        # allow time for SIGINT/SIGKILL shutdown and stats flush
+        kit.testpmd.process_testpmd_output(processes[kit].wait_result(timeout=120))
 
 
 def generate_send_receive_run_info(
@@ -528,72 +686,6 @@ def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None
                 kit.testpmd.get_dpdk_version(),
                 "-tx-ip flag for ip forwarding",
             )
-
-
-def run_testpmd_concurrent(
-    node_cmd_pairs: Dict[DpdkTestResources, str],
-    seconds: int,
-    log: Logger,
-    hotplug_sriov: bool = False,
-) -> Dict[DpdkTestResources, str]:
-    output: Dict[DpdkTestResources, str] = dict()
-
-    task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
-    if hotplug_sriov:
-        time.sleep(10)  # run testpmd for a bit before disabling sriov
-
-        test_kits = node_cmd_pairs.keys()
-
-        # disable sriov (and wait for change to apply)
-        for node_resources in [x for x in test_kits if x.switch_sriov]:
-            node_resources.nic_controller.switch_sriov(
-                enable=False, wait=True, reset_connections=False
-            )
-
-        # let run for a bit with SRIOV disabled
-        time.sleep(10)
-
-        # re-enable sriov
-        for node_resources in [x for x in test_kits if x.switch_sriov]:
-            node_resources.nic_controller.switch_sriov(
-                enable=True, wait=True, reset_connections=False
-            )
-
-        # run for a bit with SRIOV re-enabled
-        time.sleep(10)
-
-        # kill the commands to collect the output early and terminate before timeout
-        for node_resources in test_kits:
-            node_resources.testpmd.kill_previous_testpmd_command()
-
-    task_manager.wait_for_all_workers()
-
-    return output
-
-
-def start_testpmd_concurrent(
-    node_cmd_pairs: Dict[DpdkTestResources, str],
-    seconds: int,
-    log: Logger,
-    output: Dict[DpdkTestResources, str],
-) -> TaskManager[Tuple[DpdkTestResources, str]]:
-    cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
-
-    def _collect_dict_result(result: Tuple[DpdkTestResources, str]) -> None:
-        output[result[0]] = result[1]
-
-    def _run_command_with_testkit(
-        run_kit: Tuple[DpdkTestResources, str],
-    ) -> Tuple[DpdkTestResources, str]:
-        testkit, cmd = run_kit
-        return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
-
-    task_manager = run_in_parallel_async(
-        [partial(_run_command_with_testkit, x) for x in cmd_pairs_as_tuples],
-        _collect_dict_result,
-    )
-
-    return task_manager
 
 
 def init_nodes_concurrent(
@@ -1663,6 +1755,243 @@ class DpdkDevnameInfo:
             )
         self.port_mask = hex(port_mask)[2:]
         return self.port_mask
+
+
+# Output line format from azure_uevent_listener:
+# [HH:MM:SS.mmm] TAG subsystem=X pci=... driver=... ifname=... name=... ...
+_uevent_line_regex = re.compile(
+    r"\[(?P<timestamp>[\d:.]+)\]\s+(?P<tag>\S+)\s+(?P<properties>.*)"
+)
+
+# a criteria value is either an exact string or a regex to search for
+UeventCriteria = Mapping[str, Union[str, Pattern[str]]]
+
+
+class UeventEntry:
+    """One parsed event from the uevent listener output."""
+
+    def __init__(self, timestamp: str, tag: str, properties: Dict[str, str]) -> None:
+        self.timestamp = timestamp
+        self.tag = tag
+        self.properties = properties
+
+    @property
+    def subsystem(self) -> str:
+        return self.properties.get("subsystem", "")
+
+    @property
+    def pci_slot(self) -> str:
+        return self.properties.get("pci", "")
+
+    @property
+    def interface(self) -> str:
+        return self.properties.get("ifname", "")
+
+    @property
+    def driver(self) -> str:
+        return self.properties.get("driver", "")
+
+    @property
+    def is_azure_vf(self) -> bool:
+        return self.properties.get("azure_vf") == "yes"
+
+    @property
+    def devpath(self) -> str:
+        return self.properties.get("devpath", "")
+
+    def matches(self, criteria: UeventCriteria) -> bool:
+        """Check the event against a dict of expected properties.
+
+        Every entry must match for the event to match. 'tag' is matched
+        against the event tag, any other key is matched against the parsed
+        event properties (subsystem, pci, driver, ifname, name, devnode,
+        azure_vf, devpath). String values must be equal, compiled regexes are
+        searched within the value.
+        """
+        for key, expected in criteria.items():
+            actual = self.tag if key == "tag" else self.properties.get(key, "")
+            if isinstance(expected, str):
+                if actual != expected:
+                    return False
+            elif not expected.search(actual):
+                return False
+        return True
+
+    def __repr__(self) -> str:
+        return f"UeventEntry({self.tag}, {self.properties})"
+
+
+class UeventListener:
+    """
+    Wrapper around the azure_uevent_listener C program.
+    Compiles and runs the uevent listener in the background, then
+    provides methods to stop it and parse captured hotplug events.
+    """
+
+    _SOURCE_FILE = "azure_uevent_listener.c"
+    _BINARY_NAME = "azure-uevent-listener"
+    _LOCAL_DIR = PurePath(__file__).parent / "uevent_listener"
+
+    def __init__(self, node: Node) -> None:
+        self._node = node
+        self._process: Optional[Process] = None
+        self._remote_binary = node.working_path.joinpath(self._BINARY_NAME)
+        self._compiled = False
+
+    def compile(self) -> None:
+        """Copy source to the node and compile it."""
+        if self._compiled:
+            return
+        remote_src = self._node.working_path.joinpath(self._SOURCE_FILE)
+        self._node.shell.copy(
+            self._LOCAL_DIR / self._SOURCE_FILE,
+            remote_src,
+        )
+        self._node.tools[Gcc].compile(
+            str(remote_src),
+            output_name=str(self._remote_binary),
+            arguments="-O2 -Wall",
+        )
+        self._compiled = True
+
+    def start(self, show_all: bool = False, verbose: bool = False) -> None:
+        """Start the listener in the background. Requires root."""
+        self.compile()
+        flags = ""
+        if show_all:
+            flags += " -a"
+        if verbose:
+            flags += " -v"
+        cmd = f"{str(self._remote_binary)}{flags}"
+        self._process = self._node.execute_async(cmd, sudo=True, shell=True)
+        # wait for the "watching kernel uevents" banner
+        self._process.wait_output("watching kernel uevents", timeout=10)
+
+    def wait_for_event(
+        self,
+        criteria: Optional[UeventCriteria] = None,
+        timeout: int = 60,
+        error_on_missing: bool = True,
+        **properties: Union[str, Pattern[str]],
+    ) -> Optional[UeventEntry]:
+        """Block until an event matching all the given properties is seen.
+
+        Properties can be passed as a dict and/or as keyword arguments, for
+        example:
+            listener.wait_for_event(tag="VF_PCI_REMOVE", devpath=vf_devpath)
+            listener.wait_for_event({"tag": re.compile("REMOVE"),
+                                     "azure_vf": "yes"})
+        Returns the matching event, or None if nothing matched and
+        error_on_missing is False.
+        """
+        if self._process is None:
+            raise LisaException("UeventListener is not running")
+        expected: Dict[str, Union[str, Pattern[str]]] = dict(criteria or {})
+        expected.update(properties)
+        if not expected:
+            raise LisaException("wait_for_event requires at least one property")
+
+        matched = self.wait_for_events(
+            [expected], timeout=timeout, error_on_missing=error_on_missing
+        )
+        return matched[0] if matched else None
+
+    def wait_for_events(
+        self,
+        criteria_list: Sequence[UeventCriteria],
+        timeout: int = 60,
+        error_on_missing: bool = True,
+    ) -> List[UeventEntry]:
+        """Block until every entry in criteria_list has matched an event.
+
+        The output is scanned once, so the events may arrive in any order.
+        Returns the matching events, or the partial list when nothing matched
+        and error_on_missing is False.
+        """
+        if self._process is None:
+            raise LisaException("UeventListener is not running")
+        if not criteria_list:
+            raise LisaException("wait_for_events requires at least one criteria")
+
+        pending = list(criteria_list)
+        matched: List[UeventEntry] = []
+
+        def _is_match(line: str) -> bool:
+            entry = self.parse_line(line)
+            if entry is None:
+                return False
+            for criteria in pending:
+                if entry.matches(criteria):
+                    pending.remove(criteria)
+                    matched.append(entry)
+                    break
+            # only stop once every criteria has been seen
+            return not pending
+
+        self._process.wait_line(
+            _is_match,
+            timeout=timeout,
+            error_on_missing=error_on_missing,
+            description=f"uevents matching {list(criteria_list)}",
+        )
+        return matched
+
+    def stop(self, timeout: int = 30) -> List[UeventEntry]:
+        """Send SIGINT, collect output, and return parsed events."""
+        if self._process is None:
+            return []
+        self._node.tools[Kill].by_name(
+            self._BINARY_NAME, signum=SIGINT, ignore_not_exist=True
+        )
+        result = self._process.wait_result(timeout=timeout)
+        self._process = None
+        return self.parse_output(result.stdout)
+
+    @staticmethod
+    def device_criteria(
+        pci_slot: str, tag: Union[str, Pattern[str]]
+    ) -> Dict[str, Union[str, Pattern[str]]]:
+        """Build match criteria for every event of one pci device.
+
+        The pci slot is the PCI_SLOT_NAME property on pci events only, but it
+        is always a path segment of DEVPATH, so matching the devpath catches
+        the net and infiniband events for the same device as well.
+        """
+        return {"tag": tag, "devpath": re.compile(re.escape(pci_slot))}
+
+    @staticmethod
+    def parse_line(line: str) -> Optional[UeventEntry]:
+        """Parse a single uevent listener output line, None if it's not one."""
+        match = _uevent_line_regex.match(line.strip())
+        if not match:
+            return None
+        props: Dict[str, str] = {}
+        for token in match.group("properties").split():
+            if "=" in token:
+                key, value = token.split("=", 1)
+                props[key] = value
+        if not props:
+            # banner and other non-event output
+            return None
+        return UeventEntry(
+            timestamp=match.group("timestamp"),
+            tag=match.group("tag"),
+            properties=props,
+        )
+
+    @staticmethod
+    def parse_output(output: str) -> List[UeventEntry]:
+        """Parse uevent listener stdout into a list of UeventEntry."""
+        entries: List[UeventEntry] = []
+        for line in output.splitlines():
+            entry = UeventListener.parse_line(line)
+            if entry is not None:
+                entries.append(entry)
+        return entries
+
+    def get_events_by_tag(self, output: str, tag: str) -> List[UeventEntry]:
+        """Filter parsed events by tag (e.g. VF_PCI_ADD, NETDEV_REMOVE)."""
+        return [e for e in self.parse_output(output) if e.tag == tag]
 
 
 # TODO: remove this method in 2028 when all updated versions are LTS
