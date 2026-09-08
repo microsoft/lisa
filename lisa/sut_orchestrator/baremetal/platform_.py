@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Type
 
 from lisa import feature, schema
 from lisa.environment import Environment
+from lisa.features import Nvme
 from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
 from lisa.sut_orchestrator import platform_utils
@@ -57,7 +58,7 @@ class BareMetalPlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
-        return [StartStop, SerialConsole, SecurityProfile]
+        return [StartStop, SerialConsole, SecurityProfile, Nvme]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         baremetal_runbook: BareMetalPlatformSchema = self.runbook.get_extended_runbook(
@@ -270,13 +271,19 @@ class BareMetalPlatform(Platform):
         if not environment.runbook.nodes_requirement:
             return True
 
+        maximize_capability = self._baremetal_runbook.maximize_capability
+
         nodes_requirement = []
         for index, node_space in enumerate(environment.runbook.nodes_requirement):
             client_capability = client_capabilities[index]
-            if not node_space.check(client_capability):
+            if not maximize_capability and not node_space.check(client_capability):
                 return False
 
-            node_requirement = node_space.choose_value(client_capability)
+            node_requirement = (
+                client_capability
+                if maximize_capability
+                else node_space.choose_value(client_capability)
+            )
             nodes_requirement.append(node_requirement)
 
         environment.runbook.nodes_requirement = nodes_requirement
