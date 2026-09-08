@@ -96,7 +96,7 @@ class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
             items=[
                 schema.FeatureSettings.create(features.SerialConsole.name()),
                 schema.FeatureSettings.create(features.StartStop.name()),
-                schema.FeatureSettings.create(features.Nvme.name()),
+                features.NvmeSettings(),
                 SecurityProfile.create_setting(),
             ],
         )
