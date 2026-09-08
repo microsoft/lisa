@@ -95,6 +95,7 @@ from lisa.util import (
     generate_random_chars,
     get_matched_str,
     set_filtered_fields,
+    sleep,
 )
 
 if TYPE_CHECKING:
@@ -988,7 +989,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"into status [{enable}]"
                 ).is_equal_to(enable)
 
-    @retry(HttpResponseError, tries=3, delay=30)  # type: ignore
+    @retry(HttpResponseError, tries=7, delay=10, backoff=1.15)  # type: ignore
     def switch_sriov(
         self, enable: bool, wait: bool = True, reset_connections: bool = True
     ) -> None:
@@ -1028,6 +1029,9 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"networking into status [{enable}]"
                 ).is_equal_to(enable)
                 status_changed = True
+                # space out the per-nic updates, updating several nics back
+                # to back is a reliable way to get throttled by the api.
+                sleep(0.5)
 
         # wait settings effective
         if wait and status_changed:
