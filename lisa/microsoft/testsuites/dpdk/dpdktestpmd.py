@@ -649,6 +649,8 @@ class DpdkTestpmd(Tool):
         eal_device_args: str = "",
         stats_period: int = 2,
         file_prefix: str = "",
+        core_offset: int = 0,
+        extra_eal_args: str = "",
     ) -> str:
         #   testpmd \
         #   -l <core-list> \
@@ -701,31 +703,35 @@ class DpdkTestpmd(Tool):
                 f"tool.Lscpu bug: cpu range for numa 0 found as {first}-{last}."
             )
         threads_available = last - first + 1
-        # 1 core is always reserved for the OS/management.
-        available_for_this_process = threads_available - 1
+        # core_offset reserves the low cores for another primary process on
+        # the same node, so they are not available to this one. 1 core is
+        # always reserved for the OS/management.
+        available_for_this_process = threads_available - 1 - core_offset
         assert_that(available_for_this_process).described_as(
             f"DPDK test requested {queues} queue(s) across "
             f"{len(nic_to_include)} port(s) ({forwarding_cores} forwarding "
             f"core(s)) plus {service_cores} service core(s) = "
             f"{max_core_index} core(s) on NUMA node 0, but only "
             f"{available_for_this_process} core(s) are available there "
-            f"(node has {threads_available} total). "
+            f"(node has {threads_available} total, core_offset={core_offset}). "
             "Pick a smaller queue count for this SKU, or run this test on a "
             "bigger one."
         ).is_greater_than_or_equal_to(max_core_index)
 
         # core range argument
-        core_list = f"-l 1-{max_core_index}"
+        primary_start = 1 + core_offset
+        primary_end = max_core_index + core_offset
+        core_list = f"-l {primary_start}-{primary_end}"
 
         # record the cores this process owns, plus core 0 for the OS, so any
         # secondary started later picks cores which are actually free.
         self._reserved_cores.add(0)
-        self._reserved_cores.update(range(1, max_core_index + 1))
+        self._reserved_cores.update(range(primary_start, primary_end + 1))
         self._log_core_queue_mapping(
             nics=nic_to_include,
             mode=mode,
             queues=queues,
-            first_forwarding_core=1,
+            first_forwarding_core=primary_start,
             service_cores=service_cores,
         )
         if extra_args:
@@ -780,6 +786,8 @@ class DpdkTestpmd(Tool):
         # hugepage runtime data, so it is only needed when one is expected.
         if file_prefix:
             eal_args += f" --file-prefix={file_prefix}"
+        if extra_eal_args:
+            eal_args += f" {extra_eal_args.strip()}"
         return (
             f"{self._testpmd_install_path} {eal_args} -- --forward-mode={mode} "
             f"-a --stats-period {stats_period} "
