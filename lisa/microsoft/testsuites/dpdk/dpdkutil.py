@@ -362,7 +362,7 @@ def generate_send_receive_run_info(
     pmd: Pmd,
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
-    multiple_queues: bool = False,
+    queues: int = 1,
     use_service_cores: int = 1,
     set_mtu: int = 0,
 ) -> Dict[DpdkTestResources, str]:
@@ -387,7 +387,7 @@ def generate_send_receive_run_info(
         "txonly",
         pmd=pmd,
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
-        multiple_queues=multiple_queues,
+        queues=queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
@@ -415,7 +415,7 @@ def generate_testpmd_multiple_port_command(
     pmd: Pmd,
     senders: List[DpdkTestResources],
     receiver: DpdkTestResources,
-    multiple_queues: bool = False,
+    queues: int = 1,
     use_service_cores: int = 1,
     set_mtu: int = 0,
 ) -> Dict[DpdkTestResources, str]:
@@ -472,7 +472,7 @@ def generate_testpmd_multiple_port_command(
             "txonly",
             pmd=pmd,
             extra_args=f"--tx-ip={sender_nic.ip_addr},{receiver_nic.ip_addr}",
-            multiple_queues=multiple_queues,
+            queues=queues,
             service_cores=use_service_cores,
             mtu=set_mtu,
             mbuf_size=maxmtu_int,
@@ -724,13 +724,15 @@ def init_nodes_concurrent(
                     pmd,
                     hugepage_size=hugepage_size,
                     sample_apps=sample_apps,
-                    test_nics=specific_pairings[node]
-                    if specific_pairings
-                    else [
-                        nic
-                        for nic in node.nics.nics.values()
-                        if nic is not node.nics.get_primary_nic()
-                    ][:test_nic_count],
+                    test_nics=(
+                        specific_pairings[node]
+                        if specific_pairings
+                        else [
+                            nic
+                            for nic in node.nics.nics.values()
+                            if nic is not node.nics.get_primary_nic()
+                        ][:test_nic_count]
+                    ),
                 )
                 for node in environment.nodes.list()
             ],
@@ -747,7 +749,7 @@ def verify_dpdk_build(
     variables: Dict[str, Any],
     pmd: Pmd,
     hugepage_size: HugePageSize,
-    multiple_queues: bool = False,
+    queues: int = 1,
     result: Optional[TestResult] = None,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
@@ -787,7 +789,7 @@ def verify_dpdk_send_receive(
     pmd: Pmd,
     hugepage_size: HugePageSize,
     use_service_cores: int = 1,
-    multiple_queues: bool = False,
+    queues: int = 1,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
     check_sender_packet_drops: bool = False,
@@ -827,7 +829,7 @@ def verify_dpdk_send_receive(
         sender,
         receiver,
         use_service_cores=use_service_cores,
-        multiple_queues=multiple_queues,
+        queues=queues,
         set_mtu=set_mtu,
     )
     receive_timeout = kill_timeout + 10
@@ -920,6 +922,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     log: Logger,
     variables: Dict[str, Any],
     pmd: Pmd,
+    queues: int,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
@@ -933,7 +936,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         pmd,
         HugePageSize.HUGE_2MB,
         use_service_cores=1,
-        multiple_queues=True,
+        queues=queues,
         result=result,
         set_mtu=set_mtu,
         grading_metric=grading_metric,
@@ -949,7 +952,7 @@ def verify_dpdk_mutliple_ports(
     pmd: Pmd,
     hugepage_size: HugePageSize,
     use_service_cores: int = 1,
-    multiple_queues: bool = False,
+    queues: int = 1,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
 ) -> Tuple[DpdkTestResources, DpdkTestResources, DpdkTestResources]:
@@ -1006,7 +1009,7 @@ def verify_dpdk_mutliple_ports(
         [sender_port_a, sender_port_b],
         receiver_kit,
         use_service_cores=use_service_cores,
-        multiple_queues=multiple_queues,
+        queues=queues,
         set_mtu=set_mtu,
     )
     receive_timeout = kill_timeout + 10
