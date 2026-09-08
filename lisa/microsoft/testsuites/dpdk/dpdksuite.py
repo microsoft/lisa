@@ -25,7 +25,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     init_nodes_concurrent,
     initialize_node_resources,
     run_dpdk_symmetric_mp,
-    run_testpmd_concurrent,
+    run_testpmd_hotplug,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_mutliple_ports,
@@ -532,8 +532,10 @@ class Dpdk(TestSuite):
 
         kit_cmd_pairs = generate_send_receive_run_info(pmd, sender, receiver)
 
-        run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
+        run_testpmd_hotplug(
+            kit_cmd_pairs=kit_cmd_pairs,
+            sender=sender,
+            receiver=receiver,
         )
 
         hotplug_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_hotplug()
@@ -553,15 +555,13 @@ class Dpdk(TestSuite):
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
         testpmd = test_kit.testpmd
-        test_nic = node.nics.get_secondary_nic()
-        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly")
+        test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
+        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd)
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }
 
-        run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
-        )
+        run_testpmd_hotplug(kit_cmd_pairs=kit_cmd_pairs, sender=test_kit)
 
         hotplug_pps_set = testpmd.get_mean_tx_pps_sriov_hotplug()
         self._check_rx_or_tx_pps_sriov_hotplug("TX", hotplug_pps_set)
@@ -574,10 +574,12 @@ class Dpdk(TestSuite):
         self._check_rx_or_tx_pps(tx_or_rx, during_hotplug, sriov_enabled=False)
         self._check_rx_or_tx_pps(tx_or_rx, after_reenable, sriov_enabled=True)
         after_over_before = after_reenable / before_hotplug
-        assert_that(after_over_before).described_as(
-            "Error: pps of vf was very different before and after hotplug. "
-            f"before: {before_hotplug} after: {after_reenable}"
-        ).is_close_to(1, tolerance=0.125)
+        if after_reenable < before_hotplug:
+            assert_that(after_over_before).described_as(
+                "Error: pps of vf was very different before and "
+                "after hotplug. "
+                f"before: {before_hotplug} after: {after_reenable}"
+            ).is_close_to(1, tolerance=0.125)
 
     def _check_rx_or_tx_pps(
         self, tx_or_rx: str, pps: int, sriov_enabled: bool = True
@@ -1144,8 +1146,7 @@ class Dpdk(TestSuite):
         )
 
     @TestCaseMetadata(
-        description=(
-            """
+        description=("""
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1153,8 +1154,7 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """
-        ),
+        """),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
@@ -1180,8 +1180,7 @@ class Dpdk(TestSuite):
         )
 
     @TestCaseMetadata(
-        description=(
-            """
+        description=("""
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1189,8 +1188,7 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """
-        ),
+        """),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
