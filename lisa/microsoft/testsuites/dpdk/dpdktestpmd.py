@@ -253,20 +253,10 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
         self._node.tools[Ninja].run(
             "uninstall", shell=True, sudo=True, cwd=self.dpdk_build_path
         )
-        working_path = str(self._node.get_working_path())
-        assert_that(str(self.dpdk_build_path)).described_as(
-            "DPDK Installer source path was empty during attempted cleanup!"
-        ).is_not_empty()
-        assert_that(str(self.dpdk_build_path)).described_as(
-            "DPDK Installer source path was set to root dir "
-            "'/' during attempted cleanup!"
-        ).is_not_equal_to("/")
-        assert_that(str(self.dpdk_build_path)).described_as(
-            f"DPDK Installer source path {self.dpdk_build_path} was set to "
-            f"working path '{working_path}' during attempted cleanup!"
-        ).is_not_equal_to(working_path)
-        # remove build path only since we may want the repo again.
-        self._node.execute(f"rm -rf {str(self.dpdk_build_path)}", shell=True)
+        # NOTE: the build directory is intentionally left in place. ninja
+        # needs it to undo the install, and a reinstall of the same source
+        # can reuse it. _delete_assets removes the whole source tree when
+        # the installation is rolled back.
 
     def get_installed_version(self) -> VersionInfo:
         version: VersionInfo = self._node.tools[Pkgconfig].get_package_version(
@@ -296,8 +286,13 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
         node = self._node
         # save the pythonpath for later
         python_path = node.tools[Python].get_python_path()
+        # debugoptimized keeps the optimizations the throughput tests need
+        # while retaining the symbols needed to make a core dump from a
+        # test failure useful.
         self.dpdk_build_path = node.tools[Meson].setup(
-            args=sample_apps, build_dir="build", cwd=self.asset_path
+            args=f"-Dbuildtype=debugoptimized {sample_apps}",
+            build_dir="build",
+            cwd=self.asset_path,
         )
         install_result = node.tools[Ninja].run(
             cwd=self.dpdk_build_path,
@@ -1015,7 +1010,10 @@ class DpdkTestpmd(Tool):
         ):
             raise SkippedException("MANA DPDK test is not supported on this OS")
 
-        self.installer.do_installation()
+        # skip the whole installation flow, including the source download,
+        # when a usable dpdk is already present on the node.
+        if not self.installer.is_installed():
+            self.installer.do_installation()
         self._dpdk_version_info = self.installer.get_installed_version()
         self._load_drivers_for_dpdk()
         self.find_testpmd_binary(check_path=self._expected_install_path)

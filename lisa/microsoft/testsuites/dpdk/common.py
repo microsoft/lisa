@@ -169,12 +169,22 @@ class TarDownloader(Downloader):
         # add option to skip files which already exist on disk
         # in the event we have already extracted this specific tar
         if not node.shell.exists(self.asset_path):
-            node.tools[Tar].extract(
-                file=str(remote_path),
-                dest_dir=str(work_path),
-                gzip=True,
-                skip_existing_files=True,
-            )
+            try:
+                node.tools[Tar].extract(
+                    file=str(remote_path),
+                    dest_dir=str(work_path),
+                    gzip=True,
+                    skip_existing_files=True,
+                )
+            except AssertionError:
+                # tar extraction failed,
+                # ensure potential broken dir and
+                # download are removed before reraising.
+                if node.shell.exists(self.asset_path):
+                    node.shell.remove(self.asset_path, recursive=True)
+                if node.shell.exists(remote_path):
+                    node.shell.remove(remote_path)
+                raise
         return self.asset_path
 
 
@@ -188,6 +198,9 @@ class Installer:
     # First we download the assets to ensure asset_path is set
     # even if we end up skipping re-installation
     def _setup_node(self) -> None:
+        # NOTE: an installer does not outlive the test case which created it,
+        # so asset_path is only ever set here or by a rollback which cleared
+        # it. It is not a cache which survives between test cases.
         if not hasattr(self, "asset_path"):
             self._download_assets()
 
@@ -264,10 +277,15 @@ class Installer:
             and required_version > self.get_installed_version()
         )
 
+    # public check for callers which want to skip the whole installation
+    # flow (including the asset download) when the tool is already present.
+    def is_installed(self) -> bool:
+        return self._check_if_installed()
+
     # run the defined setup and installation steps.
     def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
         self._setup_node()
-        if self._should_install():
+        if self._should_install(required_version=required_version):
             # any issues here could result in a broken installation.
             # If the node is still usable, we don't want to discard it.
             # So attempt to roll back a broken installation and re-raise the problem.
@@ -279,9 +297,9 @@ class Installer:
                 self._uninstall()
                 self._install_dependencies()
                 self._install()
-            except Exception as e:
+            except Exception:
                 self._rollback_installation()
-                raise e
+                raise
 
     def __init__(
         self,

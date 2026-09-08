@@ -679,6 +679,11 @@ class Dpdk(TestSuite):
                 " package manager installation."
             )
 
+        # the dpdk source tree is only downloaded when an installation is
+        # actually needed, but this test builds against it, so make sure the
+        # installer has run and asset_path is populated.
+        testpmd.installer.do_installation()
+
         # grab a nic and run testpmd
         git = node.tools[Git]
         make = node.tools[Make]
