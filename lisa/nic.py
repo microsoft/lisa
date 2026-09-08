@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from assertpy import assert_that
 from retry import retry
@@ -166,6 +166,23 @@ class Nics(InitializableMixin):
 
     def get_unpaired_devices(self) -> List[str]:
         return [x.name for x in self.nics.values() if not x.lower]
+
+    def get_subnets(self) -> List[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]]:
+        # Collect the distinct subnets the nics on this node are attached to.
+        # The guest is not told the real prefix length, and the test
+        # environments this is used with allocate a /24 per subnet, so a /24
+        # is assumed here. Returned in nic order so the subnet list is stable
+        # across nodes in the same environment.
+        subnets: List[Union[ipaddress.IPv4Network, ipaddress.IPv6Network]] = []
+        for nic in self.nics.values():
+            # skip nics which don't have an address assigned yet.
+            if not nic.ip_addr:
+                continue
+            subnet = ipaddress.ip_network((nic.ip_addr, 24), strict=False)
+            self._node.log.debug(f"Found subnet {subnet} for nic {nic.name}")
+            if subnet not in subnets:
+                subnets.append(subnet)
+        return subnets
 
     def get_synthetic_devices(self) -> List[str]:
         synthetic_devices = []
