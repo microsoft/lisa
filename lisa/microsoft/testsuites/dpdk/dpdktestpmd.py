@@ -13,6 +13,7 @@ from microsoft.testsuites.dpdk.common import (
     Installer,
     OsPackageDependencies,
     PackageManagerInstall,
+    Pmd,
     TarDownloader,
     get_debian_backport_repo_args,
     is_url_for_git_repo,
@@ -504,10 +505,38 @@ class DpdkTestpmd(Tool):
             return False
 
     def generate_testpmd_include(
-        self, node_nic: NicInfo, vdev_id: int, force_netvsc: bool = False
-    ) -> str:
-        # handle generating different flags for pmds/device combos for testpmd
+        self,
+        nics: List[NicInfo],
+        vdev_id: int,
+        pmd: Pmd,
+    ) -> List[str]:
+        nic_include_infos = []
+        # handle them all at once for mana
+        # the format is --vdev=(bus_address),mac=...,mac=...
+        # as opposed to the multiple --vdev arguments
+        # for non-vport setups.
+        if pmd == Pmd.MANA:
+            # nics which share a bus address (i.e. MANA vports) have to be
+            # declared as one vdev with every mac listed on it.
+            bus_to_mac: Dict[str, List[str]] = {}
+            for nic in nics:
+                bus_to_mac.setdefault(nic.pci_slot, []).append(nic.mac_addr)
+            for bus, macs in bus_to_mac.items():
+                nic_include_infos += [f"--vdev={bus}," + ",".join(macs)]
+        else:
+            for node_nic in nics:
+                nic_include_infos.append(
+                    self._generate_testpmd_include(node_nic, vdev_id, pmd)
+                )
+                vdev_id += 1
+        return nic_include_infos
 
+    def _generate_testpmd_include(
+        self,
+        node_nic: NicInfo,
+        vdev_id: int,
+        pmd: Pmd,
+    ) -> str:
         # MANA and mlnx both don't require these arguments if all VFs are in use.
         # We have a primary nic to exclude in our tests, so we include the
         # test nic by either bus address and mac (MANA)
@@ -527,16 +556,24 @@ class DpdkTestpmd(Tool):
         else:
             include_flag = "-w"
 
-        include_flag = f' {include_flag} "{node_nic.pci_slot}"'
+        if self.is_mana:
+            # MANA vports share one bus address, so the vmbus device uuid
+            # is what actually distinguishes the devices from each other.
+            include_flag = f"{include_flag} {node_nic.dev_uuid}"
+        else:
+            include_flag = f' {include_flag} "{node_nic.pci_slot}"'
 
         # build pmd argument
         if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
             pmd_name = "net_failsafe"
             pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
         elif self.is_mana:
-            # mana selects by mac, just return the vdev info directly
-            if node_nic.module_name == "uio_hv_generic" or force_netvsc:
-                return f' --vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
+            # MANA netvsc mode selects by mac.
+            if pmd == Pmd.NETVSC:
+                return (
+                    f" {include_flag} "
+                    f'--vdev="{node_nic.pci_slot},mac={node_nic.mac_addr}" '
+                )
             # if mana_ib is present, use mana friendly args
             elif self.node.tools[Modprobe].module_exists("mana_ib"):
                 return (
@@ -551,34 +588,19 @@ class DpdkTestpmd(Tool):
                 # reset include flag for MANA since there is only one interface
                 include_flag = ""
         else:
+            if pmd == Pmd.NETVSC:
+                return include_flag
             # mlnx setup for failsafe
             pmd_name = "net_vdev_netvsc"
             pmd_flags = f"iface={node_nic.name},force=1"
-        if node_nic.module_name == "hv_netvsc":
-            # primary/upper/master nic is bound to hv_netvsc
-            # when using net_failsafe implicitly or explicitly.
-            # Set up net_failsafe/net_vdev_netvsc args here
-            return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + include_flag
-        elif node_nic.module_name == "uio_hv_generic":
-            # if using netvsc pmd, just let -w or -a select
-            # which device to use. No other args are needed.
-            return include_flag
-        else:
-            # if we're all the way through and haven't picked a pmd, something
-            # has gone wrong. fail fast
-            raise LisaException(
-                (
-                    f"Unknown driver({node_nic.module_name}) bound to "
-                    f"{node_nic.name}/{node_nic.lower}."
-                    "Cannot generate testpmd include arguments."
-                )
-            )
+        return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + include_flag
 
     def generate_testpmd_command(
         self,
         nic_to_include: List[NicInfo],
         vdev_id: int,
         mode: str,
+        pmd: Pmd = Pmd.FAILSAFE,
         extra_args: str = "",
         queues: int = 1,
         service_cores: int = 1,
@@ -611,10 +633,9 @@ class DpdkTestpmd(Tool):
         txd = 256
 
         # generate the flags for which devices to include in the tests
-        nic_include_infos = []
-        for nic in nic_to_include:
-            nic_include_infos += [self.generate_testpmd_include(nic, vdev_id)]
-            vdev_id += 1
+        nic_include_infos = self.generate_testpmd_include(
+            nic_to_include, vdev_id, pmd=pmd
+        )
 
         # one forwarding core per queue per port: this is the only place a
         # caller with more than one nic (i.e. a multi-port test) differs from

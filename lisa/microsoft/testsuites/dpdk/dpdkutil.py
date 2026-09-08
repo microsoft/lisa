@@ -227,6 +227,7 @@ def generate_send_receive_run_info(
         [snd_nic],
         0,
         "txonly",
+        pmd=pmd,
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
         queues=queues,
         service_cores=use_service_cores,
@@ -237,6 +238,7 @@ def generate_send_receive_run_info(
         [rcv_nic],
         0,
         "rxonly",
+        pmd=pmd,
         queues=queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
@@ -310,6 +312,7 @@ def generate_testpmd_multiple_port_command(
             [sender_nic],
             0,
             "txonly",
+            pmd=pmd,
             extra_args=f"--tx-ip={sender_nic.ip_addr},{receiver_nic.ip_addr}",
             queues=queues,
             service_cores=use_service_cores,
@@ -319,17 +322,16 @@ def generate_testpmd_multiple_port_command(
         # store this senders command
         kit_cmd_pairs[sender] = snd_cmd
         # receiver needs multiple ports, so only generate the include.
-        receiver_include = receiver.testpmd.generate_testpmd_include(
-            receiver_nics[sender_subnet], i
+        receiver_includes += receiver.testpmd.generate_testpmd_include(
+            [receiver_nics[sender_subnet]], i, pmd=pmd
         )
-        # and save it
-        receiver_includes += [receiver_include]
 
     # and generate the command with multiple ports for the single receiver:
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         list([receiver_nics[key] for key in receiver_nics]),
         0,
         "rxonly",
+        pmd=pmd,
         queues=queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
@@ -385,7 +387,13 @@ def enable_uio_hv_generic(node: Node) -> None:
 def do_pmd_driver_setup(
     node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: Pmd = Pmd.FAILSAFE
 ) -> None:
-    if pmd == Pmd.NETVSC:
+    if pmd == Pmd.MANA:
+        # the MANA pmd drives the VF directly, so the only setup needed is
+        # to take the synthetic interfaces out of the kernel's hands.
+        for nic in test_nics:
+            node.tools[Ip].down(nic.name)
+        return
+    elif pmd == Pmd.NETVSC:
         # setup system for netvsc pmd
         # https://doc.dpdk.org/guides/nics/netvsc.html
         enable_uio_hv_generic(node)
@@ -665,7 +673,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        [test_nic], 0, "txonly", queues=queues
+        [test_nic], 0, "txonly", pmd=pmd, queues=queues
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
@@ -1278,14 +1286,11 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
 
     # generate the dpdk include arguments to add to our commandline
-    include_devices = [
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
-        ),
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_b_nics[forwarder], dpdk_port_b, force_netvsc=True
-        ),
-    ]
+    include_devices = fwd_kit.testpmd.generate_testpmd_include(
+        [subnet_a_nics[forwarder]], dpdk_port_a, pmd=Pmd.NETVSC
+    ) + fwd_kit.testpmd.generate_testpmd_include(
+        [subnet_b_nics[forwarder]], dpdk_port_b, pmd=Pmd.NETVSC
+    )
 
     # Generating port,queue,core mappings for forwarder
     # NOTE: For DPDK 'N queues' means N queues * N PORTS
