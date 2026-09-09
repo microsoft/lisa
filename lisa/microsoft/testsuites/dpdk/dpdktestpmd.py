@@ -362,6 +362,7 @@ class DpdkGitDownloader(GitDownloader):  # type: ignore[misc]
 
 class DpdkTestpmd(Tool):
     # TestPMD tool to bundle the DPDK build and toolset together.
+    _instance_id = "testpmd"
 
     # regex to identify sriov re-enable event, example:
     # EAL: Probe PCI driver: net_mlx4 (15b3:1004) device: e8ef:00:02.0 (socket 0)
@@ -454,8 +455,10 @@ class DpdkTestpmd(Tool):
     def has_tx_ip_flag(self) -> bool:
         if not self.has_dpdk_version():
             fail(
-                "Test suite bug: dpdk version was not set prior "
-                "to querying the version information."
+                self._error_message(
+                    "Test suite bug: dpdk version was not set prior "
+                    "to querying the version information."
+                )
             )
 
         # black doesn't like to direct return VersionInfo comparison
@@ -463,8 +466,10 @@ class DpdkTestpmd(Tool):
 
     def use_package_manager_install(self) -> bool:
         assert_that(hasattr(self, "_dpdk_source")).described_as(
-            "_dpdk_source was not set in DpdkTestpmd instance. "
-            "set_dpdk_source must be called before instantiation."
+            self._error_message(
+                "_dpdk_source was not set in DpdkTestpmd instance. "
+                "set_dpdk_source must be called before instantiation."
+            )
         ).is_true()
         if self._dpdk_source == PACKAGE_MANAGER_SOURCE:
             return True
@@ -593,8 +598,10 @@ class DpdkTestpmd(Tool):
         # being silently shrunk to fit whatever the node happens to have,
         # which used to make the actual queue/core count unpredictable.
         assert_that(queues).described_as(
-            "queues must be a positive number. Callers must pick an explicit "
-            "queue count instead of relying on this tool to infer one."
+            self._error_message(
+                "queues must be a positive number. Callers must pick an explicit "
+                "queue count instead of relying on this tool to infer one."
+            )
         ).is_greater_than_or_equal_to(1)
 
         # MANA needs a file descriptor argument, mlnx doesn't.
@@ -618,20 +625,24 @@ class DpdkTestpmd(Tool):
         first, last = self.node.tools[Lscpu].get_cpu_range_in_numa_node(0)
         if last <= first:
             raise AssertionError(
-                f"tool.Lscpu bug: cpu range for numa 0 found as {first}-{last}."
+                self._error_message(
+                    f"tool.Lscpu bug: cpu range for numa 0 found as {first}-{last}."
+                )
             )
         threads_available = last - first + 1
         # 1 core is always reserved for the OS/management.
         available_for_this_process = threads_available - 1
         assert_that(available_for_this_process).described_as(
-            f"DPDK test requested {queues} queue(s) across "
-            f"{len(nic_to_include)} port(s) ({forwarding_cores} forwarding "
-            f"core(s)) plus {service_cores} service core(s) = "
-            f"{max_core_index} core(s) on NUMA node 0, but only "
-            f"{available_for_this_process} core(s) are available there "
-            f"(node has {threads_available} total). "
-            "Pick a smaller queue count for this SKU, or run this test on a "
-            "bigger one."
+            self._error_message(
+                f"DPDK test requested {queues} queue(s) across "
+                f"{len(nic_to_include)} port(s) ({forwarding_cores} forwarding "
+                f"core(s)) plus {service_cores} service core(s) = "
+                f"{max_core_index} core(s) on NUMA node 0, but only "
+                f"{available_for_this_process} core(s) are available there "
+                f"(node has {threads_available} total). "
+                "Pick a smaller queue count for this SKU, or run this test on a "
+                "bigger one."
+            )
         ).is_greater_than_or_equal_to(max_core_index)
 
         # core range argument
@@ -685,8 +696,10 @@ class DpdkTestpmd(Tool):
             )
 
         assert_that(self._testpmd_install_path).described_as(
-            "Testpmd install path was not set, this indicates a logic"
-            " error in the DPDK installation process."
+            self._error_message(
+                "Testpmd install path was not set, this indicates a logic"
+                " error in the DPDK installation process."
+            )
         ).is_not_empty()
         debug_log_args = self._eal_debug_log_args()
         nic_includes = " ".join(nic_include_infos)
@@ -828,7 +841,9 @@ cores=1-4
             # if this somehow didn't kill it, reset netvsc
             self.node.tools[Modprobe].reload("hv_netvsc")
             if self.check_testpmd_is_running():
-                raise LisaException("Testpmd has hung, killing the test.")
+                raise LisaException(
+                    self._error_message("Testpmd has hung, killing the test.")
+                )
             else:
                 self.node.log.debug(
                     "Testpmd killed with hv_netvsc reload. "
@@ -845,13 +860,13 @@ cores=1-4
         # Apply a list of filters to the data
         # return a single output from a final filter function
         assert_that(testpmd_output).described_as(
-            "Could not find output from last testpmd run."
+            self._error_message("Could not find output from last testpmd run.")
         ).is_not_equal_to("")
         matches = re.findall(
             self._testpmd_output_regex[search_key_constant], testpmd_output
         )
         assert_that(matches).described_as(
-            (
+            self._error_message(
                 "Could not locate any matches for search key "
                 f"{self._testpmd_output_regex[search_key_constant]} "
                 "in the test output."
@@ -859,15 +874,19 @@ cores=1-4
         )
         data_as_integers = list(map(int, matches))
         assert_that(data_as_integers).described_as(
-            f"Could not find any data in testpmd output"
-            f" for key {search_key_constant}"
+            self._error_message(
+                f"Could not find any data in testpmd output"
+                f" for key {search_key_constant}"
+            )
         ).is_not_empty()
         data_as_integers = _discard_first_zeroes(data_as_integers)
         if discard_first_and_last:
             data_as_integers = _discard_first_and_last_sample(data_as_integers)
         assert_that(data_as_integers).described_as(
-            f"Could not find any data in testpmd output"
-            f" for key {search_key_constant}."
+            self._error_message(
+                f"Could not find any data in testpmd output"
+                f" for key {search_key_constant}."
+            )
         ).is_not_empty()
         return data_as_integers
 
@@ -925,21 +944,25 @@ cores=1-4
     def check_tx_packet_drops(self) -> None:
         if self.tx_total_packets == 0:
             raise AssertionError(
-                "Test bug: tx packet data was 0, could not check dropped packets"
+                self._error_message(
+                    "Test bug: tx packet data was 0, could not check dropped packets"
+                )
             )
         self.packet_drop_rate = self.tx_packet_drops / self.tx_total_packets
         assert_that(self.packet_drop_rate).described_as(
-            "More than 33% of the tx packets were dropped!"
+            self._error_message("More than 33% of the tx packets were dropped!")
         ).is_close_to(0, 0.33)
 
     def check_rx_packet_drops(self) -> None:
         if self.rx_total_packets == 0:
             raise AssertionError(
-                "Test bug: rx packet data was 0 could not check dropped packets."
+                self._error_message(
+                    "Test bug: rx packet data was 0 could not check dropped packets."
+                )
             )
         self.packet_drop_rate = self.rx_packet_drops / self.rx_total_packets
         assert_that(self.packet_drop_rate).described_as(
-            "More than 1% of the received packets were dropped!"
+            self._error_message("More than 1% of the received packets were dropped!")
         ).is_close_to(0, 0.01)
 
     def get_mean_tx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
@@ -954,8 +977,10 @@ cores=1-4
         )
         shell = self.node.shell
         assert_that(shell.exists(source_path)).described_as(
-            "dpdk examples path does not exist, "
-            f"cannot use requested dpdk example: {app_name}"
+            self._error_message(
+                "dpdk examples path does not exist, "
+                f"cannot use requested dpdk example: {app_name}"
+            )
         ).is_true()
         # if the application has not been built;
         # check if there is a build directory and build the application
@@ -998,10 +1023,12 @@ cores=1-4
                 downloader = TarDownloader(node=self.node, tar_url=self._dpdk_source)
             else:
                 raise LisaException(
-                    "URL provided for dpdk source did not validate as "
-                    f"a tarball or git repo. Found {self._dpdk_source} "
-                    " Expected https://___/___.git or /path/to/tar.tar[.gz] or "
-                    "https://__/__.tar[.gz]"
+                    self._error_message(
+                        "URL provided for dpdk source did not validate as "
+                        f"a tarball or git repo. Found {self._dpdk_source} "
+                        " Expected https://___/___.git or /path/to/tar.tar[.gz] or "
+                        "https://__/__.tar[.gz]"
+                    )
                 )
             self.installer = DpdkSourceInstall(
                 node=self.node,
@@ -1016,6 +1043,12 @@ cores=1-4
                     self._dpdk_lib_name
                 )
 
+    def set_instance_id(self, instance_id: str) -> None:
+        self._instance_id = instance_id
+
+    def _error_message(self, message: str) -> str:
+        return f"[{self._instance_id}] {message}"
+
     def _determine_network_hardware(self) -> None:
         lspci = self.node.tools[Lspci]
         device_list = lspci.get_devices_by_type(DEVICE_TYPE_SRIOV)
@@ -1027,7 +1060,7 @@ cores=1-4
     def _check_data_exists(self, rx_or_tx: str, data_type: str = "pps") -> None:
         data_attr_name = f"{rx_or_tx.lower()}_{data_type}_data"
         assert_that(hasattr(self, data_attr_name)).described_as(
-            (
+            self._error_message(
                 f"{data_type} data ({rx_or_tx}) did not exist for testpmd object. "
                 "This indicates either testpmd did not run or the suite is "
                 "missing an assert. Contact the test maintainer."
@@ -1043,13 +1076,17 @@ cores=1-4
             data_set = self.tx_pps_data
         else:
             fail(
-                "Identifier passed to _check_pps_data was not recognized, "
-                f"must be RX or TX. Found {rx_or_tx}"
+                self._error_message(
+                    "Identifier passed to _check_pps_data was not recognized, "
+                    f"must be RX or TX. Found {rx_or_tx}"
+                )
             )
 
         assert_that(any(data_set)).described_as(
-            f"any({str(data_set)}) resolved to false. Test data was "
-            f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_pps_data."
+            self._error_message(
+                f"any({str(data_set)}) resolved to false. Test data was "
+                f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_pps_data."
+            )
         ).is_true()
 
     def check_bps_data(self, rx_or_tx: str) -> int:
@@ -1061,13 +1098,17 @@ cores=1-4
             data_set = self.tx_bps_data
         else:
             fail(
-                "Identifier passed to _check_pps_data was not recognized, "
-                f"must be RX or TX. Found {rx_or_tx}"
+                self._error_message(
+                    "Identifier passed to _check_pps_data was not recognized, "
+                    f"must be RX or TX. Found {rx_or_tx}"
+                )
             )
 
         assert_that(any(data_set)).described_as(
-            f"any({str(data_set)}) resolved to false. Test data was "
-            f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_bps_data."
+            self._error_message(
+                f"any({str(data_set)}) resolved to false. Test data was "
+                f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_bps_data."
+            )
         ).is_true()
 
         # bits -> gigabits N>>30
@@ -1187,7 +1228,11 @@ cores=1-4
         found_path = PurePosixPath(self._testpmd_install_path)
         path_check = bool(self._testpmd_install_path) and node.shell.exists(found_path)
         if assert_on_fail and not path_check:
-            fail("Could not locate testpmd binary after installation!")
+            fail(
+                self._error_message(
+                    "Could not locate testpmd binary after installation!"
+                )
+            )
         elif not path_check:
             self._testpmd_install_path = ""
         return path_check
@@ -1197,7 +1242,9 @@ cores=1-4
 
         device_removal_index = self._last_run_output.find(search_str)
         assert_that(device_removal_index).described_as(
-            "Could not locate SRIOV hotplug event in testpmd output"
+            self._error_message(
+                "Could not locate SRIOV hotplug event in testpmd output"
+            )
         ).is_not_equal_to(-1)
 
         self._testpmd_output_before_hotplug = self._last_run_output[
@@ -1211,7 +1258,9 @@ cores=1-4
             if not list(matches_list):
                 command_dumped = "timeout: the monitored command dumped core"
                 if command_dumped in self._last_run_output:
-                    raise LisaException("Testpmd crashed after device removal.")
+                    raise LisaException(
+                        self._error_message("Testpmd crashed after device removal.")
+                    )
 
         # pick the last match
 
@@ -1219,9 +1268,11 @@ cores=1-4
             last_match = matches_list[-1]
         else:
             raise LisaException(
-                "Found no vf hotplug events in testpmd output. "
-                "Check output to verify if PPS drop occurred and port removal "
-                "event message matches the expected forms."
+                self._error_message(
+                    "Found no vf hotplug events in testpmd output. "
+                    "Check output to verify if PPS drop occurred and port removal "
+                    "event message matches the expected forms."
+                )
             )
 
         self.node.log.info(f"Identified hotplug event: {last_match.group(0)}")
