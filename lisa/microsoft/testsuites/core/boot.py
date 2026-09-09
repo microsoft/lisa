@@ -48,6 +48,8 @@ class Boot(TestSuite):
     def verify_boot_with_debug_kernel(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
+        node.mark_dirty()
+
         # Defense-in-depth: catches custom VHD/SIG images whose OS detection
         # may misclassify the node and bypass the supported_os gate.
         if not isinstance(node.os, Redhat) and not isinstance(node.os, CentOs):
