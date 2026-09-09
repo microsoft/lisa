@@ -65,7 +65,8 @@ DPDK_PACKAGE_MANAGER_PACKAGES = DependencyInstaller(
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Debian)
             and bool(x.get_kernel_information().version >= "5.15.0")
-            and x.is_package_in_repo("linux-modules-extra-azure"),
+            and x.is_package_in_repo("linux-modules-extra-azure")
+            and not x.package_exists("linux-modules-extra-azure"),
             packages=["linux-modules-extra-azure"],
             requires_reboot=True,
         ),
@@ -121,7 +122,8 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
         OsPackageDependencies(
             matcher=lambda x: isinstance(x, Debian)
             and bool(x.get_kernel_information().version >= "5.15.0")
-            and x.is_package_in_repo("linux-modules-extra-azure"),
+            and x.is_package_in_repo("linux-modules-extra-azure")
+            and not x.package_exists("linux-modules-extra-azure"),
             packages=["linux-modules-extra-azure"],
             requires_reboot=True,
         ),
