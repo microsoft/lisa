@@ -579,6 +579,16 @@ class Dpdk(TestSuite):
                 "after hotplug. "
                 f"before: {before_hotplug} after: {after_reenable}"
             ).is_close_to(1, tolerance=0.125)
+        if after_reenable >= before_hotplug:
+            # better throughput after the hotplug is odd but fine.
+            # This check is more generous for the
+            # 'pps got better' case. The base PPS threshold is
+            # still asserted in checks elsewhere.
+            assert_that(after_over_before).described_as(
+                "Error: pps of vf was very different before and "
+                "after hotplug. "
+                f"before: {before_hotplug} after: {after_reenable}"
+            ).is_close_to(1, tolerance=0.15)
 
     def _check_rx_or_tx_pps(
         self, tx_or_rx: str, pps: int, sriov_enabled: bool = True
@@ -1355,8 +1365,7 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
 
     @TestCaseMetadata(
-        description=(
-            """
+        description=("""
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1364,8 +1373,7 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """
-        ),
+        """),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
@@ -1391,8 +1399,7 @@ class Dpdk(TestSuite):
         )
 
     @TestCaseMetadata(
-        description=(
-            """
+        description=("""
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1400,8 +1407,7 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """
-        ),
+        """),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
