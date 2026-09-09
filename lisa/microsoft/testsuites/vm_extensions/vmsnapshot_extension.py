@@ -57,7 +57,9 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         Attempt it a few items to rule out cases when VM is under changes.
         """,
         priority=1,
-        requirement=simple_requirement(supported_features=[AzureExtension]),
+        requirement=simple_requirement(
+            supported_features=[AzureExtension, CvmDisabled()]
+        ),
     )
     def verify_vmsnapshot_extension(
         self, log: Logger, node: Node, environment: Environment
@@ -118,7 +120,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            supported_features=[AzureExtension],
+            supported_features=[AzureExtension, CvmDisabled()],
             unsupported_os=[BSD, Windows],
         ),
     )
