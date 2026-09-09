@@ -353,7 +353,8 @@ class DpdkOvs(Tool):
         node.execute(
             (
                 f"ovs-vsctl add-port {self.OVS_BRIDGE_NAME} p1 -- "
-                f'set Interface p1 type=dpdk options:dpdk-devargs="{device_args}"'
+                f'set Interface p1 type=dpdk options:dpdk-devargs="{device_args}" '
+                "options:n_rxq=2 options:n_txq=2"
             ),
             sudo=True,
             expected_exit_code=0,

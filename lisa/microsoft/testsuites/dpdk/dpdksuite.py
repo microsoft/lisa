@@ -14,7 +14,6 @@ from microsoft.testsuites.dpdk.common import (
     force_dpdk_default_source,
 )
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
-from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
     UIO_HV_GENERIC_SYSFS_PATH,
     UnsupportedPackageVersionException,
@@ -25,6 +24,7 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     init_nodes_concurrent,
     initialize_node_resources,
     run_dpdk_symmetric_mp,
+    run_ovs_test,
     run_testpmd_hotplug,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
@@ -240,57 +240,36 @@ class Dpdk(TestSuite):
             ),
         ),
     )
-    def verify_dpdk_ovs(
+    def verify_dpdk_ovs_mana(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
-        if node.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64:
-            raise SkippedException("OVS test not supported on ARM64")
-
         force_dpdk_default_source(variables)
-        test_nics = [node.nics.get_secondary_nic()]
-        try:
-            test_kit = initialize_node_resources(
-                node,
-                log,
-                variables,
-                Pmd.NETVSC,
-                HugePageSize.HUGE_2MB,
-                test_nics=test_nics,
-            )
-        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
-            raise SkippedException(err)
+        run_ovs_test(node, log, variables, Pmd.MANA)
 
-        # checkout OpenVirtualSwitch
-        ovs: DpdkOvs = node.tools[DpdkOvs]
-
-        # check for runbook variable to skip dpdk version check
-        use_latest_ovs = variables.get("use_latest_ovs", False)
-        # provide ovs build with DPDK tool info and build
-        ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
-
-        # enable hugepages needed for dpdk EAL
-        hugepages = node.tools[Hugepages]
-        try:
-            hugepages.init_hugepages(HugePageSize.HUGE_2MB)
-        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
-            raise SkippedException(err)
-
-        try:
-            # run OVS tests, providing OVS with the NIC info needed for DPDK init
-            ovs.setup_ovs(test_nics, test_kit.testpmd)
-
-            # validate if OVS was able to initialize DPDK
-            node.execute(
-                "ovs-vsctl get Open_vSwitch . dpdk_initialized",
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "OVS repoted that DPDK EAL failed to initialize."
-                ),
-            )
-        finally:
-            ovs.stop_ovs()
+    @TestCaseMetadata(
+        description="""
+           Install and run OVS+DPDK functional tests
+        """,
+        priority=4,
+        maturity="preview",
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            disk=schema.DiskOptionSettings(
+                data_disk_count=search_space.IntRange(min=1),
+                data_disk_size=search_space.IntRange(min=64),
+            ),
+        ),
+    )
+    def verify_dpdk_ovs_netvsc(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        # initialize DPDK first, OVS requires it built from source before configuring.
+        force_dpdk_default_source(variables)
+        run_ovs_test(node, log, variables, Pmd.NETVSC)
 
     @TestCaseMetadata(
         description="""
@@ -1371,7 +1350,8 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
 
     @TestCaseMetadata(
-        description=("""
+        description=(
+            """
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1379,7 +1359,8 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """),
+        """
+        ),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
@@ -1405,7 +1386,8 @@ class Dpdk(TestSuite):
         )
 
     @TestCaseMetadata(
-        description=("""
+        description=(
+            """
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1413,7 +1395,8 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """),
+        """
+        ),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
