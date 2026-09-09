@@ -347,6 +347,10 @@ def run_testpmd_hotplug(
         # built from it. The slot is stable across a remove/rescan cycle.
         test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
         switch_sriov_for_nic(node, test_nic)
+        if processes[collect_from].wait_output(
+            "Segmentation fault (core dumped)", timeout=5, error_on_missing=False
+        ):
+            raise LisaException("Test fail: testpmd crashed.")
 
     # let it run for a bit
     sleep(30)
