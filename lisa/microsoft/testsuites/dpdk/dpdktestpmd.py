@@ -489,7 +489,8 @@ class DpdkTestpmd(Tool):
             for nic in nics:
                 bus_to_mac.setdefault(nic.pci_slot, []).append(nic.mac_addr)
             for bus, macs in bus_to_mac.items():
-                nic_include_infos += [f"--vdev={bus}," + ",".join(macs)]
+                mac_fmt = [f"mac={m}" for m in macs]
+                nic_include_infos += [f"--vdev={bus}," + ",".join(mac_fmt)]
         else:
             for node_nic in nics:
                 nic_include_infos.append(
