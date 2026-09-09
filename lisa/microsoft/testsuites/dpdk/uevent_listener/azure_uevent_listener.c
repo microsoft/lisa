@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-3-Clause
  *
- * azure_hotplug_mon - watch kernel uevents for NIC hotplug/removal on Azure.
+ * azure_uevent_listener - watch kernel uevents for NIC hotplug/removal on Azure.
  *
  * Listens on the raw NETLINK_KOBJECT_UEVENT socket (kernel multicast group 1)
  * and reports the events that matter to a DPDK application running with the
