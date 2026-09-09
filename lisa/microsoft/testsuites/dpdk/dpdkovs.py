@@ -273,7 +273,9 @@ class DpdkOvs(Tool):
         device_args = f"class=eth,mac={nics[0].mac_addr}"
         return eal_args, device_args
 
-    def setup_ovs(self, nics: List[NicInfo], dpdk_tool: DpdkTestpmd) -> None:
+    def setup_ovs(
+        self, nics: List[NicInfo], dpdk_tool: DpdkTestpmd, queues: int = 2
+    ) -> None:
         # setup OVS and track which state we are in.
         # this will allow a try/except to catch a failure and hold it until
         # until after the teardown. It should also allow teardown
@@ -281,7 +283,6 @@ class DpdkOvs(Tool):
         node = self.node
         modprobe = node.tools[Modprobe]
         self.teardown_state = self.INIT
-
         eal_args, device_args = self._get_eal_and_device_args(nics, dpdk_tool)
 
         # load ovs driver
@@ -354,7 +355,7 @@ class DpdkOvs(Tool):
             (
                 f"ovs-vsctl add-port {self.OVS_BRIDGE_NAME} p1 -- "
                 f'set Interface p1 type=dpdk options:dpdk-devargs="{device_args}" '
-                "options:n_rxq=2 options:n_txq=2"
+                f"options:n_rxq={queues} options:n_txq={queues}"
             ),
             sudo=True,
             expected_exit_code=0,

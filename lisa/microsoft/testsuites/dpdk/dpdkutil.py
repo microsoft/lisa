@@ -23,7 +23,6 @@ from microsoft.testsuites.dpdk.common import (
     is_url_for_tarball,
     update_kernel_from_repo,
 )
-from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
     RDMA_CORE_MANA_DEFAULT_SOURCE,
@@ -2171,51 +2170,3 @@ def run_dpdk_symmetric_mp(
     assert_that(process_data[2]["rx"]).described_as(
         "process 1 port_0_tx and port_1_rx should match"
     ).is_equal_to(process_data[3]["tx"])
-
-
-def run_ovs_test(node: Node, log: Logger, variables: Dict[str, Any], pmd: Pmd):
-    if node.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64:
-        raise SkippedException("OVS test not supported on ARM64")
-    test_nics = [node.nics.get_secondary_nic()]
-    try:
-        test_kit = initialize_node_resources(
-            node,
-            log,
-            variables,
-            pmd,
-            HugePageSize.HUGE_2MB,
-            test_nics=test_nics,
-        )
-    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
-        raise SkippedException(err)
-
-    # checkout OpenVirtualSwitch
-    ovs: DpdkOvs = node.tools[DpdkOvs]
-
-    # check for runbook variable to skip dpdk version check
-    use_latest_ovs = variables.get("use_latest_ovs", False)
-    # provide ovs build with DPDK tool info and build
-    ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
-
-    # enable hugepages needed for dpdk EAL
-    hugepages = node.tools[Hugepages]
-    try:
-        hugepages.init_hugepages(HugePageSize.HUGE_2MB)
-    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
-        raise SkippedException(err)
-
-    try:
-        # run OVS tests, providing OVS with the NIC info needed for DPDK init
-        ovs.setup_ovs(test_nics, test_kit.testpmd)
-
-        # validate if OVS was able to initialize DPDK
-        node.execute(
-            "ovs-vsctl get Open_vSwitch . dpdk_initialized",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "OVS repoted that DPDK EAL failed to initialize."
-            ),
-        )
-    finally:
-        ovs.stop_ovs()
