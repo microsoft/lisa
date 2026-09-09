@@ -48,7 +48,7 @@ from lisa import (
     notifier,
 )
 from lisa.base_tools.uname import Uname
-from lisa.executable import Process
+from lisa.executable import ExecutableResult, Process
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
@@ -333,6 +333,9 @@ def run_testpmd_hotplug(
     hotplug: bool = True,
 ) -> None:
     processes: Dict[DpdkTestResources, Process] = {}
+    sender.testpmd.set_instance_id("sender")
+    if receiver:
+        receiver.testpmd.set_instance_id("receiver")
 
     collect_from = receiver if receiver else sender
     all_kits = [sender]
@@ -347,10 +350,7 @@ def run_testpmd_hotplug(
         # built from it. The slot is stable across a remove/rescan cycle.
         test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
         switch_sriov_for_nic(node, test_nic)
-        if processes[collect_from].wait_output(
-            "Segmentation fault (core dumped)", timeout=5, error_on_missing=False
-        ):
-            raise LisaException("Test fail: testpmd crashed.")
+        check_process_for_segfault(processes[collect_from])
 
     # let it run for a bit
     sleep(30)
@@ -360,6 +360,20 @@ def run_testpmd_hotplug(
         sleep(1)
         # allow time for SIGINT/SIGKILL shutdown and stats flush
         kit.testpmd.process_testpmd_output(processes[kit].wait_result(timeout=120))
+
+
+def check_process_for_segfault(process: Process) -> None:
+    if process.wait_output(
+        "Segmentation fault (core dumped)", timeout=5, error_on_missing=False
+    ):
+        raise LisaException("Test fail: testpmd crashed.")
+
+
+def check_result_for_segfault(
+    result: Optional[ExecutableResult], label: str = "testpmd"
+) -> None:
+    if result and "Segmentation fault (core dumped)" in result.stdout + result.stderr:
+        raise LisaException(f"Test fail: {label} crashed.")
 
 
 def generate_send_receive_run_info(
@@ -830,6 +844,8 @@ def verify_dpdk_send_receive(
 
     check_send_receive_compatibility(test_kits)
     sender, receiver = test_kits
+    sender.testpmd.set_instance_id("sender")
+    receiver.testpmd.set_instance_id("receiver")
 
     # annotate test result before starting
     if result is not None:
@@ -844,14 +860,14 @@ def verify_dpdk_send_receive(
         set_mtu=set_mtu,
     )
     receive_timeout = kill_timeout + 10
-    receive_result = receiver.node.tools[Timeout].start_with_timeout(
+    receive_process = receiver.node.tools[Timeout].start_with_timeout(
         kit_cmd_pairs[receiver],
         receive_timeout,
         constants.SIGINT,
         kill_timeout=receive_timeout,
     )
-    receive_result.wait_output("start packet forwarding")
-    sender_result = sender.node.tools[Timeout].start_with_timeout(
+    receive_process.wait_output("start packet forwarding")
+    send_process = sender.node.tools[Timeout].start_with_timeout(
         kit_cmd_pairs[sender],
         test_duration,
         constants.SIGINT,
@@ -859,10 +875,21 @@ def verify_dpdk_send_receive(
     )
 
     results = dict()
-    results[sender] = sender.testpmd.process_testpmd_output(sender_result.wait_result())
-    results[receiver] = receiver.testpmd.process_testpmd_output(
-        receive_result.wait_result()
-    )
+    # NOTE: the sleeps here allow testpmd
+    #       to reliably generate output and give time
+    #       for the process (and buffer) to collect
+    #       the output.
+    sleep(10)
+    for kit in [sender, receiver]:
+        kit.testpmd.kill_previous_testpmd_command()
+    sleep(5)
+    # now collect the results and process them.
+    send_result = send_process.wait_result()
+    receive_result = receive_process.wait_result()
+    for res, label in [(send_result, "sender"), (receive_result, "receiver")]:
+        check_result_for_segfault(res, f"testpmd {label}")
+    results[sender] = sender.testpmd.process_testpmd_output(send_result)
+    results[receiver] = receiver.testpmd.process_testpmd_output(receive_result)
 
     # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")
@@ -1238,6 +1265,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         )
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
+    fwd_kit.testpmd.set_instance_id("forwarder")
     if result is not None:
         annotate_dpdk_test_result(test_kit=fwd_kit, test_result=result, log=log)
     # NOTE: we're cheating here and not dynamically picking the port IDs
@@ -1963,6 +1991,7 @@ def run_dpdk_symmetric_mp(
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
     testpmd = test_kit.testpmd
+    testpmd.set_instance_id("symmetric_mp")
     if isinstance(testpmd.installer, PackageManagerInstall):
         # The Testpmd tool doesn't get re-initialized
         # even if you invoke it with new arguments.
