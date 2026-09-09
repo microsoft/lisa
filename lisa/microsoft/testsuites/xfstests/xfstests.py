@@ -560,6 +560,12 @@ class Xfstests(Tool):
     For details, refer to https://github.com/kdave/xfstests/blob/master/README
     """
 
+    # xfstests captures MOUNT_PROG while loading common/config. A worker-local
+    # executable named "mount", first on PATH, makes later remounts go through
+    # the configured Azure mount helper.
+    MOUNT_WRAPPER_NAME = "mount"
+    MOUNT_WRAPPER_PATH = Path(__file__).parent / "scripts" / "mount_wrapper.sh"
+
     # This is the default repo and branch for xfstests.
     # Override this via _install method if needed.
     repo = "https://git.kernel.org/pub/scm/fs/xfs/xfstests-dev.git"
@@ -886,6 +892,7 @@ class Xfstests(Tool):
                 shell=True,
                 cwd=working_path,
                 timeout=timeout,
+                update_envs={"PATH": f"{working_path}:$PATH"},
             )
             self._log.debug(f"[{run_id}] xfstests execution completed")
         except Exception as e:
@@ -1888,3 +1895,126 @@ class Xfstests(Tool):
             return f"{vendor}_{release}"
         except Exception:
             return "unknown"
+
+    def create_mount_wrapper(self, xfstests_path: PurePath) -> PurePath:
+        """Create the worker-local mount wrapper used by Azure mount helpers."""
+        wrapper_path = xfstests_path / self.MOUNT_WRAPPER_NAME
+        # Copy the mount wrapper script to the xfstests worker directory.
+        self.node.shell.copy(self.MOUNT_WRAPPER_PATH, wrapper_path)
+        self.node.tools[Chmod].chmod(str(wrapper_path), "0755", sudo=True)
+        return wrapper_path
+
+    def verify_mount_wrapper(
+        self,
+        xfstests_path: PurePath,
+        helper_fstype: str,
+        base_fstype: str,
+        test_dev: str,
+        scratch_dev: str,
+        az_test_dev: str,
+        az_scratch_dev: str,
+        scratch_mnt: str,
+        mount_opts: str,
+    ) -> None:
+        """Verify that xfstests resolves and remounts through the wrapper.
+
+        A resolution or source-substitution failure can otherwise leave tests
+        running against the wrong endpoint.
+        """
+        expected_wrapper = f"./{self.MOUNT_WRAPPER_NAME}"
+        resolved_mount = self.node.execute(
+            "bash -c 'PATH=.:$PATH; type -P mount'",
+            cwd=xfstests_path,
+        )
+        if resolved_mount.stdout.strip() != expected_wrapper:
+            raise LisaException(
+                f"xfstests would resolve mount to "
+                f"[{resolved_mount.stdout.strip() or 'nothing'}] rather than "
+                f"[{expected_wrapper}] in {xfstests_path}, so its remounts "
+                "would bypass "
+                f"the {helper_fstype} helper. Check that create_mount_wrapper() "
+                "left an executable file of that name in the worker directory."
+            )
+
+        # Reproduce xfstests' startup remount on the disposable scratch share to
+        # verify that the helper accepts the rewritten command.
+        mount_environment = " ".join(
+            [
+                f"FSTYP='{base_fstype}'",
+                f"AZ_HELPER_FSTYPE='{helper_fstype}'",
+                f"TEST_DEV='{test_dev}'",
+                f"SCRATCH_DEV='{scratch_dev}'",
+                f"AZ_TEST_DEV='{az_test_dev}'",
+                f"AZ_SCRATCH_DEV='{az_scratch_dev}'",
+            ]
+        )
+        self.node.execute(f"umount {scratch_mnt}", sudo=True)
+        remount_result = self.node.execute(
+            f"env {mount_environment} {expected_wrapper} "
+            f"-t '{base_fstype}' {mount_opts} "
+            f"'{scratch_dev}' '{scratch_mnt}'",
+            sudo=True,
+            cwd=xfstests_path,
+        )
+        if remount_result.exit_code != 0:
+            raise LisaException(
+                f"Remounting {scratch_mnt} through the mount wrapper failed "
+                f"({remount_result.exit_code}): {remount_result.stdout}. "
+                f"xfstests issues this "
+                f"exact mount at startup, so the run would abort in "
+                f"_try_scratch_mount. Check that the {helper_fstype} helper is "
+                f"installed and that {az_scratch_dev} is reachable."
+            )
+
+        # local.config records the helper's loopback source. Use the last row
+        # because findmnt lists stacked mounts oldest first.
+        findmnt_result = self.node.execute(
+            f"findmnt --noheadings --output SOURCE --mountpoint {scratch_mnt}",
+            sudo=True,
+        )
+        mount_sources = findmnt_result.stdout.split()
+        mounted_source = mount_sources[-1] if mount_sources else ""
+        if mounted_source != scratch_dev:
+            raise LisaException(
+                f"After remounting through the wrapper, {scratch_mnt} reports "
+                f"source [{mounted_source or 'nothing'}] but local.config declares "
+                f"SCRATCH_DEV={scratch_dev}. Every later mount check in the "
+                "suite compares against that value and would misjudge it. "
+                f"Confirm the {helper_fstype} helper still reports the same "
+                "local endpoint it did at setup."
+            )
+        self._log.debug(
+            f"Mount wrapper verified at {xfstests_path}: {scratch_mnt} "
+            f"remounted via -t {helper_fstype} and still reports {mounted_source}."
+        )
+
+    def setup_mount_wrapper(
+        self,
+        xfstests_path: PurePath,
+        helper_fstype: str,
+        base_fstype: str,
+        test_dev: str,
+        scratch_dev: str,
+        az_test_dev: str,
+        az_scratch_dev: str,
+        scratch_mnt: str,
+        mount_opts: str,
+    ) -> Dict[str, str]:
+        """Install and verify the wrapper, then return its local.config values."""
+        self.create_mount_wrapper(xfstests_path)
+        self.verify_mount_wrapper(
+            xfstests_path=xfstests_path,
+            helper_fstype=helper_fstype,
+            base_fstype=base_fstype,
+            test_dev=test_dev,
+            scratch_dev=scratch_dev,
+            az_test_dev=az_test_dev,
+            az_scratch_dev=az_scratch_dev,
+            scratch_mnt=scratch_mnt,
+            mount_opts=mount_opts,
+        )
+        return {
+            "AZ_HELPER_FSTYPE": helper_fstype,
+            "AZ_TEST_DEV": az_test_dev,
+            "AZ_SCRATCH_DEV": az_scratch_dev,
+        }

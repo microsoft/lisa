@@ -95,6 +95,7 @@ from lisa.sut_orchestrator.azure.features import AzureFileShare, FileShareProtoc
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestResult
 from lisa.tools import (
+    AzNfs,
     Echo,
     FileSystem,
     KernelConfig,
@@ -119,6 +120,10 @@ from lisa.util import BadEnvironmentStateException, constants, generate_random_c
 #   So MOUNT_OPTIONS must include "-o" prefix for options to be parsed correctly.
 _default_nfs_mount_opts = "vers=4,minorversion=1,sec=sys"
 _default_nfs_mount = f"-o {_default_nfs_mount_opts}"
+
+# aznfs tunnels NFSv4.1 through a local stunnel so traffic is encrypted in
+# transit; plain nfs is not. Not every distro publishes an aznfs package.
+_default_nfs_mount_helper: str = "aznfs"
 
 # Excluded tests for Azure Files NFS:
 # Reference: https://learn.microsoft.com/azure/storage/files/
@@ -964,6 +969,21 @@ class Xfstesting(TestSuite):
             scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
             node.execute(f"mkdir -p {test_mount} {scratch_mount}", sudo=True)
 
+    def _get_nfs_mount_helper(self, node: RemoteNode, log: Logger) -> NFSClient:
+        """Return the aznfs helper, or plain NFSClient where it is unavailable.
+
+        Mount and cleanup must resolve to the same tool, so both call this.
+        """
+        if _default_nfs_mount_helper != "aznfs":
+            return node.tools[NFSClient]
+        if not AzNfs.is_supported(node.os):
+            log.warning(
+                f"aznfs publishes no package for {node.os.name}; falling back "
+                "to nfs, so this run has no encryption in transit."
+            )
+            return node.tools[NFSClient]
+        return node.tools[AzNfs]
+
     def _cleanup_azure_workers(
         self,
         log: Logger,
@@ -1001,8 +1021,9 @@ class Xfstesting(TestSuite):
             scratch_mount = f"{_scratch_folder}_worker_{worker_id}"
             try:
                 if ctx.protocol == "nfs":
-                    node.tools[NFSClient].stop(test_mount)
-                    node.tools[NFSClient].stop(scratch_mount)
+                    nfs_helper = self._get_nfs_mount_helper(node, log)
+                    nfs_helper.stop(test_mount)
+                    nfs_helper.stop(scratch_mount)
                 else:
                     node.tools[Mount].umount("", test_mount, erase=False)
                     node.tools[Mount].umount("", scratch_mount, erase=False)
@@ -1228,12 +1249,32 @@ class Xfstesting(TestSuite):
             )
 
             # Mount NFS shares
-            node.tools[NFSClient].setup(
+            mount_helper = self._get_nfs_mount_helper(node, log)
+            mount_helper.setup(
                 ctx.nfs_server, test_export, test_mount, options=ctx.mount_opts
             )
-            node.tools[NFSClient].setup(
+            mount_helper.setup(
                 ctx.nfs_server, scratch_export, scratch_mount, options=ctx.mount_opts
             )
+
+            mount_wrapper_config: Optional[Dict[str, str]] = None
+            if isinstance(mount_helper, AzNfs):
+                # aznfs mounts a local loopback source, so xfstests must record
+                # that and remount through a wrapper that restores the endpoint.
+                az_test_dev, az_scratch_dev = test_dev, scratch_dev
+                test_dev = mount_helper.get_mount_source(test_mount)
+                scratch_dev = mount_helper.get_mount_source(scratch_mount)
+                mount_wrapper_config = xfstests.setup_mount_wrapper(
+                    xfstests_path=worker_path,
+                    helper_fstype=mount_helper.fstype,
+                    base_fstype="nfs",
+                    test_dev=test_dev,
+                    scratch_dev=scratch_dev,
+                    az_test_dev=az_test_dev,
+                    az_scratch_dev=az_scratch_dev,
+                    scratch_mnt=scratch_mount,
+                    mount_opts=ctx.xfstests_mount_opts,
+                )
 
             xfstests.set_local_config(
                 scratch_dev=scratch_dev,
@@ -1244,6 +1285,7 @@ class Xfstesting(TestSuite):
                 test_section="nfs",
                 mount_opts=ctx.xfstests_mount_opts,
                 testfs_mount_opts=ctx.xfstests_mount_opts,
+                additional_parameters=mount_wrapper_config,
                 overwrite_config=True,
                 xfstests_path=worker_path,
             )
