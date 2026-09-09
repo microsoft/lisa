@@ -1,11 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from __future__ import annotations
+
 import re
 import xml.etree.ElementTree as ET  # noqa: N817
 from itertools import combinations
 from pathlib import PurePosixPath
-from typing import Any, Dict, List, Optional, cast
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
 
 from lisa.node import Node, RemoteNode
 from lisa.sut_orchestrator.util.device_pool import BaseDevicePool
@@ -18,12 +20,14 @@ from lisa.util import (
     find_group_in_lines,
 )
 
-from .context import DevicePassthroughContext, NodeContext
 from .schema import (
     BaseLibvirtNodeSchema,
     BaseLibvirtPlatformSchema,
     DeviceAddressSchema,
 )
+
+if TYPE_CHECKING:
+    from .context import NodeContext
 
 
 class LibvirtDevicePool(BaseDevicePool):
@@ -634,6 +638,8 @@ class LibvirtDevicePool(BaseDevicePool):
         node_context: NodeContext,
         node_runbook: BaseLibvirtNodeSchema,
     ) -> None:
+        from .context import DevicePassthroughContext
+
         if not node_runbook.device_passthrough:
             return
         for config in node_runbook.device_passthrough:

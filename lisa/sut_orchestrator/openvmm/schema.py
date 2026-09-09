@@ -17,6 +17,7 @@ from lisa.sut_orchestrator.util.schema import (
     HostDevicePoolSchema,
 )
 from lisa.tools.openvmm import (
+    OPENVMM_DISK_DEVICE_NVME,
     OPENVMM_DISK_DEVICE_SCSI,
     OPENVMM_DISK_DEVICE_VIRTIO_BLK,
     OPENVMM_IOMMU_AMD,
@@ -33,6 +34,8 @@ from lisa.util import LisaException
 from .. import OPENVMM
 
 OPENVMM_BOOT_MODE_UEFI = "uefi"
+OPENVMM_HYPERVISOR_KVM = "kvm"
+OPENVMM_HYPERVISOR_MSHV = "mshv"
 OPENVMM_ADDRESS_MODE_DISCOVER = "discover"
 OPENVMM_ADDRESS_MODE_STATIC = "static"
 OPENVMM_NETWORK_MODE_USER = "user"
@@ -295,6 +298,7 @@ class OpenVmmDevicePassthroughSchema(DevicePassthroughSchema):
 @dataclass
 class OpenVmmGuestNodeSchema(schema.GuestNode):
     type: str = OPENVMM
+    hypervisor: str = OPENVMM_HYPERVISOR_MSHV
     username: str = "root"
     password: str = field(
         default="", repr=False, metadata=config(exclude=lambda x: True)
@@ -306,6 +310,7 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
     uefi: Optional[OpenVmmUefiSchema] = None
     disk_img: str = ""
     disk_img_is_remote_path: bool = False
+    kernel_command_line_args: List[str] = field(default_factory=list)
     disk_device: str = OPENVMM_DISK_DEVICE_SCSI
     iommu: str = OPENVMM_IOMMU_NONE
     vps_per_socket: Optional[int] = field(
@@ -338,6 +343,15 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
         add_secret(self.username, PATTERN_HEADTAIL)
         add_secret(self.password)
         add_secret(self.private_key_file)
+        if self.hypervisor not in [
+            OPENVMM_HYPERVISOR_KVM,
+            OPENVMM_HYPERVISOR_MSHV,
+        ]:
+            raise LisaException(
+                f"hypervisor '{self.hypervisor}' is not supported for OpenVMM "
+                f"guests. Supported values: {OPENVMM_HYPERVISOR_KVM}, "
+                f"{OPENVMM_HYPERVISOR_MSHV}"
+            )
         if self.boot_mode != OPENVMM_BOOT_MODE_UEFI:
             raise LisaException(
                 f"boot mode '{self.boot_mode}' is not supported. "
@@ -349,13 +363,21 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
             )
         if not self.disk_img:
             raise LisaException("disk_img is required for UEFI OpenVMM guests")
+        for kernel_arg in self.kernel_command_line_args:
+            if not kernel_arg or any(character.isspace() for character in kernel_arg):
+                raise LisaException(
+                    "OpenVMM kernel_command_line_args entries must be non-empty "
+                    f"single tokens without whitespace: '{kernel_arg}'"
+                )
         if self.disk_device not in [
+            OPENVMM_DISK_DEVICE_NVME,
             OPENVMM_DISK_DEVICE_SCSI,
             OPENVMM_DISK_DEVICE_VIRTIO_BLK,
         ]:
             raise LisaException(
                 f"disk device '{self.disk_device}' is not supported for OpenVMM "
-                f"guests. Supported values: {OPENVMM_DISK_DEVICE_SCSI}, "
+                f"guests. Supported values: {OPENVMM_DISK_DEVICE_NVME}, "
+                f"{OPENVMM_DISK_DEVICE_SCSI}, "
                 f"{OPENVMM_DISK_DEVICE_VIRTIO_BLK}"
             )
         if self.iommu not in [

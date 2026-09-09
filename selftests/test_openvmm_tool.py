@@ -4,6 +4,7 @@
 from unittest import TestCase
 
 from lisa.tools.openvmm import (
+    OPENVMM_DISK_DEVICE_NVME,
     OPENVMM_DISK_DEVICE_VIRTIO_BLK,
     OPENVMM_IOMMU_INTEL,
     OPENVMM_NETWORK_DEVICE_VIRTIO,
@@ -70,3 +71,54 @@ class OpenVmmToolTestCase(TestCase):
         )
         self.assertNotIn("--disk file:/disks/guest.raw,on=lisa_scsi0,lun=0", command)
         self.assertNotIn("--net tap:tap0", command)
+
+    def test_build_command_disables_vmbus_with_pci_devices(self) -> None:
+        command = self._create_tool().build_command(
+            OpenVmmLaunchConfig(
+                uefi_firmware_path="/firmware/MSVM.fd",
+                hypervisor="kvm",
+                disable_vmbus=True,
+                with_hv=False,
+                vmgs_path="/disks/openvmm.vmgs",
+                create_vmgs=True,
+                exit_on_guest_reset=True,
+                disk_img_path="/disks/guest.raw",
+                disk_device=OPENVMM_DISK_DEVICE_NVME,
+                dvd_disk_paths=["/disks/cloud-init.iso"],
+                network_mode="tap",
+                network_device=OPENVMM_NETWORK_DEVICE_VIRTIO,
+                tap_name="tap0",
+                serial_path="/logs/console.log",
+            )
+        )
+
+        self.assertIn("--hypervisor kvm", command)
+        self.assertNotIn("--hv", command)
+        self.assertIn("--no-vmbus", command)
+        self.assertIn(
+            "--vmgs 'file:/disks/openvmm.vmgs;create=VMGS_DEFAULT,fmt-on-fail'",
+            command,
+        )
+        self.assertIn("--guest-reset-action exit", command)
+        self.assertIn("--nvme-pci id=lisa_nvme0,pcie_port=lisa_virtio_disk", command)
+        self.assertIn("--disk file:/disks/guest.raw,on=lisa_nvme0", command)
+        self.assertIn(
+            "--virtio-blk file:/disks/cloud-init.iso,ro,pcie_port=lisa_virtio_dvd0",
+            command,
+        )
+        self.assertNotIn("--vmbus-scsi", command)
+
+    def test_build_command_reuses_existing_vmgs(self) -> None:
+        command = self._create_tool().build_command(
+            OpenVmmLaunchConfig(
+                uefi_firmware_path="/firmware/MSVM.fd",
+                vmgs_path="/disks/openvmm.vmgs",
+                serial_path="/logs/console.log",
+            )
+        )
+
+        self.assertIn(
+            "--vmgs file:/disks/openvmm.vmgs,fmt-on-fail",
+            command,
+        )
+        self.assertNotIn("create=VMGS_DEFAULT", command)

@@ -13,7 +13,9 @@ from lisa.util import LisaException
 VERSION_PATTERN = re.compile(r"openvmm(?:\.exe)?\s+(?P<version>.+)")
 
 OPENVMM_NETWORK_BACKEND_CONSOMME = "consomme"
+OPENVMM_DEFAULT_NVME_CONTROLLER = "lisa_nvme0"
 OPENVMM_DEFAULT_SCSI_CONTROLLER = "lisa_scsi0"
+OPENVMM_DISK_DEVICE_NVME = "nvme"
 OPENVMM_DISK_DEVICE_SCSI = "scsi"
 OPENVMM_DISK_DEVICE_VIRTIO_BLK = "virtio-blk"
 OPENVMM_IOMMU_AMD = "amd-iommu"
@@ -26,6 +28,7 @@ OPENVMM_SMT_FORCE = "force"
 OPENVMM_SMT_OFF = "off"
 OPENVMM_VIRTIO_ROOT_COMPLEX = "lisa_virtio_rc0"
 OPENVMM_VIRTIO_DISK_PORT = "lisa_virtio_disk"
+OPENVMM_VIRTIO_DVD_PORT_PREFIX = "lisa_virtio_dvd"
 OPENVMM_VIRTIO_NETWORK_PORT = "lisa_virtio_net"
 
 _COMMAND_NOT_FOUND_MARKERS = (
@@ -49,6 +52,10 @@ class OpenVmmLaunchConfig:
     uefi_firmware_path: str
     with_hv: bool = True
     hypervisor: str = "mshv"
+    disable_vmbus: bool = False
+    vmgs_path: str = ""
+    create_vmgs: bool = False
+    exit_on_guest_reset: bool = False
     disk_img_path: str = ""
     disk_device: str = OPENVMM_DISK_DEVICE_SCSI
     iommu: str = OPENVMM_IOMMU_NONE
@@ -119,6 +126,8 @@ class OpenVmm(Tool):
             args.append("--hv")
         if config.hypervisor:
             args.extend(["--hypervisor", config.hypervisor])
+        if config.disable_vmbus:
+            args.append("--no-vmbus")
         self._validate_processor_topology(config)
         args.extend(["--processors", str(config.processors)])
         if config.vps_per_socket is not None:
@@ -131,6 +140,13 @@ class OpenVmm(Tool):
             raise LisaException("uefi_firmware_path must be provided for UEFI boot")
         args.append("--uefi")
         args.extend(["--uefi-firmware", config.uefi_firmware_path])
+        if config.vmgs_path:
+            vmgs_disk = f"file:{config.vmgs_path}"
+            if config.create_vmgs:
+                vmgs_disk = f"{vmgs_disk};create=VMGS_DEFAULT"
+            args.extend(["--vmgs", f"{vmgs_disk},fmt-on-fail"])
+        if config.exit_on_guest_reset:
+            args.extend(["--guest-reset-action", "exit"])
 
         self._validate_device_types(config)
         self._add_pcie_args(args, config)
@@ -169,6 +185,7 @@ class OpenVmm(Tool):
 
     def _validate_device_types(self, config: OpenVmmLaunchConfig) -> None:
         if config.disk_device not in [
+            OPENVMM_DISK_DEVICE_NVME,
             OPENVMM_DISK_DEVICE_SCSI,
             OPENVMM_DISK_DEVICE_VIRTIO_BLK,
         ]:
@@ -195,13 +212,23 @@ class OpenVmm(Tool):
             OPENVMM_IOMMU_AMD,
         ]:
             raise LisaException(f"Unsupported OpenVMM IOMMU: {config.iommu}")
+        if config.disable_vmbus and (
+            config.disk_device
+            not in [OPENVMM_DISK_DEVICE_NVME, OPENVMM_DISK_DEVICE_VIRTIO_BLK]
+            or config.network_device != OPENVMM_NETWORK_DEVICE_VIRTIO
+        ):
+            raise LisaException(
+                "OpenVMM no-VMBus mode requires an NVMe or virtio-blk disk and "
+                "virtio network devices"
+            )
 
     def _add_pcie_args(self, args: List[str], config: OpenVmmLaunchConfig) -> None:
-        use_virtio_disk = bool(config.disk_img_path) and (
-            config.disk_device == OPENVMM_DISK_DEVICE_VIRTIO_BLK
+        use_pcie_disk = bool(config.disk_img_path) and (
+            config.disk_device
+            in [OPENVMM_DISK_DEVICE_NVME, OPENVMM_DISK_DEVICE_VIRTIO_BLK]
         )
         use_virtio_network = config.network_device == OPENVMM_NETWORK_DEVICE_VIRTIO
-        if use_virtio_disk or use_virtio_network:
+        if use_pcie_disk or use_virtio_network or config.disable_vmbus:
             args.extend(["--pcie-root-complex", OPENVMM_VIRTIO_ROOT_COMPLEX])
             if config.iommu != OPENVMM_IOMMU_NONE:
                 args.extend([f"--{config.iommu}", OPENVMM_VIRTIO_ROOT_COMPLEX])
@@ -209,7 +236,7 @@ class OpenVmm(Tool):
             raise LisaException(
                 "OpenVMM IOMMU requires a virtio disk or network device on PCIe"
             )
-        if use_virtio_disk:
+        if use_pcie_disk:
             args.extend(
                 [
                     "--pcie-root-port",
@@ -226,9 +253,18 @@ class OpenVmm(Tool):
                     network_root_port,
                 ]
             )
+        if config.disable_vmbus:
+            for index, _ in enumerate(config.dvd_disk_paths):
+                args.extend(
+                    [
+                        "--pcie-root-port",
+                        f"{OPENVMM_VIRTIO_ROOT_COMPLEX}:"
+                        f"{OPENVMM_VIRTIO_DVD_PORT_PREFIX}{index}",
+                    ]
+                )
 
     def _add_disk_args(self, args: List[str], config: OpenVmmLaunchConfig) -> None:
-        if config.dvd_disk_paths or (
+        if (config.dvd_disk_paths and not config.disable_vmbus) or (
             config.disk_img_path and config.disk_device == OPENVMM_DISK_DEVICE_SCSI
         ):
             args.extend(["--vmbus-scsi", f"id={OPENVMM_DEFAULT_SCSI_CONTROLLER}"])
@@ -242,6 +278,17 @@ class OpenVmm(Tool):
                         f"on={OPENVMM_DEFAULT_SCSI_CONTROLLER},lun=0",
                     ]
                 )
+            elif config.disk_device == OPENVMM_DISK_DEVICE_NVME:
+                args.extend(
+                    [
+                        "--nvme-pci",
+                        f"id={OPENVMM_DEFAULT_NVME_CONTROLLER},"
+                        f"pcie_port={OPENVMM_VIRTIO_DISK_PORT}",
+                        "--disk",
+                        f"file:{config.disk_img_path},"
+                        f"on={OPENVMM_DEFAULT_NVME_CONTROLLER}",
+                    ]
+                )
             else:
                 args.extend(
                     [
@@ -251,14 +298,23 @@ class OpenVmm(Tool):
                     ]
                 )
 
-        for lun, dvd_disk_path in enumerate(config.dvd_disk_paths, start=1):
-            args.extend(
-                [
-                    "--disk",
-                    f"file:{dvd_disk_path},on={OPENVMM_DEFAULT_SCSI_CONTROLLER},"
-                    f"lun={lun},dvd",
-                ]
-            )
+        for index, dvd_disk_path in enumerate(config.dvd_disk_paths):
+            if config.disable_vmbus:
+                args.extend(
+                    [
+                        "--virtio-blk",
+                        f"file:{dvd_disk_path},ro,"
+                        f"pcie_port={OPENVMM_VIRTIO_DVD_PORT_PREFIX}{index}",
+                    ]
+                )
+            else:
+                args.extend(
+                    [
+                        "--disk",
+                        f"file:{dvd_disk_path},"
+                        f"on={OPENVMM_DEFAULT_SCSI_CONTROLLER},lun={index + 1},dvd",
+                    ]
+                )
 
     def _get_network_backend(self, config: OpenVmmLaunchConfig) -> str:
         if config.network_mode == "user":

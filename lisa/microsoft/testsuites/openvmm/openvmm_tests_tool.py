@@ -10,8 +10,8 @@ from pathlib import Path, PurePath
 from typing import Any, Dict, List, Optional, Type, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Posix
-from lisa.tools import Cargo, Curl, Git, Ls
+from lisa.operating_system import CBLMariner, CpuArchitecture, Posix, Ubuntu
+from lisa.tools import Cargo, Curl, Git, Ls, Lscpu
 from lisa.util import LisaException, UnsupportedDistroException
 
 
@@ -41,6 +41,7 @@ class OpenVmmTests(Tool):
     VMM_TIMEOUT = 43200
     NEXTEST_VERSION = "0.9.101"
     NEXTEST_LINUX_X64_TARGET = "x86_64-unknown-linux-gnu"
+    NEXTEST_LINUX_ARM64_TARGET = "aarch64-unknown-linux-gnu"
     _ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
     _SUMMARY_PATTERN = re.compile(
         r"Summary \[\s*[\d.]+s\]\s+(?P<run>\d+)(?:/(?P<total>\d+))? tests run:\s+"
@@ -69,6 +70,14 @@ class OpenVmmTests(Tool):
             "pkg-config",
             "binutils",
             "glibc-devel",
+        ],
+        Ubuntu.__name__: [
+            "build-essential",
+            "libssl-dev",
+            "perl",
+            "pkg-config",
+            "binutils",
+            "linux-libc-dev",
         ],
     }
 
@@ -131,6 +140,7 @@ class OpenVmmTests(Tool):
         ref: str = "",
         release: bool = False,
         test_filter: str = "",
+        target: str = "linux-x64",
         install_missing_deps: bool = True,
         skip_vhd_prompt: bool = True,
     ) -> _JUnitSummary:
@@ -154,7 +164,7 @@ class OpenVmmTests(Tool):
             "xflowey",
             "vmm-tests-run",
             "--target",
-            "linux-x64",
+            target,
             "--dir",
             str(output_dir),
         ]
@@ -424,7 +434,18 @@ class OpenVmmTests(Tool):
         )
         install_dir = self._artifact_root / "cargo-nextest-install"
         release_name = f"cargo-nextest-{self.NEXTEST_VERSION}"
-        asset_name = f"{release_name}-{self.NEXTEST_LINUX_X64_TARGET}"
+        architecture = self.node.tools[Lscpu].get_architecture()
+        nextest_targets = {
+            CpuArchitecture.X64: self.NEXTEST_LINUX_X64_TARGET,
+            CpuArchitecture.ARM64: self.NEXTEST_LINUX_ARM64_TARGET,
+        }
+        nextest_target = nextest_targets.get(architecture)
+        if not nextest_target:
+            raise LisaException(
+                "cargo-nextest fallback is not supported on architecture "
+                f"'{architecture.value}'."
+            )
+        asset_name = f"{release_name}-{nextest_target}"
         archive_name = f"{asset_name}.tar.gz"
         sha256_name = f"{asset_name}.sha256"
         release_url = (

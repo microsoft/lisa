@@ -15,7 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import EnvironmentStatus
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, CpuArchitecture, Ubuntu
 from lisa.secret import add_secret
 from lisa.testsuite import TestResult
 from lisa.tools import Ls, Lscpu, Uname
@@ -36,7 +36,7 @@ def _get_openvmm_tests_type() -> Any:
     description="""
     This suite runs the upstream OpenVMM vmm_tests from the Linux OpenVMM host.
     """,
-    requirement=simple_requirement(supported_os=[CBLMariner]),
+    requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     maturity="preview",
 )
 class OpenVmmUpstreamTestSuite(TestSuite):
@@ -44,7 +44,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         openvmm_tests_type = _get_openvmm_tests_type()
         node = cast(Node, kwargs["node"])
         host = self._get_initialized_host_node(node)
-        if not isinstance(host.os, CBLMariner):
+        if not isinstance(host.os, (CBLMariner, Ubuntu)):
             raise SkippedException(
                 f"OpenVMM upstream tests are not implemented for {host.os.name}"
             )
@@ -82,7 +82,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        Run the upstream OpenVMM vmm_tests flowey pipeline on the Linux x64 host.
+        Run the upstream OpenVMM vmm_tests flowey pipeline on the Linux host.
         Use openvmm_vmm_tests_guest_os=linux|windows|all to scope guest coverage,
         and openvmm_vmm_tests_filter for any additional nextest filter expression.
         Native Linux hosts automatically exclude PCAT coverage because upstream
@@ -95,7 +95,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         timeout=43200,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            supported_os=[CBLMariner],
+            supported_os=[CBLMariner, Ubuntu],
         ),
     )
     def verify_openvmm_upstream_vmm_tests(
@@ -107,6 +107,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
     ) -> None:
         host = self._get_initialized_host_node(node)
         command_group = self._ensure_vmm_tests_supported(host)
+        target = self._get_vmm_tests_target(host)
 
         openvmm_tests = host.tools[_get_openvmm_tests_type()]
         openvmm_tests.command_group = command_group or ""
@@ -115,6 +116,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
             ref=str(variables.get("openvmm_tests_ref", "")).strip(),
             release=self._is_truthy(variables.get("openvmm_tests_release", "")),
             test_filter=self._compose_vmm_tests_filter(variables, host),
+            target=target,
             install_missing_deps=self._is_truthy(
                 variables.get("openvmm_vmm_tests_install_missing_deps", "yes"),
                 default=True,
@@ -144,12 +146,6 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         return host
 
     def _ensure_vmm_tests_supported(self, host: Node) -> Optional[str]:
-        hardware_platform = host.tools[Uname].get_linux_information().hardware_platform
-        if hardware_platform.lower() != "x86_64":
-            raise SkippedException(
-                "OpenVMM upstream vmm_tests currently require a Linux x64 host"
-            )
-
         virtualization_enabled = host.tools[Lscpu].is_virtualization_enabled()
         ls = host.tools[Ls]
         has_kvm = ls.path_exists(path="/dev/kvm", sudo=True)
@@ -201,6 +197,20 @@ class OpenVmmUpstreamTestSuite(TestSuite):
             )
 
         return command_group
+
+    def _get_vmm_tests_target(self, host: Node) -> str:
+        architecture = host.tools[Lscpu].get_architecture()
+        targets = {
+            CpuArchitecture.X64: "linux-x64",
+            CpuArchitecture.ARM64: "linux-aarch64-musl",
+        }
+        target = targets.get(architecture)
+        if not target:
+            raise SkippedException(
+                "OpenVMM upstream vmm_tests are not supported on host "
+                f"architecture '{architecture.value}'"
+            )
+        return target
 
     def _can_open_device(
         self,

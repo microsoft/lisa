@@ -8,7 +8,8 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from lisa.microsoft.testsuites.openvmm.openvmm_tests_tool import OpenVmmTests
-from lisa.tools import Curl
+from lisa.operating_system import CpuArchitecture
+from lisa.tools import Curl, Lscpu
 from lisa.util import LisaException
 
 
@@ -56,7 +57,12 @@ class OpenVmmTestsToolTestCase(TestCase):
         tool = OpenVmmTests.__new__(OpenVmmTests)
         tool._artifact_root = PurePosixPath("/repo/openvmm/target/lisa-openvmm-tests")
         tool.node = MagicMock()
-        tool.node.tools = {Curl: SimpleNamespace(command="curl")}
+        tool.node.tools = {
+            Curl: SimpleNamespace(command="curl"),
+            Lscpu: SimpleNamespace(
+                get_architecture=lambda: CpuArchitecture.X64,
+            ),
+        }
         tool._log = MagicMock()
         with TemporaryDirectory() as temp_dir, patch.object(
             tool, "_has_cargo_nextest", side_effect=[False, True]
@@ -71,6 +77,27 @@ class OpenVmmTestsToolTestCase(TestCase):
         asset_name = "cargo-nextest-0.9.101-x86_64-unknown-linux-gnu"
         self.assertIn(f"{release_url}/{asset_name}.tar.gz", install_command)
         self.assertIn(f"{release_url}/{asset_name}.sha256", install_command)
+
+    def test_ensure_cargo_nextest_uses_arm64_release_asset(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool._artifact_root = PurePosixPath("/repo/openvmm/target/lisa-openvmm-tests")
+        tool.node = MagicMock()
+        tool.node.tools = {
+            Curl: SimpleNamespace(command="curl"),
+            Lscpu: SimpleNamespace(
+                get_architecture=lambda: CpuArchitecture.ARM64,
+            ),
+        }
+        tool._log = MagicMock()
+        with TemporaryDirectory() as temp_dir, patch.object(
+            tool, "_has_cargo_nextest", side_effect=[False, True]
+        ), patch.object(tool, "_run_logged_command") as run_logged_command:
+            tool._ensure_cargo_nextest(Path(temp_dir), {})
+
+        install_command = run_logged_command.call_args.kwargs["command"]
+        asset_name = "cargo-nextest-0.9.101-aarch64-unknown-linux-gnu"
+        self.assertIn(f"/{asset_name}.tar.gz", install_command)
+        self.assertIn(f"/{asset_name}.sha256", install_command)
 
     def test_check_vmm_tests_results_raises_on_junit_failures(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)

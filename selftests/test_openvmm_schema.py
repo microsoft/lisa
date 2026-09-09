@@ -8,18 +8,45 @@ from marshmallow import ValidationError
 
 from lisa.sut_orchestrator.openvmm.schema import (
     OPENVMM_CONNECTION_MODE_HOST_PROXY,
+    OPENVMM_HYPERVISOR_KVM,
+    OPENVMM_HYPERVISOR_MSHV,
     OPENVMM_NETWORK_MODE_TAP,
     OPENVMM_NETWORK_MODE_USER,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
 )
 from lisa.tools.openvmm import (
+    OPENVMM_DISK_DEVICE_NVME,
     OPENVMM_DISK_DEVICE_VIRTIO_BLK,
     OPENVMM_NETWORK_DEVICE_VIRTIO,
 )
+from lisa.util import LisaException
 
 
 class OpenVmmSchemaTestCase(TestCase):
+    def test_guest_schema_accepts_kvm_hypervisor(self) -> None:
+        guest_schema = cast(Any, OpenVmmGuestNodeSchema).schema()
+        guest = guest_schema.load(
+            {
+                "hypervisor": OPENVMM_HYPERVISOR_KVM,
+                "uefi": {"firmware_path": "/firmware"},
+                "disk_img": "/disk.raw",
+            }
+        )
+
+        self.assertEqual(OPENVMM_HYPERVISOR_KVM, guest.hypervisor)
+
+    def test_guest_schema_defaults_to_mshv_hypervisor(self) -> None:
+        guest_schema = cast(Any, OpenVmmGuestNodeSchema).schema()
+        guest = guest_schema.load(
+            {
+                "uefi": {"firmware_path": "/firmware"},
+                "disk_img": "/disk.raw",
+            }
+        )
+
+        self.assertEqual(OPENVMM_HYPERVISOR_MSHV, guest.hypervisor)
+
     def test_network_schema_accepts_valid_ssh_port(self) -> None:
         network_schema = cast(Any, OpenVmmNetworkSchema).schema()
         network = network_schema.load(
@@ -79,6 +106,29 @@ class OpenVmmSchemaTestCase(TestCase):
 
         self.assertEqual(OPENVMM_DISK_DEVICE_VIRTIO_BLK, guest.disk_device)
         self.assertEqual(OPENVMM_NETWORK_DEVICE_VIRTIO, guest.network.device)
+
+    def test_guest_schema_accepts_nvme_disk(self) -> None:
+        guest_schema = cast(Any, OpenVmmGuestNodeSchema).schema()
+        guest = guest_schema.load(
+            {
+                "uefi": {"firmware_path": "/firmware"},
+                "disk_img": "/disk.raw",
+                "disk_device": OPENVMM_DISK_DEVICE_NVME,
+            }
+        )
+
+        self.assertEqual(OPENVMM_DISK_DEVICE_NVME, guest.disk_device)
+
+    def test_guest_schema_rejects_kernel_arg_with_whitespace(self) -> None:
+        guest_schema = cast(Any, OpenVmmGuestNodeSchema).schema()
+        with self.assertRaises(LisaException):
+            guest_schema.load(
+                {
+                    "uefi": {"firmware_path": "/firmware"},
+                    "disk_img": "/disk.raw",
+                    "kernel_command_line_args": ["console=ttyAMA0 earlycon"],
+                }
+            )
 
     def test_host_proxy_connection_mode_disables_forwarded_port(self) -> None:
         network_schema = cast(Any, OpenVmmNetworkSchema).schema()

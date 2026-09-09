@@ -12,7 +12,7 @@ from lisa.microsoft.testsuites.openvmm.openvmm_tests import (
     _get_openvmm_tests_type,
 )
 from lisa.microsoft.testsuites.openvmm.openvmm_tests_tool import _JUnitSummary
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, CpuArchitecture
 from lisa.tools import Ls, Lscpu, Uname
 from lisa.tools.usermod import Usermod
 from lisa.util import SkippedException
@@ -179,6 +179,19 @@ class OpenVmmTestsSuiteTestCase(TestCase):
 
         self.assertEqual(result, "(test(linux_direct) | test(ubuntu) | test(alpine))")
 
+    def test_get_vmm_tests_target_selects_arm64_musl(self) -> None:
+        suite = self._suite_type.__new__(self._suite_type)
+        host = MagicMock()
+        host.tools = {
+            Lscpu: SimpleNamespace(
+                get_architecture=lambda: CpuArchitecture.ARM64,
+            )
+        }
+
+        target = suite._get_vmm_tests_target(host)
+
+        self.assertEqual("linux-aarch64-musl", target)
+
     def test_before_case_initializes_host_before_os_check(self) -> None:
         suite = self._suite_type.__new__(self._suite_type)
         host = MagicMock()
@@ -229,6 +242,7 @@ class OpenVmmTestsSuiteTestCase(TestCase):
 
         suite._get_host_node = MagicMock(return_value=host)
         suite._ensure_vmm_tests_supported = MagicMock(return_value="")
+        suite._get_vmm_tests_target = MagicMock(return_value="linux-aarch64-musl")
         suite._is_truthy = MagicMock(return_value=True)
         suite._compose_vmm_tests_filter = MagicMock(return_value="")
 
@@ -241,3 +255,7 @@ class OpenVmmTestsSuiteTestCase(TestCase):
 
         self.assertIn("upstream vmm_tests:", result.message)
         self.assertIn("3 tests run: 3 passed, 0 failed, 45 skipped", result.message)
+        self.assertEqual(
+            "linux-aarch64-musl",
+            tool.run_vmm_tests.call_args.kwargs["target"],
+        )

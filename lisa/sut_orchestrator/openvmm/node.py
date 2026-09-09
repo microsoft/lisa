@@ -14,13 +14,31 @@ import uuid
 from abc import ABC, abstractmethod
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol, Type, cast
+from urllib.parse import urlparse
 
 import yaml
 
 from lisa import constants, schema, search_space
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
-from lisa.tools import Dnsmasq, Echo, Ip, Kill, Ls, Lspci, Mkdir, Modprobe, OpenVmm, Rm
+from lisa.operating_system import CpuArchitecture
+from lisa.tools import (
+    Dnsmasq,
+    Echo,
+    Ip,
+    Kill,
+    Ls,
+    Lscpu,
+    Lspci,
+    Mkdir,
+    Modprobe,
+    OpenVmm,
+    QemuImg,
+    Rm,
+    Tar,
+    Wget,
+)
+from lisa.tools.lscpu import CpuType
 from lisa.tools.openvmm import OpenVmmLaunchConfig
 from lisa.util import (
     LisaException,
@@ -48,6 +66,7 @@ from .context import (
 from .schema import (
     OPENVMM_ADDRESS_MODE_STATIC,
     OPENVMM_CONNECTION_MODE_HOST_PROXY,
+    OPENVMM_HYPERVISOR_KVM,
     OPENVMM_NETWORK_MODE_TAP,
     OPENVMM_NETWORK_MODE_USER,
     OpenVmmGuestNodeSchema,
@@ -65,6 +84,11 @@ OPENVMM_LOG_TAIL_LINES = 40
 OPENVMM_DHCP_SERVER_PORT = 67
 OPENVMM_DNS_SERVER_PORT = 53
 OPENVMM_GIBIBYTE = 1 << 30
+OPENVMM_GUEST_RESET_LOG_MARKERS = (
+    "guest halted reason=Reset",
+    "guest-initiated reset",
+)
+OPENVMM_MAX_EXTERNAL_RESET_RESTARTS = 1
 OPENVMM_BRIDGE_NETFILTER_KEYS = [
     "net.bridge.bridge-nf-call-iptables",
     "net.bridge.bridge-nf-call-arptables",
@@ -85,6 +109,11 @@ def _get_tap_host_interface_name(network: OpenVmmNetworkSchema) -> str:
 
 def _is_raw_disk_image(disk_img_path: str) -> bool:
     return Path(disk_img_path).suffix.lower() == ".raw"
+
+
+def _is_http_url(path: str) -> bool:
+    parsed_path = urlparse(path)
+    return parsed_path.scheme in ("http", "https")
 
 
 def _get_pci_address_str(device: PciAddressLike) -> str:
@@ -341,6 +370,95 @@ class OpenVmmController:
         )
         return str(destination)
 
+    def prepare_uefi_firmware_path(
+        self, source_path: str, is_remote_path: bool, working_path: PurePath
+    ) -> str:
+        if not _is_http_url(source_path):
+            return self.resolve_guest_artifact_path(
+                source_path, is_remote_path, working_path
+            )
+
+        archive_path = self.resolve_guest_url_artifact_path(
+            source_path,
+            working_path,
+            filename="uefi.tar.gz",
+        )
+        self.host_node.tools[Tar].extract(
+            archive_path,
+            str(working_path),
+            gzip=True,
+        )
+        return str(working_path / "FV" / "MSVM.fd")
+
+    def prepare_disk_image_path(
+        self, source_path: str, is_remote_path: bool, working_path: PurePath
+    ) -> str:
+        if not _is_http_url(source_path):
+            return self.resolve_guest_artifact_path(
+                source_path, is_remote_path, working_path
+            )
+
+        source_image_path = self.resolve_guest_url_artifact_path(
+            source_path,
+            working_path,
+            filename="guest.qcow2",
+        )
+        raw_image_path = str(working_path / "guest.raw")
+        self.host_node.tools[QemuImg].convert(
+            "qcow2",
+            source_image_path,
+            "raw",
+            raw_image_path,
+        )
+        return raw_image_path
+
+    def resolve_guest_url_artifact_path(
+        self, source_url: str, working_path: PurePath, filename: str
+    ) -> str:
+        host_context = get_host_context(self.host_node)
+        url_id = hashlib.sha256(source_url.encode("utf-8")).hexdigest()[:8]
+        cache_directory = working_path.parent / ".openvmm-artifacts"
+        cache_filename = f"{url_id}-{filename}"
+        cache_key = f"url|{source_url}"
+
+        with host_context.artifact_copy_lock:
+            cached_path = host_context.artifact_cache.get(cache_key)
+            if cached_path:
+                check = self.host_node.execute(
+                    f"test -f {shlex.quote(cached_path)}",
+                    shell=True,
+                    expected_exit_code=None,
+                )
+                if check.exit_code != 0:
+                    cached_path = None
+                    del host_context.artifact_cache[cache_key]
+
+            if not cached_path:
+                downloaded_path = self.host_node.tools[Wget].get(
+                    source_url,
+                    file_path=str(cache_directory),
+                    filename=cache_filename,
+                    force_run=True,
+                )
+                if not downloaded_path:
+                    raise LisaException(
+                        f"failed to download OpenVMM artifact from '{source_url}'"
+                    )
+                cached_path = cast(str, downloaded_path)
+                host_context.artifact_cache[cache_key] = cached_path
+
+        destination = working_path / filename
+        self.host_node.execute(
+            f"cp --reflink=auto {shlex.quote(cached_path)} "
+            f"{shlex.quote(str(destination))}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"failed to copy cached OpenVMM URL artifact to '{destination}'"
+            ),
+        )
+        return str(destination)
+
     def get_openvmm_tool(self, binary_path: str) -> OpenVmm:
         openvmm = cast(OpenVmm, OpenVmm.create(self.host_node))
         openvmm.initialize()
@@ -391,6 +509,137 @@ class OpenVmmController:
                 "Verify the host has enough free space and supports sparse files."
             ),
         )
+
+    def prepare_raw_disk_kernel_command_line(
+        self,
+        disk_image_path: str,
+        working_path: PurePath,
+        kernel_command_line_args: List[str],
+    ) -> str:
+        if not kernel_command_line_args:
+            return disk_image_path
+        if not _is_raw_disk_image(disk_image_path):
+            raise LisaException(
+                "OpenVMM kernel_command_line_args require a raw guest disk image. "
+                f"Received '{disk_image_path}'."
+            )
+
+        source_path = PurePosixPath(disk_image_path)
+        destination = working_path / (
+            f"{source_path.stem}-kernel-args{source_path.suffix}"
+        )
+        quoted_source = shlex.quote(disk_image_path)
+        quoted_destination = shlex.quote(str(destination))
+        copy_result = self.host_node.execute(
+            (
+                "cp --reflink=auto --sparse=always -- "
+                f"{quoted_source} {quoted_destination}"
+            ),
+            shell=True,
+            sudo=True,
+            expected_exit_code=None,
+        )
+        if copy_result.exit_code != 0:
+            self.host_node.execute(
+                f"cp -f --sparse=always -- {quoted_source} {quoted_destination}",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to create a private OpenVMM guest disk copy for "
+                    "kernel command-line updates"
+                ),
+            )
+
+        quoted_kernel_args = " ".join(
+            shlex.quote(kernel_arg) for kernel_arg in kernel_command_line_args
+        )
+        update_script = f"""
+set -eu
+loop_device=
+mount_dir=
+
+cleanup() {{
+    set +e
+    if [ -n "$mount_dir" ] && mountpoint -q "$mount_dir"; then
+        umount "$mount_dir"
+    fi
+    if [ -n "$loop_device" ]; then
+        losetup -d "$loop_device"
+    fi
+    if [ -n "$mount_dir" ]; then
+        rmdir "$mount_dir"
+    fi
+}}
+trap cleanup EXIT
+
+loop_device=$(losetup --find --show --partscan {quoted_destination})
+mount_dir=$(mktemp -d)
+modified=0
+
+for partition in "${{loop_device}}"p*; do
+    [ -b "$partition" ] || continue
+    fs_type=$(blkid -o value -s TYPE "$partition" 2>/dev/null || true)
+    case "$fs_type" in
+        ext2|ext3|ext4) ;;
+        *) continue ;;
+    esac
+
+    if ! mount "$partition" "$mount_dir"; then
+        continue
+    fi
+
+    for grub_cfg in \
+        "$mount_dir/grub/grub.cfg" \
+        "$mount_dir/boot/grub/grub.cfg"; do
+        [ -f "$grub_cfg" ] || continue
+        for kernel_arg in {quoted_kernel_args}; do
+            temp_cfg="$grub_cfg.lisa.tmp"
+            awk -v arg="$kernel_arg" '
+                /^[[:space:]]*linux[[:space:]]/ {{
+                    found = 0
+                    for (i = 1; i <= NF; i++) {{
+                        if ($i == arg) {{
+                            found = 1
+                            break
+                        }}
+                    }}
+                    if (!found) {{
+                        $0 = $0 " " arg
+                    }}
+                }}
+                {{ print }}
+            ' "$grub_cfg" > "$temp_cfg"
+            cat "$temp_cfg" > "$grub_cfg"
+            rm -f "$temp_cfg"
+        done
+        modified=1
+    done
+
+    umount "$mount_dir"
+done
+
+if [ "$modified" -eq 0 ]; then
+    echo "No GRUB configuration was found in {quoted_destination}." >&2
+    exit 1
+fi
+"""
+        self.host_node.execute(
+            f"bash -c {shlex.quote(update_script)}",
+            shell=True,
+            sudo=True,
+            timeout=300,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to apply OpenVMM guest kernel command-line arguments "
+                f"{kernel_command_line_args} to '{destination}'"
+            ),
+        )
+        self._log.info(
+            "Applied OpenVMM guest kernel command-line arguments "
+            f"{kernel_command_line_args} to '{destination}'."
+        )
+        return str(destination)
 
     def create_effective_network(
         self, network: OpenVmmNetworkSchema, guest_index: int
@@ -737,14 +986,105 @@ class OpenVmmController:
                     f"{restore_error}"
                 )
 
+    def _host_has_kvm_device(self) -> bool:
+        return (
+            self.host_node.execute(
+                "test -c /dev/kvm",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+                no_error_log=True,
+                expected_exit_code=None,
+            ).exit_code
+            == 0
+        )
+
+    def _ensure_kvm_ready(self) -> None:
+        host_context = get_host_context(self.host_node)
+        with host_context.hypervisor_prepare_lock:
+            if host_context.prepared_hypervisor == OPENVMM_HYPERVISOR_KVM:
+                return
+            if not self._host_has_kvm_device():
+                self._load_kvm_modules()
+                if not self._host_has_kvm_device():
+                    raise LisaException(
+                        "OpenVMM KVM hypervisor requires /dev/kvm on the host, "
+                        "but it is not available after attempting to load the "
+                        "KVM kernel modules. Ensure hardware virtualization is "
+                        "enabled in firmware/BIOS, and that nested virtualization "
+                        "is enabled if this host is itself a VM."
+                    )
+            host_context.prepared_hypervisor = OPENVMM_HYPERVISOR_KVM
+
+    def _load_kvm_modules(self) -> None:
+        lscpu = self.host_node.tools[Lscpu]
+        modprobe = self.host_node.tools[Modprobe]
+        if lscpu.get_architecture() == CpuArchitecture.X64:
+            vendor_module = {
+                CpuType.Intel: "kvm_intel",
+                CpuType.AMD: "kvm_amd",
+            }.get(lscpu.get_cpu_type())
+            candidate_modules = [vendor_module] if vendor_module else ["kvm"]
+        else:
+            candidate_modules = ["kvm"]
+
+        for module in candidate_modules:
+            if not modprobe.module_exists(module):
+                continue
+            try:
+                modprobe.load(module)
+            except AssertionError:
+                self._log.debug(
+                    f"best-effort load of KVM kernel module '{module}' failed"
+                )
+
+    def _should_disable_vmbus(self, hypervisor: str) -> bool:
+        return (
+            hypervisor == OPENVMM_HYPERVISOR_KVM
+            and self.host_node.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64
+        )
+
     def launch(self, node: "OpenVmmGuestNode", log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
         node_context = get_node_context(node)
+        if runbook.hypervisor == OPENVMM_HYPERVISOR_KVM:
+            self._ensure_kvm_ready()
         network = self._get_node_network(node, node_context)
         self._prepare_tap_network(network, node_context)
+        self._launch_process(node, node_context, network, log)
+
+    def _launch_process(
+        self,
+        node: "OpenVmmGuestNode",
+        node_context: NodeContext,
+        network: OpenVmmNetworkSchema,
+        log: Logger,
+    ) -> None:
+        runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
         processor_count = _countspace_to_int(node.capability.core_count)
+        restart_on_guest_reset = self._should_disable_vmbus(runbook.hypervisor)
+        node_context.restart_on_guest_reset = restart_on_guest_reset
+        create_vmgs = False
+        if restart_on_guest_reset:
+            create_vmgs = (
+                self.host_node.execute(
+                    f"test -f {shlex.quote(node_context.vmgs_file_path)}",
+                    shell=True,
+                    sudo=True,
+                    no_info_log=True,
+                    no_error_log=True,
+                    expected_exit_code=None,
+                ).exit_code
+                != 0
+            )
         launch_config = OpenVmmLaunchConfig(
             uefi_firmware_path=node_context.uefi_firmware_path,
+            with_hv=not restart_on_guest_reset,
+            hypervisor=runbook.hypervisor,
+            disable_vmbus=restart_on_guest_reset,
+            vmgs_path=(node_context.vmgs_file_path if restart_on_guest_reset else ""),
+            create_vmgs=create_vmgs,
+            exit_on_guest_reset=restart_on_guest_reset,
             disk_img_path=node_context.disk_img_path,
             disk_device=runbook.disk_device,
             iommu=runbook.iommu,
@@ -1284,7 +1624,14 @@ class OpenVmmController:
         node_context = get_node_context(node)
         network = self._get_node_network(cast(OpenVmmGuestNode, node), node_context)
 
-        guest_address = self._resolve_guest_address(node_context, network, log)
+        try:
+            guest_address = self._resolve_guest_address(node_context, network, log)
+        except LisaException:
+            if not self._restart_after_guest_reset(
+                cast(OpenVmmGuestNode, node), node_context, network, log
+            ):
+                raise
+            guest_address = self._resolve_guest_address(node_context, network, log)
         node_context.guest_address = guest_address
 
         address = guest_address
@@ -1294,6 +1641,7 @@ class OpenVmmController:
 
         proxy_jump_boxes = None
         if network.connection_mode == OPENVMM_CONNECTION_MODE_HOST_PROXY:
+            self._enable_ssh_forwarding(node_context, guest_address, network)
             self._wait_for_guest_ssh_from_host(
                 node_context, guest_address, network.ssh_port, log
             )
@@ -1856,9 +2204,12 @@ class OpenVmmController:
         node_context.working_path = ""
         node_context.uefi_firmware_path = ""
         node_context.disk_img_path = ""
+        node_context.vmgs_file_path = ""
         node_context.cloud_init_file_path = ""
         node_context.console_log_file_path = ""
         node_context.launcher_log_file_path = ""
+        node_context.restart_on_guest_reset = False
+        node_context.guest_reset_restart_count = 0
 
     def _get_host_public_address(self) -> str:
         if self.host_node.is_remote:
@@ -1948,17 +2299,24 @@ class OpenVmmController:
                     f"{shlex.quote(str(host_network))} -o "
                     f"{shlex.quote(forwarding_interface)} -j MASQUERADE",
                 ),
-                (
-                    "-t nat",
-                    f"PREROUTING -p tcp --dport {forwarded_port} "
-                    f"-j DNAT --to-destination {guest_address}:{guest_port}",
-                ),
-                (
-                    "-t nat",
-                    f"OUTPUT -p tcp --dport {forwarded_port} "
-                    f"-j DNAT --to-destination {guest_address}:{guest_port}",
-                ),
             ]
+            if network.forward_ssh_port:
+                rules.extend(
+                    [
+                        (
+                            "-t nat",
+                            f"PREROUTING -p tcp --dport {forwarded_port} "
+                            "-j DNAT --to-destination "
+                            f"{guest_address}:{guest_port}",
+                        ),
+                        (
+                            "-t nat",
+                            f"OUTPUT -p tcp --dport {forwarded_port} "
+                            "-j DNAT --to-destination "
+                            f"{guest_address}:{guest_port}",
+                        ),
+                    ]
+                )
 
             try:
                 self.host_node.execute(
@@ -2115,6 +2473,47 @@ class OpenVmmController:
             ),
             timeout=timeout,
         )
+
+    def _restart_after_guest_reset(
+        self,
+        node: "OpenVmmGuestNode",
+        node_context: NodeContext,
+        network: OpenVmmNetworkSchema,
+        log: Logger,
+    ) -> bool:
+        if (
+            not node_context.restart_on_guest_reset
+            or node_context.guest_reset_restart_count
+            >= OPENVMM_MAX_EXTERNAL_RESET_RESTARTS
+            or self._is_process_running(node_context.process_id)
+        ):
+            return False
+
+        reset_patterns = " ".join(
+            f"-e {shlex.quote(marker)}" for marker in OPENVMM_GUEST_RESET_LOG_MARKERS
+        )
+        reset_check = self.host_node.execute(
+            (
+                f"test -f {shlex.quote(node_context.launcher_log_file_path)} && "
+                f"grep -Fq {reset_patterns} -- "
+                f"{shlex.quote(node_context.launcher_log_file_path)}"
+            ),
+            shell=True,
+            sudo=True,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
+        if reset_check.exit_code != 0:
+            return False
+
+        node_context.guest_reset_restart_count += 1
+        log.info(
+            "Restarting OpenVMM after the guest-requested UEFI reset because "
+            "KVM/ARM64 does not support in-place partition reset."
+        )
+        self._launch_process(node, node_context, network, log)
+        return True
 
     def _is_process_running(self, process_id: str) -> bool:
         if not process_id:
@@ -2347,12 +2746,13 @@ class OpenVmmGuestNode(RemoteNode):
         base_working_path = host_node.get_pure_path(runbook.lisa_working_dir)
         working_path = base_working_path / vm_name
         node_context.working_path = str(working_path)
+        node_context.vmgs_file_path = str(working_path / "openvmm.vmgs")
         host_node.tools[Mkdir].create_directory(str(working_path))
 
         if runbook.uefi is None:
             raise LisaException("UEFI settings must be defined for OpenVMM guests")
         node_context.uefi_firmware_path = (
-            self._openvmm_controller.resolve_guest_artifact_path(
+            self._openvmm_controller.prepare_uefi_firmware_path(
                 runbook.uefi.firmware_path,
                 runbook.uefi.firmware_is_remote_path,
                 working_path,
@@ -2361,12 +2761,20 @@ class OpenVmmGuestNode(RemoteNode):
 
         if runbook.disk_img:
             node_context.disk_img_path = (
-                self._openvmm_controller.resolve_guest_artifact_path(
+                self._openvmm_controller.prepare_disk_image_path(
                     runbook.disk_img,
                     runbook.disk_img_is_remote_path,
                     working_path,
                 )
             )
+            if runbook.kernel_command_line_args:
+                node_context.disk_img_path = (
+                    self._openvmm_controller.prepare_raw_disk_kernel_command_line(
+                        node_context.disk_img_path,
+                        working_path,
+                        runbook.kernel_command_line_args,
+                    )
+                )
             if runbook.min_raw_disk_size_gb > 0 and _is_raw_disk_image(
                 node_context.disk_img_path
             ):

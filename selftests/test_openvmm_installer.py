@@ -5,7 +5,7 @@ from pathlib import PurePosixPath
 from types import SimpleNamespace
 from typing import Any, Dict, List, Type, cast
 from unittest import TestCase
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from lisa.sut_orchestrator.openvmm.installer import OpenVmmSourceInstaller
 from lisa.sut_orchestrator.openvmm.schema import OpenVmmSourceInstallerSchema
@@ -82,10 +82,18 @@ class OpenVmmInstallerTestCase(TestCase):
             log=MagicMock(),
         )
 
-        version = installer.install()
+        with patch("lisa.sut_orchestrator.openvmm.installer.Ubuntu", Ubuntu):
+            version = installer.install()
 
         self.assertEqual("openvmm 1.0.0", version)
         self.assertTrue(package_installs)
+        needrestart_call = next(
+            command
+            for command in executed_commands
+            if "99-lisa-openvmm.conf" in command["command"]
+        )
+        self.assertIn("$nrconf{restart}", needrestart_call["command"])
+        self.assertTrue(needrestart_call["sudo"])
         restore_call = next(
             command
             for command in executed_commands

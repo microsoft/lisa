@@ -1,10 +1,13 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import sys
+from concurrent.futures import ThreadPoolExecutor
+from importlib import import_module
 from pathlib import Path, PurePath, PurePosixPath
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from typing import Any, Tuple, cast
+from typing import Any, Dict, Tuple, cast
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -17,6 +20,7 @@ from lisa.sut_orchestrator.openvmm.node import OpenVmmController, OpenVmmGuestNo
 from lisa.sut_orchestrator.openvmm.schema import (
     OPENVMM_ADDRESS_MODE_STATIC,
     OPENVMM_CONNECTION_MODE_HOST_PROXY,
+    OPENVMM_HYPERVISOR_KVM,
     OPENVMM_NETWORK_MODE_TAP,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
@@ -26,7 +30,7 @@ from lisa.sut_orchestrator.openvmm.schema import (
 from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
-from lisa.tools import Cat, Ip, Kill, Mkdir
+from lisa.tools import Cat, Ip, Kill, Mkdir, QemuImg, Tar, Wget
 from lisa.tools.openvmm import (
     OPENVMM_DISK_DEVICE_SCSI,
     OPENVMM_IOMMU_NONE,
@@ -102,6 +106,123 @@ class OpenVmmNodeTestCase(TestCase):
         self.assertNotEqual(first_destination, second_destination)
         self.assertEqual(1, shell_copy.call_count)
 
+    def test_prepare_uefi_firmware_path_downloads_and_extracts_url(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        wget = MagicMock()
+        wget.get.return_value = "/var/tmp/openvmm/uefi.tar.gz"
+        tar = MagicMock()
+        cast(Dict[Any, Any], controller.host_node.tools).update({Wget: wget, Tar: tar})
+
+        firmware_path = controller.prepare_uefi_firmware_path(
+            "https://example.test/uefi.tar.gz",
+            is_remote_path=False,
+            working_path=PurePosixPath("/var/tmp/openvmm"),
+        )
+
+        self.assertEqual("/var/tmp/openvmm/FV/MSVM.fd", firmware_path)
+        wget.get.assert_called_once_with(
+            "https://example.test/uefi.tar.gz",
+            file_path="/var/tmp/.openvmm-artifacts",
+            filename="9d88242b-uefi.tar.gz",
+            force_run=True,
+        )
+        tar.extract.assert_called_once_with(
+            "/var/tmp/openvmm/uefi.tar.gz",
+            "/var/tmp/openvmm",
+            gzip=True,
+        )
+
+    def test_prepare_disk_image_path_downloads_and_converts_url(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        wget = MagicMock()
+        wget.get.return_value = "/var/tmp/openvmm/guest.qcow2"
+        qemu_img = MagicMock()
+        cast(Dict[Any, Any], controller.host_node.tools).update(
+            {Wget: wget, QemuImg: qemu_img}
+        )
+
+        disk_path = controller.prepare_disk_image_path(
+            "https://example.test/guest.img",
+            is_remote_path=False,
+            working_path=PurePosixPath("/var/tmp/openvmm"),
+        )
+
+        self.assertEqual("/var/tmp/openvmm/guest.raw", disk_path)
+        wget.get.assert_called_once_with(
+            "https://example.test/guest.img",
+            file_path="/var/tmp/.openvmm-artifacts",
+            filename="d0c6a634-guest.qcow2",
+            force_run=True,
+        )
+        qemu_img.convert.assert_called_once_with(
+            "qcow2",
+            "/var/tmp/openvmm/guest.qcow2",
+            "raw",
+            "/var/tmp/openvmm/guest.raw",
+        )
+
+    def test_resolve_guest_url_artifact_path_reuses_concurrent_download(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        wget = MagicMock()
+        wget.get.return_value = "/var/tmp/.openvmm-artifacts/cached.qcow2"
+        cast(Dict[Any, Any], controller.host_node.tools).update({Wget: wget})
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            destinations = list(
+                executor.map(
+                    lambda guest: controller.resolve_guest_url_artifact_path(
+                        "https://example.test/guest.img",
+                        PurePosixPath(f"/var/tmp/openvmm/{guest}"),
+                        "guest.qcow2",
+                    ),
+                    ("g0", "g1"),
+                )
+            )
+
+        self.assertEqual(
+            [
+                "/var/tmp/openvmm/g0/guest.qcow2",
+                "/var/tmp/openvmm/g1/guest.qcow2",
+            ],
+            destinations,
+        )
+        wget.get.assert_called_once()
+
+    def test_device_pool_module_does_not_require_libvirt_python(self) -> None:
+        module_name = "lisa.sut_orchestrator.libvirt.libvirt_device_pool"
+        previous_module = sys.modules.pop(module_name, None)
+        try:
+            with patch.dict(sys.modules, {"libvirt": None}):
+                device_pool_module = import_module(module_name)
+
+            self.assertTrue(hasattr(device_pool_module, "LibvirtDevicePool"))
+        finally:
+            sys.modules.pop(module_name, None)
+            if previous_module:
+                sys.modules[module_name] = previous_module
+
+    def test_prepare_raw_disk_kernel_command_line_uses_private_copy(self) -> None:
+        controller, _, _, _ = self._create_controller()
+
+        destination = controller.prepare_raw_disk_kernel_command_line(
+            "/var/tmp/.openvmm-artifacts/guest.raw",
+            PurePosixPath("/var/tmp/openvmm/g0"),
+            ["initcall_blacklist=hyperv_init"],
+        )
+
+        self.assertEqual(
+            "/var/tmp/openvmm/g0/guest-kernel-args.raw",
+            destination,
+        )
+        commands = [
+            call.args[0]
+            for call in cast(MagicMock, controller.host_node.execute).call_args_list
+        ]
+        self.assertIn("cp --reflink=auto --sparse=always", commands[0])
+        self.assertIn("losetup --find --show --partscan", commands[1])
+        self.assertIn("initcall_blacklist=hyperv_init", commands[1])
+        self.assertIn("/grub/grub.cfg", commands[1])
+
     def test_stop_node_kills_process_after_wait_timeout(self) -> None:
         controller, _, kill_by_pid, guest_log = self._create_controller()
         node = SimpleNamespace(
@@ -137,6 +258,7 @@ class OpenVmmNodeTestCase(TestCase):
         node = SimpleNamespace(
             runbook=SimpleNamespace(
                 openvmm_binary="/usr/local/bin/openvmm",
+                hypervisor=OPENVMM_HYPERVISOR_KVM,
                 disk_device=OPENVMM_DISK_DEVICE_SCSI,
                 iommu=OPENVMM_IOMMU_NONE,
                 vps_per_socket=None,
@@ -165,7 +287,9 @@ class OpenVmmNodeTestCase(TestCase):
         with patch.object(controller, "get_openvmm_tool", return_value=openvmm), patch(
             "lisa.sut_orchestrator.openvmm.node.get_node_context",
             return_value=node_context,
-        ), patch.object(controller, "_ensure_process_running"):
+        ), patch.object(controller, "_ensure_process_running"), patch.object(
+            controller, "_should_disable_vmbus", return_value=False
+        ):
             controller.launch(cast(Any, node), cast(Any, node.log))
 
         openvmm.launch_vm.assert_called_once_with(
@@ -174,9 +298,52 @@ class OpenVmmNodeTestCase(TestCase):
             sudo=False,
         )
         launch_config = openvmm.launch_vm.call_args.args[0]
+        self.assertEqual(OPENVMM_HYPERVISOR_KVM, launch_config.hypervisor)
+        cast(MagicMock, controller.host_node.execute).assert_any_call(
+            "test -c /dev/kvm",
+            shell=True,
+            sudo=True,
+            no_info_log=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
         self.assertEqual(OPENVMM_DISK_DEVICE_SCSI, launch_config.disk_device)
         self.assertEqual(OPENVMM_NETWORK_DEVICE_SYNTHETIC, launch_config.network_device)
         self.assertEqual(1, launch_config.network_queue_count)
+
+    def test_restart_after_guest_reset_relaunches_once(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        node = SimpleNamespace(log=MagicMock())
+        node_context = NodeContext(
+            process_id="1234",
+            launcher_log_file_path="/var/tmp/openvmm-launcher.log",
+            restart_on_guest_reset=True,
+        )
+        network = OpenVmmNetworkSchema()
+
+        with patch.object(
+            controller, "_is_process_running", return_value=False
+        ), patch.object(controller, "_launch_process") as launch_process:
+            restarted = controller._restart_after_guest_reset(
+                cast(Any, node), node_context, network, cast(Any, node.log)
+            )
+
+        self.assertTrue(restarted)
+        self.assertEqual(1, node_context.guest_reset_restart_count)
+        reset_command = cast(MagicMock, controller.host_node.execute).call_args.args[0]
+        self.assertIn("guest halted reason=Reset", reset_command)
+        self.assertIn("guest-initiated reset", reset_command)
+        launch_process.assert_called_once_with(node, node_context, network, node.log)
+
+        with patch.object(
+            controller, "_is_process_running", return_value=False
+        ), patch.object(controller, "_launch_process") as launch_process:
+            restarted = controller._restart_after_guest_reset(
+                cast(Any, node), node_context, network, cast(Any, node.log)
+            )
+
+        self.assertFalse(restarted)
+        launch_process.assert_not_called()
 
     def test_create_effective_network_derives_unique_tap_settings(self) -> None:
         controller, _, _, _ = self._create_controller()
@@ -530,16 +697,51 @@ class OpenVmmNodeTestCase(TestCase):
         ), patch.object(
             controller, "_resolve_guest_address", return_value="10.0.0.2"
         ), patch.object(
+            controller, "_enable_ssh_forwarding"
+        ) as enable_forwarding, patch.object(
             controller, "_wait_for_guest_ssh_from_host"
         ) as wait_from_host:
             controller.configure_connection(cast(Any, node), MagicMock())
 
+        enable_forwarding.assert_called_once_with(
+            node_context,
+            "10.0.0.2",
+            network,
+        )
         wait_from_host.assert_called_once()
         node.set_connection_info.assert_called_once()
         kwargs = node.set_connection_info.call_args.kwargs
         self.assertEqual("10.0.0.2", kwargs["address"])
         self.assertFalse(kwargs["use_public_address"])
         self.assertEqual([host_connection], kwargs["proxy_jump_boxes"])
+
+    def test_host_proxy_forwarding_enables_egress_without_ssh_dnat(self) -> None:
+        def _execute(command: str, *args: Any, **kwargs: Any) -> Any:
+            if command.startswith("iptables") and " -C " in command:
+                return SimpleNamespace(exit_code=1, stderr="", stdout="")
+            return SimpleNamespace(exit_code=0, stderr="", stdout="0")
+
+        host_node = SimpleNamespace(
+            is_remote=True,
+            execute=MagicMock(side_effect=_execute),
+            tools={Ip: SimpleNamespace(get_default_route_info=lambda: ("eth0", ""))},
+        )
+        controller = OpenVmmController(cast(Any, host_node), MagicMock())
+        node_context = NodeContext(guest_address="10.0.0.2", ssh_port=22)
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            connection_mode=OPENVMM_CONNECTION_MODE_HOST_PROXY,
+            tap_name="tap0",
+            bridge_name="ovmbr0",
+            tap_host_cidr="10.0.0.1/24",
+        )
+
+        controller._enable_ssh_forwarding(node_context, "10.0.0.2", network)
+
+        commands = [call.args[0] for call in host_node.execute.call_args_list]
+        self.assertTrue(any("POSTROUTING" in command for command in commands))
+        self.assertTrue(any("MASQUERADE" in command for command in commands))
+        self.assertFalse(any("DNAT" in command for command in commands))
 
     def test_create_node_cloud_init_iso_skips_root_resize_for_non_raw_disk(
         self,
@@ -601,10 +803,8 @@ class OpenVmmNodeTestCase(TestCase):
         )
         controller = MagicMock()
         controller.get_openvmm_tool.return_value = SimpleNamespace(exists=True)
-        controller.resolve_guest_artifact_path.side_effect = [
-            "/var/tmp/host-g0/MSVM.fd",
-            "/var/tmp/host-g0/guest.img",
-        ]
+        controller.prepare_uefi_firmware_path.return_value = "/var/tmp/host-g0/MSVM.fd"
+        controller.prepare_disk_image_path.return_value = "/var/tmp/host-g0/guest.img"
         node = SimpleNamespace(
             parent=host_node,
             name="g0",

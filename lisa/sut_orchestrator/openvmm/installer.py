@@ -106,6 +106,19 @@ class OpenVmmSourceInstaller(OpenVmmInstaller):
         runbook = cast(OpenVmmSourceInstallerSchema, self.runbook)
         linux = cast(Linux, self._node.os)
         packages_list = self._distro_package_mapping[type(linux).__name__]
+        if isinstance(linux, Ubuntu):
+            needrestart_configuration = "$nrconf{restart} = 'l';"
+            self._node.execute(
+                "mkdir -p /etc/needrestart/conf.d && "
+                f"printf '%s\\n' {shlex.quote(needrestart_configuration)} > "
+                "/etc/needrestart/conf.d/99-lisa-openvmm.conf",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to configure needrestart for OpenVMM installation"
+                ),
+            )
         self._log.info(f"installing packages: {packages_list}")
         linux.install_packages(packages_list)
 
