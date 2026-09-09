@@ -522,7 +522,7 @@ class Pmd(str, Enum):
     # https://doc.dpdk.org/guides/nics/netvsc.html
     NETVSC = "netvsc"
     # direct use of MANA pmd.
-    MANA = "MANA"
+    MANA = "mana"
 
 
 # set a threshold for an expected PPS minimum with DPDK.
