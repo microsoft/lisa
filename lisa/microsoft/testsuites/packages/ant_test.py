@@ -1,22 +1,8 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT license.
-
-"""Release-gate tests for ant on Azure Linux.
-
-Each case verifies one reviewed behaviour obligation directly against the node under
-test.
-
-Generated from a reviewed behaviour corpus by the Azure Linux release gate. Every
-obligation below was first verified on a provisioned Azure Linux 4.0 guest on both
-x86_64 and aarch64 before being re-expressed here.
-
-Each case names the corpus obligation it discharges, so a failure upstream can be traced
-back to the behaviour that was promised rather than to the test that happened to break.
-"""
+"""LISA wrappers for qualified FMF/TMT Python outputs."""
 
 from __future__ import annotations
 
-import re
+import shlex
 from typing import Any
 
 from assertpy import assert_that
@@ -30,1903 +16,2187 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import CBLMariner, Posix
-from lisa.util import SkippedException
-
-
-def combined_output(result: Any) -> str:
-    """Return one command result's streams merged and normalised to LF.
-
-    A case controls the markers it prints but not which stream a tool writes a
-    diagnostic to, and LISA runs every command on a pty that rewrites each newline
-    as a carriage-return pair. Merging stdout and stderr removes the guess that made
-    a case watch the wrong stream, and normalising the carriage returns removes the
-    mismatch that made marker parsing silently fail.
-
-    Args:
-        result: The value ``node.execute`` returned.
-
-    Returns:
-        The command's stdout and stderr joined by a newline, with every CRLF and lone
-        carriage return rewritten to a single LF.
-    """
-    merged = f"{result.stdout}\n{result.stderr}"
-    return merged.replace("\r\n", "\n").replace("\r", "\n")
-
-
-def section(text: str, begin: str, end: str) -> str:
-    """Return the text framed by the `begin` and `end` markers.
-
-    The end marker is located wherever it appears, so one printed as the final line --
-    whose trailing newline the pty strips -- is still found rather than missed, which
-    is the failure that made a hand-rolled ``split`` return the whole output as if it
-    were data. An absent marker raises instead of returning everything, so a genuinely
-    missing region fails loudly rather than passing. Pass an empty `begin` to take
-    everything before `end`.
-
-    Args:
-        text: The combined, normalised output, from :func:`combined_output`.
-        begin: The marker opening the region, or "" to start at the first character.
-        end: The marker closing the region.
-
-    Returns:
-        The characters between the markers, without the markers themselves or the
-        newlines adjoining them.
-
-    Raises:
-        ValueError: If either marker is absent from `text`.
-    """
-    start = text.find(begin)
-    if start < 0:
-        raise ValueError(f"begin marker {begin!r} not found in guest output")
-    start += len(begin)
-    stop = text.find(end, start)
-    if stop < 0:
-        raise ValueError(f"end marker {end!r} not found in guest output")
-    return text[start:stop].strip("\n")
-
-
-def section_lines(text: str, begin: str, end: str) -> list[str]:
-    """Return the lines of the region framed by `begin` and `end`.
-
-    A caller counting them sees exactly what the guest printed between the markers,
-    with no spurious trailing empty entry from the newline before the end marker --
-    the miscount that made a hand-rolled ``split`` assert the wrong length.
-
-    Args:
-        text: The combined, normalised output, from :func:`combined_output`.
-        begin: The marker opening the region, or "" to start at the first character.
-        end: The marker closing the region.
-
-    Returns:
-        The region's lines, empty when the region itself is empty.
-
-    Raises:
-        ValueError: If either marker is absent from `text`.
-    """
-    body = section(text, begin, end)
-    return body.split("\n") if body else []
+from lisa.util import SkippedException, UnsupportedDistroException
 
 
 @TestSuiteMetadata(
     area="packages",
     category="functional",
-    description="""
-        Release-gate tests for ant on Azure Linux.
-
-        Each case verifies one reviewed behaviour obligation directly against the node
-        under test.
-    """,
+    description="Execution of qualified ant FMF/TMT Python through the LISA runner.",
+    owner="microsoft",
     requirement=simple_requirement(supported_os=[CBLMariner]),
-    maturity="preview",
-    tags=["ai-generated"],
 )
-class AntSuite(TestSuite):
+class AntFmfPythonSuite(TestSuite):
+    """Execute frozen Python payloads byte-for-byte through LISA."""
+
     def before_case(self, log: Logger, **kwargs: Any) -> None:
+        """Skip guests older than the Azure Linux version validated by this suite."""
         node: Node = kwargs["node"]
+        if not isinstance(node.os, CBLMariner) or node.os.information.version < "4.0.0":
+            raise SkippedException(
+                UnsupportedDistroException(
+                    node.os,
+                    "This suite is supported only on Azure Linux 4.0 or later.",
+                )
+            )
         assert isinstance(node.os, Posix)
         node.os.install_packages(
             [
                 "ant",
-                "java-25-openjdk-devel",
-                "junit",
-                "ant-junit",
+                "python3",
             ]
         )
 
     @TestCaseMetadata(
         description="""
-            Verifies that Ant normalizes portable path separators to the host form and
-            evaluates composed host conditions. It also proves boolean conditions
-            short-circuit and only the Linux-appropriate target performs work.
+        Exact-byte FMF/TMT Python wrapper execution.
 
-            Corpus obligation: pkg:ant/adapt-to-host-platform
+        Corpus obligation: pkg:ant/archive-workflows/jar-manifest
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
         """,
-        priority=3,
-        tags=["ai-generated"],
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    def verify_adapt_to_host_platform(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        script = r"""
-set -u
-tmp=$(mktemp -d /tmp/ant-platform.XXXXXX)
-trap 'rm -rf "$tmp"' EXIT
-cat <<'XML' > "$tmp/build.xml"
-<project name="host-platform" default="verify" basedir=".">
-    <target name="prepare">
-        <property
-            name="portable.path"
-            value="${basedir}\one.txt;${basedir}/two.txt"
-        />
-        <pathconvert
-            property="host.path"
-            pathsep=":"
-            dirsep="/"
-        >
-            <path path="${portable.path}" />
-        </pathconvert>
-        <condition property="path.ok">
-            <equals
-                arg1="${host.path}"
-                arg2="${basedir}/one.txt:${basedir}/two.txt"
-            />
-        </condition>
-        <condition property="host.ok">
-            <and>
-                <os family="unix" />
-                <os
-                    name="${os.name}"
-                    arch="${os.arch}"
-                    version="${os.version}"
-                />
-                <equals
-                    arg1="${os.name}"
-                    arg2="Linux"
-                />
-            </and>
-        </condition>
-        <condition property="or.short">
-            <or>
-                <istrue value="true" />
-                <matches string="x" pattern="[" />
-            </or>
-        </condition>
-        <condition property="and.short">
-            <and>
-                <istrue value="false" />
-                <matches string="x" pattern="[" />
-            </and>
-        </condition>
-    </target>
-    <target name="linux-work" depends="prepare" if="host.ok">
-        <touch file="${basedir}/linux-work-ran" />
-        <echo message="PLATFORM_WORK=linux" />
-    </target>
-    <target name="other-work" depends="prepare" unless="host.ok">
-        <touch file="${basedir}/other-work-ran" />
-        <echo message="PLATFORM_WORK=other" />
-    </target>
-    <target name="verify" depends="linux-work,other-work">
-        <fail unless="path.ok" message="portable path conversion failed" />
-        <fail unless="host.ok" message="host condition did not match" />
-        <fail unless="or.short" message="or condition did not pass" />
-        <fail if="and.short" message="and condition unexpectedly passed" />
-        <echo message="PATH_OK=true" />
-        <echo message="HOST_OK=true" />
-        <echo message="OR_SHORT=true" />
-        <echo message="AND_SHORT=not-set" />
-    </target>
-</project>
-XML
-printf 'PACKAGE_BEGIN\n'
-rpm -q --qf 'ant %{VERSION}-%{RELEASE}\n' ant
-rpm_rc=$?
-printf 'RPM_RC=%s\n' "$rpm_rc"
-ant -version
-version_rc=$?
-printf 'VERSION_RC=%s\n' "$version_rc"
-printf 'PACKAGE_END\n'
-ant -f "$tmp/build.xml" verify > "$tmp/ant.out" 2>&1
-ant_rc=$?
-printf 'BUILD_BEGIN\n'
-cat "$tmp/ant.out"
-printf 'BUILD_END\n'
-if test -f "$tmp/linux-work-ran"; then right=yes; else right=no; fi
-if test -f "$tmp/other-work-ran"; then wrong=yes; else wrong=no; fi
-printf 'FACTS_BEGIN\n'
-printf 'ANT_RC=%s\n' "$ant_rc"
-printf 'LINUX_WORK=%s\n' "$right"
-printf 'OTHER_WORK=%s\n' "$wrong"
-printf 'FACTS_END\n'
-exit 0
-"""
-        result = node.execute(script, shell=True)
-        text = combined_output(result)
-        package = section(text, "PACKAGE_BEGIN", "PACKAGE_END")
-        build = section(text, "BUILD_BEGIN", "BUILD_END")
-        facts = section(text, "FACTS_BEGIN", "FACTS_END")
-        assert_that(result.exit_code).described_as(
-            f"guest probe must complete; observed output: {text}"
-        ).is_equal_to(0)
-        assert_that(package).described_as(
-            f"Ant RPM must be present; observed package data: {package}"
-        ).contains("RPM_RC=0")
-        assert_that(package).described_as(
-            f"Ant command must run; observed package data: {package}"
-        ).contains("VERSION_RC=0")
-        assert_that(package).described_as(
-            f"RPM identity must name Ant; observed package data: {package}"
-        ).matches(r"(?m)^ant .+")
-        assert_that(facts).described_as(
-            f"Ant build must succeed; observed facts: {facts}"
-        ).contains("ANT_RC=0")
-        assert_that(build).described_as(
-            f"portable path conversion must pass; observed build: {build}"
-        ).contains("PATH_OK=true")
-        assert_that(build).described_as(
-            f"composed host detection must pass; observed build: {build}"
-        ).contains("HOST_OK=true")
-        assert_that(build).described_as(
-            f"or must short-circuit invalid regex; observed build: {build}"
-        ).contains("OR_SHORT=true")
-        assert_that(build).described_as(
-            f"and must short-circuit invalid regex; observed build: {build}"
-        ).contains("AND_SHORT=not-set")
-        assert_that(facts).described_as(
-            f"Linux work must run; observed facts: {facts}"
-        ).contains("LINUX_WORK=yes")
-        assert_that(facts).described_as(
-            f"non-Linux work must not run; observed facts: {facts}"
-        ).contains("OTHER_WORK=no")
-        assert_that(build).described_as(
-            f"platform target must be Linux; observed build: {build}"
-        ).contains("PLATFORM_WORK=linux")
-        assert_that(build).described_as(
-            f"other target must be skipped; observed build: {build}"
-        ).does_not_contain("PLATFORM_WORK=other")
-
-    @TestCaseMetadata(
-        description="""
-            Verifies Ant's Java compilation target creates missing class files,
-            recompiles stale sources, and leaves current class files unchanged. It also
-            verifies that a Java syntax error fails the build by default and does not
-            produce a class file.
-
-            Corpus obligation: pkg:ant/compile-java
-        """,
-        priority=3,
-        tags=["ai-generated"],
-    )
-    def verify_compile_java(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        target = "compile"
-        script = rf"""
-tmp=$(mktemp -d /tmp/ant-compile-java.XXXXXX)
-trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/src" "$tmp/classes"
-cat <<'XML' > "$tmp/build.xml"
-<project name="compile-probe" default="{target}" basedir=".">
-  <property name="src.dir" location="src"/>
-  <property name="build.dir" location="classes"/>
-  <target name="{target}">
-    <mkdir dir="${{build.dir}}"/>
-    <javac srcdir="${{src.dir}}" destdir="${{build.dir}}"
-           includeantruntime="false"/>
-  </target>
-</project>
-XML
-cat <<'JAVA' > "$tmp/src/Missing.java"
-public class Missing {{}}
-JAVA
-cat <<'JAVA' > "$tmp/src/Stale.java"
-public class Stale {{}}
-JAVA
-cat <<'JAVA' > "$tmp/src/Current.java"
-public class Current {{}}
-JAVA
-ant -f "$tmp/build.xml" {target} > "$tmp/initial.log" 2>&1
-initial_rc=$?
-[ -s "$tmp/classes/Missing.class" ] && initial_missing=YES || \
-    initial_missing=NO
-[ -s "$tmp/classes/Stale.class" ] && initial_stale=YES || \
-    initial_stale=NO
-[ -s "$tmp/classes/Current.class" ] && initial_current=YES || \
-    initial_current=NO
-prep_rc=0
-if [ "$initial_rc" -eq 0 ]; then
-    touch -d '@1700000000' "$tmp/src/Stale.java" || prep_rc=1
-    touch -d '@1690000000' "$tmp/classes/Stale.class" || prep_rc=1
-    touch -d '@1690000000' "$tmp/src/Current.java" || prep_rc=1
-    touch -d '@1700000000' "$tmp/classes/Current.class" || prep_rc=1
-    rm -f "$tmp/classes/Missing.class" || prep_rc=1
-else
-    prep_rc=1
-fi
-[ ! -e "$tmp/classes/Missing.class" ] && missing_before=NO || \
-    missing_before=YES
-stale_before=$(stat -c %Y "$tmp/classes/Stale.class" 2>/dev/null || \
-    echo MISSING)
-current_before=$(stat -c %Y "$tmp/classes/Current.class" 2>/dev/null || \
-    echo MISSING)
-if [ "$prep_rc" -eq 0 ]; then
-    ant -f "$tmp/build.xml" {target} > "$tmp/incremental.log" 2>&1
-    incremental_rc=$?
-else
-    incremental_rc=NOT_RUN
-fi
-[ -s "$tmp/classes/Missing.class" ] && missing_after=YES || \
-    missing_after=NO
-[ -s "$tmp/classes/Stale.class" ] && stale_after_exists=YES || \
-    stale_after_exists=NO
-stale_after=$(stat -c %Y "$tmp/classes/Stale.class" 2>/dev/null || \
-    echo MISSING)
-current_after=$(stat -c %Y "$tmp/classes/Current.class" 2>/dev/null || \
-    echo MISSING)
-if [ "$incremental_rc" = 0 ]; then
-    cat <<'JAVA' > "$tmp/src/Broken.java"
-public class Broken {{ this is not Java; }}
-JAVA
-    ant -f "$tmp/build.xml" {target} > "$tmp/error.log" 2>&1
-    broken_rc=$?
-else
-    broken_rc=NOT_RUN
-fi
-[ -e "$tmp/classes/Broken.class" ] && broken_class=YES || \
-    broken_class=NO
-printf '%s\n' FACTS_BEGIN
-printf 'INITIAL_RC=%s\n' "$initial_rc"
-printf 'INITIAL_MISSING=%s\n' "$initial_missing"
-printf 'INITIAL_STALE=%s\n' "$initial_stale"
-printf 'INITIAL_CURRENT=%s\n' "$initial_current"
-printf 'PREP_RC=%s\n' "$prep_rc"
-printf 'MISSING_BEFORE=%s\n' "$missing_before"
-printf 'INCREMENTAL_RC=%s\n' "$incremental_rc"
-printf 'MISSING_AFTER=%s\n' "$missing_after"
-printf 'STALE_AFTER_EXISTS=%s\n' "$stale_after_exists"
-printf 'STALE_BEFORE=%s\n' "$stale_before"
-printf 'STALE_AFTER=%s\n' "$stale_after"
-printf 'CURRENT_BEFORE=%s\n' "$current_before"
-printf 'CURRENT_AFTER=%s\n' "$current_after"
-printf 'BROKEN_RC=%s\n' "$broken_rc"
-printf 'BROKEN_CLASS=%s\n' "$broken_class"
-printf '%s\n' FACTS_END
-printf '%s\n' ERROR_BEGIN
-cat "$tmp/error.log" 2>/dev/null || printf '%s\n' NO_ERROR_LOG
-printf '%s\n' ERROR_END
-"""
-        result = node.execute(script, shell=True)
-        text = combined_output(result)
-        fact_lines = section_lines(text, "FACTS_BEGIN", "FACTS_END")
-        facts = {}
-        for line in fact_lines:
-            key, value = line.split("=", 1)
-            facts[key] = value
-        error_text = section(text, "ERROR_BEGIN", "ERROR_END")
-        assert_that(result.exit_code).described_as(
-            f"guest probe exit code was {result.exit_code}, expected 0"
-        ).is_equal_to(0)
-        assert_that(facts["INITIAL_RC"]).described_as(
-            f"initial Ant compile rc was {facts['INITIAL_RC']}, expected 0"
-        ).is_equal_to("0")
-        assert_that(facts["INITIAL_MISSING"]).described_as(
-            f"initial Missing.class state was {facts['INITIAL_MISSING']}"
-        ).is_equal_to("YES")
-        assert_that(facts["INITIAL_STALE"]).described_as(
-            f"initial Stale.class state was {facts['INITIAL_STALE']}"
-        ).is_equal_to("YES")
-        assert_that(facts["INITIAL_CURRENT"]).described_as(
-            f"initial Current.class state was {facts['INITIAL_CURRENT']}"
-        ).is_equal_to("YES")
-        assert_that(facts["PREP_RC"]).described_as(
-            f"incremental-test preparation rc was {facts['PREP_RC']}"
-        ).is_equal_to("0")
-        assert_that(facts["MISSING_BEFORE"]).described_as(
-            "Missing.class before incremental compile was "
-            f"{facts['MISSING_BEFORE']}, expected NO"
-        ).is_equal_to("NO")
-        assert_that(facts["INCREMENTAL_RC"]).described_as(
-            f"incremental Ant compile rc was {facts['INCREMENTAL_RC']}, expected 0"
-        ).is_equal_to("0")
-        assert_that(facts["MISSING_AFTER"]).described_as(
-            "Missing.class after incremental compile was "
-            f"{facts['MISSING_AFTER']}, expected YES"
-        ).is_equal_to("YES")
-        assert_that(facts["STALE_AFTER_EXISTS"]).described_as(
-            "Stale.class after incremental compile was "
-            f"{facts['STALE_AFTER_EXISTS']}, expected YES"
-        ).is_equal_to("YES")
-        assert_that(facts["STALE_BEFORE"]).described_as(
-            f"stale class timestamp was {facts['STALE_BEFORE']}, expected digits"
-        ).matches(r"^\d+$")
-        assert_that(facts["STALE_AFTER"]).described_as(
-            f"rebuilt class timestamp was {facts['STALE_AFTER']}, expected digits"
-        ).matches(r"^\d+$")
-        assert_that(int(facts["STALE_AFTER"])).described_as(
-            f"stale class timestamps were {facts['STALE_BEFORE']} then "
-            f"{facts['STALE_AFTER']}, expected the latter to be newer"
-        ).is_greater_than(int(facts["STALE_BEFORE"]))
-        assert_that(facts["CURRENT_BEFORE"]).described_as(
-            f"current class timestamp was {facts['CURRENT_BEFORE']}, expected digits"
-        ).matches(r"^\d+$")
-        assert_that(facts["CURRENT_AFTER"]).described_as(
-            f"post-build current timestamp was {facts['CURRENT_AFTER']}"
-        ).matches(r"^\d+$")
-        assert_that(facts["CURRENT_AFTER"]).described_as(
-            f"current class timestamps were {facts['CURRENT_BEFORE']} then "
-            f"{facts['CURRENT_AFTER']}, expected no rewrite"
-        ).is_equal_to(facts["CURRENT_BEFORE"])
-        assert_that(facts["BROKEN_RC"]).described_as(
-            f"syntax-error build rc was {facts['BROKEN_RC']}, expected numeric"
-        ).matches(r"^\d+$")
-        assert_that(facts["BROKEN_RC"]).described_as(
-            f"syntax-error build rc was {facts['BROKEN_RC']}, expected nonzero"
-        ).is_not_equal_to("0")
-        assert_that(facts["BROKEN_CLASS"]).described_as(
-            f"Broken.class state was {facts['BROKEN_CLASS']}, expected NO"
-        ).is_equal_to("NO")
-        assert_that(error_text).described_as(
-            f"compiler failure output did not identify Broken.java: {error_text}"
-        ).contains("Broken.java")
-
-    @TestCaseMetadata(
-        description="""
-            Verifies Ant discovers the default build file with no build-file argument
-            and searches upward when requested. It also verifies an explicit build file
-            runs a named target and resolves relative output paths from the build file's
-            base directory.
-
-            Corpus obligation: pkg:ant/discover-build
-        """,
-        priority=3,
-        tags=["ai-generated"],
-    )
-    def verify_discover_build(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        script = r"""
-set -eu
-tmp=$(mktemp -d /tmp/ant-discover-build.XXXXXX)
-trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/noarg" "$tmp/search/deep/child"
-mkdir -p "$tmp/explicit" "$tmp/runner"
-cat <<'XML' > "$tmp/noarg/build.xml"
-<project name="noarg" default="default-target">
-    <target name="default-target">
-        <mkdir dir="evidence"/>
-        <echo file="evidence/noarg.txt">NOARG_DEFAULT</echo>
-    </target>
-</project>
-XML
-cat <<'XML' > "$tmp/search/build.xml"
-<project name="search" default="found-default">
-    <target name="found-default">
-        <mkdir dir="relative"/>
-        <echo file="relative/find.txt">UPWARD_DEFAULT</echo>
-    </target>
-</project>
-XML
-cat <<'XML' > "$tmp/explicit/custom.xml"
-<project name="explicit" default="wrong-default">
-    <target name="wrong-default">
-        <mkdir dir="relative"/>
-        <echo file="relative/default.txt">WRONG_DEFAULT</echo>
-    </target>
-    <target name="chosen">
-        <mkdir dir="relative"/>
-        <echo file="relative/chosen.txt">EXPLICIT_TARGET</echo>
-    </target>
-</project>
-XML
-if (cd "$tmp/noarg" && ant) > "$tmp/noarg.log" 2>&1; then
-    noarg_rc=0
-else
-    noarg_rc=$?
-fi
-if (cd "$tmp/search/deep/child" && ant -find build.xml) \
-    > "$tmp/find.log" 2>&1; then
-    find_rc=0
-else
-    find_rc=$?
-fi
-if (cd "$tmp/runner" && ant -f ../explicit/custom.xml chosen) \
-    > "$tmp/explicit.log" 2>&1; then
-    explicit_rc=0
-else
-    explicit_rc=$?
-fi
-noarg_value=$(cat "$tmp/noarg/evidence/noarg.txt" 2>/dev/null || \
-    printf '%s' MISSING)
-find_value=$(cat "$tmp/search/relative/find.txt" 2>/dev/null || \
-    printf '%s' MISSING)
-explicit_value=$(cat "$tmp/explicit/relative/chosen.txt" 2>/dev/null || \
-    printf '%s' MISSING)
-if [ -e "$tmp/search/deep/child/relative/find.txt" ]; then
-    find_nested=PRESENT
-else
-    find_nested=ABSENT
-fi
-if [ -e "$tmp/runner/relative/chosen.txt" ]; then
-    explicit_runner=PRESENT
-else
-    explicit_runner=ABSENT
-fi
-if [ -e "$tmp/explicit/relative/default.txt" ]; then
-    explicit_default=PRESENT
-else
-    explicit_default=ABSENT
-fi
-printf '%s\n' ANT_VERSION_BEGIN
-ant -version 2>&1 || true
-printf '%s\n' ANT_VERSION_END
-printf '%s\n' NOARG_LOG_BEGIN
-cat "$tmp/noarg.log"
-printf '%s\n' NOARG_LOG_END
-printf '%s\n' FIND_LOG_BEGIN
-cat "$tmp/find.log"
-printf '%s\n' FIND_LOG_END
-printf '%s\n' EXPLICIT_LOG_BEGIN
-cat "$tmp/explicit.log"
-printf '%s\n' EXPLICIT_LOG_END
-printf '%s\n' RESULT_BEGIN
-printf 'NOARG_RC=%s\n' "$noarg_rc"
-printf 'NOARG_VALUE=%s\n' "$noarg_value"
-printf 'FIND_RC=%s\n' "$find_rc"
-printf 'FIND_VALUE=%s\n' "$find_value"
-printf 'FIND_NESTED=%s\n' "$find_nested"
-printf 'EXPLICIT_RC=%s\n' "$explicit_rc"
-printf 'EXPLICIT_VALUE=%s\n' "$explicit_value"
-printf 'EXPLICIT_RUNNER=%s\n' "$explicit_runner"
-printf 'EXPLICIT_DEFAULT=%s\n' "$explicit_default"
-printf '%s\n' RESULT_END
-"""
-        result = node.execute(script, shell=True)
-        assert_that(result.exit_code).described_as(
-            "guest evidence script must complete"
-        ).is_equal_to(0)
-        text = combined_output(result)
-        noarg_log = section(text, "NOARG_LOG_BEGIN", "NOARG_LOG_END")
-        find_log = section(text, "FIND_LOG_BEGIN", "FIND_LOG_END")
-        explicit_log = section(
-            text,
-            "EXPLICIT_LOG_BEGIN",
-            "EXPLICIT_LOG_END",
+    def verify_pkg_ant_archive_workflow_16ec6bd7(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:6b9be658eba690fe4cf8b0c5f46883014342e0c"
+            "0b75002678b3bf01158b7bcdf."
         )
-        summary = section(text, "RESULT_BEGIN", "RESULT_END")
-        assert_that(summary).described_as(
-            f"no-argument Ant invocation failed; log: {noarg_log}"
-        ).contains("NOARG_RC=0")
-        assert_that(summary).described_as(
-            f"default target evidence was not produced; summary: {summary}"
-        ).contains("NOARG_VALUE=NOARG_DEFAULT")
-        assert_that(summary).described_as(
-            f"upward build search failed; log: {find_log}"
-        ).contains("FIND_RC=0")
-        assert_that(summary).described_as(
-            f"upward search did not run the default target; summary: {summary}"
-        ).contains("FIND_VALUE=UPWARD_DEFAULT")
-        assert_that(summary).described_as(
-            f"searched build used the invocation directory; summary: {summary}"
-        ).contains("FIND_NESTED=ABSENT")
-        assert_that(summary).described_as(
-            f"explicit build invocation failed; log: {explicit_log}"
-        ).contains("EXPLICIT_RC=0")
-        assert_that(summary).described_as(
-            f"named target evidence was not produced; summary: {summary}"
-        ).contains("EXPLICIT_VALUE=EXPLICIT_TARGET")
-        assert_that(summary).described_as(
-            f"explicit build used the invocation directory; summary: {summary}"
-        ).contains("EXPLICIT_RUNNER=ABSENT")
-        assert_that(summary).described_as(
-            f"Ant ran the default instead of the named target; summary: {summary}"
-        ).contains("EXPLICIT_DEFAULT=ABSENT")
-
-    @TestCaseMetadata(
-        description="""
-            Verifies that Ant runs and captures an external command only for an allowed
-            operating system. It also checks nonzero exit handling, program startup
-            failure, and timeout termination.
-
-            Corpus obligation: pkg:ant/execute-external-command
-        """,
-        priority=3,
-        tags=["ai-generated"],
-    )
-    def verify_execute_external_command(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        build_xml = r"""
-<project name="external-command" default="allowed" basedir=".">
-    <target name="allowed">
-        <echo message="OS_NAME=${os.name}"/>
-        <exec executable="/bin/sh" os="Linux"
-              outputproperty="captured.output">
-            <arg value="-c"/>
-            <arg value="printf ant-external-output"/>
-        </exec>
-        <echo message="CAPTURED=${captured.output}"/>
-    </target>
-    <target name="blocked">
-        <exec executable="/bin/sh" os="NoMatchOperatingSystem">
-            <arg value="-c"/>
-            <arg value="printf blocked > '${basedir}/blocked'"/>
-        </exec>
-    </target>
-    <target name="ignored-nonzero">
-        <exec executable="/bin/sh" resultproperty="exec.code">
-            <arg value="-c"/>
-            <arg value="exit 9"/>
-        </exec>
-        <echo message="IGNORED_RESULT=${exec.code}"/>
-    </target>
-    <target name="requested-failure">
-        <exec executable="/bin/sh" failonerror="true">
-            <arg value="-c"/>
-            <arg value="exit 9"/>
-        </exec>
-    </target>
-    <target name="missing-program">
-        <exec executable="/definitely/not/here"/>
-    </target>
-    <target name="timeout">
-        <exec executable="/bin/sh" timeout="500"
-              resultproperty="timer.code">
-            <arg value="-c"/>
-            <arg value="exec sleep 30"/>
-        </exec>
-        <echo message="TIMEOUT_RESULT=${timer.code}"/>
-    </target>
-</project>
-"""
-        command = rf"""
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
-cat <<'XML' > "$tmp/build.xml"
-{build_xml}
-XML
-if test ! -s "$tmp/build.xml"; then
-    echo BUILD_FILE_BEGIN
-    echo BUILD_FILE_MISSING
-    echo BUILD_FILE_END
-    exit 1
-fi
-run_target() {{
-    label=$1
-    target=$2
-    printf '%s_BEGIN\n' "$label"
-    ant -f "$tmp/build.xml" "$target" 2>&1
-    rc=$?
-    printf 'RC=%s\n' "$rc"
-    printf '%s_END\n' "$label"
-}}
-run_target ALLOWED allowed
-run_target BLOCKED blocked
-printf 'BLOCKED_STATE_BEGIN\n'
-if test -e "$tmp/blocked"; then
-    echo BLOCKED_FILE=present
-else
-    echo BLOCKED_FILE=absent
-fi
-printf 'BLOCKED_STATE_END\n'
-run_target IGNORED ignored-nonzero
-run_target REQUESTED requested-failure
-run_target MISSING missing-program
-run_target TIMEOUT timeout
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        assert_that(result.exit_code).described_as(
-            f"guest script must complete; observed output: {text}"
-        ).is_equal_to(0)
-        allowed_text = section(text, "ALLOWED_BEGIN", "ALLOWED_END")
-        assert_that(allowed_text).described_as(
-            f"allowed execution must succeed; observed: {allowed_text}"
-        ).contains("RC=0")
-        assert_that(allowed_text).described_as(
-            f"Ant must observe the allowed OS; observed: {allowed_text}"
-        ).contains("OS_NAME=Linux")
-        assert_that(allowed_text).described_as(
-            f"Ant must capture command output; observed: {allowed_text}"
-        ).contains("CAPTURED=ant-external-output")
-        blocked_text = section(text, "BLOCKED_BEGIN", "BLOCKED_END")
-        assert_that(blocked_text).described_as(
-            f"OS-suppressed execution must succeed; observed: {blocked_text}"
-        ).contains("RC=0")
-        blocked_state = section(
-            text,
-            "BLOCKED_STATE_BEGIN",
-            "BLOCKED_STATE_END",
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgb3MKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQppbXBvcnQgemlw"
+            "ZmlsZQpmcm9tIHBhdGhsaWIgaW1wb3J0IFBhdGgKCgpkZWYgcnVuX2FudChjd2QsICph"
+            "cmdzKToKICAgIHJlc3VsdCA9IHN1YnByb2Nlc3MucnVuKAogICAgICAgIFsiYW50Iiwg"
+            "KmFyZ3NdLAogICAgICAgIGN3ZD1zdHIoY3dkKSwKICAgICAgICB0ZXh0PVRydWUsCiAg"
+            "ICAgICAgc3Rkb3V0PXN1YnByb2Nlc3MuUElQRSwKICAgICAgICBzdGRlcnI9c3VicHJv"
+            "Y2Vzcy5QSVBFLAogICAgICAgIHRpbWVvdXQ9MTIwLAogICAgICAgIGNoZWNrPUZhbHNl"
+            "LAogICAgKQogICAgaWYgcmVzdWx0LnJldHVybmNvZGUgIT0gMDoKICAgICAgICBjb21i"
+            "aW5lZCA9IChyZXN1bHQuc3Rkb3V0IG9yICIiKSArICJcbiIgKyAocmVzdWx0LnN0ZGVy"
+            "ciBvciAiIikKICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcigKICAgICAgICAgICAg"
+            "IkFudCBjb21tYW5kIGZhaWxlZDogYW50ICIgKyAiICIuam9pbihhcmdzKQogICAgICAg"
+            "ICAgICArICJcbmV4aXQgY29kZTogIiArIHN0cihyZXN1bHQucmV0dXJuY29kZSkKICAg"
+            "ICAgICAgICAgKyAiXG5vdXRwdXQ6XG4iICsgY29tYmluZWQKICAgICAgICApCgoKZGVm"
+            "IHJlYWRfbWFuaWZlc3QoYXJjaGl2ZSk6CiAgICB3aXRoIHppcGZpbGUuWmlwRmlsZShh"
+            "cmNoaXZlLCAiciIpIGFzIGphcjoKICAgICAgICBpZiBqYXIudGVzdHppcCgpIGlzIG5v"
+            "dCBOb25lOgogICAgICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcihmIkNvcnJ1cHQg"
+            "ZW50cnkgaW4ge2FyY2hpdmV9IikKICAgICAgICBuYW1lcyA9IGphci5uYW1lbGlzdCgp"
+            "CiAgICAgICAgaWYgIk1FVEEtSU5GL01BTklGRVNULk1GIiBub3QgaW4gbmFtZXM6CiAg"
+            "ICAgICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKGYie2FyY2hpdmV9IGRvZXMgbm90"
+            "IGNvbnRhaW4gTUVUQS1JTkYvTUFOSUZFU1QuTUYiKQogICAgICAgIGRhdGEgPSBqYXIu"
+            "cmVhZCgiTUVUQS1JTkYvTUFOSUZFU1QuTUYiKS5kZWNvZGUoInV0Zi04IiwgZXJyb3Jz"
+            "PSJzdHJpY3QiKQogICAgICAgIHJldHVybiBuYW1lcywgZGF0YQoKCmRlZiBtYW5pZmVz"
+            "dF9hdHRyaWJ1dGVzKHRleHQpOgogICAgdW5mb2xkZWQgPSBbXQogICAgZm9yIGxpbmUg"
+            "aW4gdGV4dC5yZXBsYWNlKCJcclxuIiwgIlxuIikucmVwbGFjZSgiXHIiLCAiXG4iKS5z"
+            "cGxpdCgiXG4iKToKICAgICAgICBpZiBsaW5lLnN0YXJ0c3dpdGgoIiAiKSBhbmQgdW5m"
+            "b2xkZWQ6CiAgICAgICAgICAgIHVuZm9sZGVkWy0xXSArPSBsaW5lWzE6XQogICAgICAg"
+            "IGVsc2U6CiAgICAgICAgICAgIHVuZm9sZGVkLmFwcGVuZChsaW5lKQoKICAgIGF0dHJp"
+            "YnV0ZXMgPSB7fQogICAgZm9yIGxpbmUgaW4gdW5mb2xkZWQ6CiAgICAgICAgaWYgbm90"
+            "IGxpbmU6CiAgICAgICAgICAgIGJyZWFrCiAgICAgICAgaWYgIjogIiBub3QgaW4gbGlu"
+            "ZToKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoZiJNYWxmb3JtZWQgbWFp"
+            "biBtYW5pZmVzdCBhdHRyaWJ1dGU6IHtsaW5lIXJ9IikKICAgICAgICBrZXksIHZhbHVl"
+            "ID0gbGluZS5zcGxpdCgiOiAiLCAxKQogICAgICAgIGF0dHJpYnV0ZXNba2V5Lmxvd2Vy"
+            "KCldID0gdmFsdWUKICAgIHJldHVybiBhdHRyaWJ1dGVzCgoKZGVmIHZlcmlmeV9wYXls"
+            "b2FkKG5hbWVzLCBhcmNoaXZlKToKICAgIGlmICJwYXlsb2FkLnR4dCIgbm90IGluIG5h"
+            "bWVzOgogICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKGYie2FyY2hpdmV9IGRvZXMg"
+            "bm90IGNvbnRhaW4gdGhlIHNlbGVjdGVkIHBheWxvYWQudHh0IikKICAgIHdpdGggemlw"
+            "ZmlsZS5aaXBGaWxlKGFyY2hpdmUsICJyIikgYXMgamFyOgogICAgICAgIGlmIGphci5y"
+            "ZWFkKCJwYXlsb2FkLnR4dCIpICE9IGIic2VsZWN0ZWQgcGF5bG9hZFxuIjoKICAgICAg"
+            "ICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoZiJ7YXJjaGl2ZX0gY29udGFpbnMgaW5j"
+            "b3JyZWN0IHBheWxvYWQgZGF0YSIpCgoKZGVmIG1haW4oKToKICAgIGlmIHNodXRpbC53"
+            "aGljaCgiYW50IikgaXMgTm9uZToKICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcigi"
+            "UmVxdWlyZWQgcHJlcmVxdWlzaXRlICdhbnQnIGlzIG5vdCBhdmFpbGFibGUiKQogICAg"
+            "aWYgc2h1dGlsLndoaWNoKCJqYXZhIikgaXMgTm9uZToKICAgICAgICByYWlzZSBBc3Nl"
+            "cnRpb25FcnJvcigiUmVxdWlyZWQgcHJlcmVxdWlzaXRlICdqYXZhJyBpcyBub3QgYXZh"
+            "aWxhYmxlIikKCiAgICByb290ID0gUGF0aCh0ZW1wZmlsZS5ta2R0ZW1wKHByZWZpeD0i"
+            "YW50LWphci1tYW5pZmVzdC0iKSkKICAgIHRyeToKICAgICAgICBwcm9qZWN0ID0gcm9v"
+            "dCAvICJwcm9qZWN0IgogICAgICAgIGlucHV0cyA9IHByb2plY3QgLyAiaW5wdXQiCiAg"
+            "ICAgICAgaW5wdXRzLm1rZGlyKHBhcmVudHM9VHJ1ZSkKICAgICAgICAoaW5wdXRzIC8g"
+            "InBheWxvYWQudHh0Iikud3JpdGVfYnl0ZXMoYiJzZWxlY3RlZCBwYXlsb2FkXG4iKQog"
+            "ICAgICAgIChwcm9qZWN0IC8gImN1c3RvbS5tZiIpLndyaXRlX3RleHQoCiAgICAgICAg"
+            "ICAgICJNYW5pZmVzdC1WZXJzaW9uOiAxLjBcbiIKICAgICAgICAgICAgIlgtVGVzdC1N"
+            "YXJrZXI6IHN1cHBsaWVkXG4iCiAgICAgICAgICAgICJcbiIsCiAgICAgICAgICAgIGVu"
+            "Y29kaW5nPSJ1dGYtOCIsCiAgICAgICAgKQogICAgICAgIChwcm9qZWN0IC8gImJ1aWxk"
+            "LnhtbCIpLndyaXRlX3RleHQoCiAgICAgICAgICAgICIiIjw/eG1sIHZlcnNpb249IjEu"
+            "MCIgZW5jb2Rpbmc9IlVURi04Ij8+Cjxwcm9qZWN0IG5hbWU9Imphci1tYW5pZmVzdC1i"
+            "ZWhhdmlvciIgZGVmYXVsdD0ic3VwcGxpZWQiIGJhc2VkaXI9Ii4iPgogIDx0YXJnZXQg"
+            "bmFtZT0ic3VwcGxpZWQiPgogICAgPG1rZGlyIGRpcj0ib3V0Ii8+CiAgICA8amFyIGRl"
+            "c3RmaWxlPSJvdXQvc3VwcGxpZWQuamFyIgogICAgICAgICBiYXNlZGlyPSJpbnB1dCIK"
+            "ICAgICAgICAgaW5jbHVkZXM9InBheWxvYWQudHh0IgogICAgICAgICBtYW5pZmVzdD0i"
+            "Y3VzdG9tLm1mIi8+CiAgPC90YXJnZXQ+CgogIDx0YXJnZXQgbmFtZT0icGxhaW4iPgog"
+            "ICAgPG1rZGlyIGRpcj0ib3V0Ii8+CiAgICA8amFyIGRlc3RmaWxlPSJvdXQvcGxhaW4u"
+            "amFyIgogICAgICAgICBiYXNlZGlyPSJpbnB1dCIKICAgICAgICAgaW5jbHVkZXM9InBh"
+            "eWxvYWQudHh0Ii8+CiAgPC90YXJnZXQ+CgogIDx0YXJnZXQgbmFtZT0ibm8tbWF0Y2hl"
+            "cyI+CiAgICA8bWtkaXIgZGlyPSJvdXQiLz4KICAgIDxqYXIgZGVzdGZpbGU9Im91dC9u"
+            "by1tYXRjaGVzLmphciIKICAgICAgICAgYmFzZWRpcj0iaW5wdXQiCiAgICAgICAgIGlu"
+            "Y2x1ZGVzPSJkb2VzLW5vdC1leGlzdC8qKiIvPgogIDwvdGFyZ2V0Pgo8L3Byb2plY3Q+"
+            "CiIiIiwKICAgICAgICAgICAgZW5jb2Rpbmc9InV0Zi04IiwKICAgICAgICApCgogICAg"
+            "ICAgICMgUnVuIHRoZSBwcm9qZWN0J3MgZGVmYXVsdCB0YXJnZXQgZnJvbSBvdXRzaWRl"
+            "IHRoZSBidWlsZGZpbGUgZGlyZWN0b3J5LgogICAgICAgIHJ1bl9hbnQocm9vdCwgIi1m"
+            "IiwgInByb2plY3QvYnVpbGQueG1sIikKCiAgICAgICAgc3VwcGxpZWRfamFyID0gcHJv"
+            "amVjdCAvICJvdXQiIC8gInN1cHBsaWVkLmphciIKICAgICAgICBpZiBub3Qgc3VwcGxp"
+            "ZWRfamFyLmlzX2ZpbGUoKToKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3Io"
+            "IkRlZmF1bHQgdGFyZ2V0IGRpZCBub3QgY3JlYXRlIG91dC9zdXBwbGllZC5qYXIiKQog"
+            "ICAgICAgIHN1cHBsaWVkX25hbWVzLCBzdXBwbGllZF90ZXh0ID0gcmVhZF9tYW5pZmVz"
+            "dChzdXBwbGllZF9qYXIpCiAgICAgICAgdmVyaWZ5X3BheWxvYWQoc3VwcGxpZWRfbmFt"
+            "ZXMsIHN1cHBsaWVkX2phcikKICAgICAgICBzdXBwbGllZF9hdHRycyA9IG1hbmlmZXN0"
+            "X2F0dHJpYnV0ZXMoc3VwcGxpZWRfdGV4dCkKICAgICAgICBpZiBzdXBwbGllZF9hdHRy"
+            "cy5nZXQoIngtdGVzdC1tYXJrZXIiKSAhPSAic3VwcGxpZWQiOgogICAgICAgICAgICBy"
+            "YWlzZSBBc3NlcnRpb25FcnJvcigiVGhlIHN1cHBsaWVkIG1hbmlmZXN0IHdhcyBub3Qg"
+            "dXNlZCBieSBzdXBwbGllZC5qYXIiKQoKICAgICAgICAjIFNlbGVjdCB0aGUgbm9uLWRl"
+            "ZmF1bHQgdGFyZ2V0cyB0aGF0IG9taXQgYSBtYW5pZmVzdCBhbmQgbWF0Y2ggbm8gZmls"
+            "ZXMuCiAgICAgICAgcnVuX2FudChyb290LCAiLWYiLCAicHJvamVjdC9idWlsZC54bWwi"
+            "LCAicGxhaW4iLCAibm8tbWF0Y2hlcyIpCgogICAgICAgIHBsYWluX2phciA9IHByb2pl"
+            "Y3QgLyAib3V0IiAvICJwbGFpbi5qYXIiCiAgICAgICAgaWYgbm90IHBsYWluX2phci5p"
+            "c19maWxlKCk6CiAgICAgICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKCJFeHBsaWNp"
+            "dCBwbGFpbiB0YXJnZXQgZGlkIG5vdCBjcmVhdGUgb3V0L3BsYWluLmphciIpCiAgICAg"
+            "ICAgcGxhaW5fbmFtZXMsIHBsYWluX3RleHQgPSByZWFkX21hbmlmZXN0KHBsYWluX2ph"
+            "cikKICAgICAgICB2ZXJpZnlfcGF5bG9hZChwbGFpbl9uYW1lcywgcGxhaW5famFyKQog"
+            "ICAgICAgIHBsYWluX2F0dHJzID0gbWFuaWZlc3RfYXR0cmlidXRlcyhwbGFpbl90ZXh0"
+            "KQogICAgICAgIGlmIHBsYWluX2F0dHJzLmdldCgibWFuaWZlc3QtdmVyc2lvbiIpICE9"
+            "ICIxLjAiOgogICAgICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcigicGxhaW4uamFy"
+            "IGxhY2tzIEFudCdzIHNpbXBsZSBNYW5pZmVzdC1WZXJzaW9uIGF0dHJpYnV0ZSIpCiAg"
+            "ICAgICAgaWYgIngtdGVzdC1tYXJrZXIiIGluIHBsYWluX2F0dHJzOgogICAgICAgICAg"
+            "ICByYWlzZSBBc3NlcnRpb25FcnJvcigicGxhaW4uamFyIGluY29ycmVjdGx5IHJldXNl"
+            "ZCB0aGUgdXNlci1zdXBwbGllZCBtYW5pZmVzdCIpCgogICAgICAgIGVtcHR5X2phciA9"
+            "IHByb2plY3QgLyAib3V0IiAvICJuby1tYXRjaGVzLmphciIKICAgICAgICBpZiBub3Qg"
+            "ZW1wdHlfamFyLmlzX2ZpbGUoKToKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJy"
+            "b3IoIkFudCBkaWQgbm90IGNyZWF0ZSBhIEpBUiB3aGVuIG5vIG9yZGluYXJ5IGZpbGVz"
+            "IG1hdGNoZWQiKQogICAgICAgIGVtcHR5X25hbWVzLCBlbXB0eV90ZXh0ID0gcmVhZF9t"
+            "YW5pZmVzdChlbXB0eV9qYXIpCiAgICAgICAgZW1wdHlfYXR0cnMgPSBtYW5pZmVzdF9h"
+            "dHRyaWJ1dGVzKGVtcHR5X3RleHQpCiAgICAgICAgaWYgZW1wdHlfYXR0cnMuZ2V0KCJt"
+            "YW5pZmVzdC12ZXJzaW9uIikgIT0gIjEuMCI6CiAgICAgICAgICAgIHJhaXNlIEFzc2Vy"
+            "dGlvbkVycm9yKCJOby1tYXRjaCBKQVIgbGFja3MgQW50J3Mgc2ltcGxlIG1hbmlmZXN0"
+            "IikKICAgICAgICBpZiAieC10ZXN0LW1hcmtlciIgaW4gZW1wdHlfYXR0cnM6CiAgICAg"
+            "ICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKCJOby1tYXRjaCBKQVIgaW5jb3JyZWN0"
+            "bHkgcmV1c2VkIHRoZSBzdXBwbGllZCBtYW5pZmVzdCIpCgogICAgICAgIG9yZGluYXJ5"
+            "X2VudHJpZXMgPSBbCiAgICAgICAgICAgIG5hbWUgZm9yIG5hbWUgaW4gZW1wdHlfbmFt"
+            "ZXMKICAgICAgICAgICAgaWYgbm90IG5hbWUuZW5kc3dpdGgoIi8iKSBhbmQgbmFtZS51"
+            "cHBlcigpICE9ICJNRVRBLUlORi9NQU5JRkVTVC5NRiIKICAgICAgICBdCiAgICAgICAg"
+            "aWYgb3JkaW5hcnlfZW50cmllczoKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJy"
+            "b3IoCiAgICAgICAgICAgICAgICAiTm8tbWF0Y2ggSkFSIHVuZXhwZWN0ZWRseSBjb250"
+            "YWlucyBvcmRpbmFyeSBmaWxlczogIgogICAgICAgICAgICAgICAgKyByZXByKG9yZGlu"
+            "YXJ5X2VudHJpZXMpCiAgICAgICAgICAgICkKICAgIGZpbmFsbHk6CiAgICAgICAgc2h1"
+            "dGlsLnJtdHJlZShyb290KQoKCmV4aXRfY29kZSA9IDEKdmVyZGljdCA9ICJGQUlMOiBB"
+            "bnQgSkFSIG1hbmlmZXN0IGJlaGF2aW9yIHZlcmlmaWNhdGlvbiBmYWlsZWQiCmRpYWdu"
+            "b3N0aWMgPSBOb25lCnRyeToKICAgIG1haW4oKQogICAgZXhpdF9jb2RlID0gMAogICAg"
+            "dmVyZGljdCA9ICJQQVNTOiBBbnQgdXNlZCB0aGUgc3VwcGxpZWQgbWFuaWZlc3QsIGdl"
+            "bmVyYXRlZCBzaW1wbGUgbWFuaWZlc3RzLCBhbmQgY3JlYXRlZCB0aGUgbm8tbWF0Y2gg"
+            "SkFSIgpleGNlcHQgRXhjZXB0aW9uIGFzIGV4YzoKICAgIGRpYWdub3N0aWMgPSBmImRp"
+            "YWdub3N0aWM6IHt0eXBlKGV4YykuX19uYW1lX199OiB7ZXhjfSIKCmlmIGRpYWdub3N0"
+            "aWMgaXMgbm90IE5vbmU6CiAgICBwcmludChkaWFnbm9zdGljKQpwcmludCh2ZXJkaWN0"
+            "KQpzeXMuZXhpdChleGl0X2NvZGUpCg=="
         )
-        assert_that(blocked_state).described_as(
-            f"disallowed OS command must not run; observed: {blocked_state}"
-        ).contains("BLOCKED_FILE=absent")
-        ignored_text = section(text, "IGNORED_BEGIN", "IGNORED_END")
-        assert_that(ignored_text).described_as(
-            f"default nonzero handling must succeed; observed: {ignored_text}"
-        ).contains("RC=0")
-        assert_that(ignored_text).described_as(
-            f"Ant must expose the ignored result; observed: {ignored_text}"
-        ).contains("IGNORED_RESULT=9")
-        requested_text = section(
-            text,
-            "REQUESTED_BEGIN",
-            "REQUESTED_END",
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
         )
-        requested_codes = re.findall(
-            r"^RC=([0-9]+)$",
-            requested_text,
-            re.MULTILINE,
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
+
+        Corpus obligation: pkg:ant/archive-workflows/patterned-extraction
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_ant_archive_workflow_254221ad(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:4e37beefcddf96e60c6e32f6ecda74e3b0003ed"
+            "03cdbe3135da82c6475a52a2b."
         )
-        assert_that(requested_codes).described_as(
-            f"requested-failure status is missing: {requested_text}"
-        ).is_length(1)
-        requested_code = int(requested_codes[0])
-        assert_that(requested_code).described_as(
-            f"failonerror must fail the build; observed rc: {requested_code}"
-        ).is_not_equal_to(0)
-        missing_text = section(text, "MISSING_BEGIN", "MISSING_END")
-        missing_codes = re.findall(
-            r"^RC=([0-9]+)$",
-            missing_text,
-            re.MULTILINE,
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgb3MKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3RhdAppbXBvcnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmls"
+            "ZQppbXBvcnQgdGV4dHdyYXAKaW1wb3J0IHppcGZpbGUKCgpkZWYgZmlsZV9pbnZlbnRv"
+            "cnkocm9vdCk6CiAgICBmb3VuZCA9IHNldCgpCiAgICBmb3IgY3VycmVudCwgXywgZmls"
+            "ZXMgaW4gb3Mud2Fsayhyb290KToKICAgICAgICBmb3IgbmFtZSBpbiBmaWxlczoKICAg"
+            "ICAgICAgICAgZnVsbCA9IG9zLnBhdGguam9pbihjdXJyZW50LCBuYW1lKQogICAgICAg"
+            "ICAgICBmb3VuZC5hZGQob3MucGF0aC5yZWxwYXRoKGZ1bGwsIHJvb3QpLnJlcGxhY2Uo"
+            "b3Muc2VwLCAiLyIpKQogICAgcmV0dXJuIGZvdW5kCgoKZGVmIHJlYWRfdGV4dChwYXRo"
+            "KToKICAgIHdpdGggb3BlbihwYXRoLCAiciIsIGVuY29kaW5nPSJ1dGYtOCIpIGFzIHN0"
+            "cmVhbToKICAgICAgICByZXR1cm4gc3RyZWFtLnJlYWQoKQoKCmRlZiBydW5fYW50KGFy"
+            "Z3VtZW50cywgY3dkKToKICAgIGRlZiBfc2V0X3Jlc3RyaWN0aXZlX3VtYXNrKCk6CiAg"
+            "ICAgICAgb3MudW1hc2soMG8wNzcpCgogICAgcmV0dXJuIHN1YnByb2Nlc3MucnVuKAog"
+            "ICAgICAgIGFyZ3VtZW50cywKICAgICAgICBjd2Q9Y3dkLAogICAgICAgIHRleHQ9VHJ1"
+            "ZSwKICAgICAgICBzdGRvdXQ9c3VicHJvY2Vzcy5QSVBFLAogICAgICAgIHN0ZGVycj1z"
+            "dWJwcm9jZXNzLlBJUEUsCiAgICAgICAgdGltZW91dD05MCwKICAgICAgICBwcmVleGVj"
+            "X2ZuPV9zZXRfcmVzdHJpY3RpdmVfdW1hc2ssCiAgICAgICAgY2hlY2s9RmFsc2UsCiAg"
+            "ICApCgoKZGVmIG1haW4oKToKICAgIHdvcmsgPSB0ZW1wZmlsZS5ta2R0ZW1wKHByZWZp"
+            "eD0iYW50LXBhdHRlcm5lZC1leHRyYWN0aW9uLSIpCiAgICB0cnk6CiAgICAgICAgYW50"
+            "ID0gc2h1dGlsLndoaWNoKCJhbnQiKQogICAgICAgIGphdmEgPSBzaHV0aWwud2hpY2go"
+            "ImphdmEiKQogICAgICAgIGlmIGFudCBpcyBOb25lIG9yIGphdmEgaXMgTm9uZToKICAg"
+            "ICAgICAgICAgbWlzc2luZyA9IFtdCiAgICAgICAgICAgIGlmIGFudCBpcyBOb25lOgog"
+            "ICAgICAgICAgICAgICAgbWlzc2luZy5hcHBlbmQoImFudCIpCiAgICAgICAgICAgIGlm"
+            "IGphdmEgaXMgTm9uZToKICAgICAgICAgICAgICAgIG1pc3NpbmcuYXBwZW5kKCJqYXZh"
+            "IikKICAgICAgICAgICAgcHJpbnQoIlNLSVA6IHJlcXVpcmVkIGd1ZXN0IHByZXJlcXVp"
+            "c2l0ZSBtaXNzaW5nOiAiICsgIiwgIi5qb2luKG1pc3NpbmcpKQogICAgICAgICAgICBy"
+            "ZXR1cm4gNzcKCiAgICAgICAgcHJvamVjdCA9IG9zLnBhdGguam9pbih3b3JrLCAicHJv"
+            "amVjdCIpCiAgICAgICAgaW5wdXRfZG9jcyA9IG9zLnBhdGguam9pbihwcm9qZWN0LCAi"
+            "aW5wdXQiLCAiZG9jcyIpCiAgICAgICAgb3MubWFrZWRpcnMoaW5wdXRfZG9jcykKCiAg"
+            "ICAgICAgZml4dHVyZXMgPSB7CiAgICAgICAgICAgICJkb2NzL21hdGNoLnR4dCI6ICJt"
+            "YXRjaGluZyB0ZXh0XG4iLAogICAgICAgICAgICAiZG9jcy9za2lwLmJpbiI6ICJub25t"
+            "YXRjaGluZyBiaW5hcnkgbWFya2VyXG4iLAogICAgICAgICAgICAicm9vdC5jZmciOiAi"
+            "bm9ubWF0Y2hpbmcgcm9vdCBjb25maWd1cmF0aW9uXG4iLAogICAgICAgIH0KICAgICAg"
+            "ICBmb3IgcmVsYXRpdmUsIGNvbnRlbnQgaW4gZml4dHVyZXMuaXRlbXMoKToKICAgICAg"
+            "ICAgICAgZGVzdGluYXRpb24gPSBvcy5wYXRoLmpvaW4ocHJvamVjdCwgImlucHV0Iiwg"
+            "KnJlbGF0aXZlLnNwbGl0KCIvIikpCiAgICAgICAgICAgIG9zLm1ha2VkaXJzKG9zLnBh"
+            "dGguZGlybmFtZShkZXN0aW5hdGlvbiksIGV4aXN0X29rPVRydWUpCiAgICAgICAgICAg"
+            "IHdpdGggb3BlbihkZXN0aW5hdGlvbiwgInciLCBlbmNvZGluZz0idXRmLTgiKSBhcyBz"
+            "dHJlYW06CiAgICAgICAgICAgICAgICBzdHJlYW0ud3JpdGUoY29udGVudCkKICAgICAg"
+            "ICAgICAgb3MuY2htb2QoZGVzdGluYXRpb24sIDBvNzU1KQoKICAgICAgICBidWlsZF94"
+            "bWwgPSB0ZXh0d3JhcC5kZWRlbnQoIiIiXAogICAgICAgICAgICA8P3htbCB2ZXJzaW9u"
+            "PSIxLjAiIGVuY29kaW5nPSJVVEYtOCI/PgogICAgICAgICAgICA8cHJvamVjdCBuYW1l"
+            "PSJwYXR0ZXJuZWQtZXh0cmFjdGlvbiIgZGVmYXVsdD0iZXh0cmFjdC1hbGwiIGJhc2Vk"
+            "aXI9Ii4iPgogICAgICAgICAgICAgIDx0YXJnZXQgbmFtZT0ibWFrZS1hcmNoaXZlcyI+"
+            "CiAgICAgICAgICAgICAgICA8bWtkaXIgZGlyPSJhcmNoaXZlcyIvPgogICAgICAgICAg"
+            "ICAgICAgPHppcCBkZXN0ZmlsZT0iYXJjaGl2ZXMvc2FtcGxlLnppcCI+CiAgICAgICAg"
+            "ICAgICAgICAgIDx6aXBmaWxlc2V0IGRpcj0iaW5wdXQiIGZpbGVtb2RlPSI3NTUiLz4K"
+            "ICAgICAgICAgICAgICAgIDwvemlwPgogICAgICAgICAgICAgICAgPHppcCBkZXN0Zmls"
+            "ZT0iYXJjaGl2ZXMvc2FtcGxlLndhciI+CiAgICAgICAgICAgICAgICAgIDx6aXBmaWxl"
+            "c2V0IGRpcj0iaW5wdXQiIGZpbGVtb2RlPSI3NTUiLz4KICAgICAgICAgICAgICAgIDwv"
+            "emlwPgogICAgICAgICAgICAgICAgPHppcCBkZXN0ZmlsZT0iYXJjaGl2ZXMvc2FtcGxl"
+            "LmphciI+CiAgICAgICAgICAgICAgICAgIDx6aXBmaWxlc2V0IGRpcj0iaW5wdXQiIGZp"
+            "bGVtb2RlPSI3NTUiLz4KICAgICAgICAgICAgICAgIDwvemlwPgogICAgICAgICAgICAg"
+            "IDwvdGFyZ2V0PgoKICAgICAgICAgICAgICA8dGFyZ2V0IG5hbWU9ImV4dHJhY3QtYWxs"
+            "IiBkZXBlbmRzPSJtYWtlLWFyY2hpdmVzIj4KICAgICAgICAgICAgICAgIDxta2RpciBk"
+            "aXI9Im91dHB1dC9hbGwvemlwIi8+CiAgICAgICAgICAgICAgICA8bWtkaXIgZGlyPSJv"
+            "dXRwdXQvYWxsL3dhciIvPgogICAgICAgICAgICAgICAgPG1rZGlyIGRpcj0ib3V0cHV0"
+            "L2FsbC9qYXIiLz4KICAgICAgICAgICAgICAgIDx1bnppcCBzcmM9ImFyY2hpdmVzL3Nh"
+            "bXBsZS56aXAiIGRlc3Q9Im91dHB1dC9hbGwvemlwIi8+CiAgICAgICAgICAgICAgICA8"
+            "dW53YXIgc3JjPSJhcmNoaXZlcy9zYW1wbGUud2FyIiBkZXN0PSJvdXRwdXQvYWxsL3dh"
+            "ciIvPgogICAgICAgICAgICAgICAgPHVuamFyIHNyYz0iYXJjaGl2ZXMvc2FtcGxlLmph"
+            "ciIgZGVzdD0ib3V0cHV0L2FsbC9qYXIiLz4KICAgICAgICAgICAgICA8L3RhcmdldD4K"
+            "CiAgICAgICAgICAgICAgPHRhcmdldCBuYW1lPSJleHRyYWN0LXBhdHRlcm5lZCIgZGVw"
+            "ZW5kcz0ibWFrZS1hcmNoaXZlcyI+CiAgICAgICAgICAgICAgICA8bWtkaXIgZGlyPSJv"
+            "dXRwdXQvcGF0dGVybmVkL3ppcCIvPgogICAgICAgICAgICAgICAgPG1rZGlyIGRpcj0i"
+            "b3V0cHV0L3BhdHRlcm5lZC93YXIiLz4KICAgICAgICAgICAgICAgIDxta2RpciBkaXI9"
+            "Im91dHB1dC9wYXR0ZXJuZWQvamFyIi8+CiAgICAgICAgICAgICAgICA8dW56aXAgc3Jj"
+            "PSJhcmNoaXZlcy9zYW1wbGUuemlwIiBkZXN0PSJvdXRwdXQvcGF0dGVybmVkL3ppcCI+"
+            "CiAgICAgICAgICAgICAgICAgIDxwYXR0ZXJuc2V0PgogICAgICAgICAgICAgICAgICAg"
+            "IDxpbmNsdWRlIG5hbWU9ImRvY3MvKi50eHQiLz4KICAgICAgICAgICAgICAgICAgPC9w"
+            "YXR0ZXJuc2V0PgogICAgICAgICAgICAgICAgICA8bWFwcGVyIHR5cGU9Imdsb2IiIGZy"
+            "b209ImRvY3MvKi50eHQiIHRvPSJyZW5hbWVkLyoubWFwcGVkIi8+CiAgICAgICAgICAg"
+            "ICAgICA8L3VuemlwPgogICAgICAgICAgICAgICAgPHVud2FyIHNyYz0iYXJjaGl2ZXMv"
+            "c2FtcGxlLndhciIgZGVzdD0ib3V0cHV0L3BhdHRlcm5lZC93YXIiPgogICAgICAgICAg"
+            "ICAgICAgICA8cGF0dGVybnNldD4KICAgICAgICAgICAgICAgICAgICA8aW5jbHVkZSBu"
+            "YW1lPSJkb2NzLyoudHh0Ii8+CiAgICAgICAgICAgICAgICAgIDwvcGF0dGVybnNldD4K"
+            "ICAgICAgICAgICAgICAgICAgPG1hcHBlciB0eXBlPSJnbG9iIiBmcm9tPSJkb2NzLyou"
+            "dHh0IiB0bz0icmVuYW1lZC8qLm1hcHBlZCIvPgogICAgICAgICAgICAgICAgPC91bndh"
+            "cj4KICAgICAgICAgICAgICAgIDx1bmphciBzcmM9ImFyY2hpdmVzL3NhbXBsZS5qYXIi"
+            "IGRlc3Q9Im91dHB1dC9wYXR0ZXJuZWQvamFyIj4KICAgICAgICAgICAgICAgICAgPHBh"
+            "dHRlcm5zZXQ+CiAgICAgICAgICAgICAgICAgICAgPGluY2x1ZGUgbmFtZT0iZG9jcy8q"
+            "LnR4dCIvPgogICAgICAgICAgICAgICAgICA8L3BhdHRlcm5zZXQ+CiAgICAgICAgICAg"
+            "ICAgICAgIDxtYXBwZXIgdHlwZT0iZ2xvYiIgZnJvbT0iZG9jcy8qLnR4dCIgdG89InJl"
+            "bmFtZWQvKi5tYXBwZWQiLz4KICAgICAgICAgICAgICAgIDwvdW5qYXI+CiAgICAgICAg"
+            "ICAgICAgPC90YXJnZXQ+CiAgICAgICAgICAgIDwvcHJvamVjdD4KICAgICAgICAiIiIp"
+            "CiAgICAgICAgYnVpbGRfcGF0aCA9IG9zLnBhdGguam9pbihwcm9qZWN0LCAiYnVpbGQu"
+            "eG1sIikKICAgICAgICB3aXRoIG9wZW4oYnVpbGRfcGF0aCwgInciLCBlbmNvZGluZz0i"
+            "dXRmLTgiKSBhcyBzdHJlYW06CiAgICAgICAgICAgIHN0cmVhbS53cml0ZShidWlsZF94"
+            "bWwpCgogICAgICAgICMgSW52b2tlIGZyb20gb3V0c2lkZSB0aGUgcHJvamVjdCBzbyBy"
+            "ZWxhdGl2ZSBwYXRocyBtdXN0IGJlIHJlc29sdmVkIGZyb20KICAgICAgICAjIHRoZSBz"
+            "ZWxlY3RlZCBidWlsZGZpbGUvcHJvamVjdCBiYXNlIGRpcmVjdG9yeS4gT21pdHRpbmcg"
+            "YSB0YXJnZXQgZHJpdmVzCiAgICAgICAgIyB0aGUgcHJvamVjdCdzIGRlY2xhcmVkIGRl"
+            "ZmF1bHQgdGFyZ2V0LgogICAgICAgIGRlZmF1bHRfcnVuID0gcnVuX2FudChbYW50LCAi"
+            "LW5vaW5wdXQiLCAiLWYiLCBidWlsZF9wYXRoXSwgd29yaykKICAgICAgICBpZiBkZWZh"
+            "dWx0X3J1bi5yZXR1cm5jb2RlICE9IDA6CiAgICAgICAgICAgIGNvbWJpbmVkID0gKGRl"
+            "ZmF1bHRfcnVuLnN0ZG91dCBvciAiIikgKyAiXG4iICsgKGRlZmF1bHRfcnVuLnN0ZGVy"
+            "ciBvciAiIikKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoIkFudCBkZWZh"
+            "dWx0LXRhcmdldCBleHRyYWN0aW9uIGZhaWxlZDpcbiIgKyBjb21iaW5lZCkKCiAgICAg"
+            "ICAgIyBTZWxlY3QgdGhlIGNvbnRyYXN0aW5nIHBhdHRlcm5lZCB0YXJnZXQgZXhwbGlj"
+            "aXRseSB0aHJvdWdoIHRoZSBzYW1lCiAgICAgICAgIyBYTUwgcHJvamVjdCBhbmQgZXh0"
+            "cmFjdGlvbiB0YXNrIGZhbWlsaWVzLgogICAgICAgIHBhdHRlcm5lZF9ydW4gPSBydW5f"
+            "YW50KAogICAgICAgICAgICBbYW50LCAiLW5vaW5wdXQiLCAiLWYiLCBidWlsZF9wYXRo"
+            "LCAiZXh0cmFjdC1wYXR0ZXJuZWQiXSwgd29yawogICAgICAgICkKICAgICAgICBpZiBw"
+            "YXR0ZXJuZWRfcnVuLnJldHVybmNvZGUgIT0gMDoKICAgICAgICAgICAgY29tYmluZWQg"
+            "PSAocGF0dGVybmVkX3J1bi5zdGRvdXQgb3IgIiIpICsgIlxuIiArIChwYXR0ZXJuZWRf"
+            "cnVuLnN0ZGVyciBvciAiIikKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3Io"
+            "IkFudCBwYXR0ZXJuZWQgZXh0cmFjdGlvbiBmYWlsZWQ6XG4iICsgY29tYmluZWQpCgog"
+            "ICAgICAgIGV4cGVjdGVkX2FsbCA9IHNldChmaXh0dXJlcykKICAgICAgICBleHBlY3Rl"
+            "ZF9wYXR0ZXJuZWQgPSB7InJlbmFtZWQvbWF0Y2gubWFwcGVkIn0KICAgICAgICB2YXJp"
+            "YW50cyA9IHsKICAgICAgICAgICAgInppcCI6ICJzYW1wbGUuemlwIiwKICAgICAgICAg"
+            "ICAgIndhciI6ICJzYW1wbGUud2FyIiwKICAgICAgICAgICAgImphciI6ICJzYW1wbGUu"
+            "amFyIiwKICAgICAgICB9CgogICAgICAgIGZvciBmYW1pbHksIGFyY2hpdmVfbmFtZSBp"
+            "biB2YXJpYW50cy5pdGVtcygpOgogICAgICAgICAgICBhcmNoaXZlX3BhdGggPSBvcy5w"
+            "YXRoLmpvaW4ocHJvamVjdCwgImFyY2hpdmVzIiwgYXJjaGl2ZV9uYW1lKQogICAgICAg"
+            "ICAgICB3aXRoIHppcGZpbGUuWmlwRmlsZShhcmNoaXZlX3BhdGgsICJyIikgYXMgYXJj"
+            "aGl2ZToKICAgICAgICAgICAgICAgIGFyY2hpdmVkX2ZpbGVzID0gewogICAgICAgICAg"
+            "ICAgICAgICAgIGluZm8uZmlsZW5hbWU6IHN0YXQuU19JTU9ERShpbmZvLmV4dGVybmFs"
+            "X2F0dHIgPj4gMTYpCiAgICAgICAgICAgICAgICAgICAgZm9yIGluZm8gaW4gYXJjaGl2"
+            "ZS5pbmZvbGlzdCgpCiAgICAgICAgICAgICAgICAgICAgaWYgbm90IGluZm8uaXNfZGly"
+            "KCkKICAgICAgICAgICAgICAgIH0KCiAgICAgICAgICAgIGlmIHNldChhcmNoaXZlZF9m"
+            "aWxlcykgIT0gZXhwZWN0ZWRfYWxsOgogICAgICAgICAgICAgICAgcmFpc2UgQXNzZXJ0"
+            "aW9uRXJyb3IoCiAgICAgICAgICAgICAgICAgICAgIiVzIGZpeHR1cmUgYXJjaGl2ZSBl"
+            "bnRyaWVzIGRpZmZlcjogZXhwZWN0ZWQgJXIsIGdvdCAlciIKICAgICAgICAgICAgICAg"
+            "ICAgICAlIChmYW1pbHksIHNvcnRlZChleHBlY3RlZF9hbGwpLCBzb3J0ZWQoYXJjaGl2"
+            "ZWRfZmlsZXMpKQogICAgICAgICAgICAgICAgKQogICAgICAgICAgICBmb3IgbmFtZSwg"
+            "bW9kZSBpbiBhcmNoaXZlZF9maWxlcy5pdGVtcygpOgogICAgICAgICAgICAgICAgaWYg"
+            "bW9kZSAhPSAwbzc1NToKICAgICAgICAgICAgICAgICAgICByYWlzZSBBc3NlcnRpb25F"
+            "cnJvcigKICAgICAgICAgICAgICAgICAgICAgICAgIiVzIGFyY2hpdmUgZW50cnkgJXMg"
+            "ZGlkIG5vdCByZWNvcmQgY29udHJvbGxlZCBtb2RlIDA3NTU7IGdvdCAlMDRvIgogICAg"
+            "ICAgICAgICAgICAgICAgICAgICAlIChmYW1pbHksIG5hbWUsIG1vZGUpCiAgICAgICAg"
+            "ICAgICAgICAgICAgKQoKICAgICAgICAgICAgYWxsX3Jvb3QgPSBvcy5wYXRoLmpvaW4o"
+            "cHJvamVjdCwgIm91dHB1dCIsICJhbGwiLCBmYW1pbHkpCiAgICAgICAgICAgIGFjdHVh"
+            "bF9hbGwgPSBmaWxlX2ludmVudG9yeShhbGxfcm9vdCkKICAgICAgICAgICAgaWYgYWN0"
+            "dWFsX2FsbCAhPSBleHBlY3RlZF9hbGw6CiAgICAgICAgICAgICAgICByYWlzZSBBc3Nl"
+            "cnRpb25FcnJvcigKICAgICAgICAgICAgICAgICAgICAiJXMgZXh0cmFjdGlvbiB3aXRo"
+            "b3V0IGEgcGF0dGVybjogZXhwZWN0ZWQgYWxsICVyLCBnb3QgJXIiCiAgICAgICAgICAg"
+            "ICAgICAgICAgJSAoZmFtaWx5LCBzb3J0ZWQoZXhwZWN0ZWRfYWxsKSwgc29ydGVkKGFj"
+            "dHVhbF9hbGwpKQogICAgICAgICAgICAgICAgKQogICAgICAgICAgICBmb3IgcmVsYXRp"
+            "dmUsIGV4cGVjdGVkX2NvbnRlbnQgaW4gZml4dHVyZXMuaXRlbXMoKToKICAgICAgICAg"
+            "ICAgICAgIGV4dHJhY3RlZCA9IG9zLnBhdGguam9pbihhbGxfcm9vdCwgKnJlbGF0aXZl"
+            "LnNwbGl0KCIvIikpCiAgICAgICAgICAgICAgICBpZiByZWFkX3RleHQoZXh0cmFjdGVk"
+            "KSAhPSBleHBlY3RlZF9jb250ZW50OgogICAgICAgICAgICAgICAgICAgIHJhaXNlIEFz"
+            "c2VydGlvbkVycm9yKAogICAgICAgICAgICAgICAgICAgICAgICAiJXMgZXh0cmFjdGlv"
+            "biBjaGFuZ2VkIGNvbnRlbnQgb2YgJXMiICUgKGZhbWlseSwgcmVsYXRpdmUpCiAgICAg"
+            "ICAgICAgICAgICAgICAgKQogICAgICAgICAgICAgICAgZXh0cmFjdGVkX21vZGUgPSBz"
+            "dGF0LlNfSU1PREUob3Muc3RhdChleHRyYWN0ZWQpLnN0X21vZGUpCiAgICAgICAgICAg"
+            "ICAgICBpZiBleHRyYWN0ZWRfbW9kZSA9PSAwbzc1NSBvciBleHRyYWN0ZWRfbW9kZSAm"
+            "IDBvMTExOgogICAgICAgICAgICAgICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKAog"
+            "ICAgICAgICAgICAgICAgICAgICAgICAiJXMgZXh0cmFjdGlvbiByZXN0b3JlZCBleGVj"
+            "dXRhYmxlIGFyY2hpdmUgcGVybWlzc2lvbnMgZm9yICVzOiAlMDRvIgogICAgICAgICAg"
+            "ICAgICAgICAgICAgICAlIChmYW1pbHksIHJlbGF0aXZlLCBleHRyYWN0ZWRfbW9kZSkK"
+            "ICAgICAgICAgICAgICAgICAgICApCgogICAgICAgICAgICBwYXR0ZXJuZWRfcm9vdCA9"
+            "IG9zLnBhdGguam9pbihwcm9qZWN0LCAib3V0cHV0IiwgInBhdHRlcm5lZCIsIGZhbWls"
+            "eSkKICAgICAgICAgICAgYWN0dWFsX3BhdHRlcm5lZCA9IGZpbGVfaW52ZW50b3J5KHBh"
+            "dHRlcm5lZF9yb290KQogICAgICAgICAgICBpZiBhY3R1YWxfcGF0dGVybmVkICE9IGV4"
+            "cGVjdGVkX3BhdHRlcm5lZDoKICAgICAgICAgICAgICAgIHJhaXNlIEFzc2VydGlvbkVy"
+            "cm9yKAogICAgICAgICAgICAgICAgICAgICIlcyBwYXR0ZXJuZWQgZXh0cmFjdGlvbjog"
+            "ZXhwZWN0ZWQgb25seSBtYXBwZWQgb3V0cHV0ICVyLCBnb3QgJXIiCiAgICAgICAgICAg"
+            "ICAgICAgICAgJSAoZmFtaWx5LCBzb3J0ZWQoZXhwZWN0ZWRfcGF0dGVybmVkKSwgc29y"
+            "dGVkKGFjdHVhbF9wYXR0ZXJuZWQpKQogICAgICAgICAgICAgICAgKQoKICAgICAgICAg"
+            "ICAgbWFwcGVkID0gb3MucGF0aC5qb2luKHBhdHRlcm5lZF9yb290LCAicmVuYW1lZCIs"
+            "ICJtYXRjaC5tYXBwZWQiKQogICAgICAgICAgICBpZiByZWFkX3RleHQobWFwcGVkKSAh"
+            "PSBmaXh0dXJlc1siZG9jcy9tYXRjaC50eHQiXToKICAgICAgICAgICAgICAgIHJhaXNl"
+            "IEFzc2VydGlvbkVycm9yKAogICAgICAgICAgICAgICAgICAgICIlcyBtYXBwZXIgb3V0"
+            "cHV0IGRpZCBub3QgcmV0YWluIHRoZSBtYXRjaGVkIGZpbGUgY29udGVudCIgJSBmYW1p"
+            "bHkKICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgbWFwcGVkX21vZGUgPSBzdGF0"
+            "LlNfSU1PREUob3Muc3RhdChtYXBwZWQpLnN0X21vZGUpCiAgICAgICAgICAgIGlmIG1h"
+            "cHBlZF9tb2RlID09IDBvNzU1IG9yIG1hcHBlZF9tb2RlICYgMG8xMTE6CiAgICAgICAg"
+            "ICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcigKICAgICAgICAgICAgICAgICAgICAi"
+            "JXMgcGF0dGVybmVkIGV4dHJhY3Rpb24gcmVzdG9yZWQgZXhlY3V0YWJsZSBhcmNoaXZl"
+            "IHBlcm1pc3Npb25zOiAlMDRvIgogICAgICAgICAgICAgICAgICAgICUgKGZhbWlseSwg"
+            "bWFwcGVkX21vZGUpCiAgICAgICAgICAgICAgICApCgogICAgICAgIHByaW50KCJQQVNT"
+            "OiBBbnQgYXJjaGl2ZSBleHRyYWN0aW9uIGhvbm9yZWQgcGF0dGVybnMgYW5kIG1hcHBp"
+            "bmcgd2l0aG91dCByZXN0b3JpbmcgcGVybWlzc2lvbnMiKQogICAgICAgIHJldHVybiAw"
+            "CiAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4YzoKICAgICAgICBwcmludCgiRGlhZ25v"
+            "c3RpYzogIiArIHN0cihleGMpKQogICAgICAgIHByaW50KCJGQUlMOiBBbnQgcGF0dGVy"
+            "bmVkIGFyY2hpdmUgZXh0cmFjdGlvbiBiZWhhdmlvciB3YXMgbm90IHNhdGlzZmllZCIp"
+            "CiAgICAgICAgcmV0dXJuIDEKICAgIGZpbmFsbHk6CiAgICAgICAgc2h1dGlsLnJtdHJl"
+            "ZSh3b3JrLCBpZ25vcmVfZXJyb3JzPVRydWUpCgoKaWYgX19uYW1lX18gPT0gIl9fbWFp"
+            "bl9fIjoKICAgIHN5cy5leGl0KG1haW4oKSkK"
         )
-        assert_that(missing_codes).described_as(
-            f"missing-program status is missing; observed: {missing_text}"
-        ).is_length(1)
-        missing_code = int(missing_codes[0])
-        assert_that(missing_code).described_as(
-            f"program startup failure must fail Ant; rc: {missing_code}"
-        ).is_not_equal_to(0)
-        assert_that(missing_text).described_as(
-            f"Ant must report its startup failure; observed: {missing_text}"
-        ).contains("Cannot run program")
-        timeout_text = section(text, "TIMEOUT_BEGIN", "TIMEOUT_END")
-        assert_that(timeout_text).described_as(
-            f"timeout without failonerror must succeed: {timeout_text}"
-        ).contains("RC=0")
-        assert_that(timeout_text).described_as(
-            f"Ant must report killing the process; observed: {timeout_text}"
-        ).contains("Timeout: killed the sub-process")
-        timeout_codes = re.findall(
-            r"TIMEOUT_RESULT=(-?[0-9]+)",
-            timeout_text,
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
         )
-        assert_that(timeout_codes).described_as(
-            f"timeout result is missing; observed: {timeout_text}"
-        ).is_length(1)
-        timeout_code = int(timeout_codes[0])
-        assert_that(timeout_code).described_as(
-            f"timed-out process must return nonzero; rc: {timeout_code}"
-        ).is_not_equal_to(0)
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
     @TestCaseMetadata(
         description="""
-            Verifies that Ant reports its version and runtime diagnostics without
-            requiring a project build file. It confirms Apache Ant identification and
-            locale information in the diagnostic report.
+        Exact-byte FMF/TMT Python wrapper execution.
 
-            Corpus obligation: pkg:ant/inspect-runtime
+        Corpus obligation: pkg:ant/archive-workflows/zip-selection
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
         """,
-        priority=3,
-        tags=["ai-generated"],
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    def verify_inspect_runtime(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        command = r"""set -u
-tmp=$(mktemp -d /tmp/ant-runtime.XXXXXX)
-trap 'rm -rf "$tmp"' EXIT
-cd "$tmp"
-printf '%s\n' BUILD_STATE_BEGIN
-if [ -e build.xml ]; then
-    printf '%s\n' present
-else
-    printf '%s\n' absent
-fi
-printf '%s\n' BUILD_STATE_END
-printf '%s\n' VERSION_BEGIN
-ant -version 2>&1
-version_rc=$?
-printf '%s\n' VERSION_END
-printf '%s\n' VERSION_RC_BEGIN
-printf '%s\n' "$version_rc"
-printf '%s\n' VERSION_RC_END
-printf '%s\n' DIAGNOSTICS_BEGIN
-ant -diagnostics 2>&1
-diagnostics_rc=$?
-printf '%s\n' DIAGNOSTICS_END
-printf '%s\n' DIAGNOSTICS_RC_BEGIN
-printf '%s\n' "$diagnostics_rc"
-printf '%s\n' DIAGNOSTICS_RC_END
-exit 0
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        build_state = section(text, "BUILD_STATE_BEGIN", "BUILD_STATE_END").strip()
-        version_rc = section(text, "VERSION_RC_BEGIN", "VERSION_RC_END").strip()
-        version_text = section(text, "VERSION_BEGIN", "VERSION_END")
-        diagnostics_rc = section(
-            text, "DIAGNOSTICS_RC_BEGIN", "DIAGNOSTICS_RC_END"
-        ).strip()
-        diagnostics = section(text, "DIAGNOSTICS_BEGIN", "DIAGNOSTICS_END")
-        locale_lines = [
-            line for line in diagnostics.splitlines() if "user.language" in line
-        ]
-        ant_lines = [line for line in diagnostics.splitlines() if "Apache Ant" in line]
-        assert_that(build_state).described_as(
-            f"expected no build.xml; observed state {build_state!r}"
-        ).is_equal_to("absent")
-        assert_that(version_rc).described_as(
-            f"expected ant -version rc 0; observed {version_rc!r}"
-        ).is_equal_to("0")
-        assert_that(version_text).described_as(
-            f"expected Apache Ant identification; observed {version_text!r}"
-        ).contains("Apache Ant")
-        assert_that(diagnostics_rc).described_as(
-            f"expected ant -diagnostics rc 0; observed {diagnostics_rc!r}"
-        ).is_equal_to("0")
-        assert_that(ant_lines).described_as(
-            f"expected Ant identity in diagnostics; observed {ant_lines!r}"
-        ).is_not_empty()
-        assert_that(locale_lines).described_as(
-            f"expected locale diagnostics; observed {locale_lines!r}"
-        ).is_not_empty()
+    def verify_pkg_ant_archive_workflow_f4d5916b(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:070f9a36ee94e15e91ece550e929d07be9e9e32"
+            "da5c36e2a0f6aa09a58ce13fd."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgb3MKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQppbXBvcnQgemlw"
+            "ZmlsZQoKCmRlZiBtYWluKCk6CiAgICB3b3JrZGlyID0gTm9uZQogICAgZXhpdF9jb2Rl"
+            "ID0gMQogICAgdmVyZGljdCA9ICJGQUlMOiB0ZXN0IGRpZCBub3QgY29tcGxldGUiCiAg"
+            "ICBkaWFnbm9zdGljcyA9IFtdCgogICAgdHJ5OgogICAgICAgIGFudCA9IHNodXRpbC53"
+            "aGljaCgiYW50IikKICAgICAgICBqYXZhID0gc2h1dGlsLndoaWNoKCJqYXZhIikKICAg"
+            "ICAgICBpZiBhbnQgaXMgTm9uZSBvciBqYXZhIGlzIE5vbmU6CiAgICAgICAgICAgIG1p"
+            "c3NpbmcgPSBbXQogICAgICAgICAgICBpZiBhbnQgaXMgTm9uZToKICAgICAgICAgICAg"
+            "ICAgIG1pc3NpbmcuYXBwZW5kKCJhbnQiKQogICAgICAgICAgICBpZiBqYXZhIGlzIE5v"
+            "bmU6CiAgICAgICAgICAgICAgICBtaXNzaW5nLmFwcGVuZCgiamF2YSIpCiAgICAgICAg"
+            "ICAgIGV4aXRfY29kZSA9IDc3CiAgICAgICAgICAgIHZlcmRpY3QgPSAiU0tJUDogcmVx"
+            "dWlyZWQgY29tbWFuZChzKSB1bmF2YWlsYWJsZTogIiArICIsICIuam9pbihtaXNzaW5n"
+            "KQogICAgICAgICAgICByZXR1cm4gZXhpdF9jb2RlLCB2ZXJkaWN0LCBkaWFnbm9zdGlj"
+            "cwoKICAgICAgICB3b3JrZGlyID0gdGVtcGZpbGUubWtkdGVtcChwcmVmaXg9ImFudC16"
+            "aXAtc2VsZWN0aW9uLSIpCiAgICAgICAgYmFzZSA9IG9zLnBhdGguam9pbih3b3JrZGly"
+            "LCAiYmFzZSIpCiAgICAgICAgc2VsZWN0ZWQgPSBvcy5wYXRoLmpvaW4oYmFzZSwgInNl"
+            "bGVjdGVkIikKICAgICAgICBvdXRzaWRlID0gb3MucGF0aC5qb2luKGJhc2UsICJvdXRz"
+            "aWRlIikKICAgICAgICBvcy5tYWtlZGlycyhzZWxlY3RlZCkKICAgICAgICBvcy5tYWtl"
+            "ZGlycyhvdXRzaWRlKQoKICAgICAgICBjYW5kaWRhdGVfcGF0aCA9IG9zLnBhdGguam9p"
+            "bihzZWxlY3RlZCwgImNhbmRpZGF0ZS50eHQiKQogICAgICAgIHBsYWluX3BhdGggPSBv"
+            "cy5wYXRoLmpvaW4oc2VsZWN0ZWQsICJwbGFpbi50eHQiKQogICAgICAgIGV4Y2x1ZGVk"
+            "X3BhdGggPSBvcy5wYXRoLmpvaW4oc2VsZWN0ZWQsICJhbHdheXMuc2tpcCIpCiAgICAg"
+            "ICAgb3V0c2lkZV9wYXRoID0gb3MucGF0aC5qb2luKG91dHNpZGUsICJub3QtaW5jbHVk"
+            "ZWQudHh0IikKCiAgICAgICAgY2FuZGlkYXRlX2RhdGEgPSBiInNlbGVjdGVkIGV4ZWN1"
+            "dGFibGUgY2FuZGlkYXRlXG4iCiAgICAgICAgcGxhaW5fZGF0YSA9IGIic2VsZWN0ZWQg"
+            "b3JkaW5hcnkgZmlsZVxuIgogICAgICAgIGV4Y2x1ZGVkX2RhdGEgPSBiImV4Y2x1ZGVk"
+            "IGJ5IHBhdHRlcm5cbiIKICAgICAgICBvdXRzaWRlX2RhdGEgPSBiIm91dHNpZGUgaW5j"
+            "bHVkZWQgc3VidHJlZVxuIgoKICAgICAgICBmb3IgcGF0aCwgZGF0YSBpbiAoCiAgICAg"
+            "ICAgICAgIChjYW5kaWRhdGVfcGF0aCwgY2FuZGlkYXRlX2RhdGEpLAogICAgICAgICAg"
+            "ICAocGxhaW5fcGF0aCwgcGxhaW5fZGF0YSksCiAgICAgICAgICAgIChleGNsdWRlZF9w"
+            "YXRoLCBleGNsdWRlZF9kYXRhKSwKICAgICAgICAgICAgKG91dHNpZGVfcGF0aCwgb3V0"
+            "c2lkZV9kYXRhKSwKICAgICAgICApOgogICAgICAgICAgICB3aXRoIG9wZW4ocGF0aCwg"
+            "IndiIikgYXMgc3RyZWFtOgogICAgICAgICAgICAgICAgc3RyZWFtLndyaXRlKGRhdGEp"
+            "CgogICAgICAgIG9zLmNobW9kKGNhbmRpZGF0ZV9wYXRoLCAwbzc1NSkKICAgICAgICBv"
+            "cy5jaG1vZChwbGFpbl9wYXRoLCAwbzY0NCkKICAgICAgICBpZiAob3Muc3RhdChjYW5k"
+            "aWRhdGVfcGF0aCkuc3RfbW9kZSAmIDBvNzc3KSAhPSAwbzc1NToKICAgICAgICAgICAg"
+            "cmFpc2UgQXNzZXJ0aW9uRXJyb3IoImNvdWxkIG5vdCBlc3RhYmxpc2ggZXhlY3V0YWJs"
+            "ZSBzb3VyY2UgcGVybWlzc2lvbnMiKQogICAgICAgIGlmIChvcy5zdGF0KHBsYWluX3Bh"
+            "dGgpLnN0X21vZGUgJiAwbzc3NykgIT0gMG82NDQ6CiAgICAgICAgICAgIHJhaXNlIEFz"
+            "c2VydGlvbkVycm9yKCJjb3VsZCBub3QgZXN0YWJsaXNoIG9yZGluYXJ5IHNvdXJjZSBw"
+            "ZXJtaXNzaW9ucyIpCgogICAgICAgIGJ1aWxkZmlsZSA9IG9zLnBhdGguam9pbih3b3Jr"
+            "ZGlyLCAid29ya2Zsb3cueG1sIikKICAgICAgICBidWlsZF94bWwgPSAiIiI8P3htbCB2"
+            "ZXJzaW9uPSIxLjAiIGVuY29kaW5nPSJVVEYtOCI/Pgo8cHJvamVjdCBuYW1lPSJ6aXAt"
+            "c2VsZWN0aW9uIiBkZWZhdWx0PSJhcmNoaXZlIiBiYXNlZGlyPSIuIj4KICA8dGFyZ2V0"
+            "IG5hbWU9ImFyY2hpdmUiPgogICAgPG1rZGlyIGRpcj0ib3V0Ii8+CiAgICA8ZGVsZXRl"
+            "IGZpbGU9Im91dC9zZWxlY3RlZC56aXAiIHF1aWV0PSJ0cnVlIi8+CiAgICA8emlwIGRl"
+            "c3RmaWxlPSJvdXQvc2VsZWN0ZWQuemlwIj4KICAgICAgPGZpbGVzZXQgZGlyPSJiYXNl"
+            "Ij4KICAgICAgICA8aW5jbHVkZSBuYW1lPSJzZWxlY3RlZC8qKiIvPgogICAgICAgIDxl"
+            "eGNsdWRlIG5hbWU9IioqLyouc2tpcCIvPgogICAgICA8L2ZpbGVzZXQ+CiAgICA8L3pp"
+            "cD4KICA8L3RhcmdldD4KPC9wcm9qZWN0PgoiIiIKICAgICAgICB3aXRoIG9wZW4oYnVp"
+            "bGRmaWxlLCAidyIsIGVuY29kaW5nPSJ1dGYtOCIpIGFzIHN0cmVhbToKICAgICAgICAg"
+            "ICAgc3RyZWFtLndyaXRlKGJ1aWxkX3htbCkKCiAgICAgICAgZGVmIHJ1bl9hbnQoYXJn"
+            "dW1lbnRzKToKICAgICAgICAgICAgcmVzdWx0ID0gc3VicHJvY2Vzcy5ydW4oCiAgICAg"
+            "ICAgICAgICAgICBbYW50LCAiLWYiLCAid29ya2Zsb3cueG1sIl0gKyBhcmd1bWVudHMs"
+            "CiAgICAgICAgICAgICAgICBjd2Q9d29ya2RpciwKICAgICAgICAgICAgICAgIHRleHQ9"
+            "VHJ1ZSwKICAgICAgICAgICAgICAgIHN0ZG91dD1zdWJwcm9jZXNzLlBJUEUsCiAgICAg"
+            "ICAgICAgICAgICBzdGRlcnI9c3VicHJvY2Vzcy5QSVBFLAogICAgICAgICAgICAgICAg"
+            "dGltZW91dD02MCwKICAgICAgICAgICAgICAgIGNoZWNrPUZhbHNlLAogICAgICAgICAg"
+            "ICApCiAgICAgICAgICAgIGlmIHJlc3VsdC5yZXR1cm5jb2RlICE9IDA6CiAgICAgICAg"
+            "ICAgICAgICBjb21iaW5lZCA9IChyZXN1bHQuc3Rkb3V0IG9yICIiKSArICJcbiIgKyAo"
+            "cmVzdWx0LnN0ZGVyciBvciAiIikKICAgICAgICAgICAgICAgIHJhaXNlIEFzc2VydGlv"
+            "bkVycm9yKAogICAgICAgICAgICAgICAgICAgICJBbnQgZXhpdGVkIHdpdGggc3RhdHVz"
+            "IHt9Olxue30iLmZvcm1hdChyZXN1bHQucmV0dXJuY29kZSwgY29tYmluZWQpCiAgICAg"
+            "ICAgICAgICAgICApCgogICAgICAgIGFyY2hpdmVfcGF0aCA9IG9zLnBhdGguam9pbih3"
+            "b3JrZGlyLCAib3V0IiwgInNlbGVjdGVkLnppcCIpCgogICAgICAgICMgTm8gdGFyZ2V0"
+            "IGlzIHN1cHBsaWVkIGhlcmUsIHNvIEFudCBtdXN0IGV4ZWN1dGUgdGhlIHByb2plY3Qn"
+            "cyBkZWZhdWx0IHRhcmdldC4KICAgICAgICBydW5fYW50KFtdKQogICAgICAgIGlmIG5v"
+            "dCBvcy5wYXRoLmlzZmlsZShhcmNoaXZlX3BhdGgpOgogICAgICAgICAgICByYWlzZSBB"
+            "c3NlcnRpb25FcnJvcigiZGVmYXVsdCB0YXJnZXQgZGlkIG5vdCBjcmVhdGUgdGhlIFpJ"
+            "UCBhcmNoaXZlIikKCiAgICAgICAgd2l0aCB6aXBmaWxlLlppcEZpbGUoYXJjaGl2ZV9w"
+            "YXRoLCAiciIpIGFzIGFyY2hpdmU6CiAgICAgICAgICAgIG5hbWVzID0gc2V0KGFyY2hp"
+            "dmUubmFtZWxpc3QoKSkKICAgICAgICAgICAgZXhwZWN0ZWRfZmlsZXMgPSB7InNlbGVj"
+            "dGVkL2NhbmRpZGF0ZS50eHQiLCAic2VsZWN0ZWQvcGxhaW4udHh0In0KICAgICAgICAg"
+            "ICAgYWN0dWFsX2ZpbGVzID0ge25hbWUgZm9yIG5hbWUgaW4gbmFtZXMgaWYgbm90IG5h"
+            "bWUuZW5kc3dpdGgoIi8iKX0KICAgICAgICAgICAgaWYgYWN0dWFsX2ZpbGVzICE9IGV4"
+            "cGVjdGVkX2ZpbGVzOgogICAgICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3Io"
+            "CiAgICAgICAgICAgICAgICAgICAgImluaXRpYWwgWklQIGZpbGUgZW50cmllcyBkaWZm"
+            "ZXI6IGV4cGVjdGVkIHshcn0sIGdvdCB7IXJ9Ii5mb3JtYXQoCiAgICAgICAgICAgICAg"
+            "ICAgICAgICAgIGV4cGVjdGVkX2ZpbGVzLCBhY3R1YWxfZmlsZXMKICAgICAgICAgICAg"
+            "ICAgICAgICApCiAgICAgICAgICAgICAgICApCiAgICAgICAgICAgIGlmIGFyY2hpdmUu"
+            "cmVhZCgic2VsZWN0ZWQvY2FuZGlkYXRlLnR4dCIpICE9IGNhbmRpZGF0ZV9kYXRhOgog"
+            "ICAgICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoImNhbmRpZGF0ZSBlbnRy"
+            "eSBjb250ZW50IGRpZmZlcnMgZnJvbSBzZWxlY3RlZCBzb3VyY2UiKQogICAgICAgICAg"
+            "ICBpZiBhcmNoaXZlLnJlYWQoInNlbGVjdGVkL3BsYWluLnR4dCIpICE9IHBsYWluX2Rh"
+            "dGE6CiAgICAgICAgICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcigicGxhaW4gZW50"
+            "cnkgY29udGVudCBkaWZmZXJzIGZyb20gc2VsZWN0ZWQgc291cmNlIikKCiAgICAgICAg"
+            "ICAgIGNhbmRpZGF0ZV9tb2RlID0gKGFyY2hpdmUuZ2V0aW5mbygic2VsZWN0ZWQvY2Fu"
+            "ZGlkYXRlLnR4dCIpLmV4dGVybmFsX2F0dHIgPj4gMTYpICYgMG83NzcKICAgICAgICAg"
+            "ICAgcGxhaW5fbW9kZSA9IChhcmNoaXZlLmdldGluZm8oInNlbGVjdGVkL3BsYWluLnR4"
+            "dCIpLmV4dGVybmFsX2F0dHIgPj4gMTYpICYgMG83NzcKICAgICAgICAgICAgaWYgY2Fu"
+            "ZGlkYXRlX21vZGUgIT0gcGxhaW5fbW9kZToKICAgICAgICAgICAgICAgIHJhaXNlIEFz"
+            "c2VydGlvbkVycm9yKAogICAgICAgICAgICAgICAgICAgICJaSVAgcmV0YWluZWQgZGlm"
+            "ZmVyaW5nIHNvdXJjZSBwZXJtaXNzaW9uczogY2FuZGlkYXRlIHs6MDNvfSwgcGxhaW4g"
+            "ezowM299Ii5mb3JtYXQoCiAgICAgICAgICAgICAgICAgICAgICAgIGNhbmRpZGF0ZV9t"
+            "b2RlLCBwbGFpbl9tb2RlCiAgICAgICAgICAgICAgICAgICAgKQogICAgICAgICAgICAg"
+            "ICAgKQogICAgICAgICAgICBpZiBjYW5kaWRhdGVfbW9kZSA9PSAwbzc1NToKICAgICAg"
+            "ICAgICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKCJaSVAgcmV0YWluZWQgdGhlIGV4"
+            "ZWN1dGFibGUgc291cmNlIHBlcm1pc3Npb24iKQoKICAgICAgICByZW5hbWVkX3BhdGgg"
+            "PSBvcy5wYXRoLmpvaW4oc2VsZWN0ZWQsICJjYW5kaWRhdGUuc2tpcCIpCiAgICAgICAg"
+            "b3MucmVuYW1lKGNhbmRpZGF0ZV9wYXRoLCByZW5hbWVkX3BhdGgpCgogICAgICAgICMg"
+            "U2VsZWN0IHRoZSBuYW1lZCB0YXJnZXQgZXhwbGljaXRseSBvbiB0aGUgc2Vjb25kIGJ1"
+            "aWxkLiBUaGUgcmVuYW1lZCBmaWxlIHN0aWxsCiAgICAgICAgIyBtYXRjaGVzIHRoZSBp"
+            "bmNsdWRlZCBzdWJ0cmVlIGJ1dCBub3cgbWF0Y2hlcyB0aGUgZXhjbHVzaW9uIHBhdHRl"
+            "cm4gYXMgd2VsbC4KICAgICAgICBydW5fYW50KFsiYXJjaGl2ZSJdKQoKICAgICAgICB3"
+            "aXRoIHppcGZpbGUuWmlwRmlsZShhcmNoaXZlX3BhdGgsICJyIikgYXMgYXJjaGl2ZToK"
+            "ICAgICAgICAgICAgbmFtZXMgPSBzZXQoYXJjaGl2ZS5uYW1lbGlzdCgpKQogICAgICAg"
+            "ICAgICBhY3R1YWxfZmlsZXMgPSB7bmFtZSBmb3IgbmFtZSBpbiBuYW1lcyBpZiBub3Qg"
+            "bmFtZS5lbmRzd2l0aCgiLyIpfQogICAgICAgICAgICBleHBlY3RlZF9maWxlcyA9IHsi"
+            "c2VsZWN0ZWQvcGxhaW4udHh0In0KICAgICAgICAgICAgaWYgYWN0dWFsX2ZpbGVzICE9"
+            "IGV4cGVjdGVkX2ZpbGVzOgogICAgICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJy"
+            "b3IoCiAgICAgICAgICAgICAgICAgICAgInJlYnVpbHQgWklQIGZpbGUgZW50cmllcyBk"
+            "aWZmZXI6IGV4cGVjdGVkIHshcn0sIGdvdCB7IXJ9Ii5mb3JtYXQoCiAgICAgICAgICAg"
+            "ICAgICAgICAgICAgIGV4cGVjdGVkX2ZpbGVzLCBhY3R1YWxfZmlsZXMKICAgICAgICAg"
+            "ICAgICAgICAgICApCiAgICAgICAgICAgICAgICApCiAgICAgICAgICAgIGlmICJzZWxl"
+            "Y3RlZC9jYW5kaWRhdGUudHh0IiBpbiBuYW1lczoKICAgICAgICAgICAgICAgIHJhaXNl"
+            "IEFzc2VydGlvbkVycm9yKCJzdGFsZSBlbnRyeSBmb3IgdGhlIGZvcm1lcmx5IG1hdGNo"
+            "aW5nIGZpbGUgcmVtYWlucyIpCiAgICAgICAgICAgIGlmICJzZWxlY3RlZC9jYW5kaWRh"
+            "dGUuc2tpcCIgaW4gbmFtZXM6CiAgICAgICAgICAgICAgICByYWlzZSBBc3NlcnRpb25F"
+            "cnJvcigicmVuYW1lZCBmaWxlIG1hdGNoaW5nIHRoZSBleGNsdXNpb24gd2FzIGFyY2hp"
+            "dmVkIikKICAgICAgICAgICAgaWYgYXJjaGl2ZS5yZWFkKCJzZWxlY3RlZC9wbGFpbi50"
+            "eHQiKSAhPSBwbGFpbl9kYXRhOgogICAgICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9u"
+            "RXJyb3IoInVuY2hhbmdlZCBzZWxlY3RlZCBmaWxlIHdhcyBub3QgcHJlc2VydmVkIGNv"
+            "cnJlY3RseSIpCgogICAgICAgIGlmIG5vdCBvcy5wYXRoLmlzZmlsZShyZW5hbWVkX3Bh"
+            "dGgpOgogICAgICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcigicmVuYW1lZCBleGNs"
+            "dWRlZCBzb3VyY2UgZmlsZSB1bmV4cGVjdGVkbHkgZGlzYXBwZWFyZWQiKQogICAgICAg"
+            "IHdpdGggb3BlbihyZW5hbWVkX3BhdGgsICJyYiIpIGFzIHN0cmVhbToKICAgICAgICAg"
+            "ICAgaWYgc3RyZWFtLnJlYWQoKSAhPSBjYW5kaWRhdGVfZGF0YToKICAgICAgICAgICAg"
+            "ICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKCJyZW5hbWluZyB1bmV4cGVjdGVkbHkgY2hh"
+            "bmdlZCBjYW5kaWRhdGUgY29udGVudCIpCgogICAgICAgIGV4aXRfY29kZSA9IDAKICAg"
+            "ICAgICB2ZXJkaWN0ID0gIlBBU1M6IEFudCBaSVAgZmlsZXNldHMgdXNlIHJlbGF0aXZl"
+            "IHBhdGhzLCBleGNsdWRlIG5vbm1hdGNoaW5nIGZpbGVzLCBhbmQgb21pdCBzb3VyY2Ug"
+            "cGVybWlzc2lvbnMiCiAgICBleGNlcHQgc3VicHJvY2Vzcy5UaW1lb3V0RXhwaXJlZCBh"
+            "cyBleGM6CiAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJBbnQgdGltZWQgb3V0IGFm"
+            "dGVyIHt9IHNlY29uZHMiLmZvcm1hdChleGMudGltZW91dCkpCiAgICAgICAgZXhpdF9j"
+            "b2RlID0gMQogICAgICAgIHZlcmRpY3QgPSAiRkFJTDogQW50IFpJUCBzZWxlY3Rpb24g"
+            "dGVzdCB0aW1lZCBvdXQiCiAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4YzoKICAgICAg"
+            "ICBkaWFnbm9zdGljcy5hcHBlbmQoInt9OiB7fSIuZm9ybWF0KHR5cGUoZXhjKS5fX25h"
+            "bWVfXywgZXhjKSkKICAgICAgICBleGl0X2NvZGUgPSAxCiAgICAgICAgdmVyZGljdCA9"
+            "ICJGQUlMOiBBbnQgWklQIHNlbGVjdGlvbiBiZWhhdmlvciB3YXMgbm90IHNhdGlzZmll"
+            "ZCIKICAgIGZpbmFsbHk6CiAgICAgICAgaWYgd29ya2RpciBpcyBub3QgTm9uZToKICAg"
+            "ICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgc2h1dGlsLnJtdHJlZSh3b3JrZGly"
+            "KQogICAgICAgICAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4YzoKICAgICAgICAgICAg"
+            "ICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiY2xlYW51cCBlcnJvcjoge306IHt9Ii5mb3Jt"
+            "YXQodHlwZShleGMpLl9fbmFtZV9fLCBleGMpKQogICAgICAgICAgICAgICAgaWYgZXhp"
+            "dF9jb2RlID09IDA6CiAgICAgICAgICAgICAgICAgICAgZXhpdF9jb2RlID0gMQogICAg"
+            "ICAgICAgICAgICAgICAgIHZlcmRpY3QgPSAiRkFJTDogQW50IFpJUCBzZWxlY3Rpb24g"
+            "cGFzc2VkIGJ1dCBjbGVhbnVwIGZhaWxlZCIKCiAgICByZXR1cm4gZXhpdF9jb2RlLCB2"
+            "ZXJkaWN0LCBkaWFnbm9zdGljcwoKCmNvZGUsIGZpbmFsX3ZlcmRpY3QsIGRldGFpbHMg"
+            "PSBtYWluKCkKZm9yIGRldGFpbCBpbiBkZXRhaWxzOgogICAgcHJpbnQoZGV0YWlsKQpw"
+            "cmludChmaW5hbF92ZXJkaWN0KQpzeXMuZXhpdChjb2RlKQo="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
     @TestCaseMetadata(
         description="""
-            Verifies Ant file-management tasks preserve newer destinations unless
-            overwrite is requested, expand defined filter tokens, and retain unmatched
-            tokens. It also verifies deletion and copy errors fail by default, and
-            checksums are generated only for selected files and detect later corruption.
+        Exact-byte FMF/TMT Python wrapper execution.
 
-            Corpus obligation: pkg:ant/manage-project-files
+        Corpus obligation: pkg:ant/build-reporting
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
         """,
-        priority=3,
-        tags=["ai-generated"],
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    def verify_manage_project_files(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        script = r"""tmp=$(mktemp -d -t ant-files.XXXXXX)
-trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/src" "$tmp/dst" "$tmp/checksums"
-printf '%s\n' 'source-content' > "$tmp/src/current.txt"
-printf '%s\n' 'newer-destination' > "$tmp/dst/current.txt"
-touch -t 202001010000 "$tmp/src/current.txt"
-touch -t 202101010000 "$tmp/dst/current.txt"
-printf '%s\n' 'defined=@DEFINED@' > "$tmp/src/template.txt"
-printf '%s\n' 'unmatched=@UNMATCHED@' >> "$tmp/src/template.txt"
-printf '%s\n' 'checksum-one' > "$tmp/src/sum-one.txt"
-printf '%s\n' 'checksum-two' > "$tmp/src/sum-two.txt"
-printf '%s\n' 'not-selected' > "$tmp/src/ignored.txt"
-printf '%s\n' 'remove-me' > "$tmp/obsolete.txt"
-cat <<'XML' > "$tmp/build.xml"
-<project name="file-management" default="file-management" basedir=".">
-  <target name="file-management">
-    <copy file="src/current.txt" tofile="dst/current.txt"/>
-    <copy file="src/template.txt" tofile="dst/filtered.txt">
-      <filterset>
-        <filter token="DEFINED" value="expanded"/>
-      </filterset>
-    </copy>
-    <delete file="obsolete.txt"/>
-    <mkdir dir="checksums"/>
-    <checksum todir="checksums" algorithm="SHA-256" fileext=".sha256">
-      <fileset dir="src" includes="sum-one.txt,sum-two.txt"/>
-    </checksum>
-  </target>
-  <target name="overwrite">
-    <copy file="src/current.txt" tofile="dst/current.txt" overwrite="true"/>
-  </target>
-  <target name="verify-checksums">
-    <checksum todir="checksums" algorithm="SHA-256" fileext=".sha256"
-              verifyproperty="checksum.ok">
-      <fileset dir="src" includes="sum-one.txt,sum-two.txt"/>
-    </checksum>
-    <echo message="CHECKSUM_OK=${checksum.ok}"/>
-    <fail message="selected-file checksum verification failed">
-      <condition>
-        <not>
-          <equals arg1="${checksum.ok}" arg2="true"/>
-        </not>
-      </condition>
-    </fail>
-  </target>
-  <target name="copy-error">
-    <copy file="src/missing.txt" tofile="dst/missing.txt"/>
-  </target>
-  <target name="delete-error">
-    <delete file="/proc/self/status"/>
-  </target>
-</project>
-XML
-if [ -s "$tmp/build.xml" ]; then
-    build_nonempty=yes
-else
-    build_nonempty=no
-fi
-main_log=$(cd "$tmp" && ant -f build.xml file-management 2>&1)
-main_rc=$?
-if [ -f "$tmp/dst/current.txt" ]; then
-    skip_value=$(cat "$tmp/dst/current.txt")
-else
-    skip_value=MISSING
-fi
-if [ -f "$tmp/dst/filtered.txt" ]; then
-    filter_value=$(cat "$tmp/dst/filtered.txt")
-else
-    filter_value=MISSING
-fi
-if [ -e "$tmp/obsolete.txt" ]; then
-    obsolete_state=PRESENT
-else
-    obsolete_state=ABSENT
-fi
-if [ -s "$tmp/checksums/sum-one.txt.sha256" ]; then
-    checksum_one=NONEMPTY
-else
-    checksum_one=MISSING
-fi
-if [ -s "$tmp/checksums/sum-two.txt.sha256" ]; then
-    checksum_two=NONEMPTY
-else
-    checksum_two=MISSING
-fi
-if [ -e "$tmp/checksums/ignored.txt.sha256" ]; then
-    checksum_ignored=PRESENT
-else
-    checksum_ignored=ABSENT
-fi
-verify_log=$(cd "$tmp" && ant -f build.xml verify-checksums 2>&1)
-verify_rc=$?
-overwrite_log=$(cd "$tmp" && ant -f build.xml overwrite 2>&1)
-overwrite_rc=$?
-if [ -f "$tmp/dst/current.txt" ]; then
-    overwrite_value=$(cat "$tmp/dst/current.txt")
-else
-    overwrite_value=MISSING
-fi
-printf '%s\n' 'corrupted' > "$tmp/src/sum-one.txt"
-bad_log=$(cd "$tmp" && ant -f build.xml verify-checksums 2>&1)
-bad_rc=$?
-copy_log=$(cd "$tmp" && ant -f build.xml copy-error 2>&1)
-copy_rc=$?
-delete_log=$(cd "$tmp" && ant -f build.xml delete-error 2>&1)
-delete_rc=$?
-if [ "$bad_rc" -ne 0 ]; then bad_failed=yes; else bad_failed=no; fi
-if [ "$copy_rc" -ne 0 ]; then copy_failed=yes; else copy_failed=no; fi
-if [ "$delete_rc" -ne 0 ]; then delete_failed=yes; else delete_failed=no; fi
-printf '%s\n' STATUS_BEGIN
-printf 'BUILD_NONEMPTY=%s\n' "$build_nonempty"
-printf 'MAIN_RC=%s\n' "$main_rc"
-printf 'VERIFY_RC=%s\n' "$verify_rc"
-printf 'OVERWRITE_RC=%s\n' "$overwrite_rc"
-printf 'BAD_CHECKSUM_FAILED=%s\n' "$bad_failed"
-printf 'COPY_FAILED=%s\n' "$copy_failed"
-printf 'DELETE_FAILED=%s\n' "$delete_failed"
-printf '%s\n' STATUS_END
-printf '%s\n%s\n%s\n' SKIP_BEGIN "$skip_value" SKIP_END
-printf '%s\n%s\n%s\n' FILTER_BEGIN "$filter_value" FILTER_END
-printf '%s\n%s\n%s\n' OVERWRITE_BEGIN "$overwrite_value" OVERWRITE_END
-printf '%s\n' FILE_STATE_BEGIN
-printf 'OBSOLETE=%s\n' "$obsolete_state"
-printf 'SUM_ONE=%s\n' "$checksum_one"
-printf 'SUM_TWO=%s\n' "$checksum_two"
-printf 'IGNORED=%s\n' "$checksum_ignored"
-printf '%s\n' FILE_STATE_END
-printf '%s\n%s\n%s\n' MAIN_LOG_BEGIN "$main_log" MAIN_LOG_END
-printf '%s\n%s\n%s\n' VERIFY_LOG_BEGIN "$verify_log" VERIFY_LOG_END
-printf '%s\n%s\n%s\n' BAD_LOG_BEGIN "$bad_log" BAD_LOG_END
-printf '%s\n%s\n%s\n' COPY_LOG_BEGIN "$copy_log" COPY_LOG_END
-printf '%s\n%s\n%s\n' DELETE_LOG_BEGIN "$delete_log" DELETE_LOG_END
-printf '%s\n' SCRIPT_DONE
-exit 0
-"""
-        result = node.execute(f"{script}", shell=True)
-        text = combined_output(result)
-        assert_that(result.exit_code).described_as(
-            f"guest file-management probe exited {result.exit_code}:\n{text}"
-        ).is_equal_to(0)
-        assert_that(text).described_as(
-            f"guest probe did not finish; observed:\n{text}"
-        ).contains("SCRIPT_DONE")
-        status = section(text, "STATUS_BEGIN", "STATUS_END")
-        main_log = section(text, "MAIN_LOG_BEGIN", "MAIN_LOG_END")
-        verify_log = section(text, "VERIFY_LOG_BEGIN", "VERIFY_LOG_END")
-        bad_log = section(text, "BAD_LOG_BEGIN", "BAD_LOG_END")
-        copy_log = section(text, "COPY_LOG_BEGIN", "COPY_LOG_END")
-        delete_log = section(text, "DELETE_LOG_BEGIN", "DELETE_LOG_END")
-        assert_that(status).described_as(
-            f"build.xml must be non-empty; observed:\n{status}"
-        ).contains("BUILD_NONEMPTY=yes")
-        assert_that(status).described_as(
-            f"file-management target failed:\n{main_log}"
-        ).contains("MAIN_RC=0")
-        assert_that(status).described_as(
-            f"valid checksum verification failed:\n{verify_log}"
-        ).contains("VERIFY_RC=0")
-        assert_that(status).described_as(
-            f"overwrite target failed; observed:\n{status}"
-        ).contains("OVERWRITE_RC=0")
-        skip_lines = section_lines(text, "SKIP_BEGIN", "SKIP_END")
-        assert_that(skip_lines).described_as(
-            f"current destination must be preserved; observed {skip_lines}"
-        ).is_equal_to(["newer-destination"])
-        overwrite_lines = section_lines(text, "OVERWRITE_BEGIN", "OVERWRITE_END")
-        assert_that(overwrite_lines).described_as(
-            f"overwrite must replace the destination; observed {overwrite_lines}"
-        ).is_equal_to(["source-content"])
-        filter_lines = section_lines(text, "FILTER_BEGIN", "FILTER_END")
-        assert_that(filter_lines).described_as(
-            f"defined and unmatched token results were {filter_lines}"
-        ).is_equal_to(["defined=expanded", "unmatched=@UNMATCHED@"])
-        states = section_lines(text, "FILE_STATE_BEGIN", "FILE_STATE_END")
-        assert_that(states).described_as(
-            f"delete task left the obsolete file; observed {states}"
-        ).contains("OBSOLETE=ABSENT")
-        assert_that(states).described_as(
-            f"first selected checksum was not generated; observed {states}"
-        ).contains("SUM_ONE=NONEMPTY")
-        assert_that(states).described_as(
-            f"second selected checksum was not generated; observed {states}"
-        ).contains("SUM_TWO=NONEMPTY")
-        assert_that(states).described_as(
-            f"an unselected checksum was generated; observed {states}"
-        ).contains("IGNORED=ABSENT")
-        assert_that(status).described_as(
-            f"corrupted checksum was accepted:\n{bad_log}"
-        ).contains("BAD_CHECKSUM_FAILED=yes")
-        assert_that(status).described_as(
-            f"missing-source copy did not fail by default:\n{copy_log}"
-        ).contains("COPY_FAILED=yes")
-        assert_that(status).described_as(
-            f"undeletable-file removal did not fail by default:\n{delete_log}"
-        ).contains("DELETE_FAILED=yes")
+    def verify_pkg_ant_build_reporting(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:d03ad6c91c2a0aacc55b68dfc3a03ab637bc26b"
+            "2ce019aab434d0f092b768672."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgb3MKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQoKCmNsYXNzIFNr"
+            "aXBUZXN0KEV4Y2VwdGlvbik6CiAgICBwYXNzCgoKZGVmIGNvbWJpbmVkX291dHB1dChy"
+            "ZXN1bHQpOgogICAgcmV0dXJuIChyZXN1bHQuc3Rkb3V0IG9yICIiKSArICJcbiIgKyAo"
+            "cmVzdWx0LnN0ZGVyciBvciAiIikKCgpkZWYgcnVuX2FudChjb21tYW5kLCBlbnZpcm9u"
+            "bWVudCk6CiAgICByZXR1cm4gc3VicHJvY2Vzcy5ydW4oCiAgICAgICAgY29tbWFuZCwK"
+            "ICAgICAgICBzdGRvdXQ9c3VicHJvY2Vzcy5QSVBFLAogICAgICAgIHN0ZGVycj1zdWJw"
+            "cm9jZXNzLlBJUEUsCiAgICAgICAgdGV4dD1UcnVlLAogICAgICAgIHRpbWVvdXQ9MTIw"
+            "LAogICAgICAgIGVudj1lbnZpcm9ubWVudCwKICAgICAgICBjaGVjaz1GYWxzZSwKICAg"
+            "ICkKCgpkZWYgbWFpbigpOgogICAgdGVtcF9kaXIgPSBOb25lCiAgICBjb2RlID0gMQog"
+            "ICAgdmVyZGljdCA9ICJGQUlMOiB0ZXN0IGRpZCBub3QgY29tcGxldGUiCgogICAgdHJ5"
+            "OgogICAgICAgIGFudCA9IHNodXRpbC53aGljaCgiYW50IikKICAgICAgICBpZiBhbnQg"
+            "aXMgTm9uZToKICAgICAgICAgICAgcmFpc2UgU2tpcFRlc3QoIkFudCBleGVjdXRhYmxl"
+            "IGlzIG5vdCBhdmFpbGFibGUiKQoKICAgICAgICBqYXZhID0gc2h1dGlsLndoaWNoKCJq"
+            "YXZhIikKICAgICAgICBqYXZhX2hvbWUgPSBvcy5lbnZpcm9uLmdldCgiSkFWQV9IT01F"
+            "IikKICAgICAgICBqYXZhX2Zyb21faG9tZSA9ICgKICAgICAgICAgICAgb3MucGF0aC5p"
+            "c2ZpbGUob3MucGF0aC5qb2luKGphdmFfaG9tZSwgImJpbiIsICJqYXZhIikpCiAgICAg"
+            "ICAgICAgIGlmIGphdmFfaG9tZQogICAgICAgICAgICBlbHNlIEZhbHNlCiAgICAgICAg"
+            "KQogICAgICAgIGlmIGphdmEgaXMgTm9uZSBhbmQgbm90IGphdmFfZnJvbV9ob21lOgog"
+            "ICAgICAgICAgICByYWlzZSBTa2lwVGVzdCgiSmF2YSBydW50aW1lIGlzIG5vdCBhdmFp"
+            "bGFibGUiKQoKICAgICAgICB0ZW1wX2RpciA9IHRlbXBmaWxlLm1rZHRlbXAocHJlZml4"
+            "PSJhbnQtcmVwb3J0aW5nLSIpCiAgICAgICAgYnVpbGRmaWxlID0gb3MucGF0aC5qb2lu"
+            "KHRlbXBfZGlyLCAiYnVpbGQueG1sIikKCiAgICAgICAgYnVpbGRfeG1sID0gIiIiPD94"
+            "bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHByb2plY3QgbmFtZT0i"
+            "cmVwb3J0aW5nLXByb2plY3QiIGRlZmF1bHQ9InJlcG9ydGluZ19kZWZhdWx0X3Rhcmdl"
+            "dCIgYmFzZWRpcj0iLiI+CiAgICA8dGFyZ2V0IG5hbWU9InVudXNlZF9hbHRlcm5hdGVf"
+            "dGFyZ2V0Ij4KICAgICAgICA8ZWNobyBtZXNzYWdlPSJVTlVTRURfVEFSR0VUX09VVFBV"
+            "VF9NQVJLRVIiLz4KICAgIDwvdGFyZ2V0PgogICAgPHRhcmdldCBuYW1lPSJyZXBvcnRp"
+            "bmdfZGVmYXVsdF90YXJnZXQiPgogICAgICAgIDxlY2hvIG1lc3NhZ2U9IlRBU0tfT1VU"
+            "UFVUX01BUktFUiIvPgogICAgICAgIDxmYWlsIG1lc3NhZ2U9IkVYUEVDVEVEX0JVSUxE"
+            "X0ZBSUxVUkVfTUFSS0VSIi8+CiAgICA8L3RhcmdldD4KPC9wcm9qZWN0PgoiIiIKICAg"
+            "ICAgICB3aXRoIG9wZW4oYnVpbGRmaWxlLCAidyIsIGVuY29kaW5nPSJ1dGYtOCIpIGFz"
+            "IHN0cmVhbToKICAgICAgICAgICAgc3RyZWFtLndyaXRlKGJ1aWxkX3htbCkKCiAgICAg"
+            "ICAgZW52aXJvbm1lbnQgPSBvcy5lbnZpcm9uLmNvcHkoKQogICAgICAgIGVudmlyb25t"
+            "ZW50LnBvcCgiQU5UX0FSR1MiLCBOb25lKQogICAgICAgIGVudmlyb25tZW50WyJMQ19B"
+            "TEwiXSA9ICJDIgoKICAgICAgICB2ZXJib3NlX2NvbW1hbmQgPSBbYW50LCAiLXZlcmJv"
+            "c2UiLCAiLWYiLCBidWlsZGZpbGVdCiAgICAgICAgc2lsZW50X2NvbW1hbmQgPSBbYW50"
+            "LCAiLXNpbGVudCIsICItZiIsIGJ1aWxkZmlsZV0KCiAgICAgICAgdmVyYm9zZV9yZXN1"
+            "bHQgPSBydW5fYW50KHZlcmJvc2VfY29tbWFuZCwgZW52aXJvbm1lbnQpCiAgICAgICAg"
+            "c2lsZW50X3Jlc3VsdCA9IHJ1bl9hbnQoc2lsZW50X2NvbW1hbmQsIGVudmlyb25tZW50"
+            "KQoKICAgICAgICB2ZXJib3NlX291dHB1dCA9IGNvbWJpbmVkX291dHB1dCh2ZXJib3Nl"
+            "X3Jlc3VsdCkKICAgICAgICBzaWxlbnRfb3V0cHV0ID0gY29tYmluZWRfb3V0cHV0KHNp"
+            "bGVudF9yZXN1bHQpCgogICAgICAgIGZhaWx1cmVzID0gW10KICAgICAgICBpZiB2ZXJi"
+            "b3NlX3Jlc3VsdC5yZXR1cm5jb2RlID09IDA6CiAgICAgICAgICAgIGZhaWx1cmVzLmFw"
+            "cGVuZCgidmVyYm9zZSBidWlsZCB1bmV4cGVjdGVkbHkgc3VjY2VlZGVkIikKICAgICAg"
+            "ICBpZiBzaWxlbnRfcmVzdWx0LnJldHVybmNvZGUgPT0gMDoKICAgICAgICAgICAgZmFp"
+            "bHVyZXMuYXBwZW5kKCJzaWxlbnQgYnVpbGQgdW5leHBlY3RlZGx5IHN1Y2NlZWRlZCIp"
+            "CgogICAgICAgIGZvciBtb2RlLCBvdXRwdXQgaW4gKCgidmVyYm9zZSIsIHZlcmJvc2Vf"
+            "b3V0cHV0KSwgKCJzaWxlbnQiLCBzaWxlbnRfb3V0cHV0KSk6CiAgICAgICAgICAgIGlm"
+            "ICJUQVNLX09VVFBVVF9NQVJLRVIiIG5vdCBpbiBvdXRwdXQ6CiAgICAgICAgICAgICAg"
+            "ICBmYWlsdXJlcy5hcHBlbmQobW9kZSArICIgbW9kZSBvbWl0dGVkIHRhc2sgb3V0cHV0"
+            "IikKICAgICAgICAgICAgaWYgIkVYUEVDVEVEX0JVSUxEX0ZBSUxVUkVfTUFSS0VSIiBu"
+            "b3QgaW4gb3V0cHV0OgogICAgICAgICAgICAgICAgZmFpbHVyZXMuYXBwZW5kKG1vZGUg"
+            "KyAiIG1vZGUgb21pdHRlZCB0aGUgYnVpbGQgZmFpbHVyZSIpCiAgICAgICAgICAgIGlm"
+            "ICJVTlVTRURfVEFSR0VUX09VVFBVVF9NQVJLRVIiIGluIG91dHB1dDoKICAgICAgICAg"
+            "ICAgICAgIGZhaWx1cmVzLmFwcGVuZChtb2RlICsgIiBtb2RlIGV4ZWN1dGVkIHRoZSBu"
+            "b24tZGVmYXVsdCB0YXJnZXQiKQoKICAgICAgICB2ZXJib3NlX2hhc190YXJnZXRfbG9n"
+            "ID0gYW55KAogICAgICAgICAgICBsaW5lLnN0cmlwKCkgPT0gInJlcG9ydGluZ19kZWZh"
+            "dWx0X3RhcmdldDoiCiAgICAgICAgICAgIGZvciBsaW5lIGluIHZlcmJvc2Vfb3V0cHV0"
+            "LnNwbGl0bGluZXMoKQogICAgICAgICkKICAgICAgICBzaWxlbnRfaGFzX3RhcmdldF9s"
+            "b2cgPSBhbnkoCiAgICAgICAgICAgIGxpbmUuc3RyaXAoKSA9PSAicmVwb3J0aW5nX2Rl"
+            "ZmF1bHRfdGFyZ2V0OiIKICAgICAgICAgICAgZm9yIGxpbmUgaW4gc2lsZW50X291dHB1"
+            "dC5zcGxpdGxpbmVzKCkKICAgICAgICApCgogICAgICAgIGlmIG5vdCB2ZXJib3NlX2hh"
+            "c190YXJnZXRfbG9nOgogICAgICAgICAgICBmYWlsdXJlcy5hcHBlbmQoInZlcmJvc2Ug"
+            "bW9kZSBkaWQgbm90IGV4cG9zZSB0aGUgZGVmYXVsdC10YXJnZXQgbG9nIGhlYWRpbmci"
+            "KQogICAgICAgIGlmIHNpbGVudF9oYXNfdGFyZ2V0X2xvZzoKICAgICAgICAgICAgZmFp"
+            "bHVyZXMuYXBwZW5kKCJzaWxlbnQgbW9kZSBkaWQgbm90IHN1cHByZXNzIHRoZSBvcmRp"
+            "bmFyeSB0YXJnZXQgbG9nIGhlYWRpbmciKQoKICAgICAgICBpZiBmYWlsdXJlczoKICAg"
+            "ICAgICAgICAgZGlhZ25vc3RpYyA9IHsKICAgICAgICAgICAgICAgICJmYWlsdXJlcyI6"
+            "IGZhaWx1cmVzLAogICAgICAgICAgICAgICAgInZlcmJvc2VfcmV0dXJuY29kZSI6IHZl"
+            "cmJvc2VfcmVzdWx0LnJldHVybmNvZGUsCiAgICAgICAgICAgICAgICAidmVyYm9zZV9v"
+            "dXRwdXQiOiB2ZXJib3NlX291dHB1dCwKICAgICAgICAgICAgICAgICJzaWxlbnRfcmV0"
+            "dXJuY29kZSI6IHNpbGVudF9yZXN1bHQucmV0dXJuY29kZSwKICAgICAgICAgICAgICAg"
+            "ICJzaWxlbnRfb3V0cHV0Ijogc2lsZW50X291dHB1dCwKICAgICAgICAgICAgfQogICAg"
+            "ICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcihyZXByKGRpYWdub3N0aWMpKQoKICAg"
+            "ICAgICBjb2RlID0gMAogICAgICAgIHZlcmRpY3QgPSAiUEFTUzogQW50IHNpbGVudCBt"
+            "b2RlIHJldGFpbmVkIHRhc2sgb3V0cHV0IGFuZCBmYWlsdXJlIGRldGFpbHMgd2hpbGUg"
+            "c3VwcHJlc3Npbmcgb3JkaW5hcnkgbG9nZ2luZyBzaG93biBieSB2ZXJib3NlIG1vZGUi"
+            "CgogICAgZXhjZXB0IFNraXBUZXN0IGFzIGV4YzoKICAgICAgICBjb2RlID0gNzcKICAg"
+            "ICAgICB2ZXJkaWN0ID0gIlNLSVA6ICIgKyBzdHIoZXhjKQogICAgZXhjZXB0IEV4Y2Vw"
+            "dGlvbiBhcyBleGM6CiAgICAgICAgY29kZSA9IDEKICAgICAgICB2ZXJkaWN0ID0gIkZB"
+            "SUw6ICIgKyByZXByKGV4YykKICAgIGZpbmFsbHk6CiAgICAgICAgaWYgdGVtcF9kaXIg"
+            "aXMgbm90IE5vbmU6CiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIHNodXRp"
+            "bC5ybXRyZWUodGVtcF9kaXIpCiAgICAgICAgICAgIGV4Y2VwdCBFeGNlcHRpb24gYXMg"
+            "ZXhjOgogICAgICAgICAgICAgICAgY29kZSA9IDEKICAgICAgICAgICAgICAgIHZlcmRp"
+            "Y3QgPSAiRkFJTDogY2xlYW51cCBmYWlsZWQ6ICIgKyByZXByKGV4YykKCiAgICBwcmlu"
+            "dCh2ZXJkaWN0KQogICAgc3lzLmV4aXQoY29kZSkKCgppZiBfX25hbWVfXyA9PSAiX19t"
+            "YWluX18iOgogICAgbWFpbigpCg=="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
     @TestCaseMetadata(
         description="""
-            Verifies that Ant runs shared prerequisite targets first and at most once.
-            It also checks property-based target conditions, task-value expansion, and
-            command-line property precedence over build-file values.
+        Exact-byte FMF/TMT Python wrapper execution.
 
-            Corpus obligation: pkg:ant/orchestrate-targets
+        Corpus obligation: pkg:ant/conditional-flow
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
         """,
-        priority=3,
-        tags=["ai-generated"],
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    def verify_orchestrate_targets(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        cli_choice = "cli"
-        cli_value = "passed"
-        build_value = "built"
-        build_xml = rf"""<project name="orchestrate" default="main">
-    <property name="choice" value="build-file"/>
-    <property name="build.value" value="{build_value}"/>
-    <property name="build.flag" value="yes"/>
-
-    <target name="prereq">
-        <echo file="trace.txt" append="true"
-            message="prereq&#10;"/>
-    </target>
-
-    <target name="left" depends="prereq">
-        <echo file="trace.txt" append="true"
-            message="left:&#36;{{choice}}&#10;"/>
-    </target>
-
-    <target name="right" depends="prereq">
-        <echo file="trace.txt" append="true"
-            message="right:&#36;{{build.value}}&#10;"/>
-    </target>
-
-    <target name="if-build" if="build.flag">
-        <echo file="trace.txt" append="true"
-            message="if-build&#10;"/>
-    </target>
-
-    <target name="unless-missing" unless="missing.flag">
-        <echo file="trace.txt" append="true"
-            message="unless-missing&#10;"/>
-    </target>
-
-    <target name="if-missing" if="missing.flag">
-        <echo file="trace.txt" append="true"
-            message="UNEXPECTED_IF_MISSING&#10;"/>
-    </target>
-
-    <target name="unless-cli" unless="cli.flag">
-        <echo file="trace.txt" append="true"
-            message="UNEXPECTED_UNLESS_CLI&#10;"/>
-    </target>
-
-    <target name="main"
-        depends="left,right,if-build,unless-missing,if-missing,unless-cli">
-        <echo file="trace.txt" append="true"
-            message="main:&#36;{{cli.value}}&#10;"/>
-    </target>
-</project>"""
-        command = rf"""set -u
-tmp=$(mktemp -d)
-cleanup() {{ rm -rf "$tmp"; }}
-trap cleanup EXIT
-cat <<'XML' > "$tmp/build.xml"
-{build_xml}
-XML
-ant -f "$tmp/build.xml" -Dchoice="{cli_choice}" \
-    -Dcli.value="{cli_value}" -Dcli.flag=yes main \
-    > "$tmp/ant.log" 2>&1
-rc=$?
-printf '%s\n' STATUS_BEGIN
-printf 'ANT_RC=%s\n' "$rc"
-printf '%s\n' STATUS_END
-printf '%s\n' TRACE_BEGIN
-if [ -f "$tmp/trace.txt" ]; then
-    cat "$tmp/trace.txt"
-else
-    printf '%s\n' MISSING
-fi
-printf '%s\n' TRACE_END
-printf '%s\n' ANT_OUTPUT_BEGIN
-cat "$tmp/ant.log"
-printf '%s\n' ANT_OUTPUT_END
-exit 0
-"""
-        result = node.execute(command, shell=True)
-        assert_that(result.exit_code).described_as(
-            "the guest-side Ant probe must complete"
-        ).is_equal_to(0)
-        text = combined_output(result)
-        status = section(text, "STATUS_BEGIN", "STATUS_END").strip()
-        ant_text = section(text, "ANT_OUTPUT_BEGIN", "ANT_OUTPUT_END")
-        assert_that(status).described_as(
-            f"Ant must succeed; observed output was:\n{ant_text}"
-        ).is_equal_to("ANT_RC=0")
-        evidence = section_lines(text, "TRACE_BEGIN", "TRACE_END")
-        assert_that(evidence).described_as(
-            f"the trace must contain six target effects; observed {evidence}"
-        ).is_length(6)
-        assert_that(evidence[0]).described_as(
-            f"the prerequisite must run first; observed {evidence}"
-        ).is_equal_to("prereq")
-        assert_that(evidence.count("prereq")).described_as(
-            f"the shared prerequisite must run once; observed {evidence}"
-        ).is_equal_to(1)
-        assert_that(evidence[1]).described_as(
-            f"the first dependent must use the CLI value; observed {evidence}"
-        ).is_equal_to(f"left:{cli_choice}")
-        assert_that(evidence[2]).described_as(
-            f"the second dependent must expand its property; observed {evidence}"
-        ).is_equal_to(f"right:{build_value}")
-        assert_that(evidence).described_as(
-            f"the build-property if target must run; observed {evidence}"
-        ).contains("if-build")
-        assert_that(evidence).described_as(
-            f"the absent-property unless target must run; observed {evidence}"
-        ).contains("unless-missing")
-        assert_that(evidence).described_as(
-            f"the absent-property if target must not run; observed {evidence}"
-        ).does_not_contain("UNEXPECTED_IF_MISSING")
-        assert_that(evidence).described_as(
-            f"the set-property unless target must not run; observed {evidence}"
-        ).does_not_contain("UNEXPECTED_UNLESS_CLI")
-        assert_that(evidence[-1]).described_as(
-            f"the requested target must run last; observed {evidence}"
-        ).is_equal_to(f"main:{cli_value}")
+    def verify_pkg_ant_conditional_flow(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:039c2c18805a764676fe18dbd4d752acdc52927"
+            "720e274afb0f9ee9bc55eea10."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgb3MKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQpmcm9tIHBhdGhs"
+            "aWIgaW1wb3J0IFBhdGgKCgpkZWYgbWFpbigpOgogICAgdGVtcF9kaXIgPSBOb25lCiAg"
+            "ICBkaWFnbm9zdGljcyA9IFtdCiAgICBleGl0X2NvZGUgPSAxCgogICAgdHJ5OgogICAg"
+            "ICAgIGFudCA9IHNodXRpbC53aGljaCgiYW50IikKICAgICAgICBpZiBhbnQgaXMgTm9u"
+            "ZToKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoInJlcXVpcmVkIEFudCBl"
+            "eGVjdXRhYmxlIHdhcyBub3QgZm91bmQgaW4gUEFUSCIpCgogICAgICAgIHRlbXBfZGly"
+            "ID0gUGF0aCh0ZW1wZmlsZS5ta2R0ZW1wKHByZWZpeD0iYW50LWNvbmRpdGlvbmFsLWZs"
+            "b3ctIikpCiAgICAgICAgcHJvamVjdF9kaXIgPSB0ZW1wX2RpciAvICJwcm9qZWN0Igog"
+            "ICAgICAgIGludm9jYXRpb25fZGlyID0gdGVtcF9kaXIgLyAiaW52b2NhdGlvbiIKICAg"
+            "ICAgICBob21lX2RpciA9IHRlbXBfZGlyIC8gImhvbWUiCiAgICAgICAgcHJvamVjdF9k"
+            "aXIubWtkaXIoKQogICAgICAgIGludm9jYXRpb25fZGlyLm1rZGlyKCkKICAgICAgICBo"
+            "b21lX2Rpci5ta2RpcigpCgogICAgICAgIGJ1aWxkX2ZpbGUgPSBwcm9qZWN0X2RpciAv"
+            "ICJjb25kaXRpb25hbC1idWlsZC54bWwiCiAgICAgICAgYnVpbGRfZmlsZS53cml0ZV90"
+            "ZXh0KAogICAgICAgICAgICAiIiI8P3htbCB2ZXJzaW9uPSIxLjAiIGVuY29kaW5nPSJV"
+            "VEYtOCI/Pgo8cHJvamVjdCBuYW1lPSJjb25kaXRpb25hbC1mbG93IiBkZWZhdWx0PSJy"
+            "dW4iIGJhc2VkaXI9Ii4iPgogIDx0YXJnZXQgbmFtZT0ic2V0LWNvbmRpdGlvbiI+CiAg"
+            "ICA8Y29uZGl0aW9uIHByb3BlcnR5PSJnYXRlIiB2YWx1ZT0iY29uZGl0aW9uLXNldCI+"
+            "CiAgICAgIDxlcXVhbHMgYXJnMT0iJHttb2RlfSIgYXJnMj0ic2F0aXNmaWVkIi8+CiAg"
+            "ICA8L2NvbmRpdGlvbj4KICA8L3RhcmdldD4KCiAgPHRhcmdldCBuYW1lPSJ3aGVuLXBy"
+            "ZXNlbnQiIGRlcGVuZHM9InNldC1jb25kaXRpb24iIGlmPSJnYXRlIj4KICAgIDxta2Rp"
+            "ciBkaXI9InJlc3VsdHMvJHtydW4uaWR9Ii8+CiAgICA8ZWNobyBmaWxlPSJyZXN1bHRz"
+            "LyR7cnVuLmlkfS9wcmVzZW50LnR4dCI+JHtnYXRlfTwvZWNobz4KICA8L3RhcmdldD4K"
+            "CiAgPHRhcmdldCBuYW1lPSJ3aGVuLWFic2VudCIgZGVwZW5kcz0ic2V0LWNvbmRpdGlv"
+            "biIgdW5sZXNzPSJnYXRlIj4KICAgIDxta2RpciBkaXI9InJlc3VsdHMvJHtydW4uaWR9"
+            "Ii8+CiAgICA8ZWNobyBmaWxlPSJyZXN1bHRzLyR7cnVuLmlkfS9hYnNlbnQudHh0Ij5n"
+            "YXRlLXVuc2V0PC9lY2hvPgogIDwvdGFyZ2V0PgoKICA8dGFyZ2V0IG5hbWU9InJ1biIg"
+            "ZGVwZW5kcz0id2hlbi1wcmVzZW50LHdoZW4tYWJzZW50Ii8+CjwvcHJvamVjdD4KIiIi"
+            "LAogICAgICAgICAgICBlbmNvZGluZz0idXRmLTgiLAogICAgICAgICkKCiAgICAgICAg"
+            "ZW52ID0gb3MuZW52aXJvbi5jb3B5KCkKICAgICAgICBlbnZbIkhPTUUiXSA9IHN0ciho"
+            "b21lX2RpcikKICAgICAgICBlbnYucG9wKCJBTlRfQVJHUyIsIE5vbmUpCgogICAgICAg"
+            "IHJ1bnMgPSBbCiAgICAgICAgICAgICgKICAgICAgICAgICAgICAgICJzYXRpc2ZpZWQv"
+            "ZGVmYXVsdCB0YXJnZXQiLAogICAgICAgICAgICAgICAgW2FudCwgIi1mIiwgc3RyKGJ1"
+            "aWxkX2ZpbGUpLCAiLURydW4uaWQ9c2F0aXNmaWVkIiwgIi1EbW9kZT1zYXRpc2ZpZWQi"
+            "XSwKICAgICAgICAgICAgKSwKICAgICAgICAgICAgKAogICAgICAgICAgICAgICAgInVu"
+            "c2F0aXNmaWVkL3NlbGVjdGVkIHRhcmdldCIsCiAgICAgICAgICAgICAgICBbYW50LCAi"
+            "LWYiLCBzdHIoYnVpbGRfZmlsZSksICItRHJ1bi5pZD11bnNhdGlzZmllZCIsICItRG1v"
+            "ZGU9dW5zYXRpc2ZpZWQiLCAicnVuIl0sCiAgICAgICAgICAgICksCiAgICAgICAgICAg"
+            "ICgKICAgICAgICAgICAgICAgICJ1bnNhdGlzZmllZC9wcmVjb25maWd1cmVkIGZhbHNl"
+            "IHByb3BlcnR5IiwKICAgICAgICAgICAgICAgIFsKICAgICAgICAgICAgICAgICAgICBh"
+            "bnQsCiAgICAgICAgICAgICAgICAgICAgIi1mIiwKICAgICAgICAgICAgICAgICAgICBz"
+            "dHIoYnVpbGRfZmlsZSksCiAgICAgICAgICAgICAgICAgICAgIi1EcnVuLmlkPWZhbHNl"
+            "LXZhbHVlIiwKICAgICAgICAgICAgICAgICAgICAiLURtb2RlPXVuc2F0aXNmaWVkIiwK"
+            "ICAgICAgICAgICAgICAgICAgICAiLURnYXRlPWZhbHNlIiwKICAgICAgICAgICAgICAg"
+            "ICAgICAicnVuIiwKICAgICAgICAgICAgICAgIF0sCiAgICAgICAgICAgICksCiAgICAg"
+            "ICAgXQoKICAgICAgICBmb3IgbGFiZWwsIGNvbW1hbmQgaW4gcnVuczoKICAgICAgICAg"
+            "ICAgcmVzdWx0ID0gc3VicHJvY2Vzcy5ydW4oCiAgICAgICAgICAgICAgICBjb21tYW5k"
+            "LAogICAgICAgICAgICAgICAgY3dkPWludm9jYXRpb25fZGlyLAogICAgICAgICAgICAg"
+            "ICAgZW52PWVudiwKICAgICAgICAgICAgICAgIHRleHQ9VHJ1ZSwKICAgICAgICAgICAg"
+            "ICAgIHN0ZG91dD1zdWJwcm9jZXNzLlBJUEUsCiAgICAgICAgICAgICAgICBzdGRlcnI9"
+            "c3VicHJvY2Vzcy5QSVBFLAogICAgICAgICAgICAgICAgdGltZW91dD02MCwKICAgICAg"
+            "ICAgICAgKQogICAgICAgICAgICBpZiByZXN1bHQucmV0dXJuY29kZSAhPSAwOgogICAg"
+            "ICAgICAgICAgICAgY29tYmluZWQgPSAocmVzdWx0LnN0ZG91dCBvciAiIikgKyAiXG4i"
+            "ICsgKHJlc3VsdC5zdGRlcnIgb3IgIiIpCiAgICAgICAgICAgICAgICByYWlzZSBBc3Nl"
+            "cnRpb25FcnJvcigKICAgICAgICAgICAgICAgICAgICBmIkFudCBmYWlsZWQgZHVyaW5n"
+            "IHtsYWJlbH0gd2l0aCBleGl0IGNvZGUge3Jlc3VsdC5yZXR1cm5jb2RlfToge2NvbWJp"
+            "bmVkIXJ9IgogICAgICAgICAgICAgICAgKQoKICAgICAgICByZXN1bHRzX2RpciA9IHBy"
+            "b2plY3RfZGlyIC8gInJlc3VsdHMiCgogICAgICAgIHNhdGlzZmllZCA9IHJlc3VsdHNf"
+            "ZGlyIC8gInNhdGlzZmllZCIKICAgICAgICBhc3NlcnQgc2F0aXNmaWVkLmlzX2Rpcigp"
+            "LCAic2F0aXNmaWVkIHJ1biBkaWQgbm90IGNyZWF0ZSBpdHMgYnVpbGRmaWxlLXJlbGF0"
+            "aXZlIHJlc3VsdCBkaXJlY3RvcnkiCiAgICAgICAgYXNzZXJ0IHNvcnRlZChwLm5hbWUg"
+            "Zm9yIHAgaW4gc2F0aXNmaWVkLml0ZXJkaXIoKSkgPT0gWyJwcmVzZW50LnR4dCJdLCAo"
+            "CiAgICAgICAgICAgICJzYXRpc2ZpZWQgY29uZGl0aW9uIGRpZCBub3QgZXhjbHVzaXZl"
+            "bHkgZXhlY3V0ZSB0aGUgcHJlc2VuY2UtYmFzZWQgdGFyZ2V0IgogICAgICAgICkKICAg"
+            "ICAgICBhc3NlcnQgKHNhdGlzZmllZCAvICJwcmVzZW50LnR4dCIpLnJlYWRfdGV4dChl"
+            "bmNvZGluZz0idXRmLTgiKS5zdHJpcCgpID09ICJjb25kaXRpb24tc2V0IiwgKAogICAg"
+            "ICAgICAgICAic2F0aXNmaWVkIG5lc3RlZCBjb25kaXRpb24gZGlkIG5vdCBzZXQgdGhl"
+            "IGV4cGVjdGVkIHByb3BlcnR5IHZhbHVlIgogICAgICAgICkKCiAgICAgICAgdW5zYXRp"
+            "c2ZpZWQgPSByZXN1bHRzX2RpciAvICJ1bnNhdGlzZmllZCIKICAgICAgICBhc3NlcnQg"
+            "dW5zYXRpc2ZpZWQuaXNfZGlyKCksICJ1bnNhdGlzZmllZCBydW4gZGlkIG5vdCBjcmVh"
+            "dGUgaXRzIHJlc3VsdCBkaXJlY3RvcnkiCiAgICAgICAgYXNzZXJ0IHNvcnRlZChwLm5h"
+            "bWUgZm9yIHAgaW4gdW5zYXRpc2ZpZWQuaXRlcmRpcigpKSA9PSBbImFic2VudC50eHQi"
+            "XSwgKAogICAgICAgICAgICAiZmFpbGVkIGNvbmRpdGlvbiBkaWQgbm90IGxlYXZlIHRo"
+            "ZSBwcm9wZXJ0eSBhYnNlbnQgYW5kIGV4Y2x1c2l2ZWx5IGV4ZWN1dGUgdGhlIGFic2Vu"
+            "Y2UtYmFzZWQgdGFyZ2V0IgogICAgICAgICkKICAgICAgICBhc3NlcnQgKHVuc2F0aXNm"
+            "aWVkIC8gImFic2VudC50eHQiKS5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04Iikuc3Ry"
+            "aXAoKSA9PSAiZ2F0ZS11bnNldCIKCiAgICAgICAgZmFsc2VfdmFsdWUgPSByZXN1bHRz"
+            "X2RpciAvICJmYWxzZS12YWx1ZSIKICAgICAgICBhc3NlcnQgZmFsc2VfdmFsdWUuaXNf"
+            "ZGlyKCksICJwcmVjb25maWd1cmVkLXByb3BlcnR5IHJ1biBkaWQgbm90IGNyZWF0ZSBp"
+            "dHMgcmVzdWx0IGRpcmVjdG9yeSIKICAgICAgICBhc3NlcnQgc29ydGVkKHAubmFtZSBm"
+            "b3IgcCBpbiBmYWxzZV92YWx1ZS5pdGVyZGlyKCkpID09IFsicHJlc2VudC50eHQiXSwg"
+            "KAogICAgICAgICAgICAiYSBwcmVzZW50IHByb3BlcnR5IHdob3NlIHZhbHVlIHdhcyAn"
+            "ZmFsc2UnIHdhcyBub3QgdHJlYXRlZCBhcyBwcmVzZW50IGJ5IHRhcmdldCBjb25kaXRp"
+            "b25zIgogICAgICAgICkKICAgICAgICBhc3NlcnQgKGZhbHNlX3ZhbHVlIC8gInByZXNl"
+            "bnQudHh0IikucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpLnN0cmlwKCkgPT0gImZh"
+            "bHNlIiwgKAogICAgICAgICAgICAidGhlIGFsdGVybmF0ZSBwcmVjb25maWd1cmVkIHBy"
+            "b3BlcnR5IHZhbHVlIHdhcyBub3QgcHJlc2VydmVkIgogICAgICAgICkKCiAgICAgICAg"
+            "ZXhpdF9jb2RlID0gMAogICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBleGM6CiAgICAgICAg"
+            "ZGlhZ25vc3RpY3MuYXBwZW5kKGYie3R5cGUoZXhjKS5fX25hbWVfX306IHtleGN9IikK"
+            "ICAgICAgICBleGl0X2NvZGUgPSAxCiAgICBmaW5hbGx5OgogICAgICAgIGlmIHRlbXBf"
+            "ZGlyIGlzIG5vdCBOb25lOgogICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBz"
+            "aHV0aWwucm10cmVlKHRlbXBfZGlyKQogICAgICAgICAgICBleGNlcHQgRXhjZXB0aW9u"
+            "IGFzIGV4YzoKICAgICAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZChmImNsZWFu"
+            "dXAgZXJyb3I6IHt0eXBlKGV4YykuX19uYW1lX199OiB7ZXhjfSIpCiAgICAgICAgICAg"
+            "ICAgICBleGl0X2NvZGUgPSAxCgogICAgaWYgZXhpdF9jb2RlID09IDA6CiAgICAgICAg"
+            "cHJpbnQoIlBBU1M6IEFudCBjb25kaXRpb24gcHJvcGVydGllcyBjb250cm9sbGVkIGlm"
+            "L3VubGVzcyB0YXJnZXRzIGJ5IHByb3BlcnR5IHByZXNlbmNlIikKICAgIGVsc2U6CiAg"
+            "ICAgICAgZGV0YWlsID0gIjsgIi5qb2luKGRpYWdub3N0aWNzKS5yZXBsYWNlKCJcbiIs"
+            "ICJcXG4iKQogICAgICAgIHByaW50KGYiRkFJTDoge2RldGFpbH0iKQogICAgc3lzLmV4"
+            "aXQoZXhpdF9jb2RlKQoKCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAgICBtYWlu"
+            "KCkK"
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
     @TestCaseMetadata(
         description="""
-            This case runs an Ant archive target that selects text files and creates a
-            JAR without a project-supplied manifest. It verifies initial creation,
-            incremental update with changed and added files, exclusion of an unselected
-            file, and generation of a basic manifest.
+        Exact-byte FMF/TMT Python wrapper execution.
 
-            Corpus obligation: pkg:ant/produce-project-artifacts
+        Corpus obligation: pkg:ant/copy-resources/filtered-text
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
         """,
-        priority=3,
-        tags=["ai-generated"],
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    def verify_produce_project_artifacts(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        initial_body = "first-version"
-        updated_body = "second-version"
-        added_body = "added-file"
-        archive_member = "api/guide.txt"
-        added_member = "api/added.txt"
-        excluded_member = "api/private.bin"
-        manifest_entry = "META-INF/MANIFEST.MF"
-        manifest_token = "Manifest-Version: 1.0"
-        checker = r"""
-import sys
-import zipfile
-
-path = sys.argv[1]
-primary_name = sys.argv[2]
-primary_expected = sys.argv[3]
-added_name = sys.argv[4]
-added_expected = sys.argv[5]
-excluded_name = sys.argv[6]
-manifest_name = sys.argv[7]
-manifest_token = sys.argv[8]
-try:
-    with zipfile.ZipFile(path) as archive:
-        names = archive.namelist()
-        manifest = archive.read(manifest_name).decode("utf-8", "replace")
-        primary = archive.read(primary_name).decode("utf-8", "replace")
-        if added_name in names:
-            added = archive.read(added_name).decode("utf-8", "replace")
-        else:
-            added = "MISSING"
-    print("OPEN=1")
-    print("PRIMARY_OK=" + str(int(primary.strip() == primary_expected)))
-    print("ADDED_PRESENT=" + str(int(added_name in names)))
-    print("ADDED_OK=" + str(int(added.strip() == added_expected)))
-    print("EXCLUDED_PRESENT=" + str(int(excluded_name in names)))
-    print("MANIFEST_OK=" + str(int(manifest_token in manifest)))
-    print("NAMES=" + ",".join(names))
-    print("PRIMARY_TEXT=" + repr(primary))
-    print("ADDED_TEXT=" + repr(added))
-    print("MANIFEST_TEXT=" + repr(manifest))
-except Exception as error:
-    print("OPEN=0")
-    print("PRIMARY_OK=MISSING")
-    print("ADDED_PRESENT=MISSING")
-    print("ADDED_OK=MISSING")
-    print("EXCLUDED_PRESENT=MISSING")
-    print("MANIFEST_OK=MISSING")
-    print("ERROR=" + type(error).__name__ + ": " + str(error))
-"""
-        command = rf"""
-tmp=$(mktemp -d /tmp/ant-artifact.XXXXXX)
-trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/src/api"
-printf '%s\n' '{initial_body}' > "$tmp/src/{archive_member}"
-printf '%s\n' 'not-selected' > "$tmp/src/{excluded_member}"
-cat <<'XML' > "$tmp/build.xml"
-<project name="artifact-probe" default="archive">
-  <target name="archive">
-    <mkdir dir="out"/>
-    <jar destfile="out/project.jar" basedir="src" includes="**/*.txt"/>
-  </target>
-</project>
-XML
-cat <<'PY' > "$tmp/checker.py"
-{checker}
-PY
-echo INFO_BEGIN
-rpm -q --qf '%{{NAME}} %{{VERSION}}-%{{RELEASE}}\n' ant
-printf 'RPM_RC=%s\n' "$?"
-ant -version
-printf 'ANT_VERSION_RC=%s\n' "$?"
-echo INFO_END
-echo FIRST_BEGIN
-ant -f "$tmp/build.xml" archive
-printf 'FIRST_ANT_RC=%s\n' "$?"
-if test -f "$tmp/out/project.jar"; then
-    echo FIRST_ARCHIVE=present
-else
-    echo FIRST_ARCHIVE=absent
-fi
-if test -s "$tmp/checker.py"; then
-    echo CHECKER_READY=1
-    python3 "$tmp/checker.py" "$tmp/out/project.jar" \
-        '{archive_member}' '{initial_body}' \
-        '{added_member}' '{added_body}' \
-        '{excluded_member}' '{manifest_entry}' '{manifest_token}'
-    printf 'FIRST_CHECK_RC=%s\n' "$?"
-else
-    echo CHECKER_READY=0
-    echo OPEN=MISSING
-    echo PRIMARY_OK=MISSING
-    echo ADDED_PRESENT=MISSING
-    echo ADDED_OK=MISSING
-    echo EXCLUDED_PRESENT=MISSING
-    echo MANIFEST_OK=MISSING
-    echo FIRST_CHECK_RC=125
-fi
-echo FIRST_END
-sleep 2
-printf '%s\n' '{updated_body}' > "$tmp/src/{archive_member}"
-printf '%s\n' '{added_body}' > "$tmp/src/{added_member}"
-echo SECOND_BEGIN
-ant -f "$tmp/build.xml" archive
-printf 'SECOND_ANT_RC=%s\n' "$?"
-if test -f "$tmp/out/project.jar"; then
-    echo SECOND_ARCHIVE=present
-else
-    echo SECOND_ARCHIVE=absent
-fi
-if test -s "$tmp/checker.py"; then
-    echo CHECKER_READY=1
-    python3 "$tmp/checker.py" "$tmp/out/project.jar" \
-        '{archive_member}' '{updated_body}' \
-        '{added_member}' '{added_body}' \
-        '{excluded_member}' '{manifest_entry}' '{manifest_token}'
-    printf 'SECOND_CHECK_RC=%s\n' "$?"
-else
-    echo CHECKER_READY=0
-    echo OPEN=MISSING
-    echo PRIMARY_OK=MISSING
-    echo ADDED_PRESENT=MISSING
-    echo ADDED_OK=MISSING
-    echo EXCLUDED_PRESENT=MISSING
-    echo MANIFEST_OK=MISSING
-    echo SECOND_CHECK_RC=125
-fi
-echo SECOND_END
-exit 0
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        assert_that(result.exit_code).described_as(
-            f"artifact probe shell must complete; observed output: {text}"
-        ).is_equal_to(0)
-        info = section(text, "INFO_BEGIN", "INFO_END")
-        assert_that(info).described_as(
-            f"installed Ant package query must succeed; observed: {info}"
-        ).contains("RPM_RC=0")
-        assert_that(info).described_as(
-            f"Ant executable must start successfully; observed: {info}"
-        ).contains("ANT_VERSION_RC=0")
-        first = section(text, "FIRST_BEGIN", "FIRST_END")
-        assert_that(first).described_as(
-            f"initial Ant archive target must succeed; observed: {first}"
-        ).contains("FIRST_ANT_RC=0")
-        assert_that(first).described_as(
-            f"initial archive must be created; observed: {first}"
-        ).contains("FIRST_ARCHIVE=present")
-        assert_that(first).described_as(
-            f"archive checker must be materialized; observed: {first}"
-        ).contains("CHECKER_READY=1")
-        assert_that(first).described_as(
-            f"initial archive must be readable; observed: {first}"
-        ).contains("OPEN=1")
-        assert_that(first).described_as(
-            f"initial selected file must have expected content; observed: {first}"
-        ).contains("PRIMARY_OK=1")
-        assert_that(first).described_as(
-            f"future selected file must initially be absent; observed: {first}"
-        ).contains("ADDED_PRESENT=0")
-        assert_that(first).described_as(
-            f"unselected file must not be archived; observed: {first}"
-        ).contains("EXCLUDED_PRESENT=0")
-        assert_that(first).described_as(
-            f"Ant must supply a basic manifest; observed: {first}"
-        ).contains("MANIFEST_OK=1")
-        assert_that(first).described_as(
-            f"initial archive inspection must complete; observed: {first}"
-        ).contains("FIRST_CHECK_RC=0")
-        second = section(text, "SECOND_BEGIN", "SECOND_END")
-        assert_that(second).described_as(
-            f"archive update target must succeed; observed: {second}"
-        ).contains("SECOND_ANT_RC=0")
-        assert_that(second).described_as(
-            f"updated archive must remain present; observed: {second}"
-        ).contains("SECOND_ARCHIVE=present")
-        assert_that(second).described_as(
-            f"updated archive must be readable; observed: {second}"
-        ).contains("OPEN=1")
-        assert_that(second).described_as(
-            f"changed selected content must update in the JAR; observed: {second}"
-        ).contains("PRIMARY_OK=1")
-        assert_that(second).described_as(
-            f"new selected file must be added to the JAR; observed: {second}"
-        ).contains("ADDED_PRESENT=1")
-        assert_that(second).described_as(
-            f"new archive member must retain its content; observed: {second}"
-        ).contains("ADDED_OK=1")
-        assert_that(second).described_as(
-            f"unselected file must remain excluded; observed: {second}"
-        ).contains("EXCLUDED_PRESENT=0")
-        assert_that(second).described_as(
-            f"updated JAR must retain its basic manifest; observed: {second}"
-        ).contains("MANIFEST_OK=1")
-        assert_that(second).described_as(
-            f"updated archive inspection must complete; observed: {second}"
-        ).contains("SECOND_CHECK_RC=0")
+    def verify_pkg_ant_copy_resources_f_a0e6b385(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:01e405ddfbaeed357cba4c682281f3df0bcc940"
+            "7de7b90b97c6f23e61598a2cf."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgb3MKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQppbXBvcnQgdGV4"
+            "dHdyYXAKCgpjbGFzcyBUZXN0RmFpbHVyZShFeGNlcHRpb24pOgogICAgcGFzcwoKCmNs"
+            "YXNzIFRlc3RTa2lwKEV4Y2VwdGlvbik6CiAgICBwYXNzCgoKZGVmIHJ1bl9hbnQoYW50"
+            "LCBidWlsZGZpbGUsIGN3ZCwgdGFyZ2V0cz1Ob25lKToKICAgIGNvbW1hbmQgPSBbYW50"
+            "LCAiLWYiLCBzdHIoYnVpbGRmaWxlKV0KICAgIGlmIHRhcmdldHM6CiAgICAgICAgY29t"
+            "bWFuZC5leHRlbmQodGFyZ2V0cykKCiAgICBlbnYgPSBvcy5lbnZpcm9uLmNvcHkoKQog"
+            "ICAgZW52LnBvcCgiQU5UX0FSR1MiLCBOb25lKQoKICAgIHRyeToKICAgICAgICByZXN1"
+            "bHQgPSBzdWJwcm9jZXNzLnJ1bigKICAgICAgICAgICAgY29tbWFuZCwKICAgICAgICAg"
+            "ICAgY3dkPWN3ZCwKICAgICAgICAgICAgZW52PWVudiwKICAgICAgICAgICAgdGV4dD1U"
+            "cnVlLAogICAgICAgICAgICBzdGRvdXQ9c3VicHJvY2Vzcy5QSVBFLAogICAgICAgICAg"
+            "ICBzdGRlcnI9c3VicHJvY2Vzcy5QSVBFLAogICAgICAgICAgICB0aW1lb3V0PTYwLAog"
+            "ICAgICAgICAgICBjaGVjaz1GYWxzZSwKICAgICAgICApCiAgICBleGNlcHQgc3VicHJv"
+            "Y2Vzcy5UaW1lb3V0RXhwaXJlZCBhcyBleGM6CiAgICAgICAgc3Rkb3V0ID0gZXhjLnN0"
+            "ZG91dCBvciAiIgogICAgICAgIHN0ZGVyciA9IGV4Yy5zdGRlcnIgb3IgIiIKICAgICAg"
+            "ICByYWlzZSBUZXN0RmFpbHVyZSgKICAgICAgICAgICAgIkFudCB0aW1lZCBvdXQuXG5z"
+            "dGRvdXQ6XG57fVxuc3RkZXJyOlxue30iLmZvcm1hdChzdGRvdXQsIHN0ZGVycikKICAg"
+            "ICAgICApCgogICAgaWYgcmVzdWx0LnJldHVybmNvZGUgIT0gMDoKICAgICAgICByYWlz"
+            "ZSBUZXN0RmFpbHVyZSgKICAgICAgICAgICAgIkFudCBleGl0ZWQgd2l0aCBzdGF0dXMg"
+            "e30uXG5zdGRvdXQ6XG57fVxuc3RkZXJyOlxue30iLmZvcm1hdCgKICAgICAgICAgICAg"
+            "ICAgIHJlc3VsdC5yZXR1cm5jb2RlLCByZXN1bHQuc3Rkb3V0IG9yICIiLCByZXN1bHQu"
+            "c3RkZXJyIG9yICIiCiAgICAgICAgICAgICkKICAgICAgICApCiAgICByZXR1cm4gcmVz"
+            "dWx0CgoKZGVmIG1haW4oKToKICAgIHJvb3QgPSBOb25lCiAgICBjb2RlID0gMQogICAg"
+            "ZGV0YWlsID0gInRlc3QgZGlkIG5vdCBjb21wbGV0ZSIKCiAgICB0cnk6CiAgICAgICAg"
+            "YW50ID0gc2h1dGlsLndoaWNoKCJhbnQiKQogICAgICAgIGphdmEgPSBzaHV0aWwud2hp"
+            "Y2goImphdmEiKQogICAgICAgIGlmIGFudCBpcyBOb25lIG9yIGphdmEgaXMgTm9uZToK"
+            "ICAgICAgICAgICAgbWlzc2luZyA9IFtdCiAgICAgICAgICAgIGlmIGFudCBpcyBOb25l"
+            "OgogICAgICAgICAgICAgICAgbWlzc2luZy5hcHBlbmQoImFudCIpCiAgICAgICAgICAg"
+            "IGlmIGphdmEgaXMgTm9uZToKICAgICAgICAgICAgICAgIG1pc3NpbmcuYXBwZW5kKCJq"
+            "YXZhIikKICAgICAgICAgICAgcmFpc2UgVGVzdFNraXAoIm1pc3NpbmcgcmVxdWlyZWQg"
+            "cHJlcmVxdWlzaXRlKHMpOiAiICsgIiwgIi5qb2luKG1pc3NpbmcpKQoKICAgICAgICBy"
+            "b290ID0gdGVtcGZpbGUubWtkdGVtcChwcmVmaXg9ImFudC1maWx0ZXJlZC1jb3B5LSIp"
+            "CiAgICAgICAgcHJvamVjdCA9IG9zLnBhdGguam9pbihyb290LCAicHJvamVjdCIpCiAg"
+            "ICAgICAgc291cmNlID0gb3MucGF0aC5qb2luKHByb2plY3QsICJzb3VyY2UiKQogICAg"
+            "ICAgIGludm9jYXRpb24gPSBvcy5wYXRoLmpvaW4ocm9vdCwgImludm9jYXRpb24iKQog"
+            "ICAgICAgIG9zLm1ha2VkaXJzKHNvdXJjZSkKICAgICAgICBvcy5tYWtlZGlycyhpbnZv"
+            "Y2F0aW9uKQoKICAgICAgICBjb25maWd1cmVkX3NvdXJjZSA9IG9zLnBhdGguam9pbihz"
+            "b3VyY2UsICJjb25maWd1cmVkLnR4dCIpCiAgICAgICAgdW5tYXRjaGVkX3NvdXJjZSA9"
+            "IG9zLnBhdGguam9pbihzb3VyY2UsICJ1bm1hdGNoZWQudHh0IikKICAgICAgICBkZXN0"
+            "aW5hdGlvbiA9IG9zLnBhdGguam9pbihwcm9qZWN0LCAib3V0cHV0IiwgInJlc3VsdC50"
+            "eHQiKQogICAgICAgIGJ1aWxkZmlsZSA9IG9zLnBhdGguam9pbihwcm9qZWN0LCAiYnVp"
+            "bGQueG1sIikKCiAgICAgICAgd2l0aCBvcGVuKGNvbmZpZ3VyZWRfc291cmNlLCAidyIs"
+            "IGVuY29kaW5nPSJ1dGYtOCIsIG5ld2xpbmU9IlxuIikgYXMgc3RyZWFtOgogICAgICAg"
+            "ICAgICBzdHJlYW0ud3JpdGUoImNvbmZpZ3VyZWQ9QGNvbmZpZ3VyZWRAXG4iKQogICAg"
+            "ICAgIHdpdGggb3Blbih1bm1hdGNoZWRfc291cmNlLCAidyIsIGVuY29kaW5nPSJ1dGYt"
+            "OCIsIG5ld2xpbmU9IlxuIikgYXMgc3RyZWFtOgogICAgICAgICAgICBzdHJlYW0ud3Jp"
+            "dGUoInVubWF0Y2hlZD1AdW5tYXRjaGVkQFxuIikKCiAgICAgICAgYnVpbGRfeG1sID0g"
+            "dGV4dHdyYXAuZGVkZW50KCIiIlwKICAgICAgICAgICAgPD94bWwgdmVyc2lvbj0iMS4w"
+            "IiBlbmNvZGluZz0iVVRGLTgiPz4KICAgICAgICAgICAgPHByb2plY3QgbmFtZT0iZmls"
+            "dGVyZWQtdGV4dC1jb3B5IiBkZWZhdWx0PSJjb3B5LWNvbmZpZ3VyZWQiIGJhc2VkaXI9"
+            "Ii4iPgogICAgICAgICAgICAgICAgPHRhcmdldCBuYW1lPSJjb3B5LWNvbmZpZ3VyZWQi"
+            "PgogICAgICAgICAgICAgICAgICAgIDxta2RpciBkaXI9Im91dHB1dCIvPgogICAgICAg"
+            "ICAgICAgICAgICAgIDxjb3B5IGZpbGU9InNvdXJjZS9jb25maWd1cmVkLnR4dCIKICAg"
+            "ICAgICAgICAgICAgICAgICAgICAgICB0b2ZpbGU9Im91dHB1dC9yZXN1bHQudHh0Igog"
+            "ICAgICAgICAgICAgICAgICAgICAgICAgIG92ZXJ3cml0ZT0idHJ1ZSI+CiAgICAgICAg"
+            "ICAgICAgICAgICAgICAgIDxmaWx0ZXJzZXQ+CiAgICAgICAgICAgICAgICAgICAgICAg"
+            "ICAgICA8ZmlsdGVyIHRva2VuPSJjb25maWd1cmVkIiB2YWx1ZT0iRVhQQU5ERUQiLz4K"
+            "ICAgICAgICAgICAgICAgICAgICAgICAgPC9maWx0ZXJzZXQ+CiAgICAgICAgICAgICAg"
+            "ICAgICAgPC9jb3B5PgogICAgICAgICAgICAgICAgPC90YXJnZXQ+CgogICAgICAgICAg"
+            "ICAgICAgPHRhcmdldCBuYW1lPSJjb3B5LXVubWF0Y2hlZCI+CiAgICAgICAgICAgICAg"
+            "ICAgICAgPG1rZGlyIGRpcj0ib3V0cHV0Ii8+CiAgICAgICAgICAgICAgICAgICAgPGNv"
+            "cHkgZmlsZT0ic291cmNlL3VubWF0Y2hlZC50eHQiCiAgICAgICAgICAgICAgICAgICAg"
+            "ICAgICAgdG9maWxlPSJvdXRwdXQvcmVzdWx0LnR4dCIKICAgICAgICAgICAgICAgICAg"
+            "ICAgICAgICBvdmVyd3JpdGU9InRydWUiPgogICAgICAgICAgICAgICAgICAgICAgICA8"
+            "ZmlsdGVyc2V0PgogICAgICAgICAgICAgICAgICAgICAgICAgICAgPGZpbHRlciB0b2tl"
+            "bj0iY29uZmlndXJlZCIgdmFsdWU9IkVYUEFOREVEIi8+CiAgICAgICAgICAgICAgICAg"
+            "ICAgICAgIDwvZmlsdGVyc2V0PgogICAgICAgICAgICAgICAgICAgIDwvY29weT4KICAg"
+            "ICAgICAgICAgICAgIDwvdGFyZ2V0PgogICAgICAgICAgICA8L3Byb2plY3Q+CiAgICAg"
+            "ICAgICAgICIiIikKICAgICAgICB3aXRoIG9wZW4oYnVpbGRmaWxlLCAidyIsIGVuY29k"
+            "aW5nPSJ1dGYtOCIsIG5ld2xpbmU9IlxuIikgYXMgc3RyZWFtOgogICAgICAgICAgICBz"
+            "dHJlYW0ud3JpdGUoYnVpbGRfeG1sKQoKICAgICAgICBmaXJzdCA9IHJ1bl9hbnQoYW50"
+            "LCBidWlsZGZpbGUsIGludm9jYXRpb24pCiAgICAgICAgaWYgbm90IG9zLnBhdGguaXNm"
+            "aWxlKGRlc3RpbmF0aW9uKToKICAgICAgICAgICAgcmFpc2UgVGVzdEZhaWx1cmUoCiAg"
+            "ICAgICAgICAgICAgICAiVGhlIGRlZmF1bHQgdGFyZ2V0IGRpZCBub3QgY3JlYXRlIHRo"
+            "ZSBidWlsZGZpbGUtcmVsYXRpdmUgZGVzdGluYXRpb24uIgogICAgICAgICAgICAgICAg"
+            "Ilxuc3Rkb3V0Olxue31cbnN0ZGVycjpcbnt9Ii5mb3JtYXQoCiAgICAgICAgICAgICAg"
+            "ICAgICAgZmlyc3Quc3Rkb3V0IG9yICIiLCBmaXJzdC5zdGRlcnIgb3IgIiIKICAgICAg"
+            "ICAgICAgICAgICkKICAgICAgICAgICAgKQogICAgICAgIHdpdGggb3BlbihkZXN0aW5h"
+            "dGlvbiwgInIiLCBlbmNvZGluZz0idXRmLTgiLCBuZXdsaW5lPSIiKSBhcyBzdHJlYW06"
+            "CiAgICAgICAgICAgIGNvbmZpZ3VyZWRfcmVzdWx0ID0gc3RyZWFtLnJlYWQoKQogICAg"
+            "ICAgIGlmIGNvbmZpZ3VyZWRfcmVzdWx0ICE9ICJjb25maWd1cmVkPUVYUEFOREVEXG4i"
+            "OgogICAgICAgICAgICByYWlzZSBUZXN0RmFpbHVyZSgKICAgICAgICAgICAgICAgICJD"
+            "b25maWd1cmVkIHRva2VuIHdhcyBub3QgZXhwYW5kZWQgYXMgZXhwZWN0ZWQ7IGNvcGll"
+            "ZCB0ZXh0IHdhcyB7IXJ9LiIKICAgICAgICAgICAgICAgICJcbnN0ZG91dDpcbnt9XG5z"
+            "dGRlcnI6XG57fSIuZm9ybWF0KAogICAgICAgICAgICAgICAgICAgIGNvbmZpZ3VyZWRf"
+            "cmVzdWx0LCBmaXJzdC5zdGRvdXQgb3IgIiIsIGZpcnN0LnN0ZGVyciBvciAiIgogICAg"
+            "ICAgICAgICAgICAgKQogICAgICAgICAgICApCgogICAgICAgIHNlY29uZCA9IHJ1bl9h"
+            "bnQoYW50LCBidWlsZGZpbGUsIGludm9jYXRpb24sIFsiY29weS11bm1hdGNoZWQiXSkK"
+            "ICAgICAgICB3aXRoIG9wZW4oZGVzdGluYXRpb24sICJyIiwgZW5jb2Rpbmc9InV0Zi04"
+            "IiwgbmV3bGluZT0iIikgYXMgc3RyZWFtOgogICAgICAgICAgICB1bm1hdGNoZWRfcmVz"
+            "dWx0ID0gc3RyZWFtLnJlYWQoKQogICAgICAgIGlmIHVubWF0Y2hlZF9yZXN1bHQgIT0g"
+            "InVubWF0Y2hlZD1AdW5tYXRjaGVkQFxuIjoKICAgICAgICAgICAgcmFpc2UgVGVzdEZh"
+            "aWx1cmUoCiAgICAgICAgICAgICAgICAiVG9rZW4gd2l0aG91dCBhbiBhc3NvY2lhdGVk"
+            "IGZpbHRlciB3YXMgY2hhbmdlZDsgY29waWVkIHRleHQgd2FzIHshcn0uIgogICAgICAg"
+            "ICAgICAgICAgIlxuc3Rkb3V0Olxue31cbnN0ZGVycjpcbnt9Ii5mb3JtYXQoCiAgICAg"
+            "ICAgICAgICAgICAgICAgdW5tYXRjaGVkX3Jlc3VsdCwgc2Vjb25kLnN0ZG91dCBvciAi"
+            "Iiwgc2Vjb25kLnN0ZGVyciBvciAiIgogICAgICAgICAgICAgICAgKQogICAgICAgICAg"
+            "ICApCgogICAgICAgIGNvZGUgPSAwCiAgICAgICAgZGV0YWlsID0gImNvbmZpZ3VyZWQg"
+            "dG9rZW4gZXhwYW5kZWQgYW5kIHVubWF0Y2hlZCB0b2tlbiByZW1haW5lZCB1bmNoYW5n"
+            "ZWQiCgogICAgZXhjZXB0IFRlc3RTa2lwIGFzIGV4YzoKICAgICAgICBjb2RlID0gNzcK"
+            "ICAgICAgICBkZXRhaWwgPSBzdHIoZXhjKQogICAgZXhjZXB0IFRlc3RGYWlsdXJlIGFz"
+            "IGV4YzoKICAgICAgICBjb2RlID0gMQogICAgICAgIGRldGFpbCA9IHN0cihleGMpCiAg"
+            "ICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4YzoKICAgICAgICBjb2RlID0gMQogICAgICAg"
+            "IGRldGFpbCA9ICJ1bmV4cGVjdGVkIHRlc3QgZXJyb3I6IHt9OiB7fSIuZm9ybWF0KHR5"
+            "cGUoZXhjKS5fX25hbWVfXywgZXhjKQogICAgZmluYWxseToKICAgICAgICBpZiByb290"
+            "IGlzIG5vdCBOb25lOgogICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBzaHV0"
+            "aWwucm10cmVlKHJvb3QpCiAgICAgICAgICAgIGV4Y2VwdCBFeGNlcHRpb24gYXMgZXhj"
+            "OgogICAgICAgICAgICAgICAgY29kZSA9IDEKICAgICAgICAgICAgICAgIGRldGFpbCA9"
+            "ICJ7fTsgY2xlYW51cCBmYWlsZWQ6IHt9OiB7fSIuZm9ybWF0KAogICAgICAgICAgICAg"
+            "ICAgICAgIGRldGFpbCwgdHlwZShleGMpLl9fbmFtZV9fLCBleGMKICAgICAgICAgICAg"
+            "ICAgICkKCiAgICBpZiBjb2RlID09IDA6CiAgICAgICAgcHJpbnQoIlBBU1M6ICIgKyBk"
+            "ZXRhaWwpCiAgICBlbGlmIGNvZGUgPT0gNzc6CiAgICAgICAgcHJpbnQoIlNLSVA6ICIg"
+            "KyBkZXRhaWwpCiAgICBlbHNlOgogICAgICAgIHByaW50KCJGQUlMOiAiICsgZGV0YWls"
+            "KQogICAgc3lzLmV4aXQoY29kZSkKCgppZiBfX25hbWVfXyA9PSAiX19tYWluX18iOgog"
+            "ICAgbWFpbigpCg=="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
     @TestCaseMetadata(
         description="""
-            Verifies that Ant compiles and runs a Java class in a forked JVM with
-            supplied arguments and captures its output. It also verifies that
-            System.exit in the application is isolated from Ant, which records the exit
-            status and continues the build.
+        Exact-byte FMF/TMT Python wrapper execution.
 
-            Corpus obligation: pkg:ant/run-java-application
+        Corpus obligation: pkg:ant/dependency-order
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
         """,
-        priority=3,
-        tags=["ai-generated"],
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    def verify_run_java_application(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        expected_arg = "azure-linux-ant-argument"
-        java_source = r"""
-public final class Probe {
-    public static void main(String[] args) {
-        if (args.length == 0) {
-            System.out.println("ARG=MISSING");
-            System.exit(9);
-        }
-        System.out.println("ARG=" + args[0]);
-        if (args.length > 1 && args[1].equals("exit")) {
-            System.out.println("EXITING=7");
-            System.exit(7);
-        }
-    }
-}
-"""
-        build_xml = rf"""
-<project name="java-probe" default="verify" basedir=".">
-    <target name="verify">
-        <mkdir dir="classes"/>
-        <javac srcdir="src" destdir="classes"
-               includeantruntime="false"/>
-        <java classname="Probe" fork="true" failonerror="true"
-              outputproperty="normal.output">
-            <classpath path="classes"/>
-            <arg value="{expected_arg}"/>
-            <arg value="normal"/>
-        </java>
-        <echo file="${{basedir}}/arg.txt"
-              message="${{normal.output}}"/>
-        <java classname="Probe" fork="true" failonerror="false"
-              resultproperty="exit.code" outputproperty="exit.output">
-            <classpath path="classes"/>
-            <arg value="{expected_arg}"/>
-            <arg value="exit"/>
-        </java>
-        <echo file="${{basedir}}/exit-output.txt"
-              message="${{exit.output}}"/>
-        <echo file="${{basedir}}/exit-result.txt"
-              message="${{exit.code}}"/>
-        <echo file="${{basedir}}/continued.txt"
-              message="AFTER_EXIT"/>
-    </target>
-</project>
-"""
-        command = f"""tmp=$(mktemp -d /tmp/ant-java.XXXXXX)
-trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/src"
-cat <<'JAVA' > "$tmp/src/Probe.java"
-{java_source}
-JAVA
-cat <<'XML' > "$tmp/build.xml"
-{build_xml}
-XML
-material=OK
-if ! test -s "$tmp/src/Probe.java"; then
-    material=MISSING_JAVA
-fi
-if ! test -s "$tmp/build.xml"; then
-    material=MISSING_XML
-fi
-ant_rc=125
-if [ "$material" = OK ]; then
-    ant -f "$tmp/build.xml" -noinput verify > "$tmp/ant.log" 2>&1
-    ant_rc=$?
-else
-    printf '%s\n' "$material" > "$tmp/ant.log"
-fi
-printf '%s\n' MATERIAL_BEGIN
-printf '%s\n' "$material"
-printf '%s\n' MATERIAL_END
-printf '%s\n' ANT_RC_BEGIN
-printf '%s\n' "$ant_rc"
-printf '%s\n' ANT_RC_END
-printf '%s\n' ANT_LOG_BEGIN
-cat "$tmp/ant.log" 2>/dev/null || printf '%s\n' MISSING
-printf '%s\n' ANT_LOG_END
-printf '%s\n' ARG_OUTPUT_BEGIN
-if [ -s "$tmp/arg.txt" ]; then
-    value=$(cat "$tmp/arg.txt")
-    printf '%s\n' "$value"
-else
-    printf '%s\n' MISSING
-fi
-printf '%s\n' ARG_OUTPUT_END
-printf '%s\n' EXIT_OUTPUT_BEGIN
-if [ -s "$tmp/exit-output.txt" ]; then
-    value=$(cat "$tmp/exit-output.txt")
-    printf '%s\n' "$value"
-else
-    printf '%s\n' MISSING
-fi
-printf '%s\n' EXIT_OUTPUT_END
-printf '%s\n' EXIT_RESULT_BEGIN
-if [ -s "$tmp/exit-result.txt" ]; then
-    value=$(cat "$tmp/exit-result.txt")
-    printf '%s\n' "$value"
-else
-    printf '%s\n' MISSING
-fi
-printf '%s\n' EXIT_RESULT_END
-printf '%s\n' CONTINUED_BEGIN
-if [ -s "$tmp/continued.txt" ]; then
-    value=$(cat "$tmp/continued.txt")
-    printf '%s\n' "$value"
-else
-    printf '%s\n' MISSING
-fi
-printf '%s\n' CONTINUED_END
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        material = section_lines(text, "MATERIAL_BEGIN", "MATERIAL_END")
-        ant_rc = section_lines(text, "ANT_RC_BEGIN", "ANT_RC_END")
-        ant_log = section(text, "ANT_LOG_BEGIN", "ANT_LOG_END")
-        arg_lines = section_lines(text, "ARG_OUTPUT_BEGIN", "ARG_OUTPUT_END")
-        exit_lines = section_lines(text, "EXIT_OUTPUT_BEGIN", "EXIT_OUTPUT_END")
-        exit_result = section_lines(text, "EXIT_RESULT_BEGIN", "EXIT_RESULT_END")
-        continued = section_lines(text, "CONTINUED_BEGIN", "CONTINUED_END")
-        assert_that(result.exit_code).described_as(
-            f"guest probe rc was {result.exit_code}, expected 0"
-        ).is_equal_to(0)
-        assert_that(material).described_as(
-            f"materialization was {material!r}, expected OK"
-        ).is_equal_to(["OK"])
-        assert_that(ant_rc).described_as(
-            f"Ant build rc was {ant_rc!r}, log was {ant_log!r}"
-        ).is_equal_to(["0"])
-        assert_that(arg_lines).described_as(
-            f"captured application output was {arg_lines!r}"
-        ).contains(f"ARG={expected_arg}")
-        assert_that(exit_lines).described_as(
-            f"forked exit output was {exit_lines!r}"
-        ).contains(f"ARG={expected_arg}")
-        assert_that(exit_lines).described_as(
-            f"forked exit output was {exit_lines!r}"
-        ).contains("EXITING=7")
-        assert_that(exit_result).described_as(
-            f"forked JVM result was {exit_result!r}, expected 7"
-        ).is_equal_to(["7"])
-        assert_that(continued).described_as(
-            f"post-exit build marker was {continued!r}"
-        ).is_equal_to(["AFTER_EXIT"])
+    def verify_pkg_ant_dependency_order(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:84558e1045350742f6c2a643847164770b884f5"
+            "c4647d88c642180f18ee8a31f."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgcmUKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQpmcm9tIHBhdGhs"
+            "aWIgaW1wb3J0IFBhdGgKCgpkZWYgYnVpbGRfeG1sKHJlcXVlc3RlZF9kZXBlbmRlbmNp"
+            "ZXMpOgogICAgcmV0dXJuIGYnJyc8P3htbCB2ZXJzaW9uPSIxLjAiIGVuY29kaW5nPSJV"
+            "VEYtOCI/Pgo8cHJvamVjdCBuYW1lPSJkZXBlbmRlbmN5LW9yZGVyIiBkZWZhdWx0PSJy"
+            "ZXF1ZXN0ZWQiIGJhc2VkaXI9Ii4iPgogICAgPHRhcmdldCBuYW1lPSJiYXNlIj4KICAg"
+            "ICAgICA8ZWNobyBmaWxlPSJ0cmFjZS50eHQiIGFwcGVuZD0idHJ1ZSIgbWVzc2FnZT0i"
+            "W0JBU0VdIi8+CiAgICA8L3RhcmdldD4KICAgIDx0YXJnZXQgbmFtZT0ibGVmdCIgZGVw"
+            "ZW5kcz0iYmFzZSI+CiAgICAgICAgPGVjaG8gZmlsZT0idHJhY2UudHh0IiBhcHBlbmQ9"
+            "InRydWUiIG1lc3NhZ2U9IltMRUZUXSIvPgogICAgPC90YXJnZXQ+CiAgICA8dGFyZ2V0"
+            "IG5hbWU9InJpZ2h0IiBkZXBlbmRzPSJiYXNlIj4KICAgICAgICA8ZWNobyBmaWxlPSJ0"
+            "cmFjZS50eHQiIGFwcGVuZD0idHJ1ZSIgbWVzc2FnZT0iW1JJR0hUXSIvPgogICAgPC90"
+            "YXJnZXQ+CiAgICA8dGFyZ2V0IG5hbWU9InJlcXVlc3RlZCIgZGVwZW5kcz0ie3JlcXVl"
+            "c3RlZF9kZXBlbmRlbmNpZXN9Ij4KICAgICAgICA8ZWNobyBmaWxlPSJ0cmFjZS50eHQi"
+            "IGFwcGVuZD0idHJ1ZSIgbWVzc2FnZT0iW1JFUVVFU1RFRF0iLz4KICAgIDwvdGFyZ2V0"
+            "Pgo8L3Byb2plY3Q+CicnJwoKCmRlZiBydW5fYW50KGFyZ3VtZW50cywgY3dkKToKICAg"
+            "IHJldHVybiBzdWJwcm9jZXNzLnJ1bigKICAgICAgICBhcmd1bWVudHMsCiAgICAgICAg"
+            "Y3dkPXN0cihjd2QpLAogICAgICAgIHRleHQ9VHJ1ZSwKICAgICAgICBzdGRvdXQ9c3Vi"
+            "cHJvY2Vzcy5QSVBFLAogICAgICAgIHN0ZGVycj1zdWJwcm9jZXNzLlBJUEUsCiAgICAg"
+            "ICAgdGltZW91dD02MCwKICAgICAgICBjaGVjaz1GYWxzZSwKICAgICkKCgpkZWYgdHJh"
+            "Y2VfdGFyZ2V0cyh0cmFjZV9maWxlKToKICAgIGlmIG5vdCB0cmFjZV9maWxlLmlzX2Zp"
+            "bGUoKToKICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcihmIkFudCBkaWQgbm90IGNy"
+            "ZWF0ZSB0aGUgZXhwZWN0ZWQgdHJhY2UgZmlsZToge3RyYWNlX2ZpbGV9IikKICAgIHJl"
+            "dHVybiByZS5maW5kYWxsKHIiXFsoQkFTRXxMRUZUfFJJR0hUfFJFUVVFU1RFRClcXSIs"
+            "IHRyYWNlX2ZpbGUucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpKQoKCmRlZiBtYWlu"
+            "KCk6CiAgICByb290ID0gTm9uZQogICAgZmFpbHVyZSA9IE5vbmUKICAgIGRpYWdub3N0"
+            "aWNzID0gW10KCiAgICB0cnk6CiAgICAgICAgYW50ID0gc2h1dGlsLndoaWNoKCJhbnQi"
+            "KQogICAgICAgIGphdmEgPSBzaHV0aWwud2hpY2goImphdmEiKQogICAgICAgIGlmIGFu"
+            "dCBpcyBOb25lOgogICAgICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcigiUmVxdWly"
+            "ZWQgQW50IGV4ZWN1dGFibGUgd2FzIG5vdCBmb3VuZCIpCiAgICAgICAgaWYgamF2YSBp"
+            "cyBOb25lOgogICAgICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcigiUmVxdWlyZWQg"
+            "SmF2YSBleGVjdXRhYmxlIHdhcyBub3QgZm91bmQiKQoKICAgICAgICByb290ID0gUGF0"
+            "aCh0ZW1wZmlsZS5ta2R0ZW1wKHByZWZpeD0iYW50LWRlcGVuZGVuY3ktb3JkZXItIikp"
+            "CiAgICAgICAgcHJvamVjdF9kaXIgPSByb290IC8gInByb2plY3QiCiAgICAgICAgaW52"
+            "b2NhdGlvbl9kaXIgPSByb290IC8gImludm9jYXRpb24iCiAgICAgICAgcHJvamVjdF9k"
+            "aXIubWtkaXIoKQogICAgICAgIGludm9jYXRpb25fZGlyLm1rZGlyKCkKCiAgICAgICAg"
+            "YnVpbGRfZmlsZSA9IHByb2plY3RfZGlyIC8gImJ1aWxkLnhtbCIKICAgICAgICB0cmFj"
+            "ZV9maWxlID0gcHJvamVjdF9kaXIgLyAidHJhY2UudHh0IgogICAgICAgIGFtYmllbnRf"
+            "dHJhY2UgPSBpbnZvY2F0aW9uX2RpciAvICJ0cmFjZS50eHQiCgogICAgICAgICMgVGhl"
+            "IGRlZmF1bHQgdGFyZ2V0IGhhcyB0d28gYnJhbmNoZXMgc2hhcmluZyB0aGUgYmFzZSBw"
+            "cmVyZXF1aXNpdGUuCiAgICAgICAgYnVpbGRfZmlsZS53cml0ZV90ZXh0KGJ1aWxkX3ht"
+            "bCgibGVmdCxyaWdodCIpLCBlbmNvZGluZz0idXRmLTgiKQogICAgICAgIGZpcnN0ID0g"
+            "cnVuX2FudChbYW50LCAiLWYiLCBzdHIoYnVpbGRfZmlsZSldLCBpbnZvY2F0aW9uX2Rp"
+            "cikKICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoCiAgICAgICAgICAgICJmaXJzdCBB"
+            "bnQgcnVuOlxuc3Rkb3V0Olxue31cbnN0ZGVycjpcbnt9Ii5mb3JtYXQoZmlyc3Quc3Rk"
+            "b3V0LCBmaXJzdC5zdGRlcnIpCiAgICAgICAgKQogICAgICAgIGlmIGZpcnN0LnJldHVy"
+            "bmNvZGUgIT0gMDoKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoZiJBbnQg"
+            "ZGVmYXVsdC10YXJnZXQgcnVuIGV4aXRlZCB3aXRoIHtmaXJzdC5yZXR1cm5jb2RlfSIp"
+            "CgogICAgICAgIGZpcnN0X29yZGVyID0gdHJhY2VfdGFyZ2V0cyh0cmFjZV9maWxlKQog"
+            "ICAgICAgIGV4cGVjdGVkX2ZpcnN0ID0gWyJCQVNFIiwgIkxFRlQiLCAiUklHSFQiLCAi"
+            "UkVRVUVTVEVEIl0KICAgICAgICBpZiBmaXJzdF9vcmRlciAhPSBleHBlY3RlZF9maXJz"
+            "dDoKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoCiAgICAgICAgICAgICAg"
+            "ICBmImRlcGVuZGVuY3kgb3JkZXIgb3Igc2luZ2xlLWV4ZWN1dGlvbiBiZWhhdmlvciB3"
+            "YXMgd3Jvbmc6ICIKICAgICAgICAgICAgICAgIGYiZXhwZWN0ZWQge2V4cGVjdGVkX2Zp"
+            "cnN0fSwgZ290IHtmaXJzdF9vcmRlcn0iCiAgICAgICAgICAgICkKICAgICAgICBpZiBh"
+            "bWJpZW50X3RyYWNlLmV4aXN0cygpOgogICAgICAgICAgICByYWlzZSBBc3NlcnRpb25F"
+            "cnJvcigiUmVsYXRpdmUgdGFzayBvdXRwdXQgd2FzIGNyZWF0ZWQgaW4gdGhlIGludm9j"
+            "YXRpb24gZGlyZWN0b3J5IGluc3RlYWQgb2YgdGhlIHByb2plY3QgYmFzZWRpciIpCgog"
+            "ICAgICAgICMgUmVtb3ZlIG9ubHkgUklHSFQgZnJvbSB0aGUgcmVxdWVzdGVkIHRhcmdl"
+            "dCdzIGRlcGVuZGVuY3kgZGVjbGFyYXRpb24uCiAgICAgICAgdHJhY2VfZmlsZS51bmxp"
+            "bmsoKQogICAgICAgIGJ1aWxkX2ZpbGUud3JpdGVfdGV4dChidWlsZF94bWwoImxlZnQi"
+            "KSwgZW5jb2Rpbmc9InV0Zi04IikKICAgICAgICBzZWNvbmQgPSBydW5fYW50KFthbnQs"
+            "ICItZiIsIHN0cihidWlsZF9maWxlKSwgInJlcXVlc3RlZCJdLCBpbnZvY2F0aW9uX2Rp"
+            "cikKICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoCiAgICAgICAgICAgICJzZWNvbmQg"
+            "QW50IHJ1bjpcbnN0ZG91dDpcbnt9XG5zdGRlcnI6XG57fSIuZm9ybWF0KHNlY29uZC5z"
+            "dGRvdXQsIHNlY29uZC5zdGRlcnIpCiAgICAgICAgKQogICAgICAgIGlmIHNlY29uZC5y"
+            "ZXR1cm5jb2RlICE9IDA6CiAgICAgICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKGYi"
+            "QW50IHNlbGVjdGVkLXRhcmdldCBydW4gZXhpdGVkIHdpdGgge3NlY29uZC5yZXR1cm5j"
+            "b2RlfSIpCgogICAgICAgIHNlY29uZF9vcmRlciA9IHRyYWNlX3RhcmdldHModHJhY2Vf"
+            "ZmlsZSkKICAgICAgICBleHBlY3RlZF9zZWNvbmQgPSBbIkJBU0UiLCAiTEVGVCIsICJS"
+            "RVFVRVNURUQiXQogICAgICAgIGlmIHNlY29uZF9vcmRlciAhPSBleHBlY3RlZF9zZWNv"
+            "bmQ6CiAgICAgICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKAogICAgICAgICAgICAg"
+            "ICAgZiJyZW1vdmVkIHByZXJlcXVpc2l0ZSB3YXMgc3RpbGwgZXhlY3V0ZWQgb3IgcmVt"
+            "YWluaW5nIG9yZGVyIHdhcyB3cm9uZzogIgogICAgICAgICAgICAgICAgZiJleHBlY3Rl"
+            "ZCB7ZXhwZWN0ZWRfc2Vjb25kfSwgZ290IHtzZWNvbmRfb3JkZXJ9IgogICAgICAgICAg"
+            "ICApCgogICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBleGM6CiAgICAgICAgZmFpbHVyZSA9"
+            "IGYie3R5cGUoZXhjKS5fX25hbWVfX306IHtleGN9IgogICAgZmluYWxseToKICAgICAg"
+            "ICBpZiByb290IGlzIG5vdCBOb25lOgogICAgICAgICAgICBzaHV0aWwucm10cmVlKHJv"
+            "b3QsIGlnbm9yZV9lcnJvcnM9VHJ1ZSkKCiAgICBpZiBmYWlsdXJlIGlzIG5vdCBOb25l"
+            "OgogICAgICAgIHByaW50KGZhaWx1cmUpCiAgICAgICAgZm9yIGl0ZW0gaW4gZGlhZ25v"
+            "c3RpY3M6CiAgICAgICAgICAgIHByaW50KGl0ZW0pCiAgICAgICAgcHJpbnQoIkZBSUw6"
+            "IEFudCBkZXBlbmRlbmN5IG9yZGVyaW5nIGJlaGF2aW9yIGRpZCBub3QgbWF0Y2ggdGhl"
+            "IGJ1aWxkIGRlY2xhcmF0aW9ucyIpCiAgICAgICAgc3lzLmV4aXQoMSkKCiAgICBwcmlu"
+            "dCgiUEFTUzogQW50IG9yZGVyZWQgcHJlcmVxdWlzaXRlcywgcmFuIHRoZSBzaGFyZWQg"
+            "dGFyZ2V0IG9uY2UsIGFuZCBvbWl0dGVkIHRoZSByZW1vdmVkIHByZXJlcXVpc2l0ZSIp"
+            "CiAgICBzeXMuZXhpdCgwKQoKCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAgICBt"
+            "YWluKCkK"
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
     @TestCaseMetadata(
         description="""
-            Runs a self-contained Ant project's test target with two selected tests that
-            exercise file copying, property loading, conditions, and failure handling.
-            It verifies that both tests execute, report their outcomes, create the
-            expected evidence, and complete successfully.
+        Exact-byte FMF/TMT Python wrapper execution.
 
-            Corpus obligation: pkg:ant/run-project-tests
+        Corpus obligation: pkg:ant/directory-preparation
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
         """,
-        priority=3,
-        tags=["ai-generated"],
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    def verify_run_project_tests(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        copy_marker = "CASE_COPY_EXECUTED"
-        selection_marker = "CASE_SELECTION_EXECUTED"
-        summary_marker = "TESTS_RUN=2 FAILURES=0 ERRORS=0"
-        project = rf"""
-<project name="project-tests" default="test">
-    <property name="work" location="${{basedir}}/out"/>
-    <target name="init">
-        <delete dir="${{work}}" quiet="true"/>
-        <mkdir dir="${{work}}"/>
-        <echo file="${{work}}/source.txt">alpha-beta</echo>
-    </target>
-    <target name="test-copy-roundtrip" depends="init">
-        <copy file="${{work}}/source.txt"
-              tofile="${{work}}/copied.txt"/>
-        <loadfile property="copied.text"
-                  srcfile="${{work}}/copied.txt"/>
-        <condition property="copy.ok">
-            <equals arg1="${{copied.text}}" arg2="alpha-beta"/>
-        </condition>
-        <fail unless="copy.ok" message="copy roundtrip failed"/>
-        <echo file="${{work}}/copy.ok">passed</echo>
-        <echo message="{copy_marker}"/>
-    </target>
-    <target name="test-selection" depends="test-copy-roundtrip">
-        <condition property="selection.ok">
-            <and>
-                <isset property="copy.ok"/>
-                <available file="${{work}}/copied.txt" type="file"/>
-            </and>
-        </condition>
-        <fail unless="selection.ok" message="selected test failed"/>
-        <echo file="${{work}}/selection.ok">passed</echo>
-        <echo message="{selection_marker}"/>
-    </target>
-    <target name="test"
-            depends="test-copy-roundtrip,test-selection">
-        <echo message="{summary_marker}"/>
-    </target>
-</project>
-"""
-        command = rf"""
-tmp=$(mktemp -d /tmp/ant-project-tests.XXXXXX)
-trap 'rm -rf "$tmp"' EXIT
-cat <<'XML' > "$tmp/build.xml"
-{project}
-XML
-rpm -q --qf '%{{NAME}} %{{VERSION}}-%{{RELEASE}}\n' ant \
-    > "$tmp/rpm.log" 2>&1
-rpm_rc=$?
-ant -version > "$tmp/version.log" 2>&1
-version_rc=$?
-ant -f "$tmp/build.xml" test > "$tmp/ant.log" 2>&1
-ant_rc=$?
-if test -f "$tmp/out/copied.txt"; then
-    copy_exists=yes
-else
-    copy_exists=no
-fi
-if test -f "$tmp/out/copy.ok"; then
-    copy_test_exists=yes
-else
-    copy_test_exists=no
-fi
-if test -f "$tmp/out/selection.ok"; then
-    selection_test_exists=yes
-else
-    selection_test_exists=no
-fi
-printf '%s\n' PKG_BEGIN
-printf 'RPM_RC=%s\n' "$rpm_rc"
-cat "$tmp/rpm.log" 2>/dev/null || printf '%s\n' MISSING
-printf 'VERSION_RC=%s\n' "$version_rc"
-cat "$tmp/version.log" 2>/dev/null || printf '%s\n' MISSING
-printf '%s\n' PKG_END
-printf '%s\n' ANT_LOG_BEGIN
-cat "$tmp/ant.log" 2>/dev/null || printf '%s\n' MISSING
-printf '%s\n' ANT_LOG_END
-printf '%s\n' FACTS_BEGIN
-printf 'ANT_RC=%s\n' "$ant_rc"
-printf 'COPY_EXISTS=%s\n' "$copy_exists"
-printf 'COPY_TEST_EXISTS=%s\n' "$copy_test_exists"
-printf 'SELECTION_TEST_EXISTS=%s\n' "$selection_test_exists"
-printf '%s\n' FACTS_END
-printf '%s\n' COPY_BODY_BEGIN
-if test -f "$tmp/out/copied.txt"; then
-    cat "$tmp/out/copied.txt"
-else
-    printf '%s' MISSING
-fi
-printf '\n%s\n' COPY_BODY_END
-exit "$ant_rc"
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        package_text = section(text, "PKG_BEGIN", "PKG_END")
-        ant_log = section(text, "ANT_LOG_BEGIN", "ANT_LOG_END")
-        fact_lines = section_lines(text, "FACTS_BEGIN", "FACTS_END")
-        copy_body = section(text, "COPY_BODY_BEGIN", "COPY_BODY_END")
-        assert_that(package_text).described_as(
-            f"Ant package evidence was: {package_text}"
-        ).contains("RPM_RC=0")
-        assert_that(package_text).described_as(
-            f"Ant version evidence was: {package_text}"
-        ).contains("VERSION_RC=0")
-        assert_that(package_text).described_as(
-            f"Installed Ant package details were: {package_text}"
-        ).contains("ant ")
-        assert_that(result.exit_code).described_as(
-            f"Ant test target rc was {result.exit_code}; log: {ant_log}"
-        ).is_equal_to(0)
-        assert_that(fact_lines).described_as(
-            f"Project execution facts were {fact_lines}"
-        ).contains("ANT_RC=0")
-        assert_that(ant_log).described_as(
-            f"Copy test activity was absent from log: {ant_log}"
-        ).contains(copy_marker)
-        assert_that(ant_log).described_as(
-            f"Selection test activity was absent from log: {ant_log}"
-        ).contains(selection_marker)
-        assert_that(ant_log).described_as(
-            f"Test outcome summary was absent from log: {ant_log}"
-        ).contains(summary_marker)
-        assert_that(fact_lines).described_as(
-            f"Copy output evidence was {fact_lines}"
-        ).contains("COPY_EXISTS=yes")
-        assert_that(fact_lines).described_as(
-            f"Copy test outcome evidence was {fact_lines}"
-        ).contains("COPY_TEST_EXISTS=yes")
-        assert_that(fact_lines).described_as(
-            f"Selection test outcome evidence was {fact_lines}"
-        ).contains("SELECTION_TEST_EXISTS=yes")
-        assert_that(copy_body).described_as(
-            f"Copied content was {copy_body!r}, expected alpha-beta"
-        ).is_equal_to("alpha-beta")
+    def verify_pkg_ant_directory_preparation(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:55f6232b9273b6d9223225e372c487a5925c4a3"
+            "e354c50b40bf295b591395781."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgb3MKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQppbXBvcnQgdHJh"
+            "Y2ViYWNrCmZyb20gcGF0aGxpYiBpbXBvcnQgUGF0aAoKCmNsYXNzIFRlc3RGYWlsdXJl"
+            "KEV4Y2VwdGlvbik6CiAgICBwYXNzCgoKZGVmIHJ1bl9hbnQoY29tbWFuZCwgY3dkLCBs"
+            "YWJlbCk6CiAgICB0cnk6CiAgICAgICAgcmVzdWx0ID0gc3VicHJvY2Vzcy5ydW4oCiAg"
+            "ICAgICAgICAgIGNvbW1hbmQsCiAgICAgICAgICAgIGN3ZD1jd2QsCiAgICAgICAgICAg"
+            "IHRleHQ9VHJ1ZSwKICAgICAgICAgICAgc3Rkb3V0PXN1YnByb2Nlc3MuUElQRSwKICAg"
+            "ICAgICAgICAgc3RkZXJyPXN1YnByb2Nlc3MuUElQRSwKICAgICAgICAgICAgdGltZW91"
+            "dD02MCwKICAgICAgICAgICAgY2hlY2s9RmFsc2UsCiAgICAgICAgKQogICAgZXhjZXB0"
+            "IHN1YnByb2Nlc3MuVGltZW91dEV4cGlyZWQgYXMgZXhjOgogICAgICAgIHJhaXNlIFRl"
+            "c3RGYWlsdXJlKGYie2xhYmVsfSB0aW1lZCBvdXQgYWZ0ZXIgNjAgc2Vjb25kcyIpIGZy"
+            "b20gZXhjCgogICAgaWYgcmVzdWx0LnJldHVybmNvZGUgIT0gMDoKICAgICAgICBjb21i"
+            "aW5lZCA9IChyZXN1bHQuc3Rkb3V0IG9yICIiKSArICJcbiIgKyAocmVzdWx0LnN0ZGVy"
+            "ciBvciAiIikKICAgICAgICByYWlzZSBUZXN0RmFpbHVyZSgKICAgICAgICAgICAgZiJ7"
+            "bGFiZWx9IGV4aXRlZCB3aXRoIHN0YXR1cyB7cmVzdWx0LnJldHVybmNvZGV9LiBPdXRw"
+            "dXQ6XG57Y29tYmluZWR9IgogICAgICAgICkKICAgIHJldHVybiByZXN1bHQKCgpkZWYg"
+            "bWFpbigpOgogICAgYW50ID0gc2h1dGlsLndoaWNoKCJhbnQiKQogICAgamF2YSA9IHNo"
+            "dXRpbC53aGljaCgiamF2YSIpCiAgICBpZiBhbnQgaXMgTm9uZSBvciBqYXZhIGlzIE5v"
+            "bmU6CiAgICAgICAgbWlzc2luZyA9IFtdCiAgICAgICAgaWYgYW50IGlzIE5vbmU6CiAg"
+            "ICAgICAgICAgIG1pc3NpbmcuYXBwZW5kKCJhbnQiKQogICAgICAgIGlmIGphdmEgaXMg"
+            "Tm9uZToKICAgICAgICAgICAgbWlzc2luZy5hcHBlbmQoImphdmEiKQogICAgICAgIHBy"
+            "aW50KCJTS0lQOiByZXF1aXJlZCBleGVjdXRhYmxlKHMpIHVuYXZhaWxhYmxlOiAiICsg"
+            "IiwgIi5qb2luKG1pc3NpbmcpKQogICAgICAgIHN5cy5leGl0KDc3KQoKICAgIHJvb3Qg"
+            "PSBOb25lCiAgICBkaXJlY3RvcnlfZmQgPSBOb25lCiAgICBvdXRjb21lID0gMQogICAg"
+            "ZGV0YWlsID0gInRlc3QgZGlkIG5vdCBjb21wbGV0ZSIKCiAgICB0cnk6CiAgICAgICAg"
+            "cm9vdCA9IFBhdGgodGVtcGZpbGUubWtkdGVtcChwcmVmaXg9ImFudC1kaXJlY3Rvcnkt"
+            "cHJlcGFyYXRpb24tIikpCiAgICAgICAgcHJvamVjdF9kaXIgPSByb290IC8gInByb2pl"
+            "Y3QiCiAgICAgICAgcHJvamVjdF9kaXIubWtkaXIoKQogICAgICAgIGJ1aWxkZmlsZSA9"
+            "IHByb2plY3RfZGlyIC8gImRpcmVjdG9yeS1idWlsZC54bWwiCiAgICAgICAgcmVxdWVz"
+            "dGVkID0gcHJvamVjdF9kaXIgLyAiZ2VuZXJhdGVkIiAvICJwYXJlbnQiIC8gImRlc3Rp"
+            "bmF0aW9uIgoKICAgICAgICBidWlsZGZpbGUud3JpdGVfdGV4dCgKICAgICAgICAgICAg"
+            "IiIiPD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHByb2plY3Qg"
+            "bmFtZT0iZGlyZWN0b3J5LXByZXBhcmF0aW9uIiBkZWZhdWx0PSJwcmVwYXJlIj4KICA8"
+            "dGFyZ2V0IG5hbWU9InByZXBhcmUiPgogICAgPG1rZGlyIGRpcj0iZ2VuZXJhdGVkL3Bh"
+            "cmVudC9kZXN0aW5hdGlvbiIvPgogIDwvdGFyZ2V0PgogIDx0YXJnZXQgbmFtZT0ib3Ro"
+            "ZXIiLz4KPC9wcm9qZWN0PgoiIiIsCiAgICAgICAgICAgIGVuY29kaW5nPSJ1dGYtOCIs"
+            "CiAgICAgICAgKQoKICAgICAgICBpZiAocHJvamVjdF9kaXIgLyAiZ2VuZXJhdGVkIiku"
+            "ZXhpc3RzKCk6CiAgICAgICAgICAgIHJhaXNlIFRlc3RGYWlsdXJlKCJjb250cm9sbGVk"
+            "IGRpcmVjdG9yeSB0cmVlIHVuZXhwZWN0ZWRseSBleGlzdGVkIGJlZm9yZSBBbnQgcmFu"
+            "IikKCiAgICAgICAgIyBSdW4gdGhlIG5hbWVkIGJ1aWxkZmlsZSB3aXRob3V0IGEgdGFy"
+            "Z2V0LCBleGVyY2lzaW5nIGl0cyBkZWZhdWx0IHRhcmdldC4KICAgICAgICBydW5fYW50"
+            "KAogICAgICAgICAgICBbYW50LCAiLWYiLCBvcy5wYXRoLnJlbHBhdGgoYnVpbGRmaWxl"
+            "LCByb290KV0sCiAgICAgICAgICAgIHN0cihyb290KSwKICAgICAgICAgICAgImZpcnN0"
+            "IEFudCBpbnZvY2F0aW9uIiwKICAgICAgICApCgogICAgICAgIGV4cGVjdGVkX2RpcmVj"
+            "dG9yaWVzID0gWwogICAgICAgICAgICBwcm9qZWN0X2RpciAvICJnZW5lcmF0ZWQiLAog"
+            "ICAgICAgICAgICBwcm9qZWN0X2RpciAvICJnZW5lcmF0ZWQiIC8gInBhcmVudCIsCiAg"
+            "ICAgICAgICAgIHJlcXVlc3RlZCwKICAgICAgICBdCiAgICAgICAgbWlzc2luZ19vcl9p"
+            "bnZhbGlkID0gWwogICAgICAgICAgICBzdHIocGF0aCkgZm9yIHBhdGggaW4gZXhwZWN0"
+            "ZWRfZGlyZWN0b3JpZXMgaWYgbm90IHBhdGguaXNfZGlyKCkKICAgICAgICBdCiAgICAg"
+            "ICAgaWYgbWlzc2luZ19vcl9pbnZhbGlkOgogICAgICAgICAgICByYWlzZSBUZXN0RmFp"
+            "bHVyZSgKICAgICAgICAgICAgICAgICJmaXJzdCBpbnZvY2F0aW9uIGRpZCBub3QgY3Jl"
+            "YXRlIGFsbCBtaXNzaW5nIGRpcmVjdG9yaWVzOiAiCiAgICAgICAgICAgICAgICArICIs"
+            "ICIuam9pbihtaXNzaW5nX29yX2ludmFsaWQpCiAgICAgICAgICAgICkKCiAgICAgICAg"
+            "IyBSZXRhaW4gYW4gb3BlbiByZWZlcmVuY2Ugc28gcmVjcmVhdGlvbiBjYW5ub3QgYmUg"
+            "bWlzdGFrZW4gZm9yIHByZXNlcnZhdGlvbiwKICAgICAgICAjIGV2ZW4gaWYgYSBmaWxl"
+            "c3lzdGVtIGxhdGVyIHJldXNlcyBhbiBpbm9kZSBudW1iZXIuCiAgICAgICAgZGlyZWN0"
+            "b3J5X2ZkID0gb3Mub3BlbihzdHIocmVxdWVzdGVkKSwgb3MuT19SRE9OTFkgfCBvcy5P"
+            "X0RJUkVDVE9SWSkKICAgICAgICBvcmlnaW5hbF9pZGVudGl0eSA9IG9zLmZzdGF0KGRp"
+            "cmVjdG9yeV9mZCkKCiAgICAgICAgIyBSdW4gdGhlIHNhbWUgdGFyZ2V0IGV4cGxpY2l0"
+            "bHkgYWZ0ZXIgaXRzIGRlc3RpbmF0aW9uIGFscmVhZHkgZXhpc3RzLgogICAgICAgIHJ1"
+            "bl9hbnQoCiAgICAgICAgICAgIFthbnQsICItZiIsIG9zLnBhdGgucmVscGF0aChidWls"
+            "ZGZpbGUsIHJvb3QpLCAicHJlcGFyZSJdLAogICAgICAgICAgICBzdHIocm9vdCksCiAg"
+            "ICAgICAgICAgICJzZWNvbmQgQW50IGludm9jYXRpb24iLAogICAgICAgICkKCiAgICAg"
+            "ICAgaWYgbm90IHJlcXVlc3RlZC5pc19kaXIoKToKICAgICAgICAgICAgcmFpc2UgVGVz"
+            "dEZhaWx1cmUoInNlY29uZCBpbnZvY2F0aW9uIGRpZCBub3QgbGVhdmUgdGhlIGRlc3Rp"
+            "bmF0aW9uIGRpcmVjdG9yeSBpbiBwbGFjZSIpCgogICAgICAgIGN1cnJlbnRfaWRlbnRp"
+            "dHkgPSBvcy5zdGF0KHJlcXVlc3RlZCkKICAgICAgICBpZiBub3Qgb3MucGF0aC5zYW1l"
+            "c3RhdChvcmlnaW5hbF9pZGVudGl0eSwgY3VycmVudF9pZGVudGl0eSk6CiAgICAgICAg"
+            "ICAgIHJhaXNlIFRlc3RGYWlsdXJlKCJzZWNvbmQgaW52b2NhdGlvbiByZWNyZWF0ZWQg"
+            "b3IgcmVwbGFjZWQgdGhlIGV4aXN0aW5nIGRpcmVjdG9yeSIpCgogICAgICAgIG91dGNv"
+            "bWUgPSAwCiAgICAgICAgZGV0YWlsID0gKAogICAgICAgICAgICAiQW50IGNyZWF0ZWQg"
+            "dGhlIG1pc3NpbmcgcGFyZW50IHRyZWUgYW5kIHByZXNlcnZlZCB0aGUgZXhpc3Rpbmcg"
+            "IgogICAgICAgICAgICAiZGVzdGluYXRpb24gb24gdGhlIHNlY29uZCBydW4iCiAgICAg"
+            "ICAgKQogICAgZXhjZXB0IFRlc3RGYWlsdXJlIGFzIGV4YzoKICAgICAgICBkZXRhaWwg"
+            "PSBzdHIoZXhjKQogICAgZXhjZXB0IEV4Y2VwdGlvbjoKICAgICAgICBkZXRhaWwgPSAi"
+            "dW5leHBlY3RlZCB0ZXN0IGV4Y2VwdGlvbjpcbiIgKyB0cmFjZWJhY2suZm9ybWF0X2V4"
+            "YygpCiAgICBmaW5hbGx5OgogICAgICAgIGlmIGRpcmVjdG9yeV9mZCBpcyBub3QgTm9u"
+            "ZToKICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgb3MuY2xvc2UoZGlyZWN0"
+            "b3J5X2ZkKQogICAgICAgICAgICBleGNlcHQgT1NFcnJvciBhcyBleGM6CiAgICAgICAg"
+            "ICAgICAgICBvdXRjb21lID0gMQogICAgICAgICAgICAgICAgZGV0YWlsID0gZiJmYWls"
+            "ZWQgdG8gY2xvc2UgZGlyZWN0b3J5IGZpeHR1cmU6IHtleGN9IgogICAgICAgIGlmIHJv"
+            "b3QgaXMgbm90IE5vbmU6CiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIHNo"
+            "dXRpbC5ybXRyZWUocm9vdCkKICAgICAgICAgICAgZXhjZXB0IE9TRXJyb3IgYXMgZXhj"
+            "OgogICAgICAgICAgICAgICAgb3V0Y29tZSA9IDEKICAgICAgICAgICAgICAgIGRldGFp"
+            "bCA9IGYiZmFpbGVkIHRvIGNsZWFuIHVwIHRlbXBvcmFyeSBmaXh0dXJlOiB7ZXhjfSIK"
+            "CiAgICBpZiBvdXRjb21lID09IDA6CiAgICAgICAgcHJpbnQoIlBBU1M6ICIgKyBkZXRh"
+            "aWwpCiAgICAgICAgc3lzLmV4aXQoMCkKCiAgICBwcmludCgiRkFJTDogIiArIGRldGFp"
+            "bCkKICAgIHN5cy5leGl0KDEpCgoKaWYgX19uYW1lX18gPT0gIl9fbWFpbl9fIjoKICAg"
+            "IG1haW4oKQo="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
     @TestCaseMetadata(
         description="""
-            Verifies that Ant uses the default Java runtime when no override is present.
-            It also verifies that JAVA_HOME from the environment or the user's ant.conf
-            selects the configured launcher while preserving its output and exit status.
+        Exact-byte FMF/TMT Python wrapper execution.
 
-            Corpus obligation: pkg:ant/select-java-runtime
+        Corpus obligation: pkg:ant/failure-handling/deliberate-diagnostic
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
         """,
-        priority=3,
-        tags=["ai-generated"],
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    def verify_select_java_runtime(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
+    def verify_pkg_ant_failure_handling_ee8e4928(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:4d8ca9b820a7b8cc68132de114ec8089b9263ed"
+            "a210b96ff9a69e257c90bd6b1."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgb3MKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQoKCmRlZiBydW5f"
+            "YW50KGFudCwgYnVpbGRmaWxlLCBlbnYsIHdpdGhfcHJvcGVydHkpOgogICAgY29tbWFu"
+            "ZCA9IFthbnQsICItZiIsIGJ1aWxkZmlsZV0KICAgIGlmIHdpdGhfcHJvcGVydHk6CiAg"
+            "ICAgICAgY29tbWFuZC5hcHBlbmQoIi1Eb2JsaWdhdGlvbi5yZXF1aXJlZC5wcm9wZXJ0"
+            "eT1wcmVzZW50IikKICAgIHJldHVybiBzdWJwcm9jZXNzLnJ1bigKICAgICAgICBjb21t"
+            "YW5kLAogICAgICAgIGN3ZD1vcy5wYXRoLmRpcm5hbWUob3MucGF0aC5kaXJuYW1lKGJ1"
+            "aWxkZmlsZSkpLAogICAgICAgIGVudj1lbnYsCiAgICAgICAgdGV4dD1UcnVlLAogICAg"
+            "ICAgIHN0ZG91dD1zdWJwcm9jZXNzLlBJUEUsCiAgICAgICAgc3RkZXJyPXN1YnByb2Nl"
+            "c3MuUElQRSwKICAgICAgICBjaGVjaz1GYWxzZSwKICAgICkKCgpkZWYgbWFpbigpOgog"
+            "ICAgd29ya3NwYWNlID0gTm9uZQogICAgZGlhZ25vc3RpY3MgPSBbXQogICAgdmVyZGlj"
+            "dCA9ICJGQUlMIgogICAgZXhpdF9jb2RlID0gMQoKICAgIHRyeToKICAgICAgICBhbnQg"
+            "PSBzaHV0aWwud2hpY2goImFudCIpCiAgICAgICAgamF2YSA9IHNodXRpbC53aGljaCgi"
+            "amF2YSIpCiAgICAgICAgaWYgYW50IGlzIE5vbmUgb3IgamF2YSBpcyBOb25lOgogICAg"
+            "ICAgICAgICBtaXNzaW5nID0gW10KICAgICAgICAgICAgaWYgYW50IGlzIE5vbmU6CiAg"
+            "ICAgICAgICAgICAgICBtaXNzaW5nLmFwcGVuZCgiYW50IikKICAgICAgICAgICAgaWYg"
+            "amF2YSBpcyBOb25lOgogICAgICAgICAgICAgICAgbWlzc2luZy5hcHBlbmQoImphdmEi"
+            "KQogICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoIk1pc3NpbmcgZGVjbGFyZWQg"
+            "cHJlcmVxdWlzaXRlKHMpOiAiICsgIiwgIi5qb2luKG1pc3NpbmcpKQogICAgICAgICAg"
+            "ICB2ZXJkaWN0ID0gIlNLSVAiCiAgICAgICAgICAgIGV4aXRfY29kZSA9IDc3CiAgICAg"
+            "ICAgZWxzZToKICAgICAgICAgICAgd29ya3NwYWNlID0gdGVtcGZpbGUubWtkdGVtcChw"
+            "cmVmaXg9ImFudC1wcm9wZXJ0eS1nYXRlLSIpCiAgICAgICAgICAgIGJ1aWxkX2RpciA9"
+            "IG9zLnBhdGguam9pbih3b3Jrc3BhY2UsICJwcm9qZWN0IikKICAgICAgICAgICAgaG9t"
+            "ZV9kaXIgPSBvcy5wYXRoLmpvaW4od29ya3NwYWNlLCAiaG9tZSIpCiAgICAgICAgICAg"
+            "IG9zLm1ha2VkaXJzKGJ1aWxkX2RpcikKICAgICAgICAgICAgb3MubWFrZWRpcnMoaG9t"
+            "ZV9kaXIpCgogICAgICAgICAgICBidWlsZGZpbGUgPSBvcy5wYXRoLmpvaW4oYnVpbGRf"
+            "ZGlyLCAiZGVsaWJlcmF0ZS1mYWlsdXJlLnhtbCIpCiAgICAgICAgICAgIG1hcmtlciA9"
+            "IG9zLnBhdGguam9pbihidWlsZF9kaXIsICJnYXRlLWNvbXBsZXRlZC5tYXJrZXIiKQog"
+            "ICAgICAgICAgICBjb25maWd1cmVkX2RpYWdub3N0aWMgPSAiUmVxdWlyZWQgcHJvcGVy"
+            "dHkgd2FzIGRlbGliZXJhdGVseSBzdXBwbGllZCIKICAgICAgICAgICAgc2VsZWN0ZWRf"
+            "c3RhdHVzID0gMjMKCiAgICAgICAgICAgIGJ1aWxkX3htbCA9ICIiIjw/eG1sIHZlcnNp"
+            "b249IjEuMCIgZW5jb2Rpbmc9IlVURi04Ij8+Cjxwcm9qZWN0IG5hbWU9InByb3BlcnR5"
+            "LWdhdGVkLWZhaWx1cmUiIGRlZmF1bHQ9InByb3BlcnR5LWdhdGUiIGJhc2VkaXI9Ii4i"
+            "PgogICAgPHRhcmdldCBuYW1lPSJhbHdheXMtZmFpbHMiPgogICAgICAgIDxmYWlsIG1l"
+            "c3NhZ2U9IlVuY29uZGl0aW9uYWwgZmFpbHVyZSB0YXJnZXQgaW52b2tlZCIgc3RhdHVz"
+            "PSIyOSIvPgogICAgPC90YXJnZXQ+CgogICAgPHRhcmdldCBuYW1lPSJpbmRlcGVuZGVu"
+            "dCI+CiAgICAgICAgPGVjaG8gbWVzc2FnZT0iSW5kZXBlbmRlbnQgdGFyZ2V0IGV4ZWN1"
+            "dGVkIi8+CiAgICA8L3RhcmdldD4KCiAgICA8dGFyZ2V0IG5hbWU9InByb3BlcnR5LWdh"
+            "dGUiPgogICAgICAgIDxmYWlsIGlmPSJvYmxpZ2F0aW9uLnJlcXVpcmVkLnByb3BlcnR5"
+            "IgogICAgICAgICAgICAgIG1lc3NhZ2U9IlJlcXVpcmVkIHByb3BlcnR5IHdhcyBkZWxp"
+            "YmVyYXRlbHkgc3VwcGxpZWQiCiAgICAgICAgICAgICAgc3RhdHVzPSIyMyIvPgogICAg"
+            "ICAgIDx0b3VjaCBmaWxlPSJnYXRlLWNvbXBsZXRlZC5tYXJrZXIiLz4KICAgIDwvdGFy"
+            "Z2V0Pgo8L3Byb2plY3Q+CiIiIgogICAgICAgICAgICB3aXRoIG9wZW4oYnVpbGRmaWxl"
+            "LCAidyIsIGVuY29kaW5nPSJ1dGYtOCIpIGFzIHN0cmVhbToKICAgICAgICAgICAgICAg"
+            "IHN0cmVhbS53cml0ZShidWlsZF94bWwpCgogICAgICAgICAgICBlbnYgPSBvcy5lbnZp"
+            "cm9uLmNvcHkoKQogICAgICAgICAgICBlbnZbIkhPTUUiXSA9IGhvbWVfZGlyCiAgICAg"
+            "ICAgICAgIGVudi5wb3AoIkFOVF9BUkdTIiwgTm9uZSkKCiAgICAgICAgICAgIGZhaWxl"
+            "ZF9ydW4gPSBydW5fYW50KGFudCwgYnVpbGRmaWxlLCBlbnYsIHdpdGhfcHJvcGVydHk9"
+            "VHJ1ZSkKICAgICAgICAgICAgZmFpbGVkX2NvbWJpbmVkID0gKGZhaWxlZF9ydW4uc3Rk"
+            "b3V0IG9yICIiKSArICJcbiIgKyAoZmFpbGVkX3J1bi5zdGRlcnIgb3IgIiIpCgogICAg"
+            "ICAgICAgICBlcnJvcnMgPSBbXQogICAgICAgICAgICBpZiBmYWlsZWRfcnVuLnJldHVy"
+            "bmNvZGUgIT0gc2VsZWN0ZWRfc3RhdHVzOgogICAgICAgICAgICAgICAgZXJyb3JzLmFw"
+            "cGVuZCgKICAgICAgICAgICAgICAgICAgICAicHJvcGVydHktcHJlc2VudCBydW4gcmV0"
+            "dXJuZWQgc3RhdHVzIHswfSwgZXhwZWN0ZWQgezF9Ii5mb3JtYXQoCiAgICAgICAgICAg"
+            "ICAgICAgICAgICAgIGZhaWxlZF9ydW4ucmV0dXJuY29kZSwgc2VsZWN0ZWRfc3RhdHVz"
+            "CiAgICAgICAgICAgICAgICAgICAgKQogICAgICAgICAgICAgICAgKQogICAgICAgICAg"
+            "ICBpZiBjb25maWd1cmVkX2RpYWdub3N0aWMgbm90IGluIGZhaWxlZF9jb21iaW5lZDoK"
+            "ICAgICAgICAgICAgICAgIGVycm9ycy5hcHBlbmQoInByb3BlcnR5LXByZXNlbnQgcnVu"
+            "IGRpZCBub3QgZW1pdCB0aGUgY29uZmlndXJlZCBkaWFnbm9zdGljIikKICAgICAgICAg"
+            "ICAgaWYgb3MucGF0aC5leGlzdHMobWFya2VyKToKICAgICAgICAgICAgICAgIGVycm9y"
+            "cy5hcHBlbmQoInByb3BlcnR5LXByZXNlbnQgcnVuIGNvbnRpbnVlZCBwYXN0IHRoZSBn"
+            "YXRlZCBmYWlsIHRhc2siKQoKICAgICAgICAgICAgc3VjY2Vzc2Z1bF9ydW4gPSBydW5f"
+            "YW50KGFudCwgYnVpbGRmaWxlLCBlbnYsIHdpdGhfcHJvcGVydHk9RmFsc2UpCiAgICAg"
+            "ICAgICAgIHN1Y2Nlc3NmdWxfY29tYmluZWQgPSAoc3VjY2Vzc2Z1bF9ydW4uc3Rkb3V0"
+            "IG9yICIiKSArICJcbiIgKyAoc3VjY2Vzc2Z1bF9ydW4uc3RkZXJyIG9yICIiKQoKICAg"
+            "ICAgICAgICAgaWYgc3VjY2Vzc2Z1bF9ydW4ucmV0dXJuY29kZSAhPSAwOgogICAgICAg"
+            "ICAgICAgICAgZXJyb3JzLmFwcGVuZCgKICAgICAgICAgICAgICAgICAgICAicHJvcGVy"
+            "dHktYWJzZW50IHJ1biByZXR1cm5lZCBzdGF0dXMgezB9LCBleHBlY3RlZCAwIi5mb3Jt"
+            "YXQoCiAgICAgICAgICAgICAgICAgICAgICAgIHN1Y2Nlc3NmdWxfcnVuLnJldHVybmNv"
+            "ZGUKICAgICAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICAgICApCiAgICAgICAg"
+            "ICAgIGlmIGNvbmZpZ3VyZWRfZGlhZ25vc3RpYyBpbiBzdWNjZXNzZnVsX2NvbWJpbmVk"
+            "OgogICAgICAgICAgICAgICAgZXJyb3JzLmFwcGVuZCgicHJvcGVydHktYWJzZW50IHJ1"
+            "biBlbWl0dGVkIHRoZSBnYXRlZCBmYWlsdXJlIGRpYWdub3N0aWMiKQogICAgICAgICAg"
+            "ICBpZiBub3Qgb3MucGF0aC5pc2ZpbGUobWFya2VyKToKICAgICAgICAgICAgICAgIGVy"
+            "cm9ycy5hcHBlbmQoCiAgICAgICAgICAgICAgICAgICAgInByb3BlcnR5LWFic2VudCBy"
+            "dW4gZGlkIG5vdCBjb21wbGV0ZSB0aGUgZGVmYXVsdCB0YXJnZXQgb3IgY3JlYXRlIGl0"
+            "cyBidWlsZGZpbGUtcmVsYXRpdmUgbWFya2VyIgogICAgICAgICAgICAgICAgKQoKICAg"
+            "ICAgICAgICAgaWYgZXJyb3JzOgogICAgICAgICAgICAgICAgZGlhZ25vc3RpY3MuZXh0"
+            "ZW5kKGVycm9ycykKICAgICAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgicHJv"
+            "cGVydHktcHJlc2VudCBzdGRvdXQ6XG4iICsgKGZhaWxlZF9ydW4uc3Rkb3V0IG9yICI8"
+            "ZW1wdHk+IikpCiAgICAgICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoInByb3Bl"
+            "cnR5LXByZXNlbnQgc3RkZXJyOlxuIiArIChmYWlsZWRfcnVuLnN0ZGVyciBvciAiPGVt"
+            "cHR5PiIpKQogICAgICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJwcm9wZXJ0"
+            "eS1hYnNlbnQgc3Rkb3V0OlxuIiArIChzdWNjZXNzZnVsX3J1bi5zdGRvdXQgb3IgIjxl"
+            "bXB0eT4iKSkKICAgICAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgicHJvcGVy"
+            "dHktYWJzZW50IHN0ZGVycjpcbiIgKyAoc3VjY2Vzc2Z1bF9ydW4uc3RkZXJyIG9yICI8"
+            "ZW1wdHk+IikpCiAgICAgICAgICAgIGVsc2U6CiAgICAgICAgICAgICAgICB2ZXJkaWN0"
+            "ID0gIlBBU1MiCiAgICAgICAgICAgICAgICBleGl0X2NvZGUgPSAwCgogICAgZXhjZXB0"
+            "IEV4Y2VwdGlvbiBhcyBleGM6CiAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJVbmV4"
+            "cGVjdGVkIHRlc3QgZXhjZXB0aW9uOiB7MH06IHsxfSIuZm9ybWF0KHR5cGUoZXhjKS5f"
+            "X25hbWVfXywgZXhjKSkKICAgICAgICB2ZXJkaWN0ID0gIkZBSUwiCiAgICAgICAgZXhp"
+            "dF9jb2RlID0gMQogICAgZmluYWxseToKICAgICAgICBpZiB3b3Jrc3BhY2UgaXMgbm90"
+            "IE5vbmU6CiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIHNodXRpbC5ybXRy"
+            "ZWUod29ya3NwYWNlKQogICAgICAgICAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4YzoK"
+            "ICAgICAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiQ2xlYW51cCBmYWlsZWQ6"
+            "IHswfTogezF9Ii5mb3JtYXQodHlwZShleGMpLl9fbmFtZV9fLCBleGMpKQogICAgICAg"
+            "ICAgICAgICAgdmVyZGljdCA9ICJGQUlMIgogICAgICAgICAgICAgICAgZXhpdF9jb2Rl"
+            "ID0gMQoKICAgIGZvciBkaWFnbm9zdGljIGluIGRpYWdub3N0aWNzOgogICAgICAgIHBy"
+            "aW50KGRpYWdub3N0aWMpCiAgICBpZiB2ZXJkaWN0ID09ICJQQVNTIjoKICAgICAgICBw"
+            "cmludCgiUEFTUzogQW50IGhvbm9yZWQgcHJvcGVydHktcHJlc2VuY2UgZ2F0aW5nLCB0"
+            "aGUgY29uZmlndXJlZCBkaWFnbm9zdGljLCBhbmQgc2VsZWN0ZWQgZmFpbHVyZSBzdGF0"
+            "dXMiKQogICAgZWxpZiB2ZXJkaWN0ID09ICJTS0lQIjoKICAgICAgICBwcmludCgiU0tJ"
+            "UDogQW50IGFuZCBKYXZhIGFyZSByZXF1aXJlZCBwcmVyZXF1aXNpdGVzIikKICAgIGVs"
+            "c2U6CiAgICAgICAgcHJpbnQoIkZBSUw6IEFudCBwcm9wZXJ0eS1nYXRlZCBkZWxpYmVy"
+            "YXRlIGZhaWx1cmUgYmVoYXZpb3Igd2FzIG5vdCBwcmVzZXJ2ZWQiKQogICAgc3lzLmV4"
+            "aXQoZXhpdF9jb2RlKQoKCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAgICBtYWlu"
+            "KCkK"
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
-        default_marker = "DEFAULT_JAVA_ANT_RAN"
-        env_stdout = "ENV_JAVA_STDOUT"
-        env_stderr = "ENV_JAVA_STDERR"
-        conf_stdout = "CONF_JAVA_STDOUT"
-        conf_stderr = "CONF_JAVA_STDERR"
-        env_rc = 37
-        conf_rc = 41
-        script = rf"""
-tmp=$(mktemp -d /tmp/ant-java-runtime.XXXXXX)
-trap 'rm -rf "$tmp"' EXIT
-mkdir -p "$tmp/default-home"
-mkdir -p "$tmp/env-home" "$tmp/env-java/bin"
-mkdir -p "$tmp/conf-home/.ant" "$tmp/conf-java/bin"
-cat <<'XML' > "$tmp/build.xml"
-<project default="verify">
-  <target name="verify">
-    <echo message="{default_marker}"/>
-  </target>
-</project>
-XML
-cat <<'SH' > "$tmp/env-java/bin/java"
-#!/bin/sh
-printf '%s\n' '{env_stdout}'
-printf '%s\n' '{env_stderr}' >&2
-exit {env_rc}
-SH
-cat <<'SH' > "$tmp/conf-java/bin/java"
-#!/bin/sh
-printf '%s\n' '{conf_stdout}'
-printf '%s\n' '{conf_stderr}' >&2
-exit {conf_rc}
-SH
-chmod +x "$tmp/env-java/bin/java"
-chmod +x "$tmp/conf-java/bin/java"
-printf '%s\n' 'JAVA_HOME="$HOME/../conf-java"' \
-    'export JAVA_HOME' > "$tmp/conf-home/.ant/ant.conf"
-helpers=ready
-[ -s "$tmp/build.xml" ] || helpers=not-ready
-[ -s "$tmp/env-java/bin/java" ] || helpers=not-ready
-[ -x "$tmp/env-java/bin/java" ] || helpers=not-ready
-[ -s "$tmp/conf-java/bin/java" ] || helpers=not-ready
-[ -x "$tmp/conf-java/bin/java" ] || helpers=not-ready
-[ -s "$tmp/conf-home/.ant/ant.conf" ] || helpers=not-ready
-printf '%s\n' SETUP_BEGIN
-if [ "$helpers" = ready ]; then
-    printf '%s\n' 'HELPERS=ready'
-else
-    printf '%s\n' 'FIXTURE_NOT_READY=helpers'
-fi
-printf '%s\n' SETUP_END
-printf '%s\n' DEFAULT_BEGIN
-(
-    unset JAVA_HOME JAVACMD
-    HOME="$tmp/default-home"
-    export HOME
-    ant -f "$tmp/build.xml" verify
-)
-default_rc=$?
-printf 'RC=%s\n' "$default_rc"
-printf '%s\n' DEFAULT_END
-printf '%s\n' ENV_BEGIN
-(
-    unset JAVACMD
-    HOME="$tmp/env-home"
-    JAVA_HOME="$tmp/env-java"
-    export HOME JAVA_HOME
-    ant -f "$tmp/build.xml" verify
-)
-env_status=$?
-printf 'RC=%s\n' "$env_status"
-printf '%s\n' ENV_END
-printf '%s\n' CONF_BEGIN
-(
-    unset JAVA_HOME JAVACMD
-    HOME="$tmp/conf-home"
-    export HOME
-    ant -f "$tmp/build.xml" verify
-)
-conf_status=$?
-printf 'RC=%s\n' "$conf_status"
-printf '%s\n' CONF_END
-exit 0
-"""
-        result = node.execute(script, shell=True)
-        assert_that(result.exit_code).described_as(
-            f"runtime probe script exit code was {result.exit_code}"
-        ).is_equal_to(0)
-        text = combined_output(result)
-        setup_text = section(text, "SETUP_BEGIN", "SETUP_END")
-        if "HELPERS=ready" not in setup_text:
-            raise SkippedException(
-                f"Java launcher fixtures were not ready: {setup_text}"
-            )
-        default_text = section(text, "DEFAULT_BEGIN", "DEFAULT_END")
-        env_text = section(text, "ENV_BEGIN", "ENV_END")
-        conf_text = section(text, "CONF_BEGIN", "CONF_END")
-        assert_that(default_text).described_as(
-            f"default Java Ant evidence: {default_text}"
-        ).contains(default_marker)
-        assert_that(default_text).described_as(
-            f"default Java Ant exit evidence: {default_text}"
-        ).contains("RC=0")
-        assert_that(default_text).described_as(
-            f"default Java unexpectedly used an override: {default_text}"
-        ).does_not_contain(env_stdout)
-        assert_that(default_text).described_as(
-            f"default Java unexpectedly used ant.conf: {default_text}"
-        ).does_not_contain(conf_stdout)
-        assert_that(env_text).described_as(
-            f"JAVA_HOME stdout evidence: {env_text}"
-        ).contains(env_stdout)
-        assert_that(env_text).described_as(
-            f"JAVA_HOME stderr evidence: {env_text}"
-        ).contains(env_stderr)
-        assert_that(env_text).described_as(
-            f"JAVA_HOME exit evidence: {env_text}"
-        ).contains(f"RC={env_rc}")
-        assert_that(conf_text).described_as(
-            f"ant.conf stdout evidence: {conf_text}"
-        ).contains(conf_stdout)
-        assert_that(conf_text).described_as(
-            f"ant.conf stderr evidence: {conf_text}"
-        ).contains(conf_stderr)
-        assert_that(conf_text).described_as(
-            f"ant.conf exit evidence: {conf_text}"
-        ).contains(f"RC={conf_rc}")
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
+
+        Corpus obligation: pkg:ant/failure-handling/keep-going
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_ant_failure_handling_8268b386(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:aacc44b360b36e27b7c7cb9b471116d246d06f8"
+            "dee166b4a0ac4af31fc5bb80f."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgc2h1dGlsCmltcG9ydCBzdWJwcm9j"
+            "ZXNzCmltcG9ydCBzeXMKaW1wb3J0IHRlbXBmaWxlCmZyb20gcGF0aGxpYiBpbXBvcnQg"
+            "UGF0aAoKCmRlZiBydW5fYW50KGFudCwgYnVpbGRmaWxlLCBjd2QsIGtlZXBfZ29pbmcp"
+            "OgogICAgY29tbWFuZCA9IFthbnRdCiAgICBpZiBrZWVwX2dvaW5nOgogICAgICAgIGNv"
+            "bW1hbmQuYXBwZW5kKCIta2VlcC1nb2luZyIpCiAgICBjb21tYW5kLmV4dGVuZChbIi1m"
+            "Iiwgc3RyKGJ1aWxkZmlsZSldKQogICAgcmV0dXJuIHN1YnByb2Nlc3MucnVuKAogICAg"
+            "ICAgIGNvbW1hbmQsCiAgICAgICAgY3dkPXN0cihjd2QpLAogICAgICAgIHRleHQ9VHJ1"
+            "ZSwKICAgICAgICBzdGRvdXQ9c3VicHJvY2Vzcy5QSVBFLAogICAgICAgIHN0ZGVycj1z"
+            "dWJwcm9jZXNzLlBJUEUsCiAgICAgICAgdGltZW91dD02MCwKICAgICAgICBjaGVjaz1G"
+            "YWxzZSwKICAgICkKCgpkZWYgcmVzdWx0X2RldGFpbHMobGFiZWwsIHJlc3VsdCk6CiAg"
+            "ICByZXR1cm4gKAogICAgICAgIGYie2xhYmVsfSBjb21tYW5kIGV4aXQgY29kZToge3Jl"
+            "c3VsdC5yZXR1cm5jb2RlfVxuIgogICAgICAgIGYie2xhYmVsfSBzdGRvdXQ6XG57cmVz"
+            "dWx0LnN0ZG91dCBvciAnJ31cbiIKICAgICAgICBmIntsYWJlbH0gc3RkZXJyOlxue3Jl"
+            "c3VsdC5zdGRlcnIgb3IgJyd9IgogICAgKQoKCnRlbXBfcm9vdCA9IE5vbmUKc3RhdHVz"
+            "ID0gMQpkaWFnbm9zdGljcyA9IFtdCgp0cnk6CiAgICBhbnQgPSBzaHV0aWwud2hpY2go"
+            "ImFudCIpCiAgICBqYXZhID0gc2h1dGlsLndoaWNoKCJqYXZhIikKICAgIGlmIGFudCBp"
+            "cyBOb25lOgogICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcigicmVxdWlyZWQgQW50IGV4"
+            "ZWN1dGFibGUgd2FzIG5vdCBmb3VuZCIpCiAgICBpZiBqYXZhIGlzIE5vbmU6CiAgICAg"
+            "ICAgcmFpc2UgUnVudGltZUVycm9yKCJyZXF1aXJlZCBKYXZhIGV4ZWN1dGFibGUgd2Fz"
+            "IG5vdCBmb3VuZCIpCgogICAgdGVtcF9yb290ID0gUGF0aCh0ZW1wZmlsZS5ta2R0ZW1w"
+            "KHByZWZpeD0iYW50LWtlZXAtZ29pbmctIikpCiAgICBwcm9qZWN0X2RpciA9IHRlbXBf"
+            "cm9vdCAvICJwcm9qZWN0IgogICAgbGF1bmNoX2RpciA9IHRlbXBfcm9vdCAvICJsYXVu"
+            "Y2hlciIKICAgIHByb2plY3RfZGlyLm1rZGlyKCkKICAgIGxhdW5jaF9kaXIubWtkaXIo"
+            "KQoKICAgIGJ1aWxkZmlsZSA9IHByb2plY3RfZGlyIC8gImJ1aWxkLnhtbCIKICAgIGJ1"
+            "aWxkZmlsZS53cml0ZV90ZXh0KAogICAgICAgICIiIjw/eG1sIHZlcnNpb249IjEuMCIg"
+            "ZW5jb2Rpbmc9IlVURi04Ij8+Cjxwcm9qZWN0IG5hbWU9ImtlZXAtZ29pbmctYmVoYXZp"
+            "b3IiIGRlZmF1bHQ9InJlcXVlc3RlZC1idWlsZCI+CiAgPHByb3BlcnR5IG5hbWU9InRy"
+            "aWdnZXIuZmFpbHVyZSIgdmFsdWU9InRydWUiLz4KCiAgPHRhcmdldCBuYW1lPSJmYWls"
+            "aW5nLXRhcmdldCI+CiAgICA8bWtkaXIgZGlyPSJzdGF0ZSIvPgogICAgPHRvdWNoIGZp"
+            "bGU9InN0YXRlL2ZhaWxpbmctdGFyZ2V0LXJhbiIvPgogICAgPGZhaWwgbWVzc2FnZT0i"
+            "REVMSUJFUkFURV9UQVJHRVRfRkFJTFVSRSI+CiAgICAgIDxjb25kaXRpb24+CiAgICAg"
+            "ICAgPGVxdWFscyBhcmcxPSIke3RyaWdnZXIuZmFpbHVyZX0iIGFyZzI9InRydWUiLz4K"
+            "ICAgICAgPC9jb25kaXRpb24+CiAgICA8L2ZhaWw+CiAgPC90YXJnZXQ+CgogIDx0YXJn"
+            "ZXQgbmFtZT0iaW5kZXBlbmRlbnQtdGFyZ2V0Ij4KICAgIDxta2RpciBkaXI9InN0YXRl"
+            "Ii8+CiAgICA8dG91Y2ggZmlsZT0ic3RhdGUvaW5kZXBlbmRlbnQtdGFyZ2V0LXJhbiIv"
+            "PgogIDwvdGFyZ2V0PgoKICA8dGFyZ2V0IG5hbWU9ImJsb2NrZWQtdGFyZ2V0IiBkZXBl"
+            "bmRzPSJmYWlsaW5nLXRhcmdldCI+CiAgICA8bWtkaXIgZGlyPSJzdGF0ZSIvPgogICAg"
+            "PHRvdWNoIGZpbGU9InN0YXRlL2Jsb2NrZWQtdGFyZ2V0LXJhbiIvPgogIDwvdGFyZ2V0"
+            "PgoKICA8dGFyZ2V0IG5hbWU9InJlcXVlc3RlZC1idWlsZCIKICAgICAgICAgIGRlcGVu"
+            "ZHM9ImZhaWxpbmctdGFyZ2V0LGluZGVwZW5kZW50LXRhcmdldCxibG9ja2VkLXRhcmdl"
+            "dCIvPgo8L3Byb2plY3Q+CiIiIiwKICAgICAgICBlbmNvZGluZz0idXRmLTgiLAogICAg"
+            "KQoKICAgIHN0YXRlX2RpciA9IHByb2plY3RfZGlyIC8gInN0YXRlIgogICAgZmFpbGlu"
+            "Z19tYXJrZXIgPSBzdGF0ZV9kaXIgLyAiZmFpbGluZy10YXJnZXQtcmFuIgogICAgaW5k"
+            "ZXBlbmRlbnRfbWFya2VyID0gc3RhdGVfZGlyIC8gImluZGVwZW5kZW50LXRhcmdldC1y"
+            "YW4iCiAgICBibG9ja2VkX21hcmtlciA9IHN0YXRlX2RpciAvICJibG9ja2VkLXRhcmdl"
+            "dC1yYW4iCgogICAgbm9ybWFsID0gcnVuX2FudChhbnQsIGJ1aWxkZmlsZSwgbGF1bmNo"
+            "X2Rpciwga2VlcF9nb2luZz1GYWxzZSkKICAgIG5vcm1hbF9jb21iaW5lZCA9IChub3Jt"
+            "YWwuc3Rkb3V0IG9yICIiKSArICJcbiIgKyAobm9ybWFsLnN0ZGVyciBvciAiIikKCiAg"
+            "ICBub3JtYWxfZXJyb3JzID0gW10KICAgIGlmIG5vcm1hbC5yZXR1cm5jb2RlID09IDA6"
+            "CiAgICAgICAgbm9ybWFsX2Vycm9ycy5hcHBlbmQoInRoZSBkZWxpYmVyYXRlbHkgZmFp"
+            "bGluZyBub3JtYWwgYnVpbGQgcmV0dXJuZWQgc3VjY2VzcyIpCiAgICBpZiAiREVMSUJF"
+            "UkFURV9UQVJHRVRfRkFJTFVSRSIgbm90IGluIG5vcm1hbF9jb21iaW5lZDoKICAgICAg"
+            "ICBub3JtYWxfZXJyb3JzLmFwcGVuZCgidGhlIG5vcm1hbCBidWlsZCBkaWQgbm90IHJl"
+            "cG9ydCB0aGUgY29uZmlndXJlZCBmYWlsdXJlIGRpYWdub3N0aWMiKQogICAgaWYgbm90"
+            "IGZhaWxpbmdfbWFya2VyLmlzX2ZpbGUoKToKICAgICAgICBub3JtYWxfZXJyb3JzLmFw"
+            "cGVuZCgidGhlIGZhaWxpbmcgdGFyZ2V0IGRpZCBub3QgZXhlY3V0ZSBpbiB0aGUgbm9y"
+            "bWFsIGJ1aWxkIikKICAgIGlmIGluZGVwZW5kZW50X21hcmtlci5leGlzdHMoKToKICAg"
+            "ICAgICBub3JtYWxfZXJyb3JzLmFwcGVuZCgidGhlIGluZGVwZW5kZW50IHRhcmdldCBj"
+            "b250aW51ZWQgYWZ0ZXIgZmFpbHVyZSB3aXRob3V0IGtlZXAtZ29pbmciKQogICAgaWYg"
+            "YmxvY2tlZF9tYXJrZXIuZXhpc3RzKCk6CiAgICAgICAgbm9ybWFsX2Vycm9ycy5hcHBl"
+            "bmQoInRoZSBkZXBlbmRlbmN5LWJsb2NrZWQgdGFyZ2V0IGV4ZWN1dGVkIGluIHRoZSBu"
+            "b3JtYWwgYnVpbGQiKQogICAgaWYgbm9ybWFsX2Vycm9yczoKICAgICAgICBkaWFnbm9z"
+            "dGljcy5leHRlbmQobm9ybWFsX2Vycm9ycykKICAgICAgICBkaWFnbm9zdGljcy5hcHBl"
+            "bmQocmVzdWx0X2RldGFpbHMoIm5vcm1hbCIsIG5vcm1hbCkpCiAgICAgICAgcmFpc2Ug"
+            "UnVudGltZUVycm9yKCJub3JtYWwtbW9kZSBiZWhhdmlvciB3YXMgaW5jb3JyZWN0IikK"
+            "CiAgICBzaHV0aWwucm10cmVlKHN0YXRlX2RpcikKCiAgICBrZWVwX2dvaW5nID0gcnVu"
+            "X2FudChhbnQsIGJ1aWxkZmlsZSwgbGF1bmNoX2Rpciwga2VlcF9nb2luZz1UcnVlKQog"
+            "ICAga2VlcF9jb21iaW5lZCA9IChrZWVwX2dvaW5nLnN0ZG91dCBvciAiIikgKyAiXG4i"
+            "ICsgKGtlZXBfZ29pbmcuc3RkZXJyIG9yICIiKQoKICAgIGtlZXBfZXJyb3JzID0gW10K"
+            "ICAgIGlmIGtlZXBfZ29pbmcucmV0dXJuY29kZSA9PSAwOgogICAgICAgIGtlZXBfZXJy"
+            "b3JzLmFwcGVuZCgidGhlIGtlZXAtZ29pbmcgYnVpbGQgY29uY2VhbGVkIHRoZSB0YXJn"
+            "ZXQgZmFpbHVyZSIpCiAgICBpZiAiREVMSUJFUkFURV9UQVJHRVRfRkFJTFVSRSIgbm90"
+            "IGluIGtlZXBfY29tYmluZWQ6CiAgICAgICAga2VlcF9lcnJvcnMuYXBwZW5kKCJ0aGUg"
+            "a2VlcC1nb2luZyBidWlsZCBkaWQgbm90IHJlcG9ydCB0aGUgY29uZmlndXJlZCBmYWls"
+            "dXJlIGRpYWdub3N0aWMiKQogICAgaWYgbm90IGZhaWxpbmdfbWFya2VyLmlzX2ZpbGUo"
+            "KToKICAgICAgICBrZWVwX2Vycm9ycy5hcHBlbmQoInRoZSBmYWlsaW5nIHRhcmdldCBk"
+            "aWQgbm90IGV4ZWN1dGUgaW4gdGhlIGtlZXAtZ29pbmcgYnVpbGQiKQogICAgaWYgbm90"
+            "IGluZGVwZW5kZW50X21hcmtlci5pc19maWxlKCk6CiAgICAgICAga2VlcF9lcnJvcnMu"
+            "YXBwZW5kKCJ0aGUgaW5kZXBlbmRlbnQgdGFyZ2V0IGRpZCBub3QgZXhlY3V0ZSB3aXRo"
+            "IGtlZXAtZ29pbmcgZW5hYmxlZCIpCiAgICBpZiBibG9ja2VkX21hcmtlci5leGlzdHMo"
+            "KToKICAgICAgICBrZWVwX2Vycm9ycy5hcHBlbmQoInRoZSB0YXJnZXQgZGVwZW5kaW5n"
+            "IG9uIHRoZSBmYWlsdXJlIGV4ZWN1dGVkIHdpdGgga2VlcC1nb2luZyBlbmFibGVkIikK"
+            "ICAgIGlmIGtlZXBfZXJyb3JzOgogICAgICAgIGRpYWdub3N0aWNzLmV4dGVuZChrZWVw"
+            "X2Vycm9ycykKICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQocmVzdWx0X2RldGFpbHMo"
+            "ImtlZXAtZ29pbmciLCBrZWVwX2dvaW5nKSkKICAgICAgICByYWlzZSBSdW50aW1lRXJy"
+            "b3IoImtlZXAtZ29pbmcgYmVoYXZpb3Igd2FzIGluY29ycmVjdCIpCgogICAgc3RhdHVz"
+            "ID0gMApleGNlcHQgc3VicHJvY2Vzcy5UaW1lb3V0RXhwaXJlZCBhcyBleGM6CiAgICBk"
+            "aWFnbm9zdGljcy5hcHBlbmQoZiJBbnQgY29tbWFuZCB0aW1lZCBvdXQ6IHtleGN9IikK"
+            "ICAgIGlmIGV4Yy5zdGRvdXQ6CiAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKGYidGlt"
+            "ZWQtb3V0IGNvbW1hbmQgc3Rkb3V0Olxue2V4Yy5zdGRvdXR9IikKICAgIGlmIGV4Yy5z"
+            "dGRlcnI6CiAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKGYidGltZWQtb3V0IGNvbW1h"
+            "bmQgc3RkZXJyOlxue2V4Yy5zdGRlcnJ9IikKZXhjZXB0IEV4Y2VwdGlvbiBhcyBleGM6"
+            "CiAgICBkaWFnbm9zdGljcy5hcHBlbmQoZiJ0ZXN0IGVycm9yOiB7ZXhjfSIpCmZpbmFs"
+            "bHk6CiAgICBpZiB0ZW1wX3Jvb3QgaXMgbm90IE5vbmU6CiAgICAgICAgdHJ5OgogICAg"
+            "ICAgICAgICBzaHV0aWwucm10cmVlKHRlbXBfcm9vdCkKICAgICAgICBleGNlcHQgRXhj"
+            "ZXB0aW9uIGFzIGV4YzoKICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKGYiY2xl"
+            "YW51cCBlcnJvcjoge2V4Y30iKQogICAgICAgICAgICBzdGF0dXMgPSAxCgppZiBzdGF0"
+            "dXMgPT0gMDoKICAgIHByaW50KCJQQVNTOiBBbnQga2VlcC1nb2luZyByYW4gaW5kZXBl"
+            "bmRlbnQgd29yayBhbmQgc2tpcHBlZCB3b3JrIGJsb2NrZWQgYnkgdGhlIGZhaWxlZCBk"
+            "ZXBlbmRlbmN5IikKZWxzZToKICAgIGZvciBkaWFnbm9zdGljIGluIGRpYWdub3N0aWNz"
+            "OgogICAgICAgIHByaW50KGRpYWdub3N0aWMpCiAgICBwcmludCgiRkFJTDogQW50IGtl"
+            "ZXAtZ29pbmcgZmFpbHVyZS1oYW5kbGluZyBiZWhhdmlvciBkaWQgbm90IG1hdGNoIGV4"
+            "cGVjdGF0aW9ucyIpCgpzeXMuZXhpdChzdGF0dXMpCg=="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
+
+        Corpus obligation: pkg:ant/incremental-compilation
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_ant_incremental_compilation(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:b880c398127c6b1157a05b1f85e3984242452c8"
+            "7d80b493e0da4265cb84f5ea7."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgaGFzaGxpYgppbXBvcnQgb3MKaW1w"
+            "b3J0IHNodXRpbAppbXBvcnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1w"
+            "ZmlsZQppbXBvcnQgdGltZQoKCmNsYXNzIFRlc3RGYWlsdXJlKEV4Y2VwdGlvbik6CiAg"
+            "ICBwYXNzCgoKY2xhc3MgVGVzdFNraXAoRXhjZXB0aW9uKToKICAgIHBhc3MKCgpkZWYg"
+            "d3JpdGVfZmlsZShmaWxlbmFtZSwgY29udGVudCk6CiAgICBvcy5tYWtlZGlycyhvcy5w"
+            "YXRoLmRpcm5hbWUoZmlsZW5hbWUpLCBleGlzdF9vaz1UcnVlKQogICAgd2l0aCBvcGVu"
+            "KGZpbGVuYW1lLCAidyIsIGVuY29kaW5nPSJ1dGYtOCIpIGFzIHN0cmVhbToKICAgICAg"
+            "ICBzdHJlYW0ud3JpdGUoY29udGVudCkKCgpkZWYgZmluZ2VycHJpbnQoZmlsZW5hbWUp"
+            "OgogICAgc3RhdF9yZXN1bHQgPSBvcy5zdGF0KGZpbGVuYW1lKQogICAgZGlnZXN0ID0g"
+            "aGFzaGxpYi5zaGEyNTYoKQogICAgd2l0aCBvcGVuKGZpbGVuYW1lLCAicmIiKSBhcyBz"
+            "dHJlYW06CiAgICAgICAgZm9yIGJsb2NrIGluIGl0ZXIobGFtYmRhOiBzdHJlYW0ucmVh"
+            "ZCg2NTUzNiksIGIiIik6CiAgICAgICAgICAgIGRpZ2VzdC51cGRhdGUoYmxvY2spCiAg"
+            "ICByZXR1cm4gKHN0YXRfcmVzdWx0LnN0X210aW1lX25zLCBzdGF0X3Jlc3VsdC5zdF9z"
+            "aXplLCBkaWdlc3QuaGV4ZGlnZXN0KCkpCgoKZGVmIHJ1bl9jb21tYW5kKGFyZ3YsIGN3"
+            "ZCk6CiAgICB0cnk6CiAgICAgICAgcmVzdWx0ID0gc3VicHJvY2Vzcy5ydW4oCiAgICAg"
+            "ICAgICAgIGFyZ3YsCiAgICAgICAgICAgIGN3ZD1jd2QsCiAgICAgICAgICAgIHRleHQ9"
+            "VHJ1ZSwKICAgICAgICAgICAgc3Rkb3V0PXN1YnByb2Nlc3MuUElQRSwKICAgICAgICAg"
+            "ICAgc3RkZXJyPXN1YnByb2Nlc3MuUElQRSwKICAgICAgICAgICAgdGltZW91dD02MCwK"
+            "ICAgICAgICAgICAgY2hlY2s9RmFsc2UsCiAgICAgICAgKQogICAgZXhjZXB0IHN1YnBy"
+            "b2Nlc3MuVGltZW91dEV4cGlyZWQgYXMgZXhjOgogICAgICAgIHJhaXNlIFRlc3RGYWls"
+            "dXJlKCJDb21tYW5kIHRpbWVkIG91dDoge30iLmZvcm1hdCgiICIuam9pbihhcmd2KSkp"
+            "IGZyb20gZXhjCgogICAgaWYgcmVzdWx0LnJldHVybmNvZGUgIT0gMDoKICAgICAgICBj"
+            "b21iaW5lZCA9IChyZXN1bHQuc3Rkb3V0IG9yICIiKSArICJcbiIgKyAocmVzdWx0LnN0"
+            "ZGVyciBvciAiIikKICAgICAgICByYWlzZSBUZXN0RmFpbHVyZSgKICAgICAgICAgICAg"
+            "IkNvbW1hbmQgZmFpbGVkIHdpdGggZXhpdCBjb2RlIHt9OiB7fVxue30iLmZvcm1hdCgK"
+            "ICAgICAgICAgICAgICAgIHJlc3VsdC5yZXR1cm5jb2RlLCAiICIuam9pbihhcmd2KSwg"
+            "Y29tYmluZWQuc3RyaXAoKQogICAgICAgICAgICApCiAgICAgICAgKQogICAgcmV0dXJu"
+            "IHJlc3VsdAoKCmRlZiByZXF1aXJlKGNvbmRpdGlvbiwgbWVzc2FnZSk6CiAgICBpZiBu"
+            "b3QgY29uZGl0aW9uOgogICAgICAgIHJhaXNlIFRlc3RGYWlsdXJlKG1lc3NhZ2UpCgoK"
+            "ZGVmIGV4ZXJjaXNlKHRlbXBfcm9vdCk6CiAgICBhbnQgPSBzaHV0aWwud2hpY2goImFu"
+            "dCIpCiAgICBqYXZhYyA9IHNodXRpbC53aGljaCgiamF2YWMiKQogICAgamF2YSA9IHNo"
+            "dXRpbC53aGljaCgiamF2YSIpCiAgICBtaXNzaW5nID0gW25hbWUgZm9yIG5hbWUsIHZh"
+            "bHVlIGluICgoImFudCIsIGFudCksICgiamF2YWMiLCBqYXZhYyksICgiamF2YSIsIGph"
+            "dmEpKSBpZiB2YWx1ZSBpcyBOb25lXQogICAgaWYgbWlzc2luZzoKICAgICAgICByYWlz"
+            "ZSBUZXN0U2tpcCgiUmVxdWlyZWQgZ3Vlc3QgcHJlcmVxdWlzaXRlIGlzIHVuYXZhaWxh"
+            "YmxlOiAiICsgIiwgIi5qb2luKG1pc3NpbmcpKQoKICAgIHByb2plY3QgPSBvcy5wYXRo"
+            "LmpvaW4odGVtcF9yb290LCAicHJvamVjdCIpCiAgICBzb3VyY2Vfcm9vdCA9IG9zLnBh"
+            "dGguam9pbihwcm9qZWN0LCAic3JjIikKICAgIGNsYXNzX3Jvb3QgPSBvcy5wYXRoLmpv"
+            "aW4ocHJvamVjdCwgImNsYXNzZXMiKQogICAgb3MubWFrZWRpcnMoY2xhc3Nfcm9vdCkK"
+            "CiAgICBzb3VyY2VzID0gewogICAgICAgICJtaXNzaW5nIjogb3MucGF0aC5qb2luKHNv"
+            "dXJjZV9yb290LCAic2VsZWN0ZWQiLCAiTWlzc2luZy5qYXZhIiksCiAgICAgICAgIm5l"
+            "d2VyIjogb3MucGF0aC5qb2luKHNvdXJjZV9yb290LCAic2VsZWN0ZWQiLCAiTmV3ZXIu"
+            "amF2YSIpLAogICAgICAgICJjdXJyZW50Ijogb3MucGF0aC5qb2luKHNvdXJjZV9yb290"
+            "LCAic2VsZWN0ZWQiLCAiQ3VycmVudC5qYXZhIiksCiAgICAgICAgImV4Y2x1ZGVkIjog"
+            "b3MucGF0aC5qb2luKHNvdXJjZV9yb290LCAic2VsZWN0ZWQiLCAiZXhjbHVkZWQiLCAi"
+            "RXhjbHVkZWQuamF2YSIpLAogICAgICAgICJvdXRzaWRlIjogb3MucGF0aC5qb2luKHNv"
+            "dXJjZV9yb290LCAib3V0c2lkZSIsICJPdXRzaWRlLmphdmEiKSwKICAgIH0KCiAgICB3"
+            "cml0ZV9maWxlKAogICAgICAgIHNvdXJjZXNbIm1pc3NpbmciXSwKICAgICAgICAicGFj"
+            "a2FnZSBzZWxlY3RlZDsgcHVibGljIGNsYXNzIE1pc3NpbmcgeyBwdWJsaWMgaW50IHZh"
+            "bHVlKCkgeyByZXR1cm4gMTsgfSB9XG4iLAogICAgKQogICAgd3JpdGVfZmlsZSgKICAg"
+            "ICAgICBzb3VyY2VzWyJuZXdlciJdLAogICAgICAgICJwYWNrYWdlIHNlbGVjdGVkOyBw"
+            "dWJsaWMgY2xhc3MgTmV3ZXIgeyBwdWJsaWMgaW50IHZhbHVlKCkgeyByZXR1cm4gMjsg"
+            "fSB9XG4iLAogICAgKQogICAgd3JpdGVfZmlsZSgKICAgICAgICBzb3VyY2VzWyJjdXJy"
+            "ZW50Il0sCiAgICAgICAgInBhY2thZ2Ugc2VsZWN0ZWQ7IHB1YmxpYyBjbGFzcyBDdXJy"
+            "ZW50IHsgcHVibGljIGludCB2YWx1ZSgpIHsgcmV0dXJuIDM7IH0gfVxuIiwKICAgICkK"
+            "ICAgIHdyaXRlX2ZpbGUoCiAgICAgICAgc291cmNlc1siZXhjbHVkZWQiXSwKICAgICAg"
+            "ICAicGFja2FnZSBzZWxlY3RlZC5leGNsdWRlZDsgcHVibGljIGNsYXNzIEV4Y2x1ZGVk"
+            "IHsgcHVibGljIGludCB2YWx1ZSgpIHsgcmV0dXJuIDQ7IH0gfVxuIiwKICAgICkKICAg"
+            "IHdyaXRlX2ZpbGUoCiAgICAgICAgc291cmNlc1sib3V0c2lkZSJdLAogICAgICAgICJw"
+            "YWNrYWdlIG91dHNpZGU7IHB1YmxpYyBjbGFzcyBPdXRzaWRlIHsgcHVibGljIGludCB2"
+            "YWx1ZSgpIHsgcmV0dXJuIDU7IH0gfVxuIiwKICAgICkKCiAgICBidWlsZF9maWxlID0g"
+            "b3MucGF0aC5qb2luKHByb2plY3QsICJjdXN0b20tYnVpbGQueG1sIikKICAgIHdyaXRl"
+            "X2ZpbGUoCiAgICAgICAgYnVpbGRfZmlsZSwKICAgICAgICAiIiI8P3htbCB2ZXJzaW9u"
+            "PSIxLjAiIGVuY29kaW5nPSJVVEYtOCI/Pgo8cHJvamVjdCBuYW1lPSJpbmNyZW1lbnRh"
+            "bC1jb21waWxhdGlvbiIgZGVmYXVsdD0iY29tcGlsZSIgYmFzZWRpcj0iLiI+CiAgICA8"
+            "cHJvcGVydHkgbmFtZT0ic3JjLmRpciIgbG9jYXRpb249InNyYyIvPgogICAgPHByb3Bl"
+            "cnR5IG5hbWU9ImRlc3QuZGlyIiBsb2NhdGlvbj0iY2xhc3NlcyIvPgogICAgPHRhcmdl"
+            "dCBuYW1lPSJjb21waWxlIj4KICAgICAgICA8bWtkaXIgZGlyPSIke2Rlc3QuZGlyfSIv"
+            "PgogICAgICAgIDxqYXZhYyBzcmNkaXI9IiR7c3JjLmRpcn0iCiAgICAgICAgICAgICAg"
+            "IGRlc3RkaXI9IiR7ZGVzdC5kaXJ9IgogICAgICAgICAgICAgICBpbmNsdWRlYW50cnVu"
+            "dGltZT0iZmFsc2UiCiAgICAgICAgICAgICAgIGluY2x1ZGVzPSJzZWxlY3RlZC8qKi8q"
+            "LmphdmEiCiAgICAgICAgICAgICAgIGV4Y2x1ZGVzPSJzZWxlY3RlZC9leGNsdWRlZC8q"
+            "KiIvPgogICAgPC90YXJnZXQ+CiAgICA8dGFyZ2V0IG5hbWU9ImNsZWFuIj4KICAgICAg"
+            "ICA8ZGVsZXRlIGRpcj0iJHtkZXN0LmRpcn0iLz4KICAgIDwvdGFyZ2V0Pgo8L3Byb2pl"
+            "Y3Q+CiIiIiwKICAgICkKCiAgICAjIEVzdGFibGlzaCB0d28gY29ycmVzcG9uZGluZyBj"
+            "bGFzcyBmaWxlcyB3aXRob3V0IHVzaW5nIHRoZSBBbnQgYWN0aW9uIHVuZGVyIHRlc3Qu"
+            "CiAgICBydW5fY29tbWFuZCgKICAgICAgICBbamF2YWMsICItZCIsIGNsYXNzX3Jvb3Qs"
+            "IHNvdXJjZXNbImN1cnJlbnQiXSwgc291cmNlc1sibmV3ZXIiXV0sCiAgICAgICAgY3dk"
+            "PXByb2plY3QsCiAgICApCgogICAgY2xhc3NlcyA9IHsKICAgICAgICAibWlzc2luZyI6"
+            "IG9zLnBhdGguam9pbihjbGFzc19yb290LCAic2VsZWN0ZWQiLCAiTWlzc2luZy5jbGFz"
+            "cyIpLAogICAgICAgICJuZXdlciI6IG9zLnBhdGguam9pbihjbGFzc19yb290LCAic2Vs"
+            "ZWN0ZWQiLCAiTmV3ZXIuY2xhc3MiKSwKICAgICAgICAiY3VycmVudCI6IG9zLnBhdGgu"
+            "am9pbihjbGFzc19yb290LCAic2VsZWN0ZWQiLCAiQ3VycmVudC5jbGFzcyIpLAogICAg"
+            "ICAgICJleGNsdWRlZCI6IG9zLnBhdGguam9pbihjbGFzc19yb290LCAic2VsZWN0ZWQi"
+            "LCAiZXhjbHVkZWQiLCAiRXhjbHVkZWQuY2xhc3MiKSwKICAgICAgICAib3V0c2lkZSI6"
+            "IG9zLnBhdGguam9pbihjbGFzc19yb290LCAib3V0c2lkZSIsICJPdXRzaWRlLmNsYXNz"
+            "IiksCiAgICB9CgogICAgcmVxdWlyZShvcy5wYXRoLmlzZmlsZShjbGFzc2VzWyJuZXdl"
+            "ciJdKSwgIlNldHVwIGRpZCBub3QgY3JlYXRlIE5ld2VyLmNsYXNzIikKICAgIHJlcXVp"
+            "cmUob3MucGF0aC5pc2ZpbGUoY2xhc3Nlc1siY3VycmVudCJdKSwgIlNldHVwIGRpZCBu"
+            "b3QgY3JlYXRlIEN1cnJlbnQuY2xhc3MiKQoKICAgICMgVXNlIHdpZGUgdGltZXN0YW1w"
+            "IGdhcHMgc28gdGhlIHN0YWxlL2N1cnJlbnQgcmVsYXRpb25zaGlwcyBzdXJ2aXZlIGZp"
+            "bGVzeXN0ZW0KICAgICMgdGltZXN0YW1wIGdyYW51bGFyaXR5LiBOZXdlci5qYXZhIGlz"
+            "IG5ld2VyIHRoYW4gaXRzIGNsYXNzLCB3aGlsZSBDdXJyZW50LmNsYXNzCiAgICAjIGlz"
+            "IG5ld2VyIHRoYW4gQ3VycmVudC5qYXZhLiBNaXNzaW5nLmphdmEgaGFzIG5vIGNvcnJl"
+            "c3BvbmRpbmcgY2xhc3MuCiAgICBiYXNlID0gaW50KHRpbWUudGltZSgpKSAtIDEyMAog"
+            "ICAgZm9yIGtleSBpbiAoIm1pc3NpbmciLCAiZXhjbHVkZWQiLCAib3V0c2lkZSIpOgog"
+            "ICAgICAgIG9zLnV0aW1lKHNvdXJjZXNba2V5XSwgKGJhc2UgKyA1MCwgYmFzZSArIDUw"
+            "KSkKICAgIG9zLnV0aW1lKHNvdXJjZXNbIm5ld2VyIl0sIChiYXNlICsgNTAsIGJhc2Ug"
+            "KyA1MCkpCiAgICBvcy51dGltZShjbGFzc2VzWyJuZXdlciJdLCAoYmFzZSArIDEwLCBi"
+            "YXNlICsgMTApKQogICAgb3MudXRpbWUoc291cmNlc1siY3VycmVudCJdLCAoYmFzZSAr"
+            "IDEwLCBiYXNlICsgMTApKQogICAgb3MudXRpbWUoY2xhc3Nlc1siY3VycmVudCJdLCAo"
+            "YmFzZSArIDUwLCBiYXNlICsgNTApKQoKICAgIHJlcXVpcmUobm90IG9zLnBhdGguZXhp"
+            "c3RzKGNsYXNzZXNbIm1pc3NpbmciXSksICJNaXNzaW5nLmNsYXNzIHVuZXhwZWN0ZWRs"
+            "eSBleGlzdHMgYmVmb3JlIHRoZSB0ZXN0IGFjdGlvbiIpCiAgICByZXF1aXJlKG5vdCBv"
+            "cy5wYXRoLmV4aXN0cyhjbGFzc2VzWyJleGNsdWRlZCJdKSwgIkV4Y2x1ZGVkLmNsYXNz"
+            "IHVuZXhwZWN0ZWRseSBleGlzdHMgYmVmb3JlIHRoZSB0ZXN0IGFjdGlvbiIpCiAgICBy"
+            "ZXF1aXJlKG5vdCBvcy5wYXRoLmV4aXN0cyhjbGFzc2VzWyJvdXRzaWRlIl0pLCAiT3V0"
+            "c2lkZS5jbGFzcyB1bmV4cGVjdGVkbHkgZXhpc3RzIGJlZm9yZSB0aGUgdGVzdCBhY3Rp"
+            "b24iKQoKICAgIGN1cnJlbnRfYmVmb3JlID0gZmluZ2VycHJpbnQoY2xhc3Nlc1siY3Vy"
+            "cmVudCJdKQogICAgbmV3ZXJfYmVmb3JlID0gZmluZ2VycHJpbnQoY2xhc3Nlc1sibmV3"
+            "ZXIiXSkKCiAgICAjIEludm9rZSB0aGUgY3VzdG9tIGJ1aWxkZmlsZSBmcm9tIG91dHNp"
+            "ZGUgaXRzIGRpcmVjdG9yeSBhbmQgb21pdCBhIHRhcmdldCwKICAgICMgZXhlcmNpc2lu"
+            "ZyB0aGUgcHJvamVjdCdzIGRlZmF1bHQgY29tcGlsZSB0YXJnZXQgYW5kIGJ1aWxkZmls"
+            "ZS1yZWxhdGl2ZSBwYXRocy4KICAgIHJ1bl9jb21tYW5kKFthbnQsICItZiIsIG9zLnBh"
+            "dGguam9pbigicHJvamVjdCIsICJjdXN0b20tYnVpbGQueG1sIildLCBjd2Q9dGVtcF9y"
+            "b290KQoKICAgIHJlcXVpcmUob3MucGF0aC5pc2ZpbGUoY2xhc3Nlc1sibWlzc2luZyJd"
+            "KSwgIkFudCBkaWQgbm90IGNvbXBpbGUgdGhlIGluY2x1ZGVkIHNvdXJjZSB3aG9zZSBj"
+            "bGFzcyB3YXMgbWlzc2luZyIpCiAgICByZXF1aXJlKG9zLnBhdGguaXNmaWxlKGNsYXNz"
+            "ZXNbIm5ld2VyIl0pLCAiTmV3ZXIuY2xhc3MgaXMgYWJzZW50IGFmdGVyIGluY3JlbWVu"
+            "dGFsIGNvbXBpbGF0aW9uIikKICAgIHJlcXVpcmUoCiAgICAgICAgZmluZ2VycHJpbnQo"
+            "Y2xhc3Nlc1sibmV3ZXIiXSkgIT0gbmV3ZXJfYmVmb3JlLAogICAgICAgICJBbnQgZGlk"
+            "IG5vdCByZWdlbmVyYXRlIHRoZSBjbGFzcyB3aG9zZSBpbmNsdWRlZCBzb3VyY2Ugd2Fz"
+            "IG5ld2VyIiwKICAgICkKICAgIHJlcXVpcmUoCiAgICAgICAgZmluZ2VycHJpbnQoY2xh"
+            "c3Nlc1siY3VycmVudCJdKSA9PSBjdXJyZW50X2JlZm9yZSwKICAgICAgICAiQW50IHJl"
+            "Y29tcGlsZWQgYW4gaW5jbHVkZWQgc291cmNlIHdob3NlIGNvcnJlc3BvbmRpbmcgY2xh"
+            "c3Mgd2FzIGN1cnJlbnQiLAogICAgKQogICAgcmVxdWlyZSgKICAgICAgICBub3Qgb3Mu"
+            "cGF0aC5leGlzdHMoY2xhc3Nlc1siZXhjbHVkZWQiXSksCiAgICAgICAgIkFudCBjb21w"
+            "aWxlZCBhIHNvdXJjZSBib3VuZGVkIG91dCBieSB0aGUgZXhjbHVkZSBwYXR0ZXJuIiwK"
+            "ICAgICkKICAgIHJlcXVpcmUoCiAgICAgICAgbm90IG9zLnBhdGguZXhpc3RzKGNsYXNz"
+            "ZXNbIm91dHNpZGUiXSksCiAgICAgICAgIkFudCBjb21waWxlZCBhIHNvdXJjZSBib3Vu"
+            "ZGVkIG91dCBieSB0aGUgaW5jbHVkZSBwYXR0ZXJuIiwKICAgICkKCiAgICBzZWxlY3Rl"
+            "ZF9iZWZvcmVfc2Vjb25kID0gewogICAgICAgIGtleTogZmluZ2VycHJpbnQoY2xhc3Nl"
+            "c1trZXldKSBmb3Iga2V5IGluICgibWlzc2luZyIsICJuZXdlciIsICJjdXJyZW50IikK"
+            "ICAgIH0KCiAgICAjIFNlbGVjdCB0aGUgY29tcGlsZSB0YXJnZXQgZXhwbGljaXRseSB3"
+            "aGVuIGFsbCBjb3JyZXNwb25kaW5nIHNlbGVjdGVkIGNsYXNzZXMKICAgICMgYXJlIG5v"
+            "dyBjdXJyZW50LgogICAgcnVuX2NvbW1hbmQoCiAgICAgICAgW2FudCwgIi1mIiwgb3Mu"
+            "cGF0aC5qb2luKCJwcm9qZWN0IiwgImN1c3RvbS1idWlsZC54bWwiKSwgImNvbXBpbGUi"
+            "XSwKICAgICAgICBjd2Q9dGVtcF9yb290LAogICAgKQoKICAgIGZvciBrZXkgaW4gKCJt"
+            "aXNzaW5nIiwgIm5ld2VyIiwgImN1cnJlbnQiKToKICAgICAgICByZXF1aXJlKAogICAg"
+            "ICAgICAgICBmaW5nZXJwcmludChjbGFzc2VzW2tleV0pID09IHNlbGVjdGVkX2JlZm9y"
+            "ZV9zZWNvbmRba2V5XSwKICAgICAgICAgICAgIkFudCByZWNvbXBpbGVkIGN1cnJlbnQg"
+            "c291cmNlIG9uIHRoZSBzZWNvbmQgcnVuOiB7fS5qYXZhIi5mb3JtYXQoa2V5LmNhcGl0"
+            "YWxpemUoKSksCiAgICAgICAgKQogICAgcmVxdWlyZSgKICAgICAgICBub3Qgb3MucGF0"
+            "aC5leGlzdHMoY2xhc3Nlc1siZXhjbHVkZWQiXSksCiAgICAgICAgIlRoZSBzZWNvbmQg"
+            "cnVuIGNvbXBpbGVkIGEgc291cmNlIGJvdW5kZWQgb3V0IGJ5IHRoZSBleGNsdWRlIHBh"
+            "dHRlcm4iLAogICAgKQogICAgcmVxdWlyZSgKICAgICAgICBub3Qgb3MucGF0aC5leGlz"
+            "dHMoY2xhc3Nlc1sib3V0c2lkZSJdKSwKICAgICAgICAiVGhlIHNlY29uZCBydW4gY29t"
+            "cGlsZWQgYSBzb3VyY2UgYm91bmRlZCBvdXQgYnkgdGhlIGluY2x1ZGUgcGF0dGVybiIs"
+            "CiAgICApCgoKZGVmIG1haW4oKToKICAgIHRlbXBfcm9vdCA9IE5vbmUKICAgIGNvZGUg"
+            "PSAxCiAgICBkZXRhaWwgPSAiIgogICAgdHJ5OgogICAgICAgIHRlbXBfcm9vdCA9IHRl"
+            "bXBmaWxlLm1rZHRlbXAocHJlZml4PSJhbnQtaW5jcmVtZW50YWwtIikKICAgICAgICBl"
+            "eGVyY2lzZSh0ZW1wX3Jvb3QpCiAgICAgICAgY29kZSA9IDAKICAgIGV4Y2VwdCBUZXN0"
+            "U2tpcCBhcyBleGM6CiAgICAgICAgY29kZSA9IDc3CiAgICAgICAgZGV0YWlsID0gc3Ry"
+            "KGV4YykKICAgIGV4Y2VwdCBUZXN0RmFpbHVyZSBhcyBleGM6CiAgICAgICAgY29kZSA9"
+            "IDEKICAgICAgICBkZXRhaWwgPSBzdHIoZXhjKQogICAgZXhjZXB0IEV4Y2VwdGlvbiBh"
+            "cyBleGM6CiAgICAgICAgY29kZSA9IDEKICAgICAgICBkZXRhaWwgPSAiVW5leHBlY3Rl"
+            "ZCB0ZXN0IGVycm9yOiB7IXJ9Ii5mb3JtYXQoZXhjKQogICAgZmluYWxseToKICAgICAg"
+            "ICBpZiB0ZW1wX3Jvb3QgaXMgbm90IE5vbmU6CiAgICAgICAgICAgIHNodXRpbC5ybXRy"
+            "ZWUodGVtcF9yb290LCBpZ25vcmVfZXJyb3JzPVRydWUpCgogICAgaWYgZGV0YWlsOgog"
+            "ICAgICAgIHByaW50KCJEaWFnbm9zdGljOiAiICsgZGV0YWlsKQogICAgaWYgY29kZSA9"
+            "PSAwOgogICAgICAgIHByaW50KCJQQVNTOiBBbnQgamF2YWMgaG9ub3JlZCB0aW1lc3Rh"
+            "bXBzIGFuZCBpbmNsdWRlL2V4Y2x1ZGUgc291cmNlIHNlbGVjdGlvbiIpCiAgICBlbGlm"
+            "IGNvZGUgPT0gNzc6CiAgICAgICAgcHJpbnQoIlNLSVA6IEFudCBpbmNyZW1lbnRhbCBj"
+            "b21waWxhdGlvbiBwcmVyZXF1aXNpdGVzIGFyZSB1bmF2YWlsYWJsZSIpCiAgICBlbHNl"
+            "OgogICAgICAgIHByaW50KCJGQUlMOiBBbnQgaW5jcmVtZW50YWwgY29tcGlsYXRpb24g"
+            "YmVoYXZpb3IgZGlkIG5vdCBtYXRjaCB0aGUgb2JsaWdhdGlvbiIpCiAgICBzeXMuZXhp"
+            "dChjb2RlKQoKCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAgICBtYWluKCkK"
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
+
+        Corpus obligation: pkg:ant/platform-command
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_ant_platform_command(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:ab96d5d1e68c9d0682b85751a9352f3b08a2ca2"
+            "3920ea2c14a6b7e27d6cbc350."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgb3MKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQpmcm9tIHBhdGhs"
+            "aWIgaW1wb3J0IFBhdGgKCgpjbGFzcyBUZXN0RmFpbHVyZShFeGNlcHRpb24pOgogICAg"
+            "cGFzcwoKCmRlZiBfZGVjb2RlKGRhdGEpOgogICAgcmV0dXJuIChkYXRhIG9yIGIiIiku"
+            "ZGVjb2RlKCJ1dGYtOCIsIGVycm9ycz0icmVwbGFjZSIpCgoKZGVmIF9ydW5fYW50KHdv"
+            "cmtkaXIsIHNlbGVjdF90YXJnZXQpOgogICAgY29tbWFuZCA9IFsiYW50IiwgIi1mIiwg"
+            "ImJ1aWxkLnhtbCJdCiAgICBpZiBzZWxlY3RfdGFyZ2V0OgogICAgICAgIGNvbW1hbmQu"
+            "YXBwZW5kKCJydW4iKQogICAgdHJ5OgogICAgICAgIHJlc3VsdCA9IHN1YnByb2Nlc3Mu"
+            "cnVuKAogICAgICAgICAgICBjb21tYW5kLAogICAgICAgICAgICBjd2Q9c3RyKHdvcmtk"
+            "aXIpLAogICAgICAgICAgICBpbnB1dD1iImFtYmllbnQtYW50LWludGVyYWN0aXZlLWlu"
+            "cHV0IiwKICAgICAgICAgICAgc3Rkb3V0PXN1YnByb2Nlc3MuUElQRSwKICAgICAgICAg"
+            "ICAgc3RkZXJyPXN1YnByb2Nlc3MuUElQRSwKICAgICAgICAgICAgdGltZW91dD02MCwK"
+            "ICAgICAgICAgICAgY2hlY2s9RmFsc2UsCiAgICAgICAgKQogICAgZXhjZXB0IHN1YnBy"
+            "b2Nlc3MuVGltZW91dEV4cGlyZWQgYXMgZXhjOgogICAgICAgIHJhaXNlIFRlc3RGYWls"
+            "dXJlKAogICAgICAgICAgICAiQW50IHRpbWVkIG91dC5cbnN0ZG91dDpcbnt9XG5zdGRl"
+            "cnI6XG57fSIuZm9ybWF0KAogICAgICAgICAgICAgICAgX2RlY29kZShleGMuc3Rkb3V0"
+            "KSwgX2RlY29kZShleGMuc3RkZXJyKQogICAgICAgICAgICApCiAgICAgICAgKQoKICAg"
+            "IGlmIHJlc3VsdC5yZXR1cm5jb2RlICE9IDA6CiAgICAgICAgcmFpc2UgVGVzdEZhaWx1"
+            "cmUoCiAgICAgICAgICAgICJBbnQgZXhpdGVkIHdpdGggc3RhdHVzIHt9Llxuc3Rkb3V0"
+            "Olxue31cbnN0ZGVycjpcbnt9Ii5mb3JtYXQoCiAgICAgICAgICAgICAgICByZXN1bHQu"
+            "cmV0dXJuY29kZSwgX2RlY29kZShyZXN1bHQuc3Rkb3V0KSwgX2RlY29kZShyZXN1bHQu"
+            "c3RkZXJyKQogICAgICAgICAgICApCiAgICAgICAgKQogICAgcmV0dXJuIHJlc3VsdAoK"
+            "CmRlZiBfd3JpdGVfYnVpbGRmaWxlKHdvcmtkaXIsIG9zX3Jlc3RyaWN0aW9uKToKICAg"
+            "IHhtbCA9ICIiIjw/eG1sIHZlcnNpb249IjEuMCIgZW5jb2Rpbmc9IlVURi04Ij8+Cjxw"
+            "cm9qZWN0IG5hbWU9InBsYXRmb3JtLWNvbW1hbmQtdGVzdCIgZGVmYXVsdD0icnVuIiBi"
+            "YXNlZGlyPSIuIj4KICA8dGFyZ2V0IG5hbWU9InJ1biI+CiAgICA8ZXhlYyBleGVjdXRh"
+            "YmxlPSJweXRob24zIiBvcz0ie29zX25hbWV9IiBkaXI9IiR7e2Jhc2VkaXJ9fSIgZmFp"
+            "bG9uZXJyb3I9InRydWUiCiAgICAgICAgICBpbnB1dHN0cmluZz0ic3VwcGxpZWQtdGhy"
+            "b3VnaC10YXNrIj4KICAgICAgPGFyZyB2YWx1ZT0icmVhZGVyLnB5Ii8+CiAgICAgIDxh"
+            "cmcgdmFsdWU9ImV4cGxpY2l0LnJlc3VsdCIvPgogICAgICA8YXJnIHZhbHVlPSJleHBs"
+            "aWNpdCIvPgogICAgPC9leGVjPgogICAgPGV4ZWMgZXhlY3V0YWJsZT0icHl0aG9uMyIg"
+            "b3M9Intvc19uYW1lfSIgZGlyPSIke3tiYXNlZGlyfX0iIGZhaWxvbmVycm9yPSJ0cnVl"
+            "Ij4KICAgICAgPGFyZyB2YWx1ZT0icmVhZGVyLnB5Ii8+CiAgICAgIDxhcmcgdmFsdWU9"
+            "Im5vaW5wdXQucmVzdWx0Ii8+CiAgICAgIDxhcmcgdmFsdWU9Im5vaW5wdXQiLz4KICAg"
+            "IDwvZXhlYz4KICA8L3RhcmdldD4KPC9wcm9qZWN0PgoiIiIuZm9ybWF0KG9zX25hbWU9"
+            "b3NfcmVzdHJpY3Rpb24pCiAgICAod29ya2RpciAvICJidWlsZC54bWwiKS53cml0ZV90"
+            "ZXh0KHhtbCwgZW5jb2Rpbmc9InV0Zi04IikKCgpkZWYgX3JlbW92ZV9jb21tYW5kX291"
+            "dHB1dHMod29ya2Rpcik6CiAgICBmb3IgbmFtZSBpbiAoImV4cGxpY2l0LnJlc3VsdCIs"
+            "ICJub2lucHV0LnJlc3VsdCIsICJpbnZvY2F0aW9ucy5sb2ciKToKICAgICAgICBwYXRo"
+            "ID0gd29ya2RpciAvIG5hbWUKICAgICAgICBpZiBwYXRoLmV4aXN0cygpOgogICAgICAg"
+            "ICAgICBwYXRoLnVubGluaygpCgoKZGVmIG1haW4oKToKICAgIHRlbXBfcGF0aCA9IE5v"
+            "bmUKICAgIGZhaWx1cmUgPSBOb25lCgogICAgdHJ5OgogICAgICAgIGlmIHNodXRpbC53"
+            "aGljaCgiYW50IikgaXMgTm9uZToKICAgICAgICAgICAgcmFpc2UgVGVzdEZhaWx1cmUo"
+            "IlJlcXVpcmVkIEFudCBleGVjdXRhYmxlIHdhcyBub3QgZm91bmQgaW4gUEFUSCIpCiAg"
+            "ICAgICAgaWYgc2h1dGlsLndoaWNoKCJqYXZhIikgaXMgTm9uZToKICAgICAgICAgICAg"
+            "cmFpc2UgVGVzdEZhaWx1cmUoIlJlcXVpcmVkIEphdmEgZXhlY3V0YWJsZSB3YXMgbm90"
+            "IGZvdW5kIGluIFBBVEgiKQogICAgICAgIGlmIHNodXRpbC53aGljaCgicHl0aG9uMyIp"
+            "IGlzIE5vbmU6CiAgICAgICAgICAgIHJhaXNlIFRlc3RGYWlsdXJlKCJSZXF1aXJlZCBw"
+            "eXRob24zIGV4ZWN1dGFibGUgd2FzIG5vdCBmb3VuZCBpbiBQQVRIIikKCiAgICAgICAg"
+            "dGVtcF9wYXRoID0gUGF0aCh0ZW1wZmlsZS5ta2R0ZW1wKHByZWZpeD0iYW50LXBsYXRm"
+            "b3JtLWNvbW1hbmQtIikpCgogICAgICAgIGhlbHBlciA9ICIiIiMhL3Vzci9iaW4vZW52"
+            "IHB5dGhvbjMKaW1wb3J0IHBhdGhsaWIKaW1wb3J0IHN5cwoKb3V0cHV0X25hbWUgPSBz"
+            "eXMuYXJndlsxXQptb2RlID0gc3lzLmFyZ3ZbMl0Kd2l0aCBwYXRobGliLlBhdGgoImlu"
+            "dm9jYXRpb25zLmxvZyIpLm9wZW4oImEiLCBlbmNvZGluZz0idXRmLTgiKSBhcyBsb2c6"
+            "CiAgICBsb2cud3JpdGUobW9kZSArICJcXG4iKQpkYXRhID0gc3lzLnN0ZGluLmJ1ZmZl"
+            "ci5yZWFkKCkKcGF0aGxpYi5QYXRoKG91dHB1dF9uYW1lKS53cml0ZV9ieXRlcyhkYXRh"
+            "KQoiIiIKICAgICAgICAodGVtcF9wYXRoIC8gInJlYWRlci5weSIpLndyaXRlX3RleHQo"
+            "aGVscGVyLCBlbmNvZGluZz0idXRmLTgiKQoKICAgICAgICAjIEphdmEgcmVwb3J0cyBv"
+            "cy5uYW1lIGFzIExpbnV4IG9uIHRoZSBBenVyZSBMaW51eCBndWVzdC4gQm90aCBleGVj"
+            "CiAgICAgICAgIyB0YXNrcyBhcmUgdGhlcmVmb3JlIHBlcm1pdHRlZCBkdXJpbmcgdGhp"
+            "cyBkZWZhdWx0LXRhcmdldCBydW4uCiAgICAgICAgX3dyaXRlX2J1aWxkZmlsZSh0ZW1w"
+            "X3BhdGgsICJMaW51eCIpCiAgICAgICAgX3J1bl9hbnQodGVtcF9wYXRoLCBzZWxlY3Rf"
+            "dGFyZ2V0PUZhbHNlKQoKICAgICAgICBleHBsaWNpdF9wYXRoID0gdGVtcF9wYXRoIC8g"
+            "ImV4cGxpY2l0LnJlc3VsdCIKICAgICAgICBub2lucHV0X3BhdGggPSB0ZW1wX3BhdGgg"
+            "LyAibm9pbnB1dC5yZXN1bHQiCiAgICAgICAgaW52b2NhdGlvbl9wYXRoID0gdGVtcF9w"
+            "YXRoIC8gImludm9jYXRpb25zLmxvZyIKCiAgICAgICAgaWYgbm90IGV4cGxpY2l0X3Bh"
+            "dGguaXNfZmlsZSgpOgogICAgICAgICAgICByYWlzZSBUZXN0RmFpbHVyZSgiVGhlIE9T"
+            "LW1hdGNoZWQgZXhlYyB0YXNrIHdpdGggZXhwbGljaXQgaW5wdXQgZGlkIG5vdCBydW4i"
+            "KQogICAgICAgIGlmIGV4cGxpY2l0X3BhdGgucmVhZF9ieXRlcygpICE9IGIic3VwcGxp"
+            "ZWQtdGhyb3VnaC10YXNrIjoKICAgICAgICAgICAgcmFpc2UgVGVzdEZhaWx1cmUoCiAg"
+            "ICAgICAgICAgICAgICAiVGhlIE9TLW1hdGNoZWQgY29tbWFuZCBkaWQgbm90IHJlY2Vp"
+            "dmUgZXhhY3RseSB0aGUgZXhlYyB0YXNrJ3MgaW5wdXRzdHJpbmciCiAgICAgICAgICAg"
+            "ICkKCiAgICAgICAgaWYgbm90IG5vaW5wdXRfcGF0aC5pc19maWxlKCk6CiAgICAgICAg"
+            "ICAgIHJhaXNlIFRlc3RGYWlsdXJlKCJUaGUgT1MtbWF0Y2hlZCBleGVjIHRhc2sgd2l0"
+            "aG91dCBleHBsaWNpdCBpbnB1dCBkaWQgbm90IHJ1biIpCiAgICAgICAgaWYgbm9pbnB1"
+            "dF9wYXRoLnJlYWRfYnl0ZXMoKSAhPSBiIiI6CiAgICAgICAgICAgIHJhaXNlIFRlc3RG"
+            "YWlsdXJlKAogICAgICAgICAgICAgICAgIlRoZSBleGVjIHRhc2sgZXhwb3NlZCBBbnQn"
+            "cyBpbnRlcmFjdGl2ZSBpbnB1dCBpbnN0ZWFkIG9mIEVPRiB0byB0aGUgY29tbWFuZCIK"
+            "ICAgICAgICAgICAgKQoKICAgICAgICBpZiBub3QgaW52b2NhdGlvbl9wYXRoLmlzX2Zp"
+            "bGUoKToKICAgICAgICAgICAgcmFpc2UgVGVzdEZhaWx1cmUoIlRoZSBtYXRjaGVkIHN5"
+            "c3RlbSBjb21tYW5kcyBkaWQgbm90IHJlY29yZCB0aGVpciBleGVjdXRpb24iKQogICAg"
+            "ICAgIGludm9jYXRpb25zID0gaW52b2NhdGlvbl9wYXRoLnJlYWRfdGV4dChlbmNvZGlu"
+            "Zz0idXRmLTgiKS5zcGxpdGxpbmVzKCkKICAgICAgICBpZiBpbnZvY2F0aW9ucyAhPSBb"
+            "ImV4cGxpY2l0IiwgIm5vaW5wdXQiXToKICAgICAgICAgICAgcmFpc2UgVGVzdEZhaWx1"
+            "cmUoCiAgICAgICAgICAgICAgICAiRXhwZWN0ZWQgZXhhY3RseSB0aGUgdHdvIG1hdGNo"
+            "ZWQgY29tbWFuZCBleGVjdXRpb25zLCBnb3QgeyFyfSIuZm9ybWF0KAogICAgICAgICAg"
+            "ICAgICAgICAgIGludm9jYXRpb25zCiAgICAgICAgICAgICAgICApCiAgICAgICAgICAg"
+            "ICkKCiAgICAgICAgIyBSZXVzZSB0aGUgc2FtZSBwcm9qZWN0IGFuZCB0YXJnZXQgd2l0"
+            "aCBhbiBPUyBuYW1lIHRoYXQgY2Fubm90IG1hdGNoCiAgICAgICAgIyB0aGlzIExpbnV4"
+            "IGd1ZXN0LCB0aGVuIHNlbGVjdCB0aGF0IHRhcmdldCBleHBsaWNpdGx5LgogICAgICAg"
+            "IF9yZW1vdmVfY29tbWFuZF9vdXRwdXRzKHRlbXBfcGF0aCkKICAgICAgICBfd3JpdGVf"
+            "YnVpbGRmaWxlKHRlbXBfcGF0aCwgImFudC10ZXN0LW5vbm1hdGNoaW5nLW9wZXJhdGlu"
+            "Zy1zeXN0ZW0iKQogICAgICAgIF9ydW5fYW50KHRlbXBfcGF0aCwgc2VsZWN0X3Rhcmdl"
+            "dD1UcnVlKQoKICAgICAgICB1bmV4cGVjdGVkID0gWwogICAgICAgICAgICBuYW1lCiAg"
+            "ICAgICAgICAgIGZvciBuYW1lIGluICgiZXhwbGljaXQucmVzdWx0IiwgIm5vaW5wdXQu"
+            "cmVzdWx0IiwgImludm9jYXRpb25zLmxvZyIpCiAgICAgICAgICAgIGlmICh0ZW1wX3Bh"
+            "dGggLyBuYW1lKS5leGlzdHMoKQogICAgICAgIF0KICAgICAgICBpZiB1bmV4cGVjdGVk"
+            "OgogICAgICAgICAgICByYWlzZSBUZXN0RmFpbHVyZSgKICAgICAgICAgICAgICAgICJP"
+            "Uy1yZXN0cmljdGVkIGNvbW1hbmRzIHJhbiBvbiBhIG5vbm1hdGNoaW5nIE9TOyBjcmVh"
+            "dGVkOiB7fSIuZm9ybWF0KAogICAgICAgICAgICAgICAgICAgICIsICIuam9pbih1bmV4"
+            "cGVjdGVkKQogICAgICAgICAgICAgICAgKQogICAgICAgICAgICApCgogICAgZXhjZXB0"
+            "IEV4Y2VwdGlvbiBhcyBleGM6CiAgICAgICAgZmFpbHVyZSA9IHN0cihleGMpIG9yIHJl"
+            "cHIoZXhjKQogICAgZmluYWxseToKICAgICAgICBpZiB0ZW1wX3BhdGggaXMgbm90IE5v"
+            "bmU6CiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIHNodXRpbC5ybXRyZWUo"
+            "dGVtcF9wYXRoKQogICAgICAgICAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4YzoKICAg"
+            "ICAgICAgICAgICAgIGNsZWFudXBfbWVzc2FnZSA9ICJUZW1wb3Jhcnktc3RhdGUgY2xl"
+            "YW51cCBmYWlsZWQ6IHt9Ii5mb3JtYXQoZXhjKQogICAgICAgICAgICAgICAgZmFpbHVy"
+            "ZSA9ICgKICAgICAgICAgICAgICAgICAgICBjbGVhbnVwX21lc3NhZ2UKICAgICAgICAg"
+            "ICAgICAgICAgICBpZiBmYWlsdXJlIGlzIE5vbmUKICAgICAgICAgICAgICAgICAgICBl"
+            "bHNlIGZhaWx1cmUgKyAiXG4iICsgY2xlYW51cF9tZXNzYWdlCiAgICAgICAgICAgICAg"
+            "ICApCgogICAgaWYgZmFpbHVyZSBpcyBub3QgTm9uZToKICAgICAgICBwcmludChmYWls"
+            "dXJlKQogICAgICAgIHByaW50KCJGQUlMOiBBbnQgcGxhdGZvcm0tcmVzdHJpY3RlZCBl"
+            "eGVjIGJlaGF2aW9yIHdhcyBub3QgcHJlc2VydmVkIikKICAgICAgICBzeXMuZXhpdCgx"
+            "KQoKICAgIHByaW50KCJQQVNTOiBBbnQgcmFuIGNvbW1hbmRzIG9ubHkgb24gdGhlIG1h"
+            "dGNoaW5nIE9TIGFuZCBzdXBwbGllZCBvbmx5IGV4cGxpY2l0IHRhc2sgaW5wdXQiKQog"
+            "ICAgc3lzLmV4aXQoMCkKCgppZiBfX25hbWVfXyA9PSAiX19tYWluX18iOgogICAgbWFp"
+            "bigpCg=="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
+
+        Corpus obligation: pkg:ant/portable-paths
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_ant_portable_paths(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:123a941eeabd7a50f44d277ae2e8f09e24a1586"
+            "b3a5d2c2257ebf740decea2c3."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgb3MKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQpmcm9tIHBhdGhs"
+            "aWIgaW1wb3J0IFBhdGgKCgpkZWYgcnVuX2FudChidWlsZGZpbGUsIGN3ZCk6CiAgICB0"
+            "cnk6CiAgICAgICAgcmVzdWx0ID0gc3VicHJvY2Vzcy5ydW4oCiAgICAgICAgICAgIFsi"
+            "YW50IiwgIi1mIiwgc3RyKGJ1aWxkZmlsZSldLAogICAgICAgICAgICBjd2Q9c3RyKGN3"
+            "ZCksCiAgICAgICAgICAgIHRleHQ9VHJ1ZSwKICAgICAgICAgICAgc3Rkb3V0PXN1YnBy"
+            "b2Nlc3MuUElQRSwKICAgICAgICAgICAgc3RkZXJyPXN1YnByb2Nlc3MuUElQRSwKICAg"
+            "ICAgICAgICAgdGltZW91dD02MCwKICAgICAgICAgICAgY2hlY2s9RmFsc2UsCiAgICAg"
+            "ICAgKQogICAgZXhjZXB0IHN1YnByb2Nlc3MuVGltZW91dEV4cGlyZWQgYXMgZXhjOgog"
+            "ICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKCJBbnQgdGltZWQgb3V0IHdoaWxlIHJ1"
+            "bm5pbmcgdGhlIGRlZmF1bHQgdGFyZ2V0IikgZnJvbSBleGMKCiAgICBpZiByZXN1bHQu"
+            "cmV0dXJuY29kZSAhPSAwOgogICAgICAgIGNvbWJpbmVkID0gKHJlc3VsdC5zdGRvdXQg"
+            "b3IgIiIpICsgIlxuIiArIChyZXN1bHQuc3RkZXJyIG9yICIiKQogICAgICAgIHJhaXNl"
+            "IEFzc2VydGlvbkVycm9yKAogICAgICAgICAgICAiQW50IGZhaWxlZCB3aXRoIGV4aXQg"
+            "Y29kZSB7fToge30iLmZvcm1hdChyZXN1bHQucmV0dXJuY29kZSwgY29tYmluZWQpCiAg"
+            "ICAgICAgKQoKCmRlZiByZWFkX29ic2VydmVkKHBhdGgpOgogICAgaWYgbm90IHBhdGgu"
+            "aXNfZmlsZSgpOgogICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKCJUaGUgZGVmYXVs"
+            "dCB0YXJnZXQgZGlkIG5vdCBjcmVhdGUgaXRzIHBhdGgtY29udmVyc2lvbiByZXN1bHQi"
+            "KQogICAgcmV0dXJuIHBhdGgucmVhZF90ZXh0KGVuY29kaW5nPSJ1dGYtOCIpLnJzdHJp"
+            "cCgiXHJcbiIpCgoKZGVmIG1haW4oKToKICAgIHJvb3QgPSBOb25lCiAgICBzdGF0dXMg"
+            "PSAxCiAgICBkZXRhaWwgPSAidGVzdCBkaWQgbm90IGNvbXBsZXRlIgoKICAgIHRyeToK"
+            "ICAgICAgICBpZiBzaHV0aWwud2hpY2goImFudCIpIGlzIE5vbmU6CiAgICAgICAgICAg"
+            "IHJhaXNlIEFzc2VydGlvbkVycm9yKCJyZXF1aXJlZCBBbnQgZXhlY3V0YWJsZSBpcyB1"
+            "bmF2YWlsYWJsZSIpCiAgICAgICAgaWYgc2h1dGlsLndoaWNoKCJqYXZhIikgaXMgTm9u"
+            "ZToKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoInJlcXVpcmVkIEphdmEg"
+            "ZXhlY3V0YWJsZSBpcyB1bmF2YWlsYWJsZSIpCgogICAgICAgIHJvb3QgPSBQYXRoKHRl"
+            "bXBmaWxlLm1rZHRlbXAocHJlZml4PSJhbnQtcG9ydGFibGUtcGF0aHMtIikpCiAgICAg"
+            "ICAgcHJvamVjdCA9IHJvb3QgLyAicHJvamVjdCIKICAgICAgICBydW5uZXIgPSByb290"
+            "IC8gInJ1bm5lciIKICAgICAgICBwcm9qZWN0Lm1rZGlyKCkKICAgICAgICBydW5uZXIu"
+            "bWtkaXIoKQoKICAgICAgICBmb3IgcmVsYXRpdmUgaW4gKAogICAgICAgICAgICAiaW5w"
+            "dXRzL2ZpcnN0IiwKICAgICAgICAgICAgImlucHV0cy9zZWNvbmQiLAogICAgICAgICAg"
+            "ICAiaW5wdXRzL3RoaXJkIiwKICAgICAgICAgICAgImlucHV0cy9uZXN0ZWQvZm91cnRo"
+            "IiwKICAgICAgICAgICAgInJlc291cmNlcy9kZWVwIiwKICAgICAgICApOgogICAgICAg"
+            "ICAgICAocHJvamVjdCAvIHJlbGF0aXZlKS5ta2RpcihwYXJlbnRzPVRydWUsIGV4aXN0"
+            "X29rPVRydWUpCiAgICAgICAgcmVzb3VyY2VfZmlsZSA9IHByb2plY3QgLyAicmVzb3Vy"
+            "Y2VzL2RlZXAvaXRlbS50eHQiCiAgICAgICAgcmVzb3VyY2VfZmlsZS53cml0ZV90ZXh0"
+            "KCJyZXNvdXJjZVxuIiwgZW5jb2Rpbmc9InV0Zi04IikKCiAgICAgICAgY29sb25fdmFs"
+            "dWUgPSAiaW5wdXRzL2ZpcnN0OmlucHV0cy9zZWNvbmQ6aW5wdXRzL3RoaXJkIgogICAg"
+            "ICAgIHNlbWljb2xvbl92YWx1ZSA9ICJpbnB1dHMvZmlyc3Q7aW5wdXRzL3NlY29uZDtp"
+            "bnB1dHMvdGhpcmQiCiAgICAgICAgYnVpbGRmaWxlID0gcHJvamVjdCAvICJidWlsZC54"
+            "bWwiCiAgICAgICAgb2JzZXJ2ZWRfZmlsZSA9IHByb2plY3QgLyAib2JzZXJ2ZWQudHh0"
+            "IgoKICAgICAgICBjb2xvbl9idWlsZCA9ICIiIjw/eG1sIHZlcnNpb249IjEuMCIgZW5j"
+            "b2Rpbmc9IlVURi04Ij8+Cjxwcm9qZWN0IG5hbWU9InBvcnRhYmxlLXBhdGhzIiBkZWZh"
+            "dWx0PSJ2ZXJpZnkiPgogIDxwYXRoIGlkPSJuZXN0ZWQucGF0aCI+CiAgICA8cGF0aGVs"
+            "ZW1lbnQgbG9jYXRpb249ImlucHV0cy9uZXN0ZWQvZm91cnRoIi8+CiAgPC9wYXRoPgog"
+            "IDxwYXRoIGlkPSJwb3J0YWJsZS5wYXRoIj4KICAgIDxwYXRoZWxlbWVudCBwYXRoPSJp"
+            "bnB1dHMvZmlyc3Q6aW5wdXRzL3NlY29uZDppbnB1dHMvdGhpcmQiLz4KICAgIDxwYXRo"
+            "IHJlZmlkPSJuZXN0ZWQucGF0aCIvPgogICAgPGZpbGVzZXQgZGlyPSJyZXNvdXJjZXMi"
+            "PgogICAgICA8aW5jbHVkZSBuYW1lPSJkZWVwL2l0ZW0udHh0Ii8+CiAgICA8L2ZpbGVz"
+            "ZXQ+CiAgPC9wYXRoPgogIDx0YXJnZXQgbmFtZT0ib3RoZXIiLz4KICA8dGFyZ2V0IG5h"
+            "bWU9InZlcmlmeSI+CiAgICA8cGF0aGNvbnZlcnQgcHJvcGVydHk9InBvcnRhYmxlLnJl"
+            "bmRlcmVkIiByZWZpZD0icG9ydGFibGUucGF0aCIvPgogICAgPGVjaG8gZmlsZT0iJHti"
+            "YXNlZGlyfS9vYnNlcnZlZC50eHQiIG1lc3NhZ2U9IiR7cG9ydGFibGUucmVuZGVyZWR9"
+            "Ii8+CiAgPC90YXJnZXQ+CjwvcHJvamVjdD4KIiIiCiAgICAgICAgaWYgY29sb25fYnVp"
+            "bGQuY291bnQoY29sb25fdmFsdWUpICE9IDE6CiAgICAgICAgICAgIHJhaXNlIEFzc2Vy"
+            "dGlvbkVycm9yKCJ0ZXN0IGJ1aWxkIGRvZXMgbm90IGNvbnRhaW4gZXhhY3RseSBvbmUg"
+            "Y29udHJvbGxlZCBwYXRoIHZhbHVlIikKCiAgICAgICAgZXhwZWN0ZWRfZW50cmllcyA9"
+            "IFsKICAgICAgICAgICAgcHJvamVjdCAvICJpbnB1dHMvZmlyc3QiLAogICAgICAgICAg"
+            "ICBwcm9qZWN0IC8gImlucHV0cy9zZWNvbmQiLAogICAgICAgICAgICBwcm9qZWN0IC8g"
+            "ImlucHV0cy90aGlyZCIsCiAgICAgICAgICAgIHByb2plY3QgLyAiaW5wdXRzL25lc3Rl"
+            "ZC9mb3VydGgiLAogICAgICAgICAgICByZXNvdXJjZV9maWxlLAogICAgICAgIF0KICAg"
+            "ICAgICBleHBlY3RlZCA9IG9zLnBhdGhzZXAuam9pbihzdHIoZW50cnkucmVzb2x2ZSgp"
+            "KSBmb3IgZW50cnkgaW4gZXhwZWN0ZWRfZW50cmllcykKCiAgICAgICAgYnVpbGRmaWxl"
+            "LndyaXRlX3RleHQoY29sb25fYnVpbGQsIGVuY29kaW5nPSJ1dGYtOCIpCiAgICAgICAg"
+            "cnVuX2FudChidWlsZGZpbGUsIHJ1bm5lcikKICAgICAgICBjb2xvbl9vYnNlcnZlZCA9"
+            "IHJlYWRfb2JzZXJ2ZWQob2JzZXJ2ZWRfZmlsZSkKICAgICAgICBpZiBjb2xvbl9vYnNl"
+            "cnZlZCAhPSBleHBlY3RlZDoKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3Io"
+            "CiAgICAgICAgICAgICAgICAiY29sb24tc2VwYXJhdGVkIHBhdGggcmVzb2x2ZWQgaW5j"
+            "b3JyZWN0bHk6IGV4cGVjdGVkIHshcn0sIGdvdCB7IXJ9Ii5mb3JtYXQoCiAgICAgICAg"
+            "ICAgICAgICAgICAgZXhwZWN0ZWQsIGNvbG9uX29ic2VydmVkCiAgICAgICAgICAgICAg"
+            "ICApCiAgICAgICAgICAgICkKCiAgICAgICAgc2VtaWNvbG9uX2J1aWxkID0gY29sb25f"
+            "YnVpbGQucmVwbGFjZShjb2xvbl92YWx1ZSwgc2VtaWNvbG9uX3ZhbHVlKQogICAgICAg"
+            "IGlmIHNlbWljb2xvbl9idWlsZCA9PSBjb2xvbl9idWlsZDoKICAgICAgICAgICAgcmFp"
+            "c2UgQXNzZXJ0aW9uRXJyb3IoInNlcGFyYXRvci1vbmx5IGJ1aWxkZmlsZSBjaGFuZ2Ug"
+            "d2FzIG5vdCBhcHBsaWVkIikKICAgICAgICBidWlsZGZpbGUud3JpdGVfdGV4dChzZW1p"
+            "Y29sb25fYnVpbGQsIGVuY29kaW5nPSJ1dGYtOCIpCiAgICAgICAgb2JzZXJ2ZWRfZmls"
+            "ZS51bmxpbmsoKQoKICAgICAgICBydW5fYW50KGJ1aWxkZmlsZSwgcnVubmVyKQogICAg"
+            "ICAgIHNlbWljb2xvbl9vYnNlcnZlZCA9IHJlYWRfb2JzZXJ2ZWQob2JzZXJ2ZWRfZmls"
+            "ZSkKICAgICAgICBpZiBzZW1pY29sb25fb2JzZXJ2ZWQgIT0gZXhwZWN0ZWQ6CiAgICAg"
+            "ICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKAogICAgICAgICAgICAgICAgInNlbWlj"
+            "b2xvbi1zZXBhcmF0ZWQgcGF0aCByZXNvbHZlZCBpbmNvcnJlY3RseTogZXhwZWN0ZWQg"
+            "eyFyfSwgZ290IHshcn0iLmZvcm1hdCgKICAgICAgICAgICAgICAgICAgICBleHBlY3Rl"
+            "ZCwgc2VtaWNvbG9uX29ic2VydmVkCiAgICAgICAgICAgICAgICApCiAgICAgICAgICAg"
+            "ICkKICAgICAgICBpZiBzZW1pY29sb25fb2JzZXJ2ZWQgIT0gY29sb25fb2JzZXJ2ZWQ6"
+            "CiAgICAgICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKCJjb2xvbiBhbmQgc2VtaWNv"
+            "bG9uIGZvcm1zIHByb2R1Y2VkIGRpZmZlcmVudCBwYXRoLWxpa2UgdmFsdWVzIikKCiAg"
+            "ICAgICAgc3RhdHVzID0gMAogICAgICAgIGRldGFpbCA9ICJBbnQgbm9ybWFsaXplZCBj"
+            "b2xvbiBhbmQgc2VtaWNvbG9uIHBhdGggZm9ybXMgdG8gdGhlIE9TIHBhdGggc2VwYXJh"
+            "dG9yIgogICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBleGM6CiAgICAgICAgc3RhdHVzID0g"
+            "MQogICAgICAgIGRldGFpbCA9ICIgIi5qb2luKHN0cihleGMpLnNwbGl0KCkpIG9yIGV4"
+            "Yy5fX2NsYXNzX18uX19uYW1lX18KICAgIGZpbmFsbHk6CiAgICAgICAgaWYgcm9vdCBp"
+            "cyBub3QgTm9uZToKICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgc2h1dGls"
+            "LnJtdHJlZShyb290KQogICAgICAgICAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4YzoK"
+            "ICAgICAgICAgICAgICAgIGNsZWFudXBfZGV0YWlsID0gIiAiLmpvaW4oc3RyKGV4Yyku"
+            "c3BsaXQoKSkgb3IgZXhjLl9fY2xhc3NfXy5fX25hbWVfXwogICAgICAgICAgICAgICAg"
+            "c3RhdHVzID0gMQogICAgICAgICAgICAgICAgZGV0YWlsID0gZGV0YWlsICsgIjsgY2xl"
+            "YW51cCBmYWlsZWQ6ICIgKyBjbGVhbnVwX2RldGFpbAoKICAgIGlmIHN0YXR1cyA9PSAw"
+            "OgogICAgICAgIHByaW50KCJQQVNTOiAiICsgZGV0YWlsKQogICAgZWxzZToKICAgICAg"
+            "ICBwcmludCgiRkFJTDogIiArIGRldGFpbCkKICAgIHN5cy5leGl0KHN0YXR1cykKCgpp"
+            "ZiBfX25hbWVfXyA9PSAiX19tYWluX18iOgogICAgbWFpbigpCg=="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
+
+        Corpus obligation: pkg:ant/property-customization
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_ant_property_customization(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:96db563db0fd87237903024fcb3d0d4c08c1f40"
+            "2b53b3d3414a143a684689736."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgb3MKaW1wb3J0IHNodXRpbAppbXBv"
+            "cnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQpmcm9tIHBhdGhs"
+            "aWIgaW1wb3J0IFBhdGgKCgpjbGFzcyBUZXN0RmFpbHVyZShFeGNlcHRpb24pOgogICAg"
+            "cGFzcwoKCmNsYXNzIFRlc3RTa2lwKEV4Y2VwdGlvbik6CiAgICBwYXNzCgoKZGVmIHJ1"
+            "bl9hbnQoY29tbWFuZCwgY3dkKToKICAgIGVudiA9IG9zLmVudmlyb24uY29weSgpCiAg"
+            "ICBlbnYucG9wKCJBTlRfQVJHUyIsIE5vbmUpCiAgICBlbnYucG9wKCJBTlRfT1BUUyIs"
+            "IE5vbmUpCiAgICByZXN1bHQgPSBzdWJwcm9jZXNzLnJ1bigKICAgICAgICBjb21tYW5k"
+            "LAogICAgICAgIGN3ZD1zdHIoY3dkKSwKICAgICAgICBlbnY9ZW52LAogICAgICAgIHRl"
+            "eHQ9VHJ1ZSwKICAgICAgICBzdGRvdXQ9c3VicHJvY2Vzcy5QSVBFLAogICAgICAgIHN0"
+            "ZGVycj1zdWJwcm9jZXNzLlBJUEUsCiAgICAgICAgdGltZW91dD0xMjAsCiAgICAgICAg"
+            "Y2hlY2s9RmFsc2UsCiAgICApCiAgICBpZiByZXN1bHQucmV0dXJuY29kZSAhPSAwOgog"
+            "ICAgICAgIGNvbWJpbmVkID0gKHJlc3VsdC5zdGRvdXQgb3IgIiIpICsgIlxuIiArIChy"
+            "ZXN1bHQuc3RkZXJyIG9yICIiKQogICAgICAgIHJhaXNlIFRlc3RGYWlsdXJlKAogICAg"
+            "ICAgICAgICAiQW50IGV4aXRlZCB3aXRoIHN0YXR1cyB7fS4gQ29tYmluZWQgb3V0cHV0"
+            "Olxue30iLmZvcm1hdCgKICAgICAgICAgICAgICAgIHJlc3VsdC5yZXR1cm5jb2RlLCBj"
+            "b21iaW5lZAogICAgICAgICAgICApCiAgICAgICAgKQoKCmRlZiB2ZXJpZnlfb3V0cHV0"
+            "cyhvdXRwdXRfZGlyLCBleHBlY3RlZF9mbGF2b3IpOgogICAgZXhwZWN0ZWQgPSB7CiAg"
+            "ICAgICAgImRlZmluZS50eHQiOiBleHBlY3RlZF9mbGF2b3IsCiAgICAgICAgImxhdGVy"
+            "LnR4dCI6IGV4cGVjdGVkX2ZsYXZvciwKICAgICAgICAiY2FzZS50eHQiOiAiY2FzZS1k"
+            "aXN0aW5jdC12YWx1ZXwiICsgZXhwZWN0ZWRfZmxhdm9yLAogICAgICAgICJmaW5hbC50"
+            "eHQiOiBleHBlY3RlZF9mbGF2b3IsCiAgICB9CiAgICBmb3IgbmFtZSwgZXhwZWN0ZWRf"
+            "dmFsdWUgaW4gZXhwZWN0ZWQuaXRlbXMoKToKICAgICAgICBwYXRoID0gb3V0cHV0X2Rp"
+            "ciAvIG5hbWUKICAgICAgICBpZiBub3QgcGF0aC5pc19maWxlKCk6CiAgICAgICAgICAg"
+            "IHJhaXNlIFRlc3RGYWlsdXJlKCJFeHBlY3RlZCBvdXRwdXQgZmlsZSB3YXMgbm90IGNy"
+            "ZWF0ZWQ6IHt9Ii5mb3JtYXQocGF0aCkpCiAgICAgICAgYWN0dWFsX3ZhbHVlID0gcGF0"
+            "aC5yZWFkX3RleHQoZW5jb2Rpbmc9InV0Zi04Iikuc3RyaXAoKQogICAgICAgIGlmIGFj"
+            "dHVhbF92YWx1ZSAhPSBleHBlY3RlZF92YWx1ZToKICAgICAgICAgICAgcmFpc2UgVGVz"
+            "dEZhaWx1cmUoCiAgICAgICAgICAgICAgICAiVW5leHBlY3RlZCBjb250ZW50IGluIHt9"
+            "OiBleHBlY3RlZCB7IXJ9LCBnb3QgeyFyfSIuZm9ybWF0KAogICAgICAgICAgICAgICAg"
+            "ICAgIHBhdGgsIGV4cGVjdGVkX3ZhbHVlLCBhY3R1YWxfdmFsdWUKICAgICAgICAgICAg"
+            "ICAgICkKICAgICAgICAgICAgKQoKCmRlZiBtYWluKCk6CiAgICB0ZW1wX3Jvb3QgPSBO"
+            "b25lCiAgICB0cnk6CiAgICAgICAgYW50ID0gc2h1dGlsLndoaWNoKCJhbnQiKQogICAg"
+            "ICAgIGphdmEgPSBzaHV0aWwud2hpY2goImphdmEiKQogICAgICAgIGlmIGFudCBpcyBO"
+            "b25lIG9yIGphdmEgaXMgTm9uZToKICAgICAgICAgICAgbWlzc2luZyA9IFtdCiAgICAg"
+            "ICAgICAgIGlmIGFudCBpcyBOb25lOgogICAgICAgICAgICAgICAgbWlzc2luZy5hcHBl"
+            "bmQoImFudCIpCiAgICAgICAgICAgIGlmIGphdmEgaXMgTm9uZToKICAgICAgICAgICAg"
+            "ICAgIG1pc3NpbmcuYXBwZW5kKCJqYXZhIikKICAgICAgICAgICAgcmFpc2UgVGVzdFNr"
+            "aXAoIlJlcXVpcmVkIGd1ZXN0IHByZXJlcXVpc2l0ZSBtaXNzaW5nOiAiICsgIiwgIi5q"
+            "b2luKG1pc3NpbmcpKQoKICAgICAgICB0ZW1wX3Jvb3QgPSBQYXRoKHRlbXBmaWxlLm1r"
+            "ZHRlbXAocHJlZml4PSJhbnQtcHJvcGVydHktdGVzdC0iKSkKICAgICAgICBwcm9qZWN0"
+            "X2RpciA9IHRlbXBfcm9vdCAvICJwcm9qZWN0IgogICAgICAgIHJ1bm5lcl9kaXIgPSB0"
+            "ZW1wX3Jvb3QgLyAicnVubmVyIgogICAgICAgIHByb2plY3RfZGlyLm1rZGlyKCkKICAg"
+            "ICAgICBydW5uZXJfZGlyLm1rZGlyKCkKCiAgICAgICAgYnVpbGRmaWxlID0gcHJvamVj"
+            "dF9kaXIgLyAiY3VzdG9tLWJ1aWxkLnhtbCIKICAgICAgICBidWlsZGZpbGUud3JpdGVf"
+            "dGV4dCgKICAgICAgICAgICAgIiIiPD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0i"
+            "VVRGLTgiPz4KPHByb2plY3QgbmFtZT0icHJvcGVydHktY3VzdG9taXphdGlvbiIgZGVm"
+            "YXVsdD0iYWxsIiBiYXNlZGlyPSIuIj4KICA8dGFyZ2V0IG5hbWU9ImRlZmluZSI+CiAg"
+            "ICA8bWtkaXIgZGlyPSJvdXQiLz4KICAgIDxwcm9wZXJ0eSBuYW1lPSJmbGF2b3IiIHZh"
+            "bHVlPSJidWlsZGZpbGUtdmFsdWUiLz4KICAgIDxwcm9wZXJ0eSBuYW1lPSJGbGF2b3Ii"
+            "IHZhbHVlPSJjYXNlLWRpc3RpbmN0LXZhbHVlIi8+CiAgICA8ZWNobyBmaWxlPSJvdXQv"
+            "ZGVmaW5lLnR4dCI+JHtmbGF2b3J9PC9lY2hvPgogIDwvdGFyZ2V0PgogIDx0YXJnZXQg"
+            "bmFtZT0ibGF0ZXIiIGRlcGVuZHM9ImRlZmluZSI+CiAgICA8cHJvcGVydHkgbmFtZT0i"
+            "Zmxhdm9yIiB2YWx1ZT0ibGF0ZS12YWx1ZSIvPgogICAgPGVjaG8gZmlsZT0ib3V0L2xh"
+            "dGVyLnR4dCI+JHtmbGF2b3J9PC9lY2hvPgogICAgPGVjaG8gZmlsZT0ib3V0L2Nhc2Uu"
+            "dHh0Ij4ke0ZsYXZvcn18JHtmbGF2b3J9PC9lY2hvPgogIDwvdGFyZ2V0PgogIDx0YXJn"
+            "ZXQgbmFtZT0iYWxsIiBkZXBlbmRzPSJsYXRlciI+CiAgICA8ZWNobyBmaWxlPSJvdXQv"
+            "ZmluYWwudHh0Ij4ke2ZsYXZvcn08L2VjaG8+CiAgPC90YXJnZXQ+CjwvcHJvamVjdD4K"
+            "IiIiLAogICAgICAgICAgICBlbmNvZGluZz0idXRmLTgiLAogICAgICAgICkKCiAgICAg"
+            "ICAgcmVsYXRpdmVfYnVpbGRmaWxlID0gb3MucGF0aC5yZWxwYXRoKGJ1aWxkZmlsZSwg"
+            "cnVubmVyX2RpcikKICAgICAgICBiYXNlX2NvbW1hbmQgPSBbYW50LCAiLW5vdXNlcmxp"
+            "YiIsICItZiIsIHJlbGF0aXZlX2J1aWxkZmlsZV0KCiAgICAgICAgIyBObyB0YXJnZXQg"
+            "aXMgbmFtZWQsIHNvIEFudCBtdXN0IGV4ZWN1dGUgdGhlIHByb2plY3QncyBkZWZhdWx0"
+            "IHRhcmdldC4KICAgICAgICBydW5fYW50KGJhc2VfY29tbWFuZCwgcnVubmVyX2RpcikK"
+            "ICAgICAgICBvdXRwdXRfZGlyID0gcHJvamVjdF9kaXIgLyAib3V0IgogICAgICAgIHZl"
+            "cmlmeV9vdXRwdXRzKG91dHB1dF9kaXIsICJidWlsZGZpbGUtdmFsdWUiKQogICAgICAg"
+            "IGlmIChydW5uZXJfZGlyIC8gIm91dCIpLmV4aXN0cygpOgogICAgICAgICAgICByYWlz"
+            "ZSBUZXN0RmFpbHVyZSgKICAgICAgICAgICAgICAgICJSZWxhdGl2ZSB0YXNrIHBhdGhz"
+            "IHdlcmUgcmVzb2x2ZWQgYWdhaW5zdCB0aGUgaW52b2NhdGlvbiBkaXJlY3RvcnkgIgog"
+            "ICAgICAgICAgICAgICAgImluc3RlYWQgb2YgdGhlIGJ1aWxkZmlsZSBwcm9qZWN0IGRp"
+            "cmVjdG9yeSIKICAgICAgICAgICAgKQoKICAgICAgICBzaHV0aWwucm10cmVlKG91dHB1"
+            "dF9kaXIpCgogICAgICAgICMgU3VwcGx5IGEgZGlmZmVyZW50IHZhbHVlIHRocm91Z2gg"
+            "QW50J3MgY29tbWFuZC1saW5lIHByb3BlcnR5IG1lY2hhbmlzbS4KICAgICAgICBydW5f"
+            "YW50KGJhc2VfY29tbWFuZCArIFsiLURmbGF2b3I9Y29tbWFuZC1saW5lLXZhbHVlIl0s"
+            "IHJ1bm5lcl9kaXIpCiAgICAgICAgdmVyaWZ5X291dHB1dHMob3V0cHV0X2RpciwgImNv"
+            "bW1hbmQtbGluZS12YWx1ZSIpCiAgICAgICAgaWYgKHJ1bm5lcl9kaXIgLyAib3V0Iiku"
+            "ZXhpc3RzKCk6CiAgICAgICAgICAgIHJhaXNlIFRlc3RGYWlsdXJlKAogICAgICAgICAg"
+            "ICAgICAgIlJlbGF0aXZlIHRhc2sgcGF0aHMgd2VyZSByZXNvbHZlZCBhZ2FpbnN0IHRo"
+            "ZSBpbnZvY2F0aW9uIGRpcmVjdG9yeSAiCiAgICAgICAgICAgICAgICAiaW5zdGVhZCBv"
+            "ZiB0aGUgYnVpbGRmaWxlIHByb2plY3QgZGlyZWN0b3J5IgogICAgICAgICAgICApCgog"
+            "ICAgICAgIHZlcmRpY3QgPSAoMCwgIlBBU1M6IEFudCBwcm9wZXJ0aWVzIGV4cGFuZCBj"
+            "YXNlLXNlbnNpdGl2ZWx5LCByZW1haW4gaW1tdXRhYmxlIGFjcm9zcyB0YXNrcyBhbmQg"
+            "dGFyZ2V0cywgYW5kIGNvbW1hbmQtbGluZSB2YWx1ZXMgdGFrZSBwcmVjZWRlbmNlIikK"
+            "ICAgIGV4Y2VwdCBUZXN0U2tpcCBhcyBleGM6CiAgICAgICAgdmVyZGljdCA9ICg3Nywg"
+            "IlNLSVA6IHt9Ii5mb3JtYXQoZXhjKSkKICAgIGV4Y2VwdCBFeGNlcHRpb24gYXMgZXhj"
+            "OgogICAgICAgIHZlcmRpY3QgPSAoMSwgIkZBSUw6IHt9Ii5mb3JtYXQoZXhjKSkKICAg"
+            "IGZpbmFsbHk6CiAgICAgICAgaWYgdGVtcF9yb290IGlzIG5vdCBOb25lOgogICAgICAg"
+            "ICAgICBzaHV0aWwucm10cmVlKHRlbXBfcm9vdCwgaWdub3JlX2Vycm9ycz1UcnVlKQoK"
+            "ICAgIHByaW50KHZlcmRpY3RbMV0pCiAgICBzeXMuZXhpdCh2ZXJkaWN0WzBdKQoKCmlm"
+            "IF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAgICBtYWluKCkK"
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
+
+        Corpus obligation: pkg:ant/selected-removal
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_ant_selected_removal(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:fdf74745a81faa160d74052fb78129af0d85ce7"
+            "1f58b6892e66f1d4d29e28cb4."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgcGF0aGxpYgppbXBvcnQgc2h1dGls"
+            "CmltcG9ydCBzdWJwcm9jZXNzCmltcG9ydCBzeXMKaW1wb3J0IHRlbXBmaWxlCgoKZGVm"
+            "IG1haW4oKToKICAgIHRlbXBfcm9vdCA9IE5vbmUKICAgIGRpYWdub3N0aWNzID0gW10K"
+            "ICAgIHZlcmRpY3QgPSAiRkFJTCIKICAgIGV4aXRfY29kZSA9IDEKCiAgICB0cnk6CiAg"
+            "ICAgICAgYW50ID0gc2h1dGlsLndoaWNoKCJhbnQiKQogICAgICAgIGphdmEgPSBzaHV0"
+            "aWwud2hpY2goImphdmEiKQogICAgICAgIGlmIGFudCBpcyBOb25lIG9yIGphdmEgaXMg"
+            "Tm9uZToKICAgICAgICAgICAgbWlzc2luZyA9IFtdCiAgICAgICAgICAgIGlmIGFudCBp"
+            "cyBOb25lOgogICAgICAgICAgICAgICAgbWlzc2luZy5hcHBlbmQoImFudCIpCiAgICAg"
+            "ICAgICAgIGlmIGphdmEgaXMgTm9uZToKICAgICAgICAgICAgICAgIG1pc3NpbmcuYXBw"
+            "ZW5kKCJqYXZhIikKICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJNaXNzaW5n"
+            "IHByZXJlcXVpc2l0ZShzKTogIiArICIsICIuam9pbihtaXNzaW5nKSkKICAgICAgICAg"
+            "ICAgdmVyZGljdCA9ICJTS0lQIgogICAgICAgICAgICBleGl0X2NvZGUgPSA3NwogICAg"
+            "ICAgICAgICByZXR1cm4gdmVyZGljdCwgZXhpdF9jb2RlLCBkaWFnbm9zdGljcwoKICAg"
+            "ICAgICB0ZW1wX3Jvb3QgPSBwYXRobGliLlBhdGgodGVtcGZpbGUubWtkdGVtcChwcmVm"
+            "aXg9ImFudC1zZWxlY3RlZC1yZW1vdmFsLSIpKQogICAgICAgIHByb2plY3QgPSB0ZW1w"
+            "X3Jvb3QgLyAicHJvamVjdCIKICAgICAgICB3b3JrID0gcHJvamVjdCAvICJ3b3JrIgog"
+            "ICAgICAgIHNlbGVjdGVkX3RyZWUgPSB3b3JrIC8gInNlbGVjdGVkLXRyZWUiCiAgICAg"
+            "ICAgb3V0c2lkZV90cmVlID0gd29yayAvICJvdXRzaWRlLXRyZWUiCiAgICAgICAgcHJv"
+            "amVjdC5ta2RpcigpCiAgICAgICAgc2VsZWN0ZWRfdHJlZS5ta2RpcihwYXJlbnRzPVRy"
+            "dWUpCiAgICAgICAgb3V0c2lkZV90cmVlLm1rZGlyKHBhcmVudHM9VHJ1ZSkKCiAgICAg"
+            "ICAgc2VsZWN0ZWRfZmlsZSA9IHdvcmsgLyAic2VsZWN0ZWQtaXRlbS50bXAiCiAgICAg"
+            "ICAgc2VsZWN0ZWRfbmVzdGVkX2ZpbGUgPSBzZWxlY3RlZF90cmVlIC8gInBheWxvYWQu"
+            "dG1wIgogICAgICAgIG91dHNpZGVfZmlsZSA9IG91dHNpZGVfdHJlZSAvICJrZWVwLnR4"
+            "dCIKCiAgICAgICAgc2VsZWN0ZWRfZmlsZS53cml0ZV90ZXh0KCJzZWxlY3RlZCByZXNv"
+            "dXJjZVxuIiwgZW5jb2Rpbmc9InV0Zi04IikKICAgICAgICBzZWxlY3RlZF9uZXN0ZWRf"
+            "ZmlsZS53cml0ZV90ZXh0KCJzZWxlY3RlZCBuZXN0ZWQgcmVzb3VyY2VcbiIsIGVuY29k"
+            "aW5nPSJ1dGYtOCIpCiAgICAgICAgb3V0c2lkZV9maWxlLndyaXRlX3RleHQoIm91dHNp"
+            "ZGUgcmVzb3VyY2VcbiIsIGVuY29kaW5nPSJ1dGYtOCIpCgogICAgICAgIGJ1aWxkZmls"
+            "ZSA9IHByb2plY3QgLyAiYnVpbGQueG1sIgogICAgICAgIGJ1aWxkZmlsZS53cml0ZV90"
+            "ZXh0KAogICAgICAgICAgICAiIiI8P3htbCB2ZXJzaW9uPSIxLjAiIGVuY29kaW5nPSJV"
+            "VEYtOCI/Pgo8cHJvamVjdCBuYW1lPSJzZWxlY3RlZC1yZW1vdmFsIiBkZWZhdWx0PSJj"
+            "bGVhbnVwIj4KICA8dGFyZ2V0IG5hbWU9ImNsZWFudXAiPgogICAgPGRlbGV0ZSBpbmNs"
+            "dWRlZW1wdHlkaXJzPSJmYWxzZSI+CiAgICAgIDxmaWxlc2V0IGRpcj0id29yayI+CiAg"
+            "ICAgICAgPGluY2x1ZGUgbmFtZT0ic2VsZWN0ZWQtKi50bXAiLz4KICAgICAgICA8aW5j"
+            "bHVkZSBuYW1lPSJzZWxlY3RlZC10cmVlLyoqIi8+CiAgICAgIDwvZmlsZXNldD4KICAg"
+            "IDwvZGVsZXRlPgogIDwvdGFyZ2V0PgoKICA8dGFyZ2V0IG5hbWU9ImNsZWFudXAtZW1w"
+            "dHktZGlyZWN0b3JpZXMiPgogICAgPGRlbGV0ZSBpbmNsdWRlZW1wdHlkaXJzPSJ0cnVl"
+            "Ij4KICAgICAgPGZpbGVzZXQgZGlyPSJ3b3JrIj4KICAgICAgICA8aW5jbHVkZSBuYW1l"
+            "PSJzZWxlY3RlZC10cmVlLyoqIi8+CiAgICAgIDwvZmlsZXNldD4KICAgIDwvZGVsZXRl"
+            "PgogIDwvdGFyZ2V0Pgo8L3Byb2plY3Q+CiIiIiwKICAgICAgICAgICAgZW5jb2Rpbmc9"
+            "InV0Zi04IiwKICAgICAgICApCgogICAgICAgIGRlZiBydW5fYW50KHRhcmdldD1Ob25l"
+            "KToKICAgICAgICAgICAgY29tbWFuZCA9IFthbnQsICItZiIsIHN0cihidWlsZGZpbGUp"
+            "XQogICAgICAgICAgICBpZiB0YXJnZXQgaXMgbm90IE5vbmU6CiAgICAgICAgICAgICAg"
+            "ICBjb21tYW5kLmFwcGVuZCh0YXJnZXQpCiAgICAgICAgICAgIHRyeToKICAgICAgICAg"
+            "ICAgICAgIHJlc3VsdCA9IHN1YnByb2Nlc3MucnVuKAogICAgICAgICAgICAgICAgICAg"
+            "IGNvbW1hbmQsCiAgICAgICAgICAgICAgICAgICAgY3dkPXRlbXBfcm9vdCwKICAgICAg"
+            "ICAgICAgICAgICAgICB0ZXh0PVRydWUsCiAgICAgICAgICAgICAgICAgICAgc3Rkb3V0"
+            "PXN1YnByb2Nlc3MuUElQRSwKICAgICAgICAgICAgICAgICAgICBzdGRlcnI9c3VicHJv"
+            "Y2Vzcy5QSVBFLAogICAgICAgICAgICAgICAgICAgIHRpbWVvdXQ9NjAsCiAgICAgICAg"
+            "ICAgICAgICAgICAgY2hlY2s9RmFsc2UsCiAgICAgICAgICAgICAgICApCiAgICAgICAg"
+            "ICAgIGV4Y2VwdCBzdWJwcm9jZXNzLlRpbWVvdXRFeHBpcmVkIGFzIGV4YzoKICAgICAg"
+            "ICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiQW50IGludm9jYXRpb24gdGltZWQg"
+            "b3V0OiAiICsgIiAiLmpvaW4oY29tbWFuZCkpCiAgICAgICAgICAgICAgICBpZiBleGMu"
+            "c3Rkb3V0OgogICAgICAgICAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgic3Rk"
+            "b3V0OiAiICsgc3RyKGV4Yy5zdGRvdXQpKQogICAgICAgICAgICAgICAgaWYgZXhjLnN0"
+            "ZGVycjoKICAgICAgICAgICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoInN0ZGVy"
+            "cjogIiArIHN0cihleGMuc3RkZXJyKSkKICAgICAgICAgICAgICAgIHJhaXNlIEFzc2Vy"
+            "dGlvbkVycm9yKCJBbnQgZGlkIG5vdCBjb21wbGV0ZSIpCgogICAgICAgICAgICBpZiBy"
+            "ZXN1bHQucmV0dXJuY29kZSAhPSAwOgogICAgICAgICAgICAgICAgZGlhZ25vc3RpY3Mu"
+            "YXBwZW5kKAogICAgICAgICAgICAgICAgICAgICJBbnQgaW52b2NhdGlvbiBleGl0ZWQg"
+            "d2l0aCBzdGF0dXMge306IHt9Ii5mb3JtYXQoCiAgICAgICAgICAgICAgICAgICAgICAg"
+            "IHJlc3VsdC5yZXR1cm5jb2RlLCAiICIuam9pbihjb21tYW5kKQogICAgICAgICAgICAg"
+            "ICAgICAgICkKICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgICAgIGRpYWdub3N0"
+            "aWNzLmFwcGVuZCgic3Rkb3V0OiAiICsgKHJlc3VsdC5zdGRvdXQgb3IgIiIpKQogICAg"
+            "ICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJzdGRlcnI6ICIgKyAocmVzdWx0"
+            "LnN0ZGVyciBvciAiIikpCiAgICAgICAgICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJv"
+            "cigiQW50IGNsZWFudXAgaW52b2NhdGlvbiBmYWlsZWQiKQoKICAgICAgICBkZWYgcmVx"
+            "dWlyZShjb25kaXRpb24sIG1lc3NhZ2UpOgogICAgICAgICAgICBpZiBub3QgY29uZGl0"
+            "aW9uOgogICAgICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IobWVzc2FnZSkK"
+            "CiAgICAgICAgIyBSdW4gdGhlIHByb2plY3QncyBkZWZhdWx0IHRhcmdldCBmcm9tIG91"
+            "dHNpZGUgdGhlIGJ1aWxkZmlsZSBkaXJlY3RvcnkuCiAgICAgICAgIyBUaGlzIGFsc28g"
+            "dmVyaWZpZXMgdGhhdCB0aGUgZmlsZXNldCBwYXRoIGlzIHJlc29sdmVkIHJlbGF0aXZl"
+            "IHRvIGJ1aWxkLnhtbC4KICAgICAgICBydW5fYW50KCkKCiAgICAgICAgcmVxdWlyZShu"
+            "b3Qgc2VsZWN0ZWRfZmlsZS5leGlzdHMoKSwgImRlZmF1bHQgY2xlYW51cCByZXRhaW5l"
+            "ZCBhIHNlbGVjdGVkIGZpbGUiKQogICAgICAgIHJlcXVpcmUoCiAgICAgICAgICAgIG5v"
+            "dCBzZWxlY3RlZF9uZXN0ZWRfZmlsZS5leGlzdHMoKSwKICAgICAgICAgICAgImRlZmF1"
+            "bHQgY2xlYW51cCByZXRhaW5lZCBhIHNlbGVjdGVkIG5lc3RlZCBmaWxlc2V0IHJlc291"
+            "cmNlIiwKICAgICAgICApCiAgICAgICAgcmVxdWlyZShvdXRzaWRlX2ZpbGUuaXNfZmls"
+            "ZSgpLCAiZGVmYXVsdCBjbGVhbnVwIHJlbW92ZWQgYW4gdW5zZWxlY3RlZCByZXNvdXJj"
+            "ZSIpCiAgICAgICAgcmVxdWlyZSgKICAgICAgICAgICAgb3V0c2lkZV9maWxlLnJlYWRf"
+            "dGV4dChlbmNvZGluZz0idXRmLTgiKSA9PSAib3V0c2lkZSByZXNvdXJjZVxuIiwKICAg"
+            "ICAgICAgICAgImRlZmF1bHQgY2xlYW51cCBjaGFuZ2VkIGFuIHVuc2VsZWN0ZWQgcmVz"
+            "b3VyY2UiLAogICAgICAgICkKICAgICAgICByZXF1aXJlKAogICAgICAgICAgICBzZWxl"
+            "Y3RlZF90cmVlLmlzX2RpcigpLAogICAgICAgICAgICAiZmlsZXNldCBjbGVhbnVwIHJl"
+            "bW92ZWQgYW4gZW1wdHkgc2VsZWN0ZWQgZGlyZWN0b3J5IHdpdGhvdXQgcmVxdWVzdGlu"
+            "ZyBpdCIsCiAgICAgICAgKQogICAgICAgIHJlcXVpcmUoCiAgICAgICAgICAgIG5vdCBh"
+            "bnkoc2VsZWN0ZWRfdHJlZS5pdGVyZGlyKCkpLAogICAgICAgICAgICAic2VsZWN0ZWQg"
+            "ZGlyZWN0b3J5IHdhcyBleHBlY3RlZCB0byBiZSBlbXB0eSBhZnRlciBpdHMgc2VsZWN0"
+            "ZWQgZmlsZSB3YXMgcmVtb3ZlZCIsCiAgICAgICAgKQoKICAgICAgICAjIFJlY3JlYXRl"
+            "IHRoZSByZW1vdmVkIHJlc291cmNlIHdpdGggb25seSBpdHMgc2VsZWN0aW9uLXJlbGV2"
+            "YW50IG5hbWUgY2hhbmdlZCwKICAgICAgICAjIHNvIHRoYXQgaXQgbm8gbG9uZ2VyIG1h"
+            "dGNoZXMgc2VsZWN0ZWQtKi50bXAuCiAgICAgICAgbW92ZWRfb3V0c2lkZV9zZWxlY3Rp"
+            "b24gPSB3b3JrIC8gIm91dHNpZGUtaXRlbS50bXAiCiAgICAgICAgbW92ZWRfb3V0c2lk"
+            "ZV9zZWxlY3Rpb24ud3JpdGVfdGV4dCgic2VsZWN0ZWQgcmVzb3VyY2VcbiIsIGVuY29k"
+            "aW5nPSJ1dGYtOCIpCgogICAgICAgIHJ1bl9hbnQoKQoKICAgICAgICByZXF1aXJlKAog"
+            "ICAgICAgICAgICBtb3ZlZF9vdXRzaWRlX3NlbGVjdGlvbi5pc19maWxlKCksCiAgICAg"
+            "ICAgICAgICJjbGVhbnVwIHJlbW92ZWQgdGhlIHJlc291cmNlIGFmdGVyIGl0IHdhcyBj"
+            "aGFuZ2VkIHRvIGJlIG91dHNpZGUgdGhlIHNlbGVjdGlvbiIsCiAgICAgICAgKQogICAg"
+            "ICAgIHJlcXVpcmUoCiAgICAgICAgICAgIG1vdmVkX291dHNpZGVfc2VsZWN0aW9uLnJl"
+            "YWRfdGV4dChlbmNvZGluZz0idXRmLTgiKSA9PSAic2VsZWN0ZWQgcmVzb3VyY2VcbiIs"
+            "CiAgICAgICAgICAgICJjbGVhbnVwIGNoYW5nZWQgdGhlIHJlc291cmNlIG91dHNpZGUg"
+            "dGhlIHNlbGVjdGlvbiIsCiAgICAgICAgKQogICAgICAgIHJlcXVpcmUob3V0c2lkZV9m"
+            "aWxlLmlzX2ZpbGUoKSwgInJlcGVhdGVkIGNsZWFudXAgcmVtb3ZlZCBhbm90aGVyIHVu"
+            "c2VsZWN0ZWQgcmVzb3VyY2UiKQogICAgICAgIHJlcXVpcmUoCiAgICAgICAgICAgIHNl"
+            "bGVjdGVkX3RyZWUuaXNfZGlyKCksCiAgICAgICAgICAgICJkZWZhdWx0IGNsZWFudXAg"
+            "cmVtb3ZlZCB0aGUgc2VsZWN0ZWQgZW1wdHkgZGlyZWN0b3J5IHdpdGhvdXQgaW5jbHVk"
+            "ZWVtcHR5ZGlycyIsCiAgICAgICAgKQoKICAgICAgICAjIFNlbGVjdCB0aGUgZXhwbGlj"
+            "aXQgdGFyZ2V0IHdob3NlIGRlbGV0ZSB0YXNrIHJlcXVlc3RzIGVtcHR5LWRpcmVjdG9y"
+            "eSByZW1vdmFsLgogICAgICAgIHJ1bl9hbnQoImNsZWFudXAtZW1wdHktZGlyZWN0b3Jp"
+            "ZXMiKQoKICAgICAgICByZXF1aXJlKAogICAgICAgICAgICBub3Qgc2VsZWN0ZWRfdHJl"
+            "ZS5leGlzdHMoKSwKICAgICAgICAgICAgInNlbGVjdGVkIGVtcHR5IGZpbGVzZXQgZGly"
+            "ZWN0b3J5IHJlbWFpbmVkIHdoZW4gaW5jbHVkZWVtcHR5ZGlycyB3YXMgcmVxdWVzdGVk"
+            "IiwKICAgICAgICApCiAgICAgICAgcmVxdWlyZSgKICAgICAgICAgICAgbW92ZWRfb3V0"
+            "c2lkZV9zZWxlY3Rpb24uaXNfZmlsZSgpLAogICAgICAgICAgICAiZXhwbGljaXQgZW1w"
+            "dHktZGlyZWN0b3J5IGNsZWFudXAgcmVtb3ZlZCBhIHJlc291cmNlIG91dHNpZGUgaXRz"
+            "IHNlbGVjdGlvbiIsCiAgICAgICAgKQogICAgICAgIHJlcXVpcmUoCiAgICAgICAgICAg"
+            "IG91dHNpZGVfZmlsZS5pc19maWxlKCksCiAgICAgICAgICAgICJleHBsaWNpdCBlbXB0"
+            "eS1kaXJlY3RvcnkgY2xlYW51cCByZW1vdmVkIGFuIHVuc2VsZWN0ZWQgdHJlZSByZXNv"
+            "dXJjZSIsCiAgICAgICAgKQogICAgICAgIHJlcXVpcmUob3V0c2lkZV90cmVlLmlzX2Rp"
+            "cigpLCAiZXhwbGljaXQgY2xlYW51cCByZW1vdmVkIGFuIHVuc2VsZWN0ZWQgZGlyZWN0"
+            "b3J5IHRyZWUiKQoKICAgICAgICB2ZXJkaWN0ID0gIlBBU1MiCiAgICAgICAgZXhpdF9j"
+            "b2RlID0gMAogICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBleGM6CiAgICAgICAgZGlhZ25v"
+            "c3RpY3MuYXBwZW5kKCJ7fToge30iLmZvcm1hdCh0eXBlKGV4YykuX19uYW1lX18sIGV4"
+            "YykpCiAgICAgICAgdmVyZGljdCA9ICJGQUlMIgogICAgICAgIGV4aXRfY29kZSA9IDEK"
+            "ICAgIGZpbmFsbHk6CiAgICAgICAgaWYgdGVtcF9yb290IGlzIG5vdCBOb25lOgogICAg"
+            "ICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBzaHV0aWwucm10cmVlKHRlbXBfcm9v"
+            "dCkKICAgICAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBleGM6CiAgICAgICAgICAg"
+            "ICAgICBkaWFnbm9zdGljcy5hcHBlbmQoIkNsZWFudXAgZXJyb3I6IHt9OiB7fSIuZm9y"
+            "bWF0KHR5cGUoZXhjKS5fX25hbWVfXywgZXhjKSkKICAgICAgICAgICAgICAgIHZlcmRp"
+            "Y3QgPSAiRkFJTCIKICAgICAgICAgICAgICAgIGV4aXRfY29kZSA9IDEKCiAgICByZXR1"
+            "cm4gdmVyZGljdCwgZXhpdF9jb2RlLCBkaWFnbm9zdGljcwoKCnZlcmRpY3QsIGV4aXRf"
+            "Y29kZSwgZGlhZ25vc3RpY3MgPSBtYWluKCkKZm9yIGRpYWdub3N0aWMgaW4gZGlhZ25v"
+            "c3RpY3M6CiAgICBwcmludChkaWFnbm9zdGljKQpwcmludCgie306IEFudCBzZWxlY3Rl"
+            "ZC1yZXNvdXJjZSByZW1vdmFsIGJlaGF2aW9yIi5mb3JtYXQodmVyZGljdCkpCnN5cy5l"
+            "eGl0KGV4aXRfY29kZSkK"
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)

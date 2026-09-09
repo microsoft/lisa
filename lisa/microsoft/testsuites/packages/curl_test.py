@@ -1,21 +1,8 @@
-# Copyright (c) Microsoft Corporation.
-# Licensed under the MIT license.
-
-"""Release-gate tests for curl on Azure Linux.
-
-Each case verifies one reviewed behaviour obligation directly against the node under
-test.
-
-Generated from a reviewed behaviour corpus by the Azure Linux release gate. Every
-obligation below was first verified on a provisioned Azure Linux 4.0 guest on both
-x86_64 and aarch64 before being re-expressed here.
-
-Each case names the corpus obligation it discharges, so a failure upstream can be traced
-back to the behaviour that was promised rather than to the test that happened to break.
-"""
+"""LISA wrappers for qualified FMF/TMT Python outputs."""
 
 from __future__ import annotations
 
+import shlex
 from typing import Any
 
 from assertpy import assert_that
@@ -29,2086 +16,1665 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import CBLMariner, Posix
-from lisa.util import SkippedException
-
-
-def combined_output(result: Any) -> str:
-    """Return one command result's streams merged and normalised to LF.
-
-    A case controls the markers it prints but not which stream a tool writes a
-    diagnostic to, and LISA runs every command on a pty that rewrites each newline
-    as a carriage-return pair. Merging stdout and stderr removes the guess that made
-    a case watch the wrong stream, and normalising the carriage returns removes the
-    mismatch that made marker parsing silently fail.
-
-    Args:
-        result: The value ``node.execute`` returned.
-
-    Returns:
-        The command's stdout and stderr joined by a newline, with every CRLF and lone
-        carriage return rewritten to a single LF.
-    """
-    merged = f"{result.stdout}\n{result.stderr}"
-    return merged.replace("\r\n", "\n").replace("\r", "\n")
-
-
-def section(text: str, begin: str, end: str) -> str:
-    """Return the text framed by the `begin` and `end` markers.
-
-    The end marker is located wherever it appears, so one printed as the final line --
-    whose trailing newline the pty strips -- is still found rather than missed, which
-    is the failure that made a hand-rolled ``split`` return the whole output as if it
-    were data. An absent marker raises instead of returning everything, so a genuinely
-    missing region fails loudly rather than passing. Pass an empty `begin` to take
-    everything before `end`.
-
-    Args:
-        text: The combined, normalised output, from :func:`combined_output`.
-        begin: The marker opening the region, or "" to start at the first character.
-        end: The marker closing the region.
-
-    Returns:
-        The characters between the markers, without the markers themselves or the
-        newlines adjoining them.
-
-    Raises:
-        ValueError: If either marker is absent from `text`.
-    """
-    start = text.find(begin)
-    if start < 0:
-        raise ValueError(f"begin marker {begin!r} not found in guest output")
-    start += len(begin)
-    stop = text.find(end, start)
-    if stop < 0:
-        raise ValueError(f"end marker {end!r} not found in guest output")
-    return text[start:stop].strip("\n")
-
-
-def section_lines(text: str, begin: str, end: str) -> list[str]:
-    """Return the lines of the region framed by `begin` and `end`.
-
-    A caller counting them sees exactly what the guest printed between the markers,
-    with no spurious trailing empty entry from the newline before the end marker --
-    the miscount that made a hand-rolled ``split`` assert the wrong length.
-
-    Args:
-        text: The combined, normalised output, from :func:`combined_output`.
-        begin: The marker opening the region, or "" to start at the first character.
-        end: The marker closing the region.
-
-    Returns:
-        The region's lines, empty when the region itself is empty.
-
-    Raises:
-        ValueError: If either marker is absent from `text`.
-    """
-    body = section(text, begin, end)
-    return body.split("\n") if body else []
+from lisa.util import SkippedException, UnsupportedDistroException
 
 
 @TestSuiteMetadata(
     area="packages",
     category="functional",
-    description="""
-        Release-gate tests for curl on Azure Linux.
-
-        Each case verifies one reviewed behaviour obligation directly against the node
-        under test.
-    """,
+    description="Execution of qualified curl FMF/TMT Python through the LISA runner.",
+    owner="microsoft",
     requirement=simple_requirement(supported_os=[CBLMariner]),
-    maturity="preview",
-    tags=["ai-generated"],
 )
-class CurlSuite(TestSuite):
+class CurlFmfPythonSuite(TestSuite):
+    """Execute frozen Python payloads byte-for-byte through LISA."""
+
     def before_case(self, log: Logger, **kwargs: Any) -> None:
+        """Skip guests older than the Azure Linux version validated by this suite."""
         node: Node = kwargs["node"]
+        if not isinstance(node.os, CBLMariner) or node.os.information.version < "4.0.0":
+            raise SkippedException(
+                UnsupportedDistroException(
+                    node.os,
+                    "This suite is supported only on Azure Linux 4.0 or later.",
+                )
+            )
         assert isinstance(node.os, Posix)
         node.os.install_packages(
             [
                 "curl",
+                "python3",
             ]
         )
 
     @TestCaseMetadata(
         description="""
-            Verifies that curl sends HTTP Basic credentials supplied through --user to a
-            protected loopback service. The service returns a known response only when
-            the Authorization header matches the configured credential.
+        Exact-byte FMF/TMT Python wrapper execution.
 
-            Corpus obligation: pkg:curl/authenticate-server-request
+        Corpus obligation: pkg:curl/authenticate-server-request
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
         """,
-        priority=3,
-        tags=["ai-generated"],
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    def verify_authenticate_server_request(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        credential = "curl-auth-user:curl-auth-secret"
-        request_path = "/protected"
-        response_body = "authenticated-response-from-curl"
-        auth_marker = "AUTHORIZATION_MATCHED"
-        helper = rf"""
-import base64
-import socket
-import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
-
-mode = sys.argv[1]
-if mode == "probe":
-    port = int(sys.argv[2])
-    conn = socket.create_connection(("127.0.0.1", port), timeout=2)
-    conn.sendall(b"GET /ready HTTP/1.0\r\nHost: localhost\r\n\r\n")
-    data = b""
-    while True:
-        chunk = conn.recv(4096)
-        if not chunk:
-            break
-        data += chunk
-    conn.close()
-    if not data.startswith(b"HTTP/"):
-        sys.exit(1)
-    sys.exit(0)
-
-tmp = Path(sys.argv[2])
-credential = "{credential}"
-protected_path = "{request_path}"
-response = b"{response_body}"
-auth_marker = "{auth_marker}"
-expected = "Basic " + base64.b64encode(credential.encode()).decode()
-
-class Handler(BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.0"
-
-    def log_message(self, message, *args):
-        return
-
-    def do_GET(self):
-        supplied = self.headers.get("Authorization", "")
-        if self.path == protected_path and supplied == expected:
-            (tmp / "auth").write_text(auth_marker + "\n")
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(response)))
-            self.end_headers()
-            self.wfile.write(response)
-            return
-        self.send_response(401)
-        self.send_header("WWW-Authenticate", 'Basic realm="curl-test"')
-        self.send_header("Content-Length", "0")
-        self.end_headers()
-
-server = HTTPServer(("127.0.0.1", 0), Handler)
-(tmp / "port").write_text(str(server.server_port) + "\n")
-server.serve_forever()
-"""
-        command = rf"""
-set -u
-tmp=$(mktemp -d /tmp/curl-auth-test.XXXXXX)
-server_pid=
-cleanup() {{
-    if [ -n "$server_pid" ]; then
-        kill "$server_pid" 2>/dev/null || true
-        wait "$server_pid" 2>/dev/null || true
-    fi
-    rm -rf "$tmp"
-}}
-trap cleanup EXIT
-status=READY
-curl_rc=MISSING
-body=MISSING
-auth=MISSING
-credential='{credential}'
-request_path='{request_path}'
-response_body='{response_body}'
-: >"$tmp/server.log"
-: >"$tmp/curl.err"
-cat <<'PY' >"$tmp/server.py"
-{helper}
-PY
-if ! test -s "$tmp/server.py"; then
-    status=FIXTURE_NOT_READY
-elif ! python3 -m py_compile "$tmp/server.py" \
-    >"$tmp/server.log" 2>&1; then
-    status=FIXTURE_NOT_READY
-else
-    python3 "$tmp/server.py" serve "$tmp" \
-        "$credential" "$request_path" "$response_body" \
-        >"$tmp/server.out" 2>>"$tmp/server.log" &
-    server_pid=$!
-    i=0
-    while [ "$i" -lt 50 ] && [ ! -s "$tmp/port" ]; do
-        sleep 0.1
-        i=$((i + 1))
-    done
-    if [ ! -s "$tmp/port" ]; then
-        status=FIXTURE_NOT_READY
-    else
-        port=$(cat "$tmp/port")
-        if ! python3 "$tmp/server.py" probe "$port" \
-            >>"$tmp/server.log" 2>&1; then
-            status=FIXTURE_NOT_READY
-        else
-            url="http://127.0.0.1:$port$request_path"
-            curl --silent --show-error --user "$credential" \
-                --output "$tmp/body" "$url" 2>"$tmp/curl.err"
-            curl_rc=$?
-            if [ -f "$tmp/body" ]; then
-                body=$(cat "$tmp/body")
-            fi
-            if [ -f "$tmp/auth" ]; then
-                auth=$(cat "$tmp/auth")
-            fi
-        fi
-    fi
-fi
-if [ -n "$server_pid" ]; then
-    kill "$server_pid" 2>/dev/null || true
-    wait "$server_pid" 2>/dev/null || true
-    server_pid=
-fi
-echo STATUS_BEGIN
-echo "$status"
-echo STATUS_END
-echo CURL_RC_BEGIN
-echo "$curl_rc"
-echo CURL_RC_END
-echo BODY_BEGIN
-echo "$body"
-echo BODY_END
-echo AUTH_BEGIN
-echo "$auth"
-echo AUTH_END
-echo CURL_DIAG_BEGIN
-tail -n 20 "$tmp/curl.err" 2>/dev/null || true
-echo CURL_DIAG_END
-echo SERVER_LOG_BEGIN
-tail -n 20 "$tmp/server.log" 2>/dev/null || true
-echo SERVER_LOG_END
-"""
-        result = node.execute(command, shell=True)
-        assert_that(result.exit_code).described_as(
-            f"guest auth test exited with {result.exit_code}"
-        ).is_equal_to(0)
-        text = combined_output(result)
-        status = section(text, "STATUS_BEGIN", "STATUS_END").strip()
-        if status == "FIXTURE_NOT_READY":
-            details = section(text, "SERVER_LOG_BEGIN", "SERVER_LOG_END")
-            raise SkippedException(
-                f"loopback authentication fixture was not ready: {details}"
-            )
-        assert_that(status).described_as(
-            f"fixture status was {status!r}, expected 'READY'"
-        ).is_equal_to("READY")
-        curl_rc = section(text, "CURL_RC_BEGIN", "CURL_RC_END").strip()
-        assert_that(curl_rc).described_as(
-            f"curl exit code was {curl_rc!r}, expected '0'"
-        ).is_equal_to("0")
-        auth = section(text, "AUTH_BEGIN", "AUTH_END").strip()
-        assert_that(auth).described_as(
-            f"server auth evidence was {auth!r}, expected {auth_marker!r}"
-        ).is_equal_to(auth_marker)
-        body = section(text, "BODY_BEGIN", "BODY_END").strip()
-        assert_that(body).described_as(
-            f"authenticated body was {body!r}, expected {response_body!r}"
-        ).is_equal_to(response_body)
-
-    @TestCaseMetadata(
-        description="""
-            Verifies that curl downloads a loopback HTTP response to the path supplied
-            with --output. It confirms the named file contains the exact response body
-            and that curl writes no response-body bytes to standard output.
-
-            Corpus obligation: pkg:curl/download-to-named-file
-        """,
-        priority=3,
-        tags=["ai-generated"],
-    )
-    def verify_download_to_named_file(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        payload = "curl-named-output-payload-7c41b9"
-        helper = rf"""
-import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from urllib.error import HTTPError
-from urllib.request import urlopen
-
-BODY = {payload!r}
-
-
-class Handler(BaseHTTPRequestHandler):
-    def _reply(self, status, data):
-        self.send_response(status)
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
-
-    def do_GET(self):
-        if self.path == "/ready":
-            self._reply(200, b"ready")
-        elif self.path == "/response":
-            self._reply(200, BODY.encode("utf-8"))
-        else:
-            self._reply(404, b"missing")
-
-    def log_message(self, message, *args):
-        return
-
-
-if sys.argv[1] == "probe":
-    try:
-        with urlopen(sys.argv[2], timeout=1) as response:
-            response.read()
-    except HTTPError:
-        pass
-    except Exception:
-        sys.exit(1)
-    sys.exit(0)
-
-server = HTTPServer(("127.0.0.1", 0), Handler)
-with open(sys.argv[1], "w", encoding="utf-8") as port_file:
-    port_file.write(str(server.server_port) + "\n")
-server.serve_forever()
-"""
-        command = rf"""
-tmp=$(mktemp -d /tmp/curl-named-output.XXXXXX)
-server_pid=
-trap 'if [ -n "$server_pid" ]; then kill "$server_pid" 2>/dev/null || true;
-wait "$server_pid" 2>/dev/null || true; fi; rm -rf "$tmp"' EXIT
-cat <<'PY' > "$tmp/server.py"
-{helper}
-PY
-fixture=HELPER_INVALID
-curl_rc=NOT_RUN
-stdout_size=NOT_RUN
-dest_state=NOT_RUN
-if test -s "$tmp/server.py" && \
-    python3 -m py_compile "$tmp/server.py"; then
-    fixture=FIXTURE_NOT_READY
-    python3 "$tmp/server.py" "$tmp/port" \
-        >"$tmp/server.out" 2>"$tmp/server.err" &
-    server_pid=$!
-    count=0
-    while [ "$count" -lt 30 ]; do
-        if [ -s "$tmp/port" ]; then
-            port=$(cat "$tmp/port")
-            if python3 "$tmp/server.py" probe \
-                "http://127.0.0.1:$port/ready"; then
-                fixture=READY
-                break
-            fi
-        fi
-        sleep 0.1
-        count=$((count + 1))
-    done
-fi
-if [ "$fixture" = READY ]; then
-    if curl --silent --show-error --noproxy '*' \
-        --output "$tmp/named.bin" \
-        "http://127.0.0.1:$port/response" \
-        >"$tmp/curl.stdout" 2>"$tmp/curl.stderr"; then
-        curl_rc=0
-    else
-        curl_rc=$?
-    fi
-    if [ -f "$tmp/curl.stdout" ]; then
-        stdout_size=$(wc -c < "$tmp/curl.stdout")
-    else
-        stdout_size=MISSING
-    fi
-    if [ -f "$tmp/named.bin" ]; then
-        dest_state=PRESENT
-    else
-        dest_state=MISSING
-    fi
-fi
-if [ -n "$server_pid" ]; then
-    kill "$server_pid" 2>/dev/null || true
-    wait "$server_pid" 2>/dev/null || true
-    server_pid=
-fi
-printf 'FIXTURE_BEGIN\n%s\nFIXTURE_END\n' "$fixture"
-printf 'CURL_RC_BEGIN\n%s\nCURL_RC_END\n' "$curl_rc"
-printf 'STDOUT_SIZE_BEGIN\n%s\nSTDOUT_SIZE_END\n' "$stdout_size"
-printf 'DEST_STATE_BEGIN\n%s\nDEST_STATE_END\n' "$dest_state"
-printf 'DEST_BODY_BEGIN\n'
-if [ -f "$tmp/named.bin" ]; then
-    cat "$tmp/named.bin"
-else
-    printf 'MISSING'
-fi
-printf '\nDEST_BODY_END\n'
-printf 'DIAGNOSTICS_BEGIN\n'
-if [ -f "$tmp/curl.stderr" ]; then
-    tail -n 40 "$tmp/curl.stderr"
-fi
-if [ -f "$tmp/server.err" ]; then
-    tail -n 40 "$tmp/server.err"
-fi
-printf 'DIAGNOSTICS_END\n'
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        assert_that(result.exit_code).described_as(
-            f"guest probe must complete; observed rc={result.exit_code}, output={text}"
-        ).is_equal_to(0)
-        fixture = section(text, "FIXTURE_BEGIN", "FIXTURE_END").strip()
-        if fixture != "READY":
-            raise SkippedException(
-                f"loopback fixture was not ready; observed {fixture!r}; output={text}"
-            )
-        curl_rc = section(text, "CURL_RC_BEGIN", "CURL_RC_END").strip()
-        stdout_size = section(text, "STDOUT_SIZE_BEGIN", "STDOUT_SIZE_END").strip()
-        dest_state = section(text, "DEST_STATE_BEGIN", "DEST_STATE_END").strip()
-        dest_body = section(text, "DEST_BODY_BEGIN", "DEST_BODY_END").strip()
-        assert_that(curl_rc).described_as(
-            f"curl --output must succeed; observed rc={curl_rc!r}; output={text}"
-        ).is_equal_to("0")
-        assert_that(dest_state).described_as(
-            f"the named destination must exist; observed {dest_state!r}"
-        ).is_equal_to("PRESENT")
-        assert_that(dest_body).described_as(
-            f"destination body was {dest_body!r}, expected {payload!r}"
-        ).is_equal_to(payload)
-        assert_that(stdout_size).described_as(
-            f"curl stdout byte count was {stdout_size!r}, expected '0'"
-        ).is_equal_to("0")
-
-    @TestCaseMetadata(
-        description="""
-            Verifies that curl treats an HTTP 404 response as an error when invoked with
-            --fail. It asserts that curl exits with code 22 and does not emit the
-            server's response body.
-
-            Corpus obligation: pkg:curl/fail-on-http-error
-        """,
-        priority=3,
-        tags=["ai-generated"],
-    )
-    def verify_fail_on_http_error(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        response_body = "body-that-must-not-be-emitted"
-        ready_marker = "READY"
-        not_ready_marker = "FIXTURE_NOT_READY"
-        fixture_begin = "FIXTURE_BEGIN"
-        fixture_end = "FIXTURE_END"
-        rc_begin = "CURL_RC_BEGIN"
-        rc_end = "CURL_RC_END"
-        bytes_begin = "BODY_BYTES_BEGIN"
-        bytes_end = "BODY_BYTES_END"
-        curl_diag_begin = "CURL_DIAG_BEGIN"
-        curl_diag_end = "CURL_DIAG_END"
-        server_diag_begin = "SERVER_DIAG_BEGIN"
-        server_diag_end = "SERVER_DIAG_END"
-        server_code = rf"""
-import socket
-import sys
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
-
-class Handler(BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1"
-
-    def log_message(self, message, *args):
-        return
-
-    def do_GET(self):
-        if self.path == "/ready":
-            self.send_response(204)
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
-        payload = {response_body!r}.encode("utf-8")
-        self.send_response(404)
-        self.send_header("Content-Type", "text/plain")
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
-
-
-def probe(port):
-    connection = socket.create_connection(("127.0.0.1", port), 2)
-    connection.sendall(
-        b"GET /ready HTTP/1.0\r\nHost: localhost\r\n\r\n"
-    )
-    answer = connection.recv(64)
-    connection.close()
-    return answer.startswith(b"HTTP/")
-
-
-if sys.argv[1] == "probe":
-    sys.exit(0 if probe(int(sys.argv[2])) else 1)
-
-port_file = sys.argv[1]
-server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-with open(port_file, "w", encoding="utf-8") as stream:
-    stream.write(str(server.server_port) + "\n")
-server.serve_forever()
-"""
-        script = rf"""
-tmp=$(mktemp -d /tmp/curl-fail-http.XXXXXX)
-pid=""
-trap 'if [ -n "$pid" ]; then kill "$pid" 2>/dev/null; fi;
-wait "$pid" 2>/dev/null; rm -rf "$tmp"' EXIT
-cat <<'PY' > "$tmp/server.py"
-{server_code}
-PY
-fixture={not_ready_marker}
-reason=helper-not-materialized
-curl_rc=MISSING
-body_bytes=MISSING
-if [ -s "$tmp/server.py" ]; then
-    if python3 -m py_compile "$tmp/server.py" 2>"$tmp/server.log"; then
-        python3 "$tmp/server.py" "$tmp/port" \
-            >>"$tmp/server.log" 2>&1 &
-        pid=$!
-        tries=0
-        while [ "$tries" -lt 50 ]; do
-            if [ -s "$tmp/port" ]; then
-                break
-            fi
-            if ! kill -0 "$pid" 2>/dev/null; then
-                break
-            fi
-            sleep 0.1
-            tries=$((tries + 1))
-        done
-        if [ -s "$tmp/port" ]; then
-            port=$(cat "$tmp/port")
-            if python3 "$tmp/server.py" probe "$port" \
-                >>"$tmp/server.log" 2>&1; then
-                fixture={ready_marker}
-                reason=none
-                curl --fail --silent --show-error \
-                    "http://127.0.0.1:$port/error" \
-                    >"$tmp/body" 2>"$tmp/curl.err"
-                curl_rc=$?
-                body_bytes=$(wc -c < "$tmp/body" 2>/dev/null || echo MISSING)
-            else
-                reason=readiness-probe-failed
-            fi
-        else
-            reason=port-not-published
-        fi
-    else
-        reason=helper-did-not-compile
-    fi
-fi
-if [ -n "$pid" ]; then
-    kill "$pid" 2>/dev/null
-    wait "$pid" 2>/dev/null
-    pid=""
-fi
-printf '%s\n%s\n%s\n' '{fixture_begin}' "$fixture" '{fixture_end}'
-printf '%s\n%s\n%s\n' '{rc_begin}' "$curl_rc" '{rc_end}'
-printf '%s\n%s\n%s\n' \
-    '{bytes_begin}' "$body_bytes" '{bytes_end}'
-printf '%s\n' '{curl_diag_begin}'
-cat "$tmp/curl.err" 2>/dev/null || true
-printf '%s\n' '{curl_diag_end}'
-printf '%s\n' '{server_diag_begin}'
-printf 'reason=%s\n' "$reason"
-cat "$tmp/server.log" 2>/dev/null || true
-printf '%s\n' '{server_diag_end}'
-"""
-        result = node.execute(script, shell=True)
-        text = combined_output(result)
-        fixture = section(text, fixture_begin, fixture_end).strip()
-        curl_rc = section(text, rc_begin, rc_end).strip()
-        body_bytes = section(text, bytes_begin, bytes_end).strip()
-        curl_diag = section(text, curl_diag_begin, curl_diag_end)
-        server_diag = section(text, server_diag_begin, server_diag_end)
-        if fixture == not_ready_marker:
-            raise SkippedException(
-                f"loopback HTTP fixture was not ready: {server_diag!r}"
-            )
-        assert_that(result.exit_code).described_as(
-            f"guest script exit code was {result.exit_code}; output: {text!r}"
-        ).is_equal_to(0)
-        assert_that(fixture).described_as(
-            f"fixture state was {fixture!r}; diagnostics: {server_diag!r}"
-        ).is_equal_to(ready_marker)
-        assert_that(curl_rc).described_as(
-            f"curl exit code was {curl_rc!r}; diagnostics: {curl_diag!r}"
-        ).is_equal_to("22")
-        assert_that(body_bytes).described_as(
-            f"curl emitted {body_bytes!r} response-body bytes; expected zero"
-        ).is_equal_to("0")
-
-    @TestCaseMetadata(
-        description="""
-            Verifies that curl follows an HTTP redirect when invoked with --location. A
-            loopback server records both requests and returns a unique body from the
-            final resource.
-
-            Corpus obligation: pkg:curl/follow-http-redirect
-        """,
-        priority=3,
-        tags=["ai-generated"],
-    )
-    def verify_follow_http_redirect(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        start_path = "/redirect"
-        final_path = "/final"
-        response_body = "curl-followed-redirect"
-        server = rf"""
-import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-port_file = sys.argv[1]
-request_log = sys.argv[2]
-
-class Handler(BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1"
-
-    def _record(self):
-        with open(request_log, "a", encoding="utf-8") as stream:
-            stream.write(self.path + "\n")
-
-    def do_GET(self):
-        self._record()
-        if self.path == "{start_path}":
-            self.send_response(302)
-            self.send_header("Location", "{final_path}")
-            self.send_header("Content-Length", "0")
-            self.end_headers()
-            return
-        if self.path == "{final_path}":
-            body = b"{response_body}"
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-            return
-        self.send_response(404)
-        self.send_header("Content-Length", "0")
-        self.end_headers()
-
-    def log_message(self, pattern, *args):
-        return
-
-httpd = HTTPServer(("127.0.0.1", 0), Handler)
-with open(port_file, "w", encoding="utf-8") as stream:
-    stream.write(str(httpd.server_port) + "\n")
-httpd.serve_forever()
-"""
-        command = rf"""
-tmp=$(mktemp -d)
-server_pid=
-cleanup() {{
-    if [ -n "$server_pid" ]; then
-        kill "$server_pid" 2>/dev/null
-        wait "$server_pid" 2>/dev/null
-    fi
-    rm -rf "$tmp"
-}}
-trap cleanup EXIT
-
-cat <<'PY' > "$tmp/server.py"
-{server}
-PY
-
-if [ ! -s "$tmp/server.py" ]; then
-    echo FIXTURE_NOT_READY
-    exit 0
-fi
-if ! python3 -m py_compile "$tmp/server.py" 2>"$tmp/server.log"; then
-    echo SERVER_LOG_BEGIN
-    cat "$tmp/server.log"
-    echo SERVER_LOG_END
-    echo FIXTURE_NOT_READY
-    exit 0
-fi
-
-python3 "$tmp/server.py" "$tmp/port" "$tmp/requests" \
-    >"$tmp/server.out" 2>>"$tmp/server.log" &
-server_pid=$!
-ready=0
-attempt=0
-while [ "$attempt" -lt 50 ]; do
-    if [ -s "$tmp/port" ]; then
-        port=$(cat "$tmp/port")
-        if python3 -c \
-            'import socket,sys;s=socket.create_connection'\
-            '(("127.0.0.1",int(sys.argv[1])),1);s.close()' \
-            "$port"; then
-            ready=1
-            break
-        fi
-    fi
-    attempt=$((attempt + 1))
-    sleep 0.1
-done
-
-if [ "$ready" -ne 1 ]; then
-    echo SERVER_LOG_BEGIN
-    cat "$tmp/server.log" 2>/dev/null
-    echo SERVER_LOG_END
-    echo FIXTURE_NOT_READY
-    exit 0
-fi
-
-echo CURL_VERSION_BEGIN
-curl -V
-echo CURL_VERSION_END
-http_code=$(curl -sS --location \
-    --output "$tmp/body" \
-    --write-out '%{{http_code}}' \
-    "http://127.0.0.1:$port{start_path}" 2>"$tmp/curl.err")
-curl_rc=$?
-
-kill "$server_pid" 2>/dev/null
-wait "$server_pid" 2>/dev/null
-server_pid=
-
-echo CURL_RC_BEGIN
-echo "$curl_rc"
-echo CURL_RC_END
-echo HTTP_CODE_BEGIN
-echo "$http_code"
-echo HTTP_CODE_END
-echo BODY_BEGIN
-if [ -f "$tmp/body" ]; then
-    cat "$tmp/body"
-    echo
-else
-    echo MISSING
-fi
-echo BODY_END
-echo REQUESTS_BEGIN
-if [ -f "$tmp/requests" ]; then
-    cat "$tmp/requests"
-else
-    echo MISSING
-fi
-echo REQUESTS_END
-echo CURL_ERROR_BEGIN
-cat "$tmp/curl.err" 2>/dev/null
-echo CURL_ERROR_END
-echo SERVER_LOG_BEGIN
-cat "$tmp/server.log" 2>/dev/null
-echo SERVER_LOG_END
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        if "FIXTURE_NOT_READY" in text:
-            raise SkippedException("loopback redirect fixture was not ready")
-        assert_that(result.exit_code).described_as(
-            f"fixture script exit code; observed output: {text}"
-        ).is_equal_to(0)
-        curl_rc = section(text, "CURL_RC_BEGIN", "CURL_RC_END").strip()
-        assert_that(curl_rc).described_as(
-            f"curl exit code; observed {curl_rc}, expected 0"
-        ).is_equal_to("0")
-        http_code = section(text, "HTTP_CODE_BEGIN", "HTTP_CODE_END").strip()
-        assert_that(http_code).described_as(
-            f"final HTTP status; observed {http_code}, expected 200"
-        ).is_equal_to("200")
-        body = section(text, "BODY_BEGIN", "BODY_END").strip()
-        assert_that(body).described_as(
-            f"final response body; observed {body}, expected {response_body}"
-        ).is_equal_to(response_body)
-        requests = section_lines(text, "REQUESTS_BEGIN", "REQUESTS_END")
-        assert_that(requests).described_as(
-            f"requested paths; observed {requests}"
-        ).is_equal_to([start_path, final_path])
-
-    @TestCaseMetadata(
-        description="""
-            Verifies that curl honors an explicit --proxy value for an HTTP origin URL.
-            A loopback proxy records and forwards the absolute request URL to a loopback
-            origin, and the case checks both proxy receipt and curl's returned origin
-            body.
-
-            Corpus obligation: pkg:curl/request-through-proxy
-        """,
-        priority=3,
-        tags=["ai-generated"],
-    )
-    def verify_request_through_proxy(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        expected_body = "origin-response-through-explicit-proxy"
-        request_path = "/through-proxy"
-        ready_marker = "FIXTURE_READY=1"
-        not_ready_marker = "FIXTURE_NOT_READY=1"
-        proxy_seen_marker = "PROXY_SEEN=1"
-        helper = rf"""
-import http.client
-import socket
-import subprocess
-import threading
-import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit, urlunsplit
-
-request_path = {request_path!r}
-expected_body = {expected_body!r}.encode()
-
-
-class OriginHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path != request_path:
-            self.send_response(404)
-            self.end_headers()
-            return
-        self.send_response(200)
-        self.send_header("Content-Length", str(len(expected_body)))
-        self.end_headers()
-        self.wfile.write(expected_body)
-
-    def log_message(self, message, *args):
-        return
-
-
-class ProxyHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.server.seen.append(self.path)
-        parsed = urlsplit(self.path)
-        target = urlunsplit(("", "", parsed.path or "/", parsed.query, ""))
-        connection = http.client.HTTPConnection(
-            parsed.hostname,
-            parsed.port or 80,
-            timeout=5,
-        )
-        try:
-            connection.request("GET", target)
-            response = connection.getresponse()
-            body = response.read()
-            self.send_response(response.status)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-        finally:
-            connection.close()
-
-    def log_message(self, message, *args):
-        return
-
-
-def reachable(port):
-    for attempt in range(30):
-        try:
-            connection = socket.create_connection(("127.0.0.1", port), 1)
-            connection.close()
-            return True
-        except OSError:
-            time.sleep(0.05)
-    return False
-
-
-def region(name, value):
-    print(f"{{name}}_BEGIN")
-    if value:
-        print(value, end="")
-        if not value.endswith("\n"):
-            print()
-    print(f"{{name}}_END")
-
-
-origin = ThreadingHTTPServer(("127.0.0.1", 0), OriginHandler)
-proxy = ThreadingHTTPServer(("127.0.0.1", 0), ProxyHandler)
-proxy.seen = []
-origin_thread = threading.Thread(target=origin.serve_forever, daemon=True)
-proxy_thread = threading.Thread(target=proxy.serve_forever, daemon=True)
-origin_thread.start()
-proxy_thread.start()
-origin_url = f"http://127.0.0.1:{{origin.server_port}}{{request_path}}"
-proxy_url = f"http://127.0.0.1:{{proxy.server_port}}"
-fixture_ready = reachable(origin.server_port) and reachable(proxy.server_port)
-curl_rc = "NOT_RUN"
-curl_body = ""
-curl_stderr = ""
-try:
-    if fixture_ready:
-        completed = subprocess.run(
-            [
-                "curl",
-                "--silent",
-                "--show-error",
-                "--max-time",
-                "10",
-                "--noproxy",
-                "",
-                "--proxy",
-                proxy_url,
-                origin_url,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=15,
-        )
-        curl_rc = str(completed.returncode)
-        curl_body = completed.stdout
-        curl_stderr = completed.stderr
-finally:
-    origin.shutdown()
-    proxy.shutdown()
-    origin.server_close()
-    proxy.server_close()
-    origin_thread.join(timeout=2)
-    proxy_thread.join(timeout=2)
-
-seen_target = proxy.seen[-1] if proxy.seen else ""
-print("STATUS_BEGIN")
-print({ready_marker!r} if fixture_ready else {not_ready_marker!r})
-print(f"CURL_RC={{curl_rc}}")
-print({proxy_seen_marker!r} if seen_target == origin_url else "PROXY_SEEN=0")
-print("STATUS_END")
-region("BODY", curl_body)
-region("PROXY_TARGET", seen_target)
-region("CURL_DIAGNOSTIC", curl_stderr)
-"""
-        result = node.execute(
-            f"""tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
-cat <<'PY' > "$tmp/proxy_case.py"
-{helper}
-PY
-if ! test -s "$tmp/proxy_case.py"; then
-    echo 'HELPER_BEGIN'
-    echo 'helper was empty'
-    echo 'HELPER_END'
-    exit 1
-fi
-python3 -m py_compile "$tmp/proxy_case.py" || exit 1
-python3 "$tmp/proxy_case.py"
-""",
-            shell=True,
-        )
-        text = combined_output(result)
-        assert_that(result.exit_code).described_as(
-            f"proxy exercise must complete; observed output: {text}"
-        ).is_equal_to(0)
-        if not_ready_marker in text:
-            raise SkippedException(
-                "the loopback origin or proxy fixture did not become reachable"
-            )
-        status_lines = section_lines(text, "STATUS_BEGIN", "STATUS_END")
-        assert_that(status_lines).described_as(
-            f"fixture readiness status was: {status_lines}"
-        ).contains(ready_marker)
-        assert_that(status_lines).described_as(
-            f"curl status through the explicit proxy was: {status_lines}"
-        ).contains("CURL_RC=0")
-        assert_that(status_lines).described_as(
-            f"proxy receipt status was: {status_lines}"
-        ).contains(proxy_seen_marker)
-        proxy_target = section(
-            text,
-            "PROXY_TARGET_BEGIN",
-            "PROXY_TARGET_END",
-        )
-        assert_that(proxy_target).described_as(
-            f"proxy received target: {proxy_target}"
-        ).starts_with("http://127.0.0.1:")
-        assert_that(proxy_target).described_as(
-            f"proxy received target: {proxy_target}"
-        ).ends_with(request_path)
-        curl_body = section(text, "BODY_BEGIN", "BODY_END")
-        assert_that(curl_body).described_as(
-            f"curl returned body {curl_body!r}, expected {expected_body!r}"
-        ).is_equal_to(expected_body)
-
-    @TestCaseMetadata(
-        description="""
-            Verifies that curl resumes an existing partial download with --continue-at
-            -. A loopback HTTP server records the Range header, and the completed
-            destination is compared byte-for-byte with the known content.
-
-            Corpus obligation: pkg:curl/resume-partial-download
-        """,
-        priority=3,
-        tags=["ai-generated"],
-    )
-    def verify_resume_partial_download(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        content = "resume-check-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ-end"
-        prefix = content[:19]
-        helper = rf"""
-import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-body = {content!r}.encode("ascii")
-port_path = sys.argv[1]
-log_path = sys.argv[2]
-
-
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        value = self.headers.get("Range", "NONE")
-        with open(log_path, "a", encoding="utf-8") as stream:
-            stream.write(value + "\n")
-        start = 0
-        status = 200
-        if value.startswith("bytes=") and value.endswith("-"):
-            try:
-                start = int(value[6:-1])
-            except ValueError:
-                start = 0
-            if 0 <= start < len(body):
-                status = 206
-        payload = body[start:] if status == 206 else body
-        self.send_response(status)
-        self.send_header("Content-Length", str(len(payload)))
-        if status == 206:
-            end = len(body) - 1
-            total = len(body)
-            self.send_header(
-                "Content-Range", f"bytes {{start}}-{{end}}/{{total}}"
-            )
-        self.end_headers()
-        self.wfile.write(payload)
-
-    def log_message(self, pattern, *args):
-        return
-
-
-server = HTTPServer(("127.0.0.1", 0), Handler)
-with open(port_path, "w", encoding="utf-8") as stream:
-    stream.write(str(server.server_port) + "\n")
-server.serve_forever()
-"""
-        command = rf"""
-tmp=$(mktemp -d)
-pid=""
-trap '[ -z "$pid" ] || kill "$pid" 2>/dev/null; rm -rf "$tmp"' EXIT
-helper_nonempty=no
-compiled=no
-ready=no
-curl_rc=NOT_RUN
-match=no
-initial_size=MISSING
-final_size=MISSING
-range_value=MISSING
-cat <<'PY' > "$tmp/server.py"
-{helper}
-PY
-if test -s "$tmp/server.py"; then
-    helper_nonempty=yes
-fi
-if test "$helper_nonempty" = yes && \
-        python3 -m py_compile "$tmp/server.py"; then
-    compiled=yes
-    python3 "$tmp/server.py" "$tmp/port" "$tmp/ranges" \
-        >"$tmp/server.out" 2>"$tmp/server.err" </dev/null &
-    pid=$!
-    count=0
-    while test ! -s "$tmp/port" && test "$count" -lt 50; do
-        sleep 0.1
-        count=$((count + 1))
-    done
-    if test -s "$tmp/port"; then
-        port=$(cat "$tmp/port")
-        if python3 -c 'import socket,sys
-socket.create_connection(("127.0.0.1",int(sys.argv[1])),2).close()' \
-                "$port"; then
-            ready=yes
-        fi
-    fi
-fi
-if test "$ready" = yes; then
-    printf '%s' '{prefix}' > "$tmp/destination"
-    printf '%s' '{content}' > "$tmp/expected"
-    initial_size=$(wc -c < "$tmp/destination" 2>/dev/null || echo MISSING)
-    curl --silent --show-error --continue-at - \
-        --output "$tmp/destination" \
-        "http://127.0.0.1:$port/content"
-    curl_rc=$?
-    if cmp -s "$tmp/destination" "$tmp/expected"; then
-        match=yes
-    fi
-    final_size=$(wc -c < "$tmp/destination" 2>/dev/null || echo MISSING)
-    range_value=$(
-        if test -s "$tmp/ranges"; then
-            cat "$tmp/ranges"
-        else
-            printf '%s' MISSING
-        fi
-    )
-fi
-if test -n "$pid"; then
-    kill "$pid" 2>/dev/null || true
-    wait "$pid" 2>/dev/null || true
-    pid=""
-fi
-printf '%s\n' FIXTURE_BEGIN
-printf '%s\n' "HELPER_NONEMPTY=$helper_nonempty"
-printf '%s\n' "COMPILED=$compiled"
-printf '%s\n' "READY=$ready"
-printf '%s\n' FIXTURE_END
-printf '%s\n' CURL_BEGIN
-printf '%s\n' "RC=$curl_rc"
-printf '%s\n' "INITIAL_SIZE=$initial_size"
-printf '%s\n' "FINAL_SIZE=$final_size"
-printf '%s\n' "MATCH=$match"
-printf '%s\n' CURL_END
-printf '%s\n' RANGE_BEGIN
-printf '%s\n' "$range_value"
-printf '%s\n' RANGE_END
-printf '%s\n' SERVER_DIAGNOSTICS_BEGIN
-if test -s "$tmp/server.err"; then
-    tail -n 20 "$tmp/server.err"
-fi
-printf '%s\n' SERVER_DIAGNOSTICS_END
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        fixture = section_lines(text, "FIXTURE_BEGIN", "FIXTURE_END")
-        if "READY=no" in fixture:
-            raise SkippedException(f"loopback fixture was not ready: {fixture!r}")
-        assert_that(fixture).described_as(
-            f"fixture preparation facts were {fixture!r}"
-        ).contains("HELPER_NONEMPTY=yes", "COMPILED=yes", "READY=yes")
-        curl_facts = section_lines(text, "CURL_BEGIN", "CURL_END")
-        assert_that(curl_facts).described_as(
-            f"curl execution facts were {curl_facts!r}"
-        ).contains("RC=0")
-        assert_that(curl_facts).described_as(
-            f"partial destination facts were {curl_facts!r}"
-        ).contains(f"INITIAL_SIZE={len(prefix)}")
-        range_facts = section_lines(text, "RANGE_BEGIN", "RANGE_END")
-        assert_that(range_facts).described_as(
-            f"server observed Range values {range_facts!r}"
-        ).contains(f"bytes={len(prefix)}-")
-        assert_that(curl_facts).described_as(
-            f"completed destination facts were {curl_facts!r}"
-        ).contains(f"FINAL_SIZE={len(content)}")
-        assert_that(curl_facts).described_as(
-            f"destination comparison facts were {curl_facts!r}"
-        ).contains("MATCH=yes")
-
-    @TestCaseMetadata(
-        description="""
-            Verifies that curl --head sends a HEAD request to a healthy loopback HTTP
-            service. It confirms that curl displays a controlled response header while
-            omitting the response body.
-
-            Corpus obligation: pkg:curl/retrieve-response-headers
-        """,
-        priority=3,
-        tags=["ai-generated"],
-    )
-    def verify_retrieve_response_headers(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        body_marker = "CURL_HEAD_RESPONSE_BODY_7E21"
-        header_marker = "curl-head-header-4f92"
-        request_path = "/head-check"
-        server_script = rf"""
-import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
-
-root = Path(sys.argv[1])
-body = {body_marker!r}.encode()
-
-class Handler(BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1"
-
-    def _reply(self, include_body):
-        method = self.command + " " + self.path + "\n"
-        (root / "method").write_text(method)
-        self.send_response(200)
-        self.send_header("X-Curl-Probe", {header_marker!r})
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Connection", "close")
-        self.end_headers()
-        if include_body:
-            self.wfile.write(body)
-
-    def do_HEAD(self):
-        self._reply(False)
-
-    def do_GET(self):
-        self._reply(True)
-
-    def log_message(self, message, *args):
-        pass
-
-server = HTTPServer(("127.0.0.1", 0), Handler)
-(root / "port").write_text(str(server.server_port) + "\n")
-server.serve_forever()
-"""
-        command = rf"""tmp=$(mktemp -d /tmp/curl-head.XXXXXX)
-pid=
-cleanup() {{
-    if [ -n "$pid" ]; then
-        kill "$pid" 2>/dev/null || true
-        wait "$pid" 2>/dev/null || true
-    fi
-    rm -rf "$tmp"
-}}
-trap cleanup EXIT
-cat <<'PY' > "$tmp/server.py"
-{server_script}
-PY
-ready=0
-if test -s "$tmp/server.py" && \
-    python3 -m py_compile "$tmp/server.py"; then
-    python3 "$tmp/server.py" "$tmp" \
-        >"$tmp/server.out" 2>"$tmp/server.err" &
-    pid=$!
-    attempt=0
-    while [ "$attempt" -lt 50 ]; do
-        attempt=$((attempt + 1))
-        if test -s "$tmp/port"; then
-            port=$(cat "$tmp/port")
-            if python3 -c 'import socket,sys; '\
-                's=socket.create_connection('\
-                '("127.0.0.1",int(sys.argv[1])),1); s.close()' \
-                "$port"; then
-                ready=1
-                break
-            fi
-        fi
-        kill -0 "$pid" 2>/dev/null || break
-        sleep 0.1
-    done
-fi
-printf '%s\n' FIXTURE_BEGIN "READY=$ready" FIXTURE_END
-if [ "$ready" -ne 1 ]; then
-    printf '%s\n' SERVER_BEGIN
-    cat "$tmp/server.err" 2>/dev/null || true
-    printf '%s\n' SERVER_END
-    exit 0
-fi
-url="http://127.0.0.1:$port{request_path}"
-curl --head --silent --show-error "$url" >"$tmp/curl.out"
-curl_rc=$?
-printf '%s\n' CURL_OUTPUT_BEGIN
-cat "$tmp/curl.out" 2>/dev/null || true
-printf '%s\n' CURL_OUTPUT_END
-printf '%s\n' METHOD_BEGIN
-cat "$tmp/method" 2>/dev/null || printf '%s\n' MISSING
-printf '%s\n' METHOD_END
-printf '%s\n' STATUS_BEGIN "CURL_RC=$curl_rc" STATUS_END
-printf '%s\n' SERVER_BEGIN
-cat "$tmp/server.err" 2>/dev/null || true
-printf '%s\n' SERVER_END
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        assert_that(result.exit_code).described_as(
-            f"fixture shell rc expected 0, observed {result.exit_code}"
-        ).is_equal_to(0)
-        fixture = section(text, "FIXTURE_BEGIN", "FIXTURE_END").strip()
-        if fixture != "READY=1":
-            diagnostics = section(text, "SERVER_BEGIN", "SERVER_END")
-            raise SkippedException(
-                f"loopback fixture was not ready: {fixture}; {diagnostics}"
-            )
-        assert_that(fixture).described_as(
-            f"fixture readiness expected READY=1, observed {fixture}"
-        ).is_equal_to("READY=1")
-        status = section(text, "STATUS_BEGIN", "STATUS_END").strip()
-        assert_that(status).described_as(
-            f"curl status expected CURL_RC=0, observed {status}"
-        ).is_equal_to("CURL_RC=0")
-        method = section(text, "METHOD_BEGIN", "METHOD_END").strip()
-        expected_method = f"HEAD {request_path}"
-        assert_that(method).described_as(
-            f"HTTP method expected {expected_method}, observed {method}"
-        ).is_equal_to(expected_method)
-        headers = section(text, "CURL_OUTPUT_BEGIN", "CURL_OUTPUT_END")
-        expected_header = f"X-Curl-Probe: {header_marker}"
-        assert_that(headers).described_as(
-            f"expected response header {expected_header}, observed {headers!r}"
-        ).contains(expected_header)
-        assert_that(headers).described_as(
-            f"HEAD output must omit {body_marker}, observed {headers!r}"
-        ).does_not_contain(body_marker)
-
-    @TestCaseMetadata(
-        description="""
-            Verifies that curl retries one transient HTTP 503 response and honors its
-            Retry-After header. It confirms that the second request succeeds, returns
-            the expected body, and occurs after the requested delay.
-
-            Corpus obligation: pkg:curl/retry-transient-http-response
-        """,
-        priority=3,
-        tags=["ai-generated"],
-    )
-    def verify_retry_transient_http_response(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        expected = "curl-retry-success"
-        retry_count = 1
-        expected_attempts = retry_count + 1
-        server_script = rf"""
-import sys
-import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
-attempts = 0
-
-
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self, message, *args):
-        pass
-
-    def _reply(self, status, body=b"", retry_after=None):
-        self.send_response(status)
-        if retry_after is not None:
-            self.send_header("Retry-After", retry_after)
-        self.send_header("Content-Length", str(len(body)))
-        self.send_header("Connection", "close")
-        self.end_headers()
-        if body:
-            self.wfile.write(body)
-
-    def do_GET(self):
-        global attempts
-        if self.path == "/ready":
-            self._reply(204)
-            return
-        if self.path != "/service":
-            self._reply(404)
-            return
-        attempts += 1
-        with open(sys.argv[3], "a") as handle:
-            handle.write(str(time.monotonic()) + "\n")
-        if attempts == 1:
-            self._reply(503, retry_after="1")
-            return
-        self._reply(200, b"{expected}")
-
-
-if sys.argv[1] == "--delta":
-    with open(sys.argv[2]) as handle:
-        values = [float(value) for value in handle.read().split()]
-    if len(values) < 2:
-        print("MISSING")
-    else:
-        print(values[1] - values[0])
-else:
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    with open(sys.argv[2], "w") as handle:
-        handle.write(str(server.server_port) + "\n")
-    server.serve_forever()
-"""
-        command = rf"""
-set -u
-tmp=$(mktemp -d)
-pid=""
-trap '[ -z "$pid" ] || kill "$pid" 2>/dev/null || true;
-rm -rf "$tmp"' EXIT
-cat <<'PY' > "$tmp/server.py"
-{server_script}
-PY
-if ! test -s "$tmp/server.py"; then
-    echo FIXTURE_UNREADY
-    echo SERVER_ERROR_BEGIN
-    echo helper-file-empty
-    echo SERVER_ERROR_END
-    exit 0
-fi
-if ! python3 -m py_compile "$tmp/server.py" 2>"$tmp/compile.err"; then
-    echo FIXTURE_UNREADY
-    echo SERVER_ERROR_BEGIN
-    cat "$tmp/compile.err"
-    echo SERVER_ERROR_END
-    exit 0
-fi
-python3 "$tmp/server.py" serve "$tmp/port" "$tmp/times" \
-    2>"$tmp/server.err" &
-pid=$!
-ready=0
-i=0
-while [ "$i" -lt 50 ]; do
-    if test -s "$tmp/port"; then
-        port=$(cat "$tmp/port")
-        if python3 -c '
-import socket
-import sys
-sock = socket.create_connection(("127.0.0.1", int(sys.argv[1])), 0.2)
-sock.sendall(b"GET /ready HTTP/1.0\r\n\r\n")
-assert sock.recv(1)
-' "$port" 2>/dev/null; then
-            ready=1
-            break
-        fi
-    fi
-    i=$((i + 1))
-    sleep 0.1
-done
-if [ "$ready" -ne 1 ]; then
-    echo FIXTURE_UNREADY
-    echo SERVER_ERROR_BEGIN
-    cat "$tmp/server.err"
-    echo SERVER_ERROR_END
-    exit 0
-fi
-echo CURL_VERSION_BEGIN
-curl -V
-echo CURL_VERSION_END
-set +e
-status=$(curl --retry {retry_count} --silent --show-error \
-    --output "$tmp/body" --write-out '%{{http_code}}' \
-    "http://127.0.0.1:$port/service")
-curl_rc=$?
-set -e
-kill "$pid" 2>/dev/null || true
-wait "$pid" 2>/dev/null || true
-pid=""
-count=$(wc -l < "$tmp/times" 2>/dev/null || echo MISSING)
-delta=$(python3 "$tmp/server.py" --delta "$tmp/times" \
-    2>/dev/null || echo MISSING)
-echo CURL_RC_BEGIN
-echo "$curl_rc"
-echo CURL_RC_END
-echo STATUS_BEGIN
-echo "$status"
-echo STATUS_END
-echo REQUEST_COUNT_BEGIN
-echo "$count"
-echo REQUEST_COUNT_END
-echo RETRY_DELTA_BEGIN
-echo "$delta"
-echo RETRY_DELTA_END
-echo BODY_BEGIN
-if test -f "$tmp/body"; then
-    cat "$tmp/body"
-else
-    echo MISSING
-fi
-echo
-echo BODY_END
-echo SERVER_ERROR_BEGIN
-cat "$tmp/server.err"
-echo SERVER_ERROR_END
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        if "FIXTURE_UNREADY" in text:
-            raise SkippedException(
-                f"loopback HTTP fixture did not become healthy: {text}"
-            )
-        assert_that(result.exit_code).described_as(
-            f"fixture orchestration must complete: {text}"
-        ).is_equal_to(0)
-        version = section(text, "CURL_VERSION_BEGIN", "CURL_VERSION_END")
-        assert_that(version).described_as(
-            f"curl version evidence was: {version}"
-        ).contains("curl")
-        curl_rc = section(text, "CURL_RC_BEGIN", "CURL_RC_END").strip()
-        assert_that(curl_rc).described_as(
-            f"curl exit code was {curl_rc}, expected 0; output: {text}"
-        ).is_equal_to("0")
-        status = section(text, "STATUS_BEGIN", "STATUS_END").strip()
-        assert_that(status).described_as(
-            f"final HTTP status was {status}, expected 200; output: {text}"
-        ).is_equal_to("200")
-        count_text = section(text, "REQUEST_COUNT_BEGIN", "REQUEST_COUNT_END").strip()
-        assert_that(count_text).described_as(
-            f"request count was {count_text}; output: {text}"
-        ).is_equal_to(f"{expected_attempts}")
-        delta_text = section(text, "RETRY_DELTA_BEGIN", "RETRY_DELTA_END").strip()
-        assert_that(delta_text).described_as(
-            f"retry delay evidence was {delta_text}; output: {text}"
-        ).is_not_equal_to("MISSING")
-        delta = float(delta_text)
-        assert_that(delta).described_as(
-            f"retry delay was {delta} seconds, expected at least 0.8"
-        ).is_greater_than_or_equal_to(0.8)
-        body = section(text, "BODY_BEGIN", "BODY_END").strip()
-        assert_that(body).described_as(
-            f"successful response body was {body!r}, expected {expected!r}"
-        ).is_equal_to(expected)
-
-    @TestCaseMetadata(
-        description="""
-            Verifies that curl --json sends the supplied JSON text in a POST request to
-            a loopback endpoint. The endpoint records the request method, body,
-            Content-Type, and Accept headers so each behavior is asserted independently.
-
-            Corpus obligation: pkg:curl/send-json-post
-        """,
-        priority=3,
-        tags=["ai-generated"],
-    )
-    def verify_send_json_post(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        payload = '{"kind":"azure-linux-curl"}'
-        server = r"""
-import socket
-import sys
-from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
-
-if sys.argv[1] == "probe":
-    with socket.create_connection(
-        ("127.0.0.1", int(sys.argv[2])), timeout=1
-    ):
-        pass
-    raise SystemExit(0)
-
-report_path = Path(sys.argv[1])
-port_path = Path(sys.argv[2])
-
-class Handler(BaseHTTPRequestHandler):
-    def do_POST(self):
-        length = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(length).decode("utf-8")
-        report = (
-            "METHOD=POST\n"
-            + "CONTENT_TYPE="
-            + self.headers.get("Content-Type", "MISSING")
-            + "\nACCEPT="
-            + self.headers.get("Accept", "MISSING")
-            + "\nBODY="
-            + body
-            + "\n"
-        )
-        report_path.write_text(report, encoding="utf-8")
-        self.send_response(204)
-        self.end_headers()
-
-    def log_message(self, message, *args):
-        pass
-
-server = HTTPServer(("127.0.0.1", 0), Handler)
-port_path.write_text(str(server.server_port), encoding="utf-8")
-server.serve_forever()
-"""
-        command = rf"""
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
-cat <<'PY' > "$tmp/server.py"
-{server}
-PY
-if ! test -s "$tmp/server.py"; then
-    echo FIXTURE_NOT_READY
-    echo SERVER_DIAGNOSTIC_BEGIN
-    echo materialized-server-helper-is-empty
-    echo SERVER_DIAGNOSTIC_END
-    exit 0
-fi
-if ! python3 -m py_compile "$tmp/server.py" 2>"$tmp/compile.err"; then
-    echo FIXTURE_NOT_READY
-    echo SERVER_DIAGNOSTIC_BEGIN
-    cat "$tmp/compile.err"
-    echo SERVER_DIAGNOSTIC_END
-    exit 0
-fi
-python3 "$tmp/server.py" "$tmp/report" "$tmp/port" \
-    >"$tmp/server.out" 2>"$tmp/server.err" &
-pid=$!
-trap 'kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; \
-rm -rf "$tmp"' EXIT
-ready=0
-i=0
-while [ "$i" -lt 50 ]; do
-    if test -s "$tmp/port"; then
-        port=$(cat "$tmp/port")
-        if python3 "$tmp/server.py" probe "$port" 2>/dev/null; then
-            ready=1
-            break
-        fi
-    fi
-    if ! kill -0 "$pid" 2>/dev/null; then
-        break
-    fi
-    i=$((i + 1))
-    sleep 0.1
-done
-if [ "$ready" -ne 1 ]; then
-    echo FIXTURE_NOT_READY
-    echo SERVER_DIAGNOSTIC_BEGIN
-    cat "$tmp/server.err" 2>/dev/null || echo MISSING
-    echo SERVER_DIAGNOSTIC_END
-    exit 0
-fi
-set +e
-curl --silent --show-error --max-time 10 \
-    --json '{payload}' "http://127.0.0.1:$port/submit" \
-    >"$tmp/curl.out" 2>"$tmp/curl.err"
-curl_rc=$?
-set -e
-echo CURL_RC_BEGIN
-echo "$curl_rc"
-echo CURL_RC_END
-echo REPORT_BEGIN
-cat "$tmp/report" 2>/dev/null || echo MISSING
-echo REPORT_END
-echo CURL_OUTPUT_BEGIN
-cat "$tmp/curl.out" 2>/dev/null || true
-cat "$tmp/curl.err" 2>/dev/null || true
-echo CURL_OUTPUT_END
-echo SERVER_DIAGNOSTIC_BEGIN
-cat "$tmp/server.err" 2>/dev/null || true
-echo SERVER_DIAGNOSTIC_END
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
+    def verify_pkg_curl_authenticate_se_1cc051da(self, node: Node) -> None:
         (
-            assert_that(result.exit_code)
-            .described_as(
-                f"guest harness rc was {result.exit_code}, expected 0; output: {text}"
-            )
-            .is_equal_to(0)
+            "Execute frozen source sha256:ccb5cdc7f1d3e1b4b929710fe46e5993b12c92a"
+            "8d672d6ca2b08007e3e323109."
         )
-        if "FIXTURE_NOT_READY" in text:
-            raise SkippedException(
-                f"loopback fixture did not become ready; observed output: {text}"
-            )
-        curl_rc = section(text, "CURL_RC_BEGIN", "CURL_RC_END").strip()
-        report = section_lines(text, "REPORT_BEGIN", "REPORT_END")
-        (
-            assert_that(curl_rc)
-            .described_as(f"curl exit code was {curl_rc}, expected 0; output: {text}")
-            .is_equal_to("0")
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgYmFzZTY0CmltcG9ydCBodHRwLnNl"
+            "cnZlcgppbXBvcnQgc2VjcmV0cwppbXBvcnQgc2h1dGlsCmltcG9ydCBzdWJwcm9jZXNz"
+            "CmltcG9ydCBzeXMKaW1wb3J0IHRocmVhZGluZwppbXBvcnQgdHJhY2ViYWNrCgoKY2xh"
+            "c3MgVGVzdEZhaWx1cmUoRXhjZXB0aW9uKToKICAgIHBhc3MKCgpkZWYgX3NpbmdsZV9s"
+            "aW5lKHZhbHVlKToKICAgIHJldHVybiB2YWx1ZS5zdHJpcCgpLnJlcGxhY2UoIlxyIiwg"
+            "IlxcciIpLnJlcGxhY2UoIlxuIiwgIiB8ICIpCgoKZGVmIG1haW4oKToKICAgIGh0dHBk"
+            "ID0gTm9uZQogICAgd29ya2VyID0gTm9uZQogICAgd29ya2VyX3N0YXJ0ZWQgPSBGYWxz"
+            "ZQogICAgZml4dHVyZV9lcnJvcnMgPSBbXQogICAgc3RhdHVzID0gMQogICAgZGV0YWls"
+            "ID0gInRlc3QgZGlkIG5vdCBjb21wbGV0ZSIKCiAgICB0cnk6CiAgICAgICAgY3VybCA9"
+            "IHNodXRpbC53aGljaCgiY3VybCIpCiAgICAgICAgaWYgY3VybCBpcyBOb25lOgogICAg"
+            "ICAgICAgICBzdGF0dXMgPSA3NwogICAgICAgICAgICBkZXRhaWwgPSAiY3VybCBDTEkg"
+            "aXMgbm90IGF2YWlsYWJsZSIKICAgICAgICAgICAgcmV0dXJuIHN0YXR1cywgZGV0YWls"
+            "CgogICAgICAgIHVzZXJuYW1lID0gImN1cmwtdGVzdC11c2VyIgogICAgICAgIHBhc3N3"
+            "b3JkID0gc2VjcmV0cy50b2tlbl91cmxzYWZlKDI0KQogICAgICAgIGNyZWRlbnRpYWwg"
+            "PSB1c2VybmFtZSArICI6IiArIHBhc3N3b3JkCiAgICAgICAgZXhwZWN0ZWRfYXV0aG9y"
+            "aXphdGlvbiA9ICJCYXNpYyAiICsgYmFzZTY0LmI2NGVuY29kZSgKICAgICAgICAgICAg"
+            "Y3JlZGVudGlhbC5lbmNvZGUoInV0Zi04IikKICAgICAgICApLmRlY29kZSgiYXNjaWki"
+            "KQogICAgICAgIGV4cGVjdGVkX2JvZHkgPSBiImF1dGhlbnRpY2F0ZWQgcHJvdGVjdGVk"
+            "IHJlc3BvbnNlIgogICAgICAgIGV4cGVjdGVkX3RhcmdldCA9ICIvcHJvdGVjdGVkIgoK"
+            "ICAgICAgICBvYnNlcnZhdGlvbnMgPSBbXQogICAgICAgIG9ic2VydmF0aW9uX2xvY2sg"
+            "PSB0aHJlYWRpbmcuTG9jaygpCgogICAgICAgIGNsYXNzIFByb3RlY3RlZEhhbmRsZXIo"
+            "aHR0cC5zZXJ2ZXIuQmFzZUhUVFBSZXF1ZXN0SGFuZGxlcik6CiAgICAgICAgICAgIGRl"
+            "ZiBkb19HRVQoc2VsZik6CiAgICAgICAgICAgICAgICBzdXBwbGllZF9hdXRob3JpemF0"
+            "aW9uID0gc2VsZi5oZWFkZXJzLmdldCgiQXV0aG9yaXphdGlvbiIpCiAgICAgICAgICAg"
+            "ICAgICB3aXRoIG9ic2VydmF0aW9uX2xvY2s6CiAgICAgICAgICAgICAgICAgICAgb2Jz"
+            "ZXJ2YXRpb25zLmFwcGVuZCgoc2VsZi5wYXRoLCBzdXBwbGllZF9hdXRob3JpemF0aW9u"
+            "KSkKCiAgICAgICAgICAgICAgICBpZiBzdXBwbGllZF9hdXRob3JpemF0aW9uID09IGV4"
+            "cGVjdGVkX2F1dGhvcml6YXRpb246CiAgICAgICAgICAgICAgICAgICAgYm9keSA9IGV4"
+            "cGVjdGVkX2JvZHkKICAgICAgICAgICAgICAgICAgICBzZWxmLnNlbmRfcmVzcG9uc2Uo"
+            "MjAwKQogICAgICAgICAgICAgICAgZWxzZToKICAgICAgICAgICAgICAgICAgICBib2R5"
+            "ID0gYiJhdXRoZW50aWNhdGlvbiByZXF1aXJlZCIKICAgICAgICAgICAgICAgICAgICBz"
+            "ZWxmLnNlbmRfcmVzcG9uc2UoNDAxKQogICAgICAgICAgICAgICAgICAgIHNlbGYuc2Vu"
+            "ZF9oZWFkZXIoIldXVy1BdXRoZW50aWNhdGUiLCAnQmFzaWMgcmVhbG09InByb3RlY3Rl"
+            "ZCInKQoKICAgICAgICAgICAgICAgIHNlbGYuc2VuZF9oZWFkZXIoIkNvbnRlbnQtVHlw"
+            "ZSIsICJ0ZXh0L3BsYWluIikKICAgICAgICAgICAgICAgIHNlbGYuc2VuZF9oZWFkZXIo"
+            "IkNvbnRlbnQtTGVuZ3RoIiwgc3RyKGxlbihib2R5KSkpCiAgICAgICAgICAgICAgICBz"
+            "ZWxmLmVuZF9oZWFkZXJzKCkKICAgICAgICAgICAgICAgIHNlbGYud2ZpbGUud3JpdGUo"
+            "Ym9keSkKCiAgICAgICAgICAgIGRlZiBsb2dfbWVzc2FnZShzZWxmLCBtZXNzYWdlX2Zv"
+            "cm1hdCwgKm1lc3NhZ2VfYXJncyk6CiAgICAgICAgICAgICAgICByZXR1cm4KCiAgICAg"
+            "ICAgY2xhc3MgQ2FwdHVyaW5nSFRUUFNlcnZlcihodHRwLnNlcnZlci5UaHJlYWRpbmdI"
+            "VFRQU2VydmVyKToKICAgICAgICAgICAgZGFlbW9uX3RocmVhZHMgPSBUcnVlCgogICAg"
+            "ICAgICAgICBkZWYgaGFuZGxlX2Vycm9yKHNlbGYsIHBlZXJfc29ja2V0LCBwZWVyX2Fk"
+            "ZHJlc3MpOgogICAgICAgICAgICAgICAgZml4dHVyZV9lcnJvcnMuYXBwZW5kKHRyYWNl"
+            "YmFjay5mb3JtYXRfZXhjKCkpCgogICAgICAgIGh0dHBkID0gQ2FwdHVyaW5nSFRUUFNl"
+            "cnZlcigoIjEyNy4wLjAuMSIsIDApLCBQcm90ZWN0ZWRIYW5kbGVyKQogICAgICAgIHBv"
+            "cnQgPSBodHRwZC5zZXJ2ZXJfYWRkcmVzc1sxXQogICAgICAgIHdvcmtlciA9IHRocmVh"
+            "ZGluZy5UaHJlYWQodGFyZ2V0PWh0dHBkLnNlcnZlX2ZvcmV2ZXIsIGRhZW1vbj1UcnVl"
+            "KQogICAgICAgIHdvcmtlci5zdGFydCgpCiAgICAgICAgd29ya2VyX3N0YXJ0ZWQgPSBU"
+            "cnVlCgogICAgICAgIHNlcnZpY2VfdXJsID0gImh0dHA6Ly8xMjcuMC4wLjE6e30vcHJv"
+            "dGVjdGVkIi5mb3JtYXQocG9ydCkKICAgICAgICB0cnk6CiAgICAgICAgICAgIHJlc3Vs"
+            "dCA9IHN1YnByb2Nlc3MucnVuKAogICAgICAgICAgICAgICAgWwogICAgICAgICAgICAg"
+            "ICAgICAgIGN1cmwsCiAgICAgICAgICAgICAgICAgICAgIi0tZGlzYWJsZSIsCiAgICAg"
+            "ICAgICAgICAgICAgICAgIi0tc2lsZW50IiwKICAgICAgICAgICAgICAgICAgICAiLS1z"
+            "aG93LWVycm9yIiwKICAgICAgICAgICAgICAgICAgICAiLS1mYWlsIiwKICAgICAgICAg"
+            "ICAgICAgICAgICAiLS1ub3Byb3h5IiwKICAgICAgICAgICAgICAgICAgICAiKiIsCiAg"
+            "ICAgICAgICAgICAgICAgICAgIi0tbWF4LXRpbWUiLAogICAgICAgICAgICAgICAgICAg"
+            "ICIxMCIsCiAgICAgICAgICAgICAgICAgICAgIi0tdXNlciIsCiAgICAgICAgICAgICAg"
+            "ICAgICAgY3JlZGVudGlhbCwKICAgICAgICAgICAgICAgICAgICBzZXJ2aWNlX3VybCwK"
+            "ICAgICAgICAgICAgICAgIF0sCiAgICAgICAgICAgICAgICBzdGRvdXQ9c3VicHJvY2Vz"
+            "cy5QSVBFLAogICAgICAgICAgICAgICAgc3RkZXJyPXN1YnByb2Nlc3MuUElQRSwKICAg"
+            "ICAgICAgICAgICAgIHRpbWVvdXQ9MTUsCiAgICAgICAgICAgICAgICBjaGVjaz1GYWxz"
+            "ZSwKICAgICAgICAgICAgKQogICAgICAgIGV4Y2VwdCBzdWJwcm9jZXNzLlRpbWVvdXRF"
+            "eHBpcmVkIGFzIGV4YzoKICAgICAgICAgICAgcmFpc2UgVGVzdEZhaWx1cmUoImN1cmwg"
+            "dGltZWQgb3V0IHdoaWxlIGFjY2Vzc2luZyB0aGUgcHJvdGVjdGVkIHNlcnZpY2UiKSBm"
+            "cm9tIGV4YwoKICAgICAgICBpZiByZXN1bHQucmV0dXJuY29kZSAhPSAwOgogICAgICAg"
+            "ICAgICBkaWFnbm9zdGljID0gcmVzdWx0LnN0ZGVyci5kZWNvZGUoInV0Zi04IiwgZXJy"
+            "b3JzPSJyZXBsYWNlIikKICAgICAgICAgICAgaWYgZGlhZ25vc3RpYzoKICAgICAgICAg"
+            "ICAgICAgIHJhaXNlIFRlc3RGYWlsdXJlKAogICAgICAgICAgICAgICAgICAgICJjdXJs"
+            "IGV4aXRlZCB3aXRoIHN0YXR1cyB7fToge30iLmZvcm1hdCgKICAgICAgICAgICAgICAg"
+            "ICAgICAgICAgcmVzdWx0LnJldHVybmNvZGUsIF9zaW5nbGVfbGluZShkaWFnbm9zdGlj"
+            "KQogICAgICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgICAgICkKICAgICAgICAg"
+            "ICAgcmFpc2UgVGVzdEZhaWx1cmUoImN1cmwgZXhpdGVkIHdpdGggc3RhdHVzIHt9Ii5m"
+            "b3JtYXQocmVzdWx0LnJldHVybmNvZGUpKQoKICAgICAgICBpZiByZXN1bHQuc3Rkb3V0"
+            "ICE9IGV4cGVjdGVkX2JvZHk6CiAgICAgICAgICAgIHJhaXNlIFRlc3RGYWlsdXJlKCJj"
+            "dXJsIGRpZCBub3QgcmV0dXJuIHRoZSBrbm93biBhdXRoZW50aWNhdGVkIHJlc3BvbnNl"
+            "IikKCiAgICAgICAgd2l0aCBvYnNlcnZhdGlvbl9sb2NrOgogICAgICAgICAgICByZWNl"
+            "aXZlZCA9IGxpc3Qob2JzZXJ2YXRpb25zKQoKICAgICAgICBpZiBsZW4ocmVjZWl2ZWQp"
+            "ICE9IDE6CiAgICAgICAgICAgIHJhaXNlIFRlc3RGYWlsdXJlKAogICAgICAgICAgICAg"
+            "ICAgInByb3RlY3RlZCBzZXJ2aWNlIG9ic2VydmVkIHt9IHJlcXVlc3RzIGluc3RlYWQg"
+            "b2Ygb25lIi5mb3JtYXQobGVuKHJlY2VpdmVkKSkKICAgICAgICAgICAgKQoKICAgICAg"
+            "ICBvYnNlcnZlZF90YXJnZXQsIG9ic2VydmVkX2F1dGhvcml6YXRpb24gPSByZWNlaXZl"
+            "ZFswXQogICAgICAgIGlmIG9ic2VydmVkX3RhcmdldCAhPSBleHBlY3RlZF90YXJnZXQ6"
+            "CiAgICAgICAgICAgIHJhaXNlIFRlc3RGYWlsdXJlKCJjdXJsIHJlcXVlc3RlZCBhbiB1"
+            "bmV4cGVjdGVkIHByb3RlY3RlZCByZXNvdXJjZSIpCiAgICAgICAgaWYgb2JzZXJ2ZWRf"
+            "YXV0aG9yaXphdGlvbiAhPSBleHBlY3RlZF9hdXRob3JpemF0aW9uOgogICAgICAgICAg"
+            "ICByYWlzZSBUZXN0RmFpbHVyZSgiY3VybCBkaWQgbm90IHN1cHBseSB0aGUgY29uZmln"
+            "dXJlZCBzZXJ2ZXIgY3JlZGVudGlhbHMiKQoKICAgICAgICBzdGF0dXMgPSAwCiAgICAg"
+            "ICAgZGV0YWlsID0gImN1cmwgLS11c2VyIHN1cHBsaWVkIHRoZSBjcmVkZW50aWFscyBh"
+            "bmQgcmV0dXJuZWQgdGhlIGF1dGhlbnRpY2F0ZWQgcmVzcG9uc2UiCgogICAgZXhjZXB0"
+            "IFRlc3RGYWlsdXJlIGFzIGV4YzoKICAgICAgICBzdGF0dXMgPSAxCiAgICAgICAgZGV0"
+            "YWlsID0gc3RyKGV4YykKICAgIGV4Y2VwdCBFeGNlcHRpb246CiAgICAgICAgc3RhdHVz"
+            "ID0gMQogICAgICAgIGRldGFpbCA9ICJ1bmV4cGVjdGVkIHRlc3QgZXJyb3I6ICIgKyBf"
+            "c2luZ2xlX2xpbmUodHJhY2ViYWNrLmZvcm1hdF9leGMoKSkKICAgIGZpbmFsbHk6CiAg"
+            "ICAgICAgY2xlYW51cF9lcnJvcnMgPSBbXQogICAgICAgIGlmIGh0dHBkIGlzIG5vdCBO"
+            "b25lOgogICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBpZiB3b3JrZXJfc3Rh"
+            "cnRlZDoKICAgICAgICAgICAgICAgICAgICBodHRwZC5zaHV0ZG93bigpCiAgICAgICAg"
+            "ICAgIGV4Y2VwdCBFeGNlcHRpb246CiAgICAgICAgICAgICAgICBjbGVhbnVwX2Vycm9y"
+            "cy5hcHBlbmQodHJhY2ViYWNrLmZvcm1hdF9leGMoKSkKICAgICAgICAgICAgdHJ5Ogog"
+            "ICAgICAgICAgICAgICAgaHR0cGQuc2VydmVyX2Nsb3NlKCkKICAgICAgICAgICAgZXhj"
+            "ZXB0IEV4Y2VwdGlvbjoKICAgICAgICAgICAgICAgIGNsZWFudXBfZXJyb3JzLmFwcGVu"
+            "ZCh0cmFjZWJhY2suZm9ybWF0X2V4YygpKQogICAgICAgIGlmIHdvcmtlciBpcyBub3Qg"
+            "Tm9uZSBhbmQgd29ya2VyX3N0YXJ0ZWQ6CiAgICAgICAgICAgIHdvcmtlci5qb2luKHRp"
+            "bWVvdXQ9NSkKICAgICAgICAgICAgaWYgd29ya2VyLmlzX2FsaXZlKCk6CiAgICAgICAg"
+            "ICAgICAgICBjbGVhbnVwX2Vycm9ycy5hcHBlbmQoIkhUVFAgZml4dHVyZSB0aHJlYWQg"
+            "ZGlkIG5vdCB0ZXJtaW5hdGUiKQoKICAgICAgICBpZiBmaXh0dXJlX2Vycm9yczoKICAg"
+            "ICAgICAgICAgc3RhdHVzID0gMQogICAgICAgICAgICBkZXRhaWwgKz0gIjsgZml4dHVy"
+            "ZSBleGNlcHRpb25zOiAiICsgIiB8fCAiLmpvaW4oCiAgICAgICAgICAgICAgICBfc2lu"
+            "Z2xlX2xpbmUoaXRlbSkgZm9yIGl0ZW0gaW4gZml4dHVyZV9lcnJvcnMKICAgICAgICAg"
+            "ICAgKQogICAgICAgIGlmIGNsZWFudXBfZXJyb3JzOgogICAgICAgICAgICBzdGF0dXMg"
+            "PSAxCiAgICAgICAgICAgIGRldGFpbCArPSAiOyBjbGVhbnVwIGVycm9yczogIiArICIg"
+            "fHwgIi5qb2luKAogICAgICAgICAgICAgICAgX3NpbmdsZV9saW5lKGl0ZW0pIGZvciBp"
+            "dGVtIGluIGNsZWFudXBfZXJyb3JzCiAgICAgICAgICAgICkKCiAgICByZXR1cm4gc3Rh"
+            "dHVzLCBkZXRhaWwKCgppZiBfX25hbWVfXyA9PSAiX19tYWluX18iOgogICAgZXhpdF9j"
+            "b2RlLCB2ZXJkaWN0X2RldGFpbCA9IG1haW4oKQogICAgaWYgZXhpdF9jb2RlID09IDA6"
+            "CiAgICAgICAgcHJpbnQoIlBBU1M6ICIgKyB2ZXJkaWN0X2RldGFpbCkKICAgIGVsaWYg"
+            "ZXhpdF9jb2RlID09IDc3OgogICAgICAgIHByaW50KCJTS0lQOiAiICsgdmVyZGljdF9k"
+            "ZXRhaWwpCiAgICBlbHNlOgogICAgICAgIHByaW50KCJGQUlMOiAiICsgdmVyZGljdF9k"
+            "ZXRhaWwpCiAgICBzeXMuZXhpdChleGl0X2NvZGUpCg=="
         )
-        (
-            assert_that(report)
-            .described_as(f"report had {len(report)} lines, expected 4: {report}")
-            .is_length(4)
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
         )
-        (
-            assert_that(report)
-            .described_as(f"POST method evidence was absent; observed report: {report}")
-            .contains("METHOD=POST")
-        )
-        (
-            assert_that(report)
-            .described_as(
-                f"Content-Type was not application/json; observed report: {report}"
-            )
-            .contains("CONTENT_TYPE=application/json")
-        )
-        (
-            assert_that(report)
-            .described_as(f"Accept was not application/json; observed report: {report}")
-            .contains("ACCEPT=application/json")
-        )
-        (
-            assert_that(report)
-            .described_as(f"body differed from {payload}; observed report: {report}")
-            .contains(f"BODY={payload}")
-        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
     @TestCaseMetadata(
         description="""
-            Verifies that curl submits text and file parts with --form in a
-            multipart/form-data POST. A loopback HTTP endpoint parses the request and
-            reports the media type, text value, uploaded filename, and uploaded content.
+        Exact-byte FMF/TMT Python wrapper execution.
 
-            Corpus obligation: pkg:curl/submit-multipart-form
+        Corpus obligation: pkg:curl/download-to-named-file
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
         """,
-        priority=3,
-        tags=["ai-generated"],
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    def verify_submit_multipart_form(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
-
-        text_field = "description"
-        text_value = "azure-linux-curl-form"
-        file_field = "attachment"
-        file_name = "upload.txt"
-        file_value = "multipart-file-content"
-        server_script = rf"""
-import sys
-from email.parser import BytesParser
-from email.policy import default
-from http.server import BaseHTTPRequestHandler, HTTPServer
-
-port_path = sys.argv[1]
-evidence_path = sys.argv[2]
-
-
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self, pattern, *args):
-        return
-
-    def do_GET(self):
-        self.send_response(204)
-        self.end_headers()
-
-    def do_POST(self):
-        length = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(length)
-        content_type = self.headers.get("Content-Type", "")
-        prefix = b"Content-Type: " + content_type.encode("utf-8")
-        prefix += b"\r\nMIME-Version: 1.0\r\n\r\n"
-        message = BytesParser(policy=default).parsebytes(prefix + body)
-        text_seen = "MISSING"
-        file_seen = "MISSING"
-        filename_seen = "MISSING"
-        if message.is_multipart():
-            for part in message.iter_parts():
-                name = part.get_param(
-                    "name", header="content-disposition"
-                )
-                payload = part.get_payload(decode=True) or b""
-                value = payload.decode("utf-8", errors="replace")
-                if name == {text_field!r}:
-                    text_seen = value
-                if name == {file_field!r}:
-                    file_seen = value
-                    filename_seen = part.get_filename() or "MISSING"
-        lines = [
-            "MEDIA=" + message.get_content_type(),
-            "TEXT=" + text_seen,
-            "FILE_NAME=" + filename_seen,
-            "FILE_BODY=" + file_seen,
-        ]
-        with open(evidence_path, "w", encoding="utf-8") as stream:
-            stream.write("\n".join(lines) + "\n")
-        self.send_response(200)
-        self.end_headers()
-        self.wfile.write(b"accepted")
-
-
-server = HTTPServer(("127.0.0.1", 0), Handler)
-with open(port_path, "w", encoding="utf-8") as stream:
-    stream.write(str(server.server_port) + "\n")
-server.serve_forever()
-"""
-        command = f"""
-tmp=$(mktemp -d)
-pid=""
-cleanup() {{
-    if [ -n "$pid" ]; then
-        kill "$pid" 2>/dev/null || true
-        wait "$pid" 2>/dev/null || true
-    fi
-    rm -rf "$tmp"
-}}
-trap cleanup EXIT
-cat <<'PY' > "$tmp/server.py"
-{server_script}
-PY
-if ! test -s "$tmp/server.py"; then
-    echo FIXTURE_STATUS_BEGIN
-    echo NOT_READY
-    echo FIXTURE_STATUS_END
-    echo SERVER_LOG_BEGIN
-    echo "server helper is empty"
-    echo SERVER_LOG_END
-    exit 0
-fi
-if ! python3 -m py_compile "$tmp/server.py" 2>"$tmp/compile.err"; then
-    echo FIXTURE_STATUS_BEGIN
-    echo NOT_READY
-    echo FIXTURE_STATUS_END
-    echo SERVER_LOG_BEGIN
-    cat "$tmp/compile.err"
-    echo SERVER_LOG_END
-    exit 0
-fi
-python3 "$tmp/server.py" "$tmp/port" "$tmp/evidence" \
-    >"$tmp/server.out" 2>"$tmp/server.err" &
-pid=$!
-ready=0
-port=""
-for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    if test -s "$tmp/port"; then
-        port=$(cat "$tmp/port")
-        if curl --silent --output /dev/null \
-            "http://127.0.0.1:$port/ready"; then
-            ready=1
-            break
-        fi
-    fi
-    sleep 0.1
-done
-if [ "$ready" -ne 1 ]; then
-    echo FIXTURE_STATUS_BEGIN
-    echo NOT_READY
-    echo FIXTURE_STATUS_END
-    echo SERVER_LOG_BEGIN
-    cat "$tmp/server.out" "$tmp/server.err" 2>/dev/null || true
-    echo SERVER_LOG_END
-    exit 0
-fi
-echo FIXTURE_STATUS_BEGIN
-echo READY
-echo FIXTURE_STATUS_END
-printf '%s' '{file_value}' > "$tmp/{file_name}"
-curl --silent --show-error --output "$tmp/response" \
-    --form '{text_field}={text_value}' \
-    --form "{file_field}=@$tmp/{file_name}" \
-    "http://127.0.0.1:$port/submit" 2>"$tmp/curl.err"
-curl_rc=$?
-echo CURL_RC_BEGIN
-echo "$curl_rc"
-echo CURL_RC_END
-echo EVIDENCE_BEGIN
-if test -s "$tmp/evidence"; then
-    cat "$tmp/evidence"
-else
-    echo MEDIA=MISSING
-    echo TEXT=MISSING
-    echo FILE_NAME=MISSING
-    echo FILE_BODY=MISSING
-fi
-echo EVIDENCE_END
-echo CURL_LOG_BEGIN
-cat "$tmp/curl.err" 2>/dev/null || true
-echo CURL_LOG_END
-echo SERVER_LOG_BEGIN
-cat "$tmp/server.out" "$tmp/server.err" 2>/dev/null || true
-echo SERVER_LOG_END
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        fixture_status = section(
-            text, "FIXTURE_STATUS_BEGIN", "FIXTURE_STATUS_END"
-        ).strip()
-        server_log = section(text, "SERVER_LOG_BEGIN", "SERVER_LOG_END")
-        if fixture_status == "NOT_READY":
-            raise SkippedException(
-                f"multipart fixture did not become ready: {server_log}"
-            )
-        assert_that(result.exit_code).described_as(
-            f"guest multipart script failed with output: {text}"
-        ).is_equal_to(0)
-        assert_that(fixture_status).described_as(
-            f"fixture status was {fixture_status}; server log: {server_log}"
-        ).is_equal_to("READY")
-        curl_rc = section(text, "CURL_RC_BEGIN", "CURL_RC_END").strip()
-        curl_log = section(text, "CURL_LOG_BEGIN", "CURL_LOG_END")
-        assert_that(curl_rc).described_as(
-            f"curl returned {curl_rc}; diagnostic: {curl_log}"
-        ).is_equal_to("0")
-        evidence = section_lines(text, "EVIDENCE_BEGIN", "EVIDENCE_END")
-        assert_that(evidence).described_as(
-            f"multipart media evidence was {evidence}"
-        ).contains("MEDIA=multipart/form-data")
-        assert_that(evidence).described_as(
-            f"multipart text-part evidence was {evidence}"
-        ).contains(f"TEXT={text_value}")
-        assert_that(evidence).described_as(
-            f"multipart filename evidence was {evidence}"
-        ).contains(f"FILE_NAME={file_name}")
-        assert_that(evidence).described_as(
-            f"multipart file-part evidence was {evidence}"
-        ).contains(f"FILE_BODY={file_value}")
+    def verify_pkg_curl_download_to_named_file(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:3d846a1f331c7a281a70c6bf71a1abfcb582c65"
+            "a0a9588268d989bf96bf04a08."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgaHR0cC5zZXJ2ZXIKaW1wb3J0IHNo"
+            "dXRpbAppbXBvcnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0ZW1wZmlsZQpp"
+            "bXBvcnQgdGhyZWFkaW5nCmltcG9ydCB0cmFjZWJhY2sKZnJvbSBwYXRobGliIGltcG9y"
+            "dCBQYXRoCgpQQVlMT0FEID0gYiJrbm93biBjdXJsIHJlc3BvbnNlIGJvZHlcbiIKCgpj"
+            "bGFzcyBDYXB0dXJpbmdIVFRQU2VydmVyKGh0dHAuc2VydmVyLkhUVFBTZXJ2ZXIpOgog"
+            "ICAgZGVmIGhhbmRsZV9lcnJvcihzZWxmLCByZXF1ZXN0LCBjbGllbnRfYWRkcmVzcyk6"
+            "CiAgICAgICAgc2VsZi5maXh0dXJlX2Vycm9ycy5hcHBlbmQodHJhY2ViYWNrLmZvcm1h"
+            "dF9leGMoKSkKCgpjbGFzcyBSZXNwb25zZUhhbmRsZXIoaHR0cC5zZXJ2ZXIuQmFzZUhU"
+            "VFBSZXF1ZXN0SGFuZGxlcik6CiAgICBkZWYgZG9fR0VUKHNlbGYpOgogICAgICAgIHNl"
+            "bGYuc2VydmVyLnJlY29yZGVkX3BhdGhzLmFwcGVuZChzZWxmLnBhdGgpCiAgICAgICAg"
+            "aWYgc2VsZi5wYXRoICE9ICIvcmVzcG9uc2UiOgogICAgICAgICAgICBzZWxmLnNlbmRf"
+            "ZXJyb3IoNDA0KQogICAgICAgICAgICByZXR1cm4KCiAgICAgICAgc2VsZi5zZW5kX3Jl"
+            "c3BvbnNlKDIwMCkKICAgICAgICBzZWxmLnNlbmRfaGVhZGVyKCJDb250ZW50LVR5cGUi"
+            "LCAiYXBwbGljYXRpb24vb2N0ZXQtc3RyZWFtIikKICAgICAgICBzZWxmLnNlbmRfaGVh"
+            "ZGVyKCJDb250ZW50LUxlbmd0aCIsIHN0cihsZW4oUEFZTE9BRCkpKQogICAgICAgIHNl"
+            "bGYuZW5kX2hlYWRlcnMoKQogICAgICAgIHNlbGYud2ZpbGUud3JpdGUoUEFZTE9BRCkK"
+            "CiAgICBkZWYgbG9nX21lc3NhZ2Uoc2VsZiwgZm9ybWF0X3N0cmluZywgKmFyZ3MpOgog"
+            "ICAgICAgIHJldHVybgoKCmRlZiBtYWluKCk6CiAgICBmYWlsdXJlID0gTm9uZQogICAg"
+            "ZGlhZ25vc3RpY3MgPSBbXQogICAgdGVtcG9yYXJ5ID0gTm9uZQogICAgZml4dHVyZSA9"
+            "IE5vbmUKICAgIGZpeHR1cmVfdGhyZWFkID0gTm9uZQoKICAgIHRyeToKICAgICAgICBj"
+            "dXJsID0gc2h1dGlsLndoaWNoKCJjdXJsIikKICAgICAgICBpZiBjdXJsIGlzIE5vbmU6"
+            "CiAgICAgICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcigiY3VybCBDTEkgaXMgbm90IGF2"
+            "YWlsYWJsZSIpCgogICAgICAgIHRlbXBvcmFyeSA9IHRlbXBmaWxlLlRlbXBvcmFyeURp"
+            "cmVjdG9yeShwcmVmaXg9ImN1cmwtb3V0cHV0LXRlc3QtIikKICAgICAgICBkZXN0aW5h"
+            "dGlvbiA9IFBhdGgodGVtcG9yYXJ5Lm5hbWUpIC8gImNhbGxlci1zZWxlY3RlZC1vdXRw"
+            "dXQiCiAgICAgICAgaWYgZGVzdGluYXRpb24uZXhpc3RzKCk6CiAgICAgICAgICAgIHJh"
+            "aXNlIEFzc2VydGlvbkVycm9yKCJkZXN0aW5hdGlvbiB1bmV4cGVjdGVkbHkgZXhpc3Rl"
+            "ZCBiZWZvcmUgY3VybCBpbnZvY2F0aW9uIikKCiAgICAgICAgZml4dHVyZSA9IENhcHR1"
+            "cmluZ0hUVFBTZXJ2ZXIoKCIxMjcuMC4wLjEiLCAwKSwgUmVzcG9uc2VIYW5kbGVyKQog"
+            "ICAgICAgIGZpeHR1cmUuZml4dHVyZV9lcnJvcnMgPSBbXQogICAgICAgIGZpeHR1cmUu"
+            "cmVjb3JkZWRfcGF0aHMgPSBbXQogICAgICAgIGZpeHR1cmVfdGhyZWFkID0gdGhyZWFk"
+            "aW5nLlRocmVhZCh0YXJnZXQ9Zml4dHVyZS5zZXJ2ZV9mb3JldmVyLCBkYWVtb249VHJ1"
+            "ZSkKICAgICAgICBmaXh0dXJlX3RocmVhZC5zdGFydCgpCgogICAgICAgIHBvcnQgPSBm"
+            "aXh0dXJlLnNlcnZlcl9hZGRyZXNzWzFdCiAgICAgICAgdXJsID0gZiJodHRwOi8vMTI3"
+            "LjAuMC4xOntwb3J0fS9yZXNwb25zZSIKICAgICAgICByZXN1bHQgPSBzdWJwcm9jZXNz"
+            "LnJ1bigKICAgICAgICAgICAgWwogICAgICAgICAgICAgICAgY3VybCwKICAgICAgICAg"
+            "ICAgICAgICItLWRpc2FibGUiLAogICAgICAgICAgICAgICAgIi0tbm9wcm94eSIsCiAg"
+            "ICAgICAgICAgICAgICAiKiIsCiAgICAgICAgICAgICAgICAiLS1jb25uZWN0LXRpbWVv"
+            "dXQiLAogICAgICAgICAgICAgICAgIjUiLAogICAgICAgICAgICAgICAgIi0tbWF4LXRp"
+            "bWUiLAogICAgICAgICAgICAgICAgIjE1IiwKICAgICAgICAgICAgICAgICItLW91dHB1"
+            "dCIsCiAgICAgICAgICAgICAgICBzdHIoZGVzdGluYXRpb24pLAogICAgICAgICAgICAg"
+            "ICAgdXJsLAogICAgICAgICAgICBdLAogICAgICAgICAgICBzdGRvdXQ9c3VicHJvY2Vz"
+            "cy5QSVBFLAogICAgICAgICAgICBzdGRlcnI9c3VicHJvY2Vzcy5QSVBFLAogICAgICAg"
+            "ICAgICB0aW1lb3V0PTIwLAogICAgICAgICAgICBjaGVjaz1GYWxzZSwKICAgICAgICAp"
+            "CgogICAgICAgIGlmIHJlc3VsdC5yZXR1cm5jb2RlICE9IDA6CiAgICAgICAgICAgIGRp"
+            "YWdub3N0aWNzLmFwcGVuZCgiY3VybCBzdGRvdXQ6ICIgKyByZXByKHJlc3VsdC5zdGRv"
+            "dXQpKQogICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoImN1cmwgc3RkZXJyOiAi"
+            "ICsgcmVwcihyZXN1bHQuc3RkZXJyKSkKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9u"
+            "RXJyb3IoZiJjdXJsIGV4aXRlZCB3aXRoIHN0YXR1cyB7cmVzdWx0LnJldHVybmNvZGV9"
+            "IikKICAgICAgICBpZiBmaXh0dXJlLnJlY29yZGVkX3BhdGhzICE9IFsiL3Jlc3BvbnNl"
+            "Il06CiAgICAgICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKAogICAgICAgICAgICAg"
+            "ICAgImZpeHR1cmUgZGlkIG5vdCByZWNlaXZlIGV4YWN0bHkgb25lIHJlcXVlc3QgZm9y"
+            "IHRoZSByZXNwb25zZSBVUkw6ICIKICAgICAgICAgICAgICAgICsgcmVwcihmaXh0dXJl"
+            "LnJlY29yZGVkX3BhdGhzKQogICAgICAgICAgICApCiAgICAgICAgaWYgbm90IGRlc3Rp"
+            "bmF0aW9uLmlzX2ZpbGUoKToKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3Io"
+            "ImN1cmwgZGlkIG5vdCBjcmVhdGUgdGhlIHJlcXVlc3RlZCBkZXN0aW5hdGlvbiBmaWxl"
+            "IikKCiAgICAgICAgc2F2ZWRfYm9keSA9IGRlc3RpbmF0aW9uLnJlYWRfYnl0ZXMoKQog"
+            "ICAgICAgIGlmIHNhdmVkX2JvZHkgIT0gUEFZTE9BRDoKICAgICAgICAgICAgZGlhZ25v"
+            "c3RpY3MuYXBwZW5kKCJzYXZlZCBib2R5OiAiICsgcmVwcihzYXZlZF9ib2R5KSkKICAg"
+            "ICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJleHBlY3RlZCBib2R5OiAiICsgcmVw"
+            "cihQQVlMT0FEKSkKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoImRlc3Rp"
+            "bmF0aW9uIGRvZXMgbm90IGNvbnRhaW4gdGhlIGNvbXBsZXRlIHJlc3BvbnNlIGJvZHki"
+            "KQogICAgICAgIGlmIHJlc3VsdC5zdGRvdXQgIT0gYiIiOgogICAgICAgICAgICBkaWFn"
+            "bm9zdGljcy5hcHBlbmQoImN1cmwgc3Rkb3V0OiAiICsgcmVwcihyZXN1bHQuc3Rkb3V0"
+            "KSkKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoImN1cmwgd3JvdGUgZGF0"
+            "YSB0byBzdGRvdXQgd2hpbGUgLS1vdXRwdXQgd2FzIGluIHVzZSIpCgogICAgZXhjZXB0"
+            "IEV4Y2VwdGlvbiBhcyBleGM6CiAgICAgICAgZmFpbHVyZSA9IGYie3R5cGUoZXhjKS5f"
+            "X25hbWVfX306IHtleGN9IgogICAgZmluYWxseToKICAgICAgICBpZiBmaXh0dXJlIGlz"
+            "IG5vdCBOb25lOgogICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBmaXh0dXJl"
+            "LnNodXRkb3duKCkKICAgICAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBleGM6CiAg"
+            "ICAgICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoZiJmaXh0dXJlIHNodXRkb3du"
+            "IGVycm9yOiB7dHlwZShleGMpLl9fbmFtZV9ffToge2V4Y30iKQogICAgICAgICAgICAg"
+            "ICAgaWYgZmFpbHVyZSBpcyBOb25lOgogICAgICAgICAgICAgICAgICAgIGZhaWx1cmUg"
+            "PSAiZml4dHVyZSBzaHV0ZG93biBmYWlsZWQiCiAgICAgICAgICAgIHRyeToKICAgICAg"
+            "ICAgICAgICAgIGZpeHR1cmUuc2VydmVyX2Nsb3NlKCkKICAgICAgICAgICAgZXhjZXB0"
+            "IEV4Y2VwdGlvbiBhcyBleGM6CiAgICAgICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBl"
+            "bmQoZiJmaXh0dXJlIGNsb3NlIGVycm9yOiB7dHlwZShleGMpLl9fbmFtZV9ffToge2V4"
+            "Y30iKQogICAgICAgICAgICAgICAgaWYgZmFpbHVyZSBpcyBOb25lOgogICAgICAgICAg"
+            "ICAgICAgICAgIGZhaWx1cmUgPSAiZml4dHVyZSBjbG9zZSBmYWlsZWQiCgogICAgICAg"
+            "IGlmIGZpeHR1cmVfdGhyZWFkIGlzIG5vdCBOb25lOgogICAgICAgICAgICBmaXh0dXJl"
+            "X3RocmVhZC5qb2luKHRpbWVvdXQ9NSkKICAgICAgICAgICAgaWYgZml4dHVyZV90aHJl"
+            "YWQuaXNfYWxpdmUoKToKICAgICAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgi"
+            "Zml4dHVyZSB0aHJlYWQgZGlkIG5vdCBzdG9wIikKICAgICAgICAgICAgICAgIGlmIGZh"
+            "aWx1cmUgaXMgTm9uZToKICAgICAgICAgICAgICAgICAgICBmYWlsdXJlID0gImZpeHR1"
+            "cmUgdGhyZWFkIGNsZWFudXAgZmFpbGVkIgoKICAgICAgICBpZiBmaXh0dXJlIGlzIG5v"
+            "dCBOb25lIGFuZCBmaXh0dXJlLmZpeHR1cmVfZXJyb3JzOgogICAgICAgICAgICBmb3Ig"
+            "Zml4dHVyZV9lcnJvciBpbiBmaXh0dXJlLmZpeHR1cmVfZXJyb3JzOgogICAgICAgICAg"
+            "ICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJmaXh0dXJlIGV4Y2VwdGlvbjpcbiIgKyBm"
+            "aXh0dXJlX2Vycm9yKQogICAgICAgICAgICBpZiBmYWlsdXJlIGlzIE5vbmU6CiAgICAg"
+            "ICAgICAgICAgICBmYWlsdXJlID0gInRoZSBsb29wYmFjayBmaXh0dXJlIHJhaXNlZCBh"
+            "biBleGNlcHRpb24iCgogICAgICAgIGlmIHRlbXBvcmFyeSBpcyBub3QgTm9uZToKICAg"
+            "ICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgdGVtcG9yYXJ5LmNsZWFudXAoKQog"
+            "ICAgICAgICAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4YzoKICAgICAgICAgICAgICAg"
+            "IGRpYWdub3N0aWNzLmFwcGVuZChmInRlbXBvcmFyeSBjbGVhbnVwIGVycm9yOiB7dHlw"
+            "ZShleGMpLl9fbmFtZV9ffToge2V4Y30iKQogICAgICAgICAgICAgICAgaWYgZmFpbHVy"
+            "ZSBpcyBOb25lOgogICAgICAgICAgICAgICAgICAgIGZhaWx1cmUgPSAidGVtcG9yYXJ5"
+            "LWZpbGUgY2xlYW51cCBmYWlsZWQiCgogICAgZm9yIGRpYWdub3N0aWMgaW4gZGlhZ25v"
+            "c3RpY3M6CiAgICAgICAgcHJpbnQoImRpYWdub3N0aWM6ICIgKyBkaWFnbm9zdGljKQoK"
+            "ICAgIGlmIGZhaWx1cmUgaXMgbm90IE5vbmU6CiAgICAgICAgcHJpbnQoIkZBSUw6ICIg"
+            "KyBmYWlsdXJlKQogICAgICAgIHN5cy5leGl0KDEpCgogICAgcHJpbnQoIlBBU1M6IGN1"
+            "cmwgc2F2ZWQgdGhlIHJlc3BvbnNlIHRvIHRoZSBuYW1lZCBmaWxlIHdpdGhvdXQgd3Jp"
+            "dGluZyBpdCB0byBzdGRvdXQiKQogICAgc3lzLmV4aXQoMCkKCgppZiBfX25hbWVfXyA9"
+            "PSAiX19tYWluX18iOgogICAgbWFpbigpCg=="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
     @TestCaseMetadata(
         description="""
-            Verifies that curl uploads a local file to a loopback HTTP endpoint with
-            --upload-file. The server records the request path and body, and the case
-            confirms that the received bytes exactly match the source file.
+        Exact-byte FMF/TMT Python wrapper execution.
 
-            Corpus obligation: pkg:curl/upload-local-file
+        Corpus obligation: pkg:curl/fail-on-http-error
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
         """,
-        priority=3,
-        tags=["ai-generated"],
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    def verify_upload_local_file(self, node: Node, log: Logger) -> None:
-        if node.os.information.version < "4.0.0":
-            raise SkippedException(
-                "this case is derived from an Azure Linux 4.0 corpus and was verified"
-                " only on Azure Linux 4.0.0 guests; this node reports "
-                f"{node.os.information.version}"
-            )
+    def verify_pkg_curl_fail_on_http_error(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:f93201fe1573d940b1154d6c06b86e385a97cea"
+            "a83d79d534a4cc835f12773e2."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgaHR0cC5zZXJ2ZXIKaW1wb3J0IHNo"
+            "dXRpbAppbXBvcnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0aHJlYWRpbmcK"
+            "aW1wb3J0IHRyYWNlYmFjawoKCmRlZiBtYWluKCk6CiAgICBjdXJsID0gc2h1dGlsLndo"
+            "aWNoKCJjdXJsIikKICAgIGlmIGN1cmwgaXMgTm9uZToKICAgICAgICBwcmludCgiU0tJ"
+            "UDogY3VybCBDTEkgaXMgbm90IGF2YWlsYWJsZSIpCiAgICAgICAgc3lzLmV4aXQoNzcp"
+            "CgogICAga25vd25fYm9keSA9IGIiS05PV05fTk9OX0FVVEhfSFRUUF9FUlJPUl9CT0RZ"
+            "IgogICAgZml4dHVyZV9lcnJvcnMgPSBbXQogICAgb2JzZXJ2ZWQgPSB7CiAgICAgICAg"
+            "InJlcXVlc3RzIjogMCwKICAgICAgICAiYm9keV93cml0ZV9jb21wbGV0ZWQiOiBGYWxz"
+            "ZSwKICAgIH0KICAgIGh0dHBkID0gTm9uZQogICAgZml4dHVyZV90aHJlYWQgPSBOb25l"
+            "CiAgICB2ZXJkaWN0ID0gIkZBSUwiCiAgICBtZXNzYWdlID0gInRlc3QgZGlkIG5vdCBj"
+            "b21wbGV0ZSIKICAgIGV4aXRfY29kZSA9IDEKICAgIGRpYWdub3N0aWNzID0gW10KCiAg"
+            "ICBjbGFzcyBSZWNvcmRpbmdIVFRQU2VydmVyKGh0dHAuc2VydmVyLkhUVFBTZXJ2ZXIp"
+            "OgogICAgICAgIGRlZiBoYW5kbGVfZXJyb3Ioc2VsZiwgcmVxdWVzdF9pbmZvLCBjbGll"
+            "bnRfaW5mbyk6CiAgICAgICAgICAgIGZpeHR1cmVfZXJyb3JzLmFwcGVuZCh0cmFjZWJh"
+            "Y2suZm9ybWF0X2V4YygpKQoKICAgIGNsYXNzIEtub3duRXJyb3JIYW5kbGVyKGh0dHAu"
+            "c2VydmVyLkJhc2VIVFRQUmVxdWVzdEhhbmRsZXIpOgogICAgICAgIHByb3RvY29sX3Zl"
+            "cnNpb24gPSAiSFRUUC8xLjEiCgogICAgICAgIGRlZiBkb19HRVQoc2VsZik6CiAgICAg"
+            "ICAgICAgIG9ic2VydmVkWyJyZXF1ZXN0cyJdICs9IDEKICAgICAgICAgICAgc2VsZi5z"
+            "ZW5kX3Jlc3BvbnNlKDQwNCkKICAgICAgICAgICAgc2VsZi5zZW5kX2hlYWRlcigiQ29u"
+            "dGVudC1UeXBlIiwgInRleHQvcGxhaW4iKQogICAgICAgICAgICBzZWxmLnNlbmRfaGVh"
+            "ZGVyKCJDb250ZW50LUxlbmd0aCIsIHN0cihsZW4oa25vd25fYm9keSkpKQogICAgICAg"
+            "ICAgICBzZWxmLnNlbmRfaGVhZGVyKCJDb25uZWN0aW9uIiwgImNsb3NlIikKICAgICAg"
+            "ICAgICAgc2VsZi5lbmRfaGVhZGVycygpCiAgICAgICAgICAgIHNlbGYud2ZpbGUud3Jp"
+            "dGUoa25vd25fYm9keSkKICAgICAgICAgICAgc2VsZi53ZmlsZS5mbHVzaCgpCiAgICAg"
+            "ICAgICAgIG9ic2VydmVkWyJib2R5X3dyaXRlX2NvbXBsZXRlZCJdID0gVHJ1ZQoKICAg"
+            "ICAgICBkZWYgbG9nX21lc3NhZ2Uoc2VsZiwgZm9ybWF0X3N0cmluZywgKmFyZ3MpOgog"
+            "ICAgICAgICAgICByZXR1cm4KCiAgICB0cnk6CiAgICAgICAgaHR0cGQgPSBSZWNvcmRp"
+            "bmdIVFRQU2VydmVyKCgiMTI3LjAuMC4xIiwgMCksIEtub3duRXJyb3JIYW5kbGVyKQog"
+            "ICAgICAgIGZpeHR1cmVfdGhyZWFkID0gdGhyZWFkaW5nLlRocmVhZCh0YXJnZXQ9aHR0"
+            "cGQuc2VydmVfZm9yZXZlciwgZGFlbW9uPVRydWUpCiAgICAgICAgZml4dHVyZV90aHJl"
+            "YWQuc3RhcnQoKQoKICAgICAgICBob3N0LCBwb3J0ID0gaHR0cGQuc2VydmVyX2FkZHJl"
+            "c3MKICAgICAgICB1cmwgPSAiaHR0cDovL3t9Ont9L2tub3duLWVycm9yIi5mb3JtYXQo"
+            "aG9zdCwgcG9ydCkKICAgICAgICByZXN1bHQgPSBzdWJwcm9jZXNzLnJ1bigKICAgICAg"
+            "ICAgICAgW2N1cmwsICItLWZhaWwiLCAiLS1ub3Byb3h5IiwgIioiLCB1cmxdLAogICAg"
+            "ICAgICAgICBzdGRvdXQ9c3VicHJvY2Vzcy5QSVBFLAogICAgICAgICAgICBzdGRlcnI9"
+            "c3VicHJvY2Vzcy5QSVBFLAogICAgICAgICAgICB0aW1lb3V0PTE1LAogICAgICAgICAg"
+            "ICBjaGVjaz1GYWxzZSwKICAgICAgICApCgogICAgICAgIGlmIGZpeHR1cmVfZXJyb3Jz"
+            "OgogICAgICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcigidGhlIGxvY2FsIEhUVFAg"
+            "Zml4dHVyZSByYWlzZWQgYW4gZXhjZXB0aW9uIikKICAgICAgICBpZiBvYnNlcnZlZFsi"
+            "cmVxdWVzdHMiXSAhPSAxOgogICAgICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJvcigK"
+            "ICAgICAgICAgICAgICAgICJleHBlY3RlZCBleGFjdGx5IG9uZSByZXF1ZXN0IHRvIHRo"
+            "ZSBsb2NhbCBmaXh0dXJlLCBvYnNlcnZlZCB7fSIuZm9ybWF0KAogICAgICAgICAgICAg"
+            "ICAgICAgIG9ic2VydmVkWyJyZXF1ZXN0cyJdCiAgICAgICAgICAgICAgICApCiAgICAg"
+            "ICAgICAgICkKICAgICAgICBpZiBub3Qgb2JzZXJ2ZWRbImJvZHlfd3JpdGVfY29tcGxl"
+            "dGVkIl06CiAgICAgICAgICAgIHJhaXNlIEFzc2VydGlvbkVycm9yKCJ0aGUgZml4dHVy"
+            "ZSBkaWQgbm90IGNvbXBsZXRlIGl0cyBrbm93biA0MDQgcmVzcG9uc2UgYm9keSIpCiAg"
+            "ICAgICAgaWYgcmVzdWx0LnJldHVybmNvZGUgIT0gMjI6CiAgICAgICAgICAgIHJhaXNl"
+            "IEFzc2VydGlvbkVycm9yKAogICAgICAgICAgICAgICAgImN1cmwgcmV0dXJuZWQge30s"
+            "IGV4cGVjdGVkIDIyOyBzdGRlcnI9eyFyfSIuZm9ybWF0KAogICAgICAgICAgICAgICAg"
+            "ICAgIHJlc3VsdC5yZXR1cm5jb2RlLCByZXN1bHQuc3RkZXJyLmRlY29kZSgidXRmLTgi"
+            "LCAicmVwbGFjZSIpCiAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICkKICAgICAg"
+            "ICBpZiByZXN1bHQuc3Rkb3V0ICE9IGIiIjoKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0"
+            "aW9uRXJyb3IoCiAgICAgICAgICAgICAgICAiY3VybCBlbWl0dGVkIHRoZSBIVFRQIGVy"
+            "cm9yIGJvZHkgd2l0aCAtLWZhaWw6IHshcn0iLmZvcm1hdChyZXN1bHQuc3Rkb3V0KQog"
+            "ICAgICAgICAgICApCgogICAgICAgIHZlcmRpY3QgPSAiUEFTUyIKICAgICAgICBtZXNz"
+            "YWdlID0gImN1cmwgLS1mYWlsIHJldHVybmVkIDIyIGFuZCBzdXBwcmVzc2VkIHRoZSBu"
+            "b24tYXV0aGVudGljYXRpb24gNDA0IGJvZHkiCiAgICAgICAgZXhpdF9jb2RlID0gMAog"
+            "ICAgZXhjZXB0IHN1YnByb2Nlc3MuVGltZW91dEV4cGlyZWQgYXMgZXhjOgogICAgICAg"
+            "IGRpYWdub3N0aWNzLmFwcGVuZCgiY3VybCB0aW1lZCBvdXQ6IHt9Ii5mb3JtYXQoZXhj"
+            "KSkKICAgICAgICBtZXNzYWdlID0gImN1cmwgZGlkIG5vdCBjb21wbGV0ZSBhZ2FpbnN0"
+            "IHRoZSBsb2NhbCBIVFRQIGZpeHR1cmUiCiAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4"
+            "YzoKICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoInRlc3QgZXJyb3I6IHt9Ii5mb3Jt"
+            "YXQoZXhjKSkKICAgICAgICBtZXNzYWdlID0gImN1cmwgLS1mYWlsIGJlaGF2aW9yIGRp"
+            "ZCBub3QgbWF0Y2ggdGhlIHJlcXVpcmVkIHRyYW5zaXRpb24iCiAgICBmaW5hbGx5Ogog"
+            "ICAgICAgIGlmIGh0dHBkIGlzIG5vdCBOb25lOgogICAgICAgICAgICBpZiBmaXh0dXJl"
+            "X3RocmVhZCBpcyBub3QgTm9uZSBhbmQgZml4dHVyZV90aHJlYWQuaXNfYWxpdmUoKToK"
+            "ICAgICAgICAgICAgICAgIGh0dHBkLnNodXRkb3duKCkKICAgICAgICAgICAgaHR0cGQu"
+            "c2VydmVyX2Nsb3NlKCkKICAgICAgICBpZiBmaXh0dXJlX3RocmVhZCBpcyBub3QgTm9u"
+            "ZToKICAgICAgICAgICAgZml4dHVyZV90aHJlYWQuam9pbih0aW1lb3V0PTUpCiAgICAg"
+            "ICAgICAgIGlmIGZpeHR1cmVfdGhyZWFkLmlzX2FsaXZlKCk6CiAgICAgICAgICAgICAg"
+            "ICBkaWFnbm9zdGljcy5hcHBlbmQoImxvY2FsIEhUVFAgZml4dHVyZSB0aHJlYWQgZGlk"
+            "IG5vdCBzdG9wIikKICAgICAgICAgICAgICAgIHZlcmRpY3QgPSAiRkFJTCIKICAgICAg"
+            "ICAgICAgICAgIG1lc3NhZ2UgPSAibG9jYWwgSFRUUCBmaXh0dXJlIGNsZWFudXAgZmFp"
+            "bGVkIgogICAgICAgICAgICAgICAgZXhpdF9jb2RlID0gMQoKICAgICAgICBpZiBmaXh0"
+            "dXJlX2Vycm9yczoKICAgICAgICAgICAgdmVyZGljdCA9ICJGQUlMIgogICAgICAgICAg"
+            "ICBtZXNzYWdlID0gImxvY2FsIEhUVFAgZml4dHVyZSByYWlzZWQgYW4gZXhjZXB0aW9u"
+            "IgogICAgICAgICAgICBleGl0X2NvZGUgPSAxCiAgICAgICAgICAgIGZvciBlcnJvciBp"
+            "biBmaXh0dXJlX2Vycm9yczoKICAgICAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVu"
+            "ZCgiZml4dHVyZSBleGNlcHRpb246XG57fSIuZm9ybWF0KGVycm9yLnJzdHJpcCgpKSkK"
+            "CiAgICBmb3IgZGlhZ25vc3RpYyBpbiBkaWFnbm9zdGljczoKICAgICAgICBwcmludChk"
+            "aWFnbm9zdGljKQogICAgcHJpbnQoInt9OiB7fSIuZm9ybWF0KHZlcmRpY3QsIG1lc3Nh"
+            "Z2UpKQogICAgc3lzLmV4aXQoZXhpdF9jb2RlKQoKCmlmIF9fbmFtZV9fID09ICJfX21h"
+            "aW5fXyI6CiAgICBtYWluKCkK"
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
-        endpoint_path = "/upload-target"
-        helper = rf"""
-import http.server
-import pathlib
-import socket
-import sys
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
 
-if sys.argv[1] == "probe":
-    sock = socket.create_connection(
-        ("127.0.0.1", int(sys.argv[2])), timeout=1
+        Corpus obligation: pkg:curl/follow-http-redirect
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
     )
-    sock.close()
-    sys.exit(0)
+    def verify_pkg_curl_follow_http_redirect(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:87cf98e9fe0978e77bce726dc00d7770e8873f6"
+            "03ed6f66f6ea6fadc62153dc3."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgaHR0cC5zZXJ2ZXIKaW1wb3J0IHNo"
+            "dXRpbAppbXBvcnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0aHJlYWRpbmcK"
+            "aW1wb3J0IHRyYWNlYmFjawoKCkZJTkFMX0JPRFkgPSBiImtub3duIGZpbmFsIHJlc3Bv"
+            "bnNlIGJvZHkiCgoKY2xhc3MgUmVkaXJlY3RIYW5kbGVyKGh0dHAuc2VydmVyLkJhc2VI"
+            "VFRQUmVxdWVzdEhhbmRsZXIpOgogICAgZGVmIGRvX0dFVChzZWxmKToKICAgICAgICBz"
+            "ZWxmLnNlcnZlci5vYnNlcnZlZF90YXJnZXRzLmFwcGVuZChzZWxmLnBhdGgpCgogICAg"
+            "ICAgIGlmIHNlbGYucGF0aCA9PSAiL3JlZGlyZWN0IjoKICAgICAgICAgICAgc2VsZi5z"
+            "ZW5kX3Jlc3BvbnNlKDMwMikKICAgICAgICAgICAgc2VsZi5zZW5kX2hlYWRlcigiTG9j"
+            "YXRpb24iLCAiL2ZpbmFsIikKICAgICAgICAgICAgc2VsZi5zZW5kX2hlYWRlcigiQ29u"
+            "dGVudC1MZW5ndGgiLCAiMCIpCiAgICAgICAgICAgIHNlbGYuZW5kX2hlYWRlcnMoKQog"
+            "ICAgICAgIGVsaWYgc2VsZi5wYXRoID09ICIvZmluYWwiOgogICAgICAgICAgICBzZWxm"
+            "LnNlbmRfcmVzcG9uc2UoMjAwKQogICAgICAgICAgICBzZWxmLnNlbmRfaGVhZGVyKCJD"
+            "b250ZW50LVR5cGUiLCAidGV4dC9wbGFpbiIpCiAgICAgICAgICAgIHNlbGYuc2VuZF9o"
+            "ZWFkZXIoIkNvbnRlbnQtTGVuZ3RoIiwgc3RyKGxlbihGSU5BTF9CT0RZKSkpCiAgICAg"
+            "ICAgICAgIHNlbGYuZW5kX2hlYWRlcnMoKQogICAgICAgICAgICBzZWxmLndmaWxlLndy"
+            "aXRlKEZJTkFMX0JPRFkpCiAgICAgICAgZWxzZToKICAgICAgICAgICAgc2VsZi5zZW5k"
+            "X3Jlc3BvbnNlKDQwNCkKICAgICAgICAgICAgc2VsZi5zZW5kX2hlYWRlcigiQ29udGVu"
+            "dC1MZW5ndGgiLCAiMCIpCiAgICAgICAgICAgIHNlbGYuZW5kX2hlYWRlcnMoKQoKICAg"
+            "IGRlZiBsb2dfbWVzc2FnZShzZWxmLCBmbXQsICphcmdzKToKICAgICAgICByZXR1cm4K"
+            "CgpjbGFzcyBDYXB0dXJpbmdIVFRQU2VydmVyKGh0dHAuc2VydmVyLlRocmVhZGluZ0hU"
+            "VFBTZXJ2ZXIpOgogICAgZGFlbW9uX3RocmVhZHMgPSBUcnVlCgogICAgZGVmIGhhbmRs"
+            "ZV9lcnJvcihzZWxmLCByZXF1ZXN0LCBjbGllbnRfYWRkcmVzcyk6CiAgICAgICAgc2Vs"
+            "Zi5maXh0dXJlX2Vycm9ycy5hcHBlbmQodHJhY2ViYWNrLmZvcm1hdF9leGMoKSkKCgpk"
+            "ZWYgbWFpbigpOgogICAgaHR0cGQgPSBOb25lCiAgICB3b3JrZXIgPSBOb25lCiAgICBm"
+            "YWlsdXJlcyA9IFtdCgogICAgdHJ5OgogICAgICAgIGN1cmwgPSBzaHV0aWwud2hpY2go"
+            "ImN1cmwiKQogICAgICAgIGlmIGN1cmwgaXMgTm9uZToKICAgICAgICAgICAgZmFpbHVy"
+            "ZXMuYXBwZW5kKCJjdXJsIENMSSBpcyBub3QgYXZhaWxhYmxlIikKICAgICAgICBlbHNl"
+            "OgogICAgICAgICAgICBodHRwZCA9IENhcHR1cmluZ0hUVFBTZXJ2ZXIoKCIxMjcuMC4w"
+            "LjEiLCAwKSwgUmVkaXJlY3RIYW5kbGVyKQogICAgICAgICAgICBodHRwZC5vYnNlcnZl"
+            "ZF90YXJnZXRzID0gW10KICAgICAgICAgICAgaHR0cGQuZml4dHVyZV9lcnJvcnMgPSBb"
+            "XQogICAgICAgICAgICB3b3JrZXIgPSB0aHJlYWRpbmcuVGhyZWFkKHRhcmdldD1odHRw"
+            "ZC5zZXJ2ZV9mb3JldmVyLCBkYWVtb249VHJ1ZSkKICAgICAgICAgICAgd29ya2VyLnN0"
+            "YXJ0KCkKCiAgICAgICAgICAgIHBvcnQgPSBodHRwZC5zZXJ2ZXJfYWRkcmVzc1sxXQog"
+            "ICAgICAgICAgICB1cmwgPSAiaHR0cDovLzEyNy4wLjAuMTp7fS9yZWRpcmVjdCIuZm9y"
+            "bWF0KHBvcnQpCiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIHJlc3VsdCA9"
+            "IHN1YnByb2Nlc3MucnVuKAogICAgICAgICAgICAgICAgICAgIFtjdXJsLCAiLS1zaWxl"
+            "bnQiLCAiLS1zaG93LWVycm9yIiwgIi0tbm9wcm94eSIsICIqIiwgIi0tbG9jYXRpb24i"
+            "LCB1cmxdLAogICAgICAgICAgICAgICAgICAgIHN0ZG91dD1zdWJwcm9jZXNzLlBJUEUs"
+            "CiAgICAgICAgICAgICAgICAgICAgc3RkZXJyPXN1YnByb2Nlc3MuUElQRSwKICAgICAg"
+            "ICAgICAgICAgICAgICB0aW1lb3V0PTE1LAogICAgICAgICAgICAgICAgICAgIGNoZWNr"
+            "PUZhbHNlLAogICAgICAgICAgICAgICAgKQogICAgICAgICAgICBleGNlcHQgc3VicHJv"
+            "Y2Vzcy5UaW1lb3V0RXhwaXJlZCBhcyBleGM6CiAgICAgICAgICAgICAgICBmYWlsdXJl"
+            "cy5hcHBlbmQoImN1cmwgdGltZWQgb3V0IHdoaWxlIGZvbGxvd2luZyB0aGUgcmVkaXJl"
+            "Y3Q6IHt9Ii5mb3JtYXQoZXhjKSkKICAgICAgICAgICAgZWxzZToKICAgICAgICAgICAg"
+            "ICAgIGlmIHJlc3VsdC5yZXR1cm5jb2RlICE9IDA6CiAgICAgICAgICAgICAgICAgICAg"
+            "ZmFpbHVyZXMuYXBwZW5kKCJjdXJsIGV4aXRlZCB3aXRoIHN0YXR1cyB7fSIuZm9ybWF0"
+            "KHJlc3VsdC5yZXR1cm5jb2RlKSkKICAgICAgICAgICAgICAgICAgICBmYWlsdXJlcy5h"
+            "cHBlbmQoImN1cmwgc3RkZXJyOiB7IXJ9Ii5mb3JtYXQocmVzdWx0LnN0ZGVyci5kZWNv"
+            "ZGUoInV0Zi04IiwgInJlcGxhY2UiKSkpCiAgICAgICAgICAgICAgICBpZiByZXN1bHQu"
+            "c3Rkb3V0ICE9IEZJTkFMX0JPRFk6CiAgICAgICAgICAgICAgICAgICAgZmFpbHVyZXMu"
+            "YXBwZW5kKAogICAgICAgICAgICAgICAgICAgICAgICAiY3VybCBvdXRwdXQgZGlkIG5v"
+            "dCBlcXVhbCB0aGUgZmluYWwgcmVzcG9uc2UgYm9keTogZXhwZWN0ZWQgeyFyfSwgZ290"
+            "IHshcn0iLmZvcm1hdCgKICAgICAgICAgICAgICAgICAgICAgICAgICAgIEZJTkFMX0JP"
+            "RFksIHJlc3VsdC5zdGRvdXQKICAgICAgICAgICAgICAgICAgICAgICAgKQogICAgICAg"
+            "ICAgICAgICAgICAgICkKICAgICAgICAgICAgICAgIGV4cGVjdGVkX3RhcmdldHMgPSBb"
+            "Ii9yZWRpcmVjdCIsICIvZmluYWwiXQogICAgICAgICAgICAgICAgaWYgaHR0cGQub2Jz"
+            "ZXJ2ZWRfdGFyZ2V0cyAhPSBleHBlY3RlZF90YXJnZXRzOgogICAgICAgICAgICAgICAg"
+            "ICAgIGZhaWx1cmVzLmFwcGVuZCgKICAgICAgICAgICAgICAgICAgICAgICAgIkhUVFAg"
+            "cmVxdWVzdCBzZXF1ZW5jZSB3YXMgeyFyfSwgZXhwZWN0ZWQgeyFyfSIuZm9ybWF0KAog"
+            "ICAgICAgICAgICAgICAgICAgICAgICAgICAgaHR0cGQub2JzZXJ2ZWRfdGFyZ2V0cywg"
+            "ZXhwZWN0ZWRfdGFyZ2V0cwogICAgICAgICAgICAgICAgICAgICAgICApCiAgICAgICAg"
+            "ICAgICAgICAgICAgKQogICAgZXhjZXB0IEV4Y2VwdGlvbjoKICAgICAgICBmYWlsdXJl"
+            "cy5hcHBlbmQoInRlc3QgZXhjZXB0aW9uOlxue30iLmZvcm1hdCh0cmFjZWJhY2suZm9y"
+            "bWF0X2V4YygpKSkKICAgIGZpbmFsbHk6CiAgICAgICAgaWYgaHR0cGQgaXMgbm90IE5v"
+            "bmU6CiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIGh0dHBkLnNodXRkb3du"
+            "KCkKICAgICAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbjoKICAgICAgICAgICAgICAgIGZh"
+            "aWx1cmVzLmFwcGVuZCgiZml4dHVyZSBzaHV0ZG93biBleGNlcHRpb246XG57fSIuZm9y"
+            "bWF0KHRyYWNlYmFjay5mb3JtYXRfZXhjKCkpKQogICAgICAgICAgICB0cnk6CiAgICAg"
+            "ICAgICAgICAgICBodHRwZC5zZXJ2ZXJfY2xvc2UoKQogICAgICAgICAgICBleGNlcHQg"
+            "RXhjZXB0aW9uOgogICAgICAgICAgICAgICAgZmFpbHVyZXMuYXBwZW5kKCJmaXh0dXJl"
+            "IGNsb3NlIGV4Y2VwdGlvbjpcbnt9Ii5mb3JtYXQodHJhY2ViYWNrLmZvcm1hdF9leGMo"
+            "KSkpCiAgICAgICAgICAgIGlmIHdvcmtlciBpcyBub3QgTm9uZToKICAgICAgICAgICAg"
+            "ICAgIHdvcmtlci5qb2luKHRpbWVvdXQ9NSkKICAgICAgICAgICAgICAgIGlmIHdvcmtl"
+            "ci5pc19hbGl2ZSgpOgogICAgICAgICAgICAgICAgICAgIGZhaWx1cmVzLmFwcGVuZCgi"
+            "SFRUUCBmaXh0dXJlIHRocmVhZCBkaWQgbm90IHN0b3AiKQogICAgICAgICAgICBpZiBo"
+            "dHRwZC5maXh0dXJlX2Vycm9yczoKICAgICAgICAgICAgICAgIGZhaWx1cmVzLmFwcGVu"
+            "ZCgiSFRUUCBmaXh0dXJlIGV4Y2VwdGlvbihzKTpcbnt9Ii5mb3JtYXQoIlxuIi5qb2lu"
+            "KGh0dHBkLmZpeHR1cmVfZXJyb3JzKSkpCgogICAgaWYgZmFpbHVyZXM6CiAgICAgICAg"
+            "Zm9yIGZhaWx1cmUgaW4gZmFpbHVyZXM6CiAgICAgICAgICAgIHByaW50KGZhaWx1cmUp"
+            "CiAgICAgICAgcHJpbnQoIkZBSUw6IGN1cmwgZGlkIG5vdCBjb3JyZWN0bHkgZm9sbG93"
+            "IHRoZSBIVFRQIHJlZGlyZWN0IikKICAgICAgICBzeXMuZXhpdCgxKQoKICAgIHByaW50"
+            "KCJQQVNTOiBjdXJsIC0tbG9jYXRpb24gZm9sbG93ZWQgdGhlIHJlZGlyZWN0IGFuZCBy"
+            "ZXR1cm5lZCB0aGUgZmluYWwgcmVzcG9uc2UiKQogICAgc3lzLmV4aXQoMCkKCgppZiBf"
+            "X25hbWVfXyA9PSAiX19tYWluX18iOgogICAgbWFpbigpCg=="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
-root = pathlib.Path(sys.argv[2])
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
 
+        Corpus obligation: pkg:curl/request-through-proxy
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_curl_request_through_proxy(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:2192e5b1321424c30312cb757eef1902b2db1ac"
+            "33f5c9272c09dcbe05379a7eb."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgaHR0cC5jbGllbnQKaW1wb3J0IGh0"
+            "dHAuc2VydmVyCmltcG9ydCBvcwppbXBvcnQgc2h1dGlsCmltcG9ydCBzdWJwcm9jZXNz"
+            "CmltcG9ydCBzeXMKaW1wb3J0IHRlbXBmaWxlCmltcG9ydCB0aHJlYWRpbmcKaW1wb3J0"
+            "IHRyYWNlYmFjawppbXBvcnQgdXJsbGliLnBhcnNlCgoKZGVmIG1haW4oKToKICAgIGN1"
+            "cmwgPSBzaHV0aWwud2hpY2goImN1cmwiKQogICAgaWYgY3VybCBpcyBOb25lOgogICAg"
+            "ICAgIHJldHVybiA3NywgImN1cmwgQ0xJIGlzIG5vdCBhdmFpbGFibGUiLCBbXQoKICAg"
+            "IHRlbXBvcmFyeV9kaXJlY3RvcnkgPSB0ZW1wZmlsZS5ta2R0ZW1wKHByZWZpeD0iY3Vy"
+            "bC1leHBsaWNpdC1wcm94eS0iKQogICAgb3JpZ2luX2h0dHBkID0gTm9uZQogICAgcHJv"
+            "eHlfaHR0cGQgPSBOb25lCiAgICBvcmlnaW5fdGhyZWFkID0gTm9uZQogICAgcHJveHlf"
+            "dGhyZWFkID0gTm9uZQogICAgZGlhZ25vc3RpY3MgPSBbXQogICAgZml4dHVyZV9lcnJv"
+            "cnMgPSBbXQogICAgb3JpZ2luX2V2ZW50cyA9IFtdCiAgICBwcm94eV9ldmVudHMgPSBb"
+            "XQogICAgb3JpZ2luX2JvZHkgPSBiImNvbnRyb2xsZWQgb3JpZ2luIHJlc3BvbnNlIHZp"
+            "YSBleHBsaWNpdCBwcm94eSIKCiAgICBjbGFzcyBDYXB0dXJpbmdIVFRQU2VydmVyKGh0"
+            "dHAuc2VydmVyLlRocmVhZGluZ0hUVFBTZXJ2ZXIpOgogICAgICAgIGRhZW1vbl90aHJl"
+            "YWRzID0gVHJ1ZQogICAgICAgIGFsbG93X3JldXNlX2FkZHJlc3MgPSBUcnVlCgogICAg"
+            "ICAgIGRlZiBoYW5kbGVfZXJyb3Ioc2VsZiwgaWdub3JlZF9zb2NrZXQsIGlnbm9yZWRf"
+            "YWRkcmVzcyk6CiAgICAgICAgICAgIGZpeHR1cmVfZXJyb3JzLmFwcGVuZCh0cmFjZWJh"
+            "Y2suZm9ybWF0X2V4YygpKQoKICAgIHRyeToKICAgICAgICBjbGFzcyBPcmlnaW5IYW5k"
+            "bGVyKGh0dHAuc2VydmVyLkJhc2VIVFRQUmVxdWVzdEhhbmRsZXIpOgogICAgICAgICAg"
+            "ICBwcm90b2NvbF92ZXJzaW9uID0gIkhUVFAvMS4xIgoKICAgICAgICAgICAgZGVmIGxv"
+            "Z19tZXNzYWdlKHNlbGYsIGlnbm9yZWRfZm9ybWF0LCAqaWdub3JlZF9hcmdzKToKICAg"
+            "ICAgICAgICAgICAgIHJldHVybgoKICAgICAgICAgICAgZGVmIGRvX0dFVChzZWxmKToK"
+            "ICAgICAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgICAgICBvcmlnaW5fZXZl"
+            "bnRzLmFwcGVuZChzZWxmLnBhdGgpCiAgICAgICAgICAgICAgICAgICAgc2VsZi5zZW5k"
+            "X3Jlc3BvbnNlKDIwMCkKICAgICAgICAgICAgICAgICAgICBzZWxmLnNlbmRfaGVhZGVy"
+            "KCJDb250ZW50LVR5cGUiLCAidGV4dC9wbGFpbiIpCiAgICAgICAgICAgICAgICAgICAg"
+            "c2VsZi5zZW5kX2hlYWRlcigiQ29udGVudC1MZW5ndGgiLCBzdHIobGVuKG9yaWdpbl9i"
+            "b2R5KSkpCiAgICAgICAgICAgICAgICAgICAgc2VsZi5zZW5kX2hlYWRlcigiQ29ubmVj"
+            "dGlvbiIsICJjbG9zZSIpCiAgICAgICAgICAgICAgICAgICAgc2VsZi5lbmRfaGVhZGVy"
+            "cygpCiAgICAgICAgICAgICAgICAgICAgc2VsZi53ZmlsZS53cml0ZShvcmlnaW5fYm9k"
+            "eSkKICAgICAgICAgICAgICAgIGV4Y2VwdCBFeGNlcHRpb246CiAgICAgICAgICAgICAg"
+            "ICAgICAgZml4dHVyZV9lcnJvcnMuYXBwZW5kKHRyYWNlYmFjay5mb3JtYXRfZXhjKCkp"
+            "CiAgICAgICAgICAgICAgICAgICAgcmFpc2UKCiAgICAgICAgb3JpZ2luX2h0dHBkID0g"
+            "Q2FwdHVyaW5nSFRUUFNlcnZlcigoIjEyNy4wLjAuMSIsIDApLCBPcmlnaW5IYW5kbGVy"
+            "KQogICAgICAgIG9yaWdpbl9wb3J0ID0gb3JpZ2luX2h0dHBkLnNlcnZlcl9hZGRyZXNz"
+            "WzFdCiAgICAgICAgZXhwZWN0ZWRfcmVzb3VyY2UgPSAiL3Rocm91Z2gtcHJveHk/Y2Fz"
+            "ZT1leHBsaWNpdCIKICAgICAgICBvcmlnaW5fdXJsID0gImh0dHA6Ly8xMjcuMC4wLjE6"
+            "e317fSIuZm9ybWF0KG9yaWdpbl9wb3J0LCBleHBlY3RlZF9yZXNvdXJjZSkKCiAgICAg"
+            "ICAgY2xhc3MgUHJveHlIYW5kbGVyKGh0dHAuc2VydmVyLkJhc2VIVFRQUmVxdWVzdEhh"
+            "bmRsZXIpOgogICAgICAgICAgICBwcm90b2NvbF92ZXJzaW9uID0gIkhUVFAvMS4xIgoK"
+            "ICAgICAgICAgICAgZGVmIGxvZ19tZXNzYWdlKHNlbGYsIGlnbm9yZWRfZm9ybWF0LCAq"
+            "aWdub3JlZF9hcmdzKToKICAgICAgICAgICAgICAgIHJldHVybgoKICAgICAgICAgICAg"
+            "ZGVmIGRvX0dFVChzZWxmKToKICAgICAgICAgICAgICAgIHVwc3RyZWFtID0gTm9uZQog"
+            "ICAgICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgICAgIHRhcmdldCA9IHNl"
+            "bGYucGF0aAogICAgICAgICAgICAgICAgICAgIHBhcnNlZCA9IHVybGxpYi5wYXJzZS51"
+            "cmxzcGxpdCh0YXJnZXQpCiAgICAgICAgICAgICAgICAgICAgaWYgcGFyc2VkLnNjaGVt"
+            "ZSAhPSAiaHR0cCIgb3IgcGFyc2VkLmhvc3RuYW1lICE9ICIxMjcuMC4wLjEiIG9yIHBh"
+            "cnNlZC5wb3J0ICE9IG9yaWdpbl9wb3J0OgogICAgICAgICAgICAgICAgICAgICAgICBz"
+            "ZWxmLnNlbmRfZXJyb3IoNTAyKQogICAgICAgICAgICAgICAgICAgICAgICByZXR1cm4K"
+            "CiAgICAgICAgICAgICAgICAgICAgcHJveHlfZXZlbnRzLmFwcGVuZCh0YXJnZXQpCiAg"
+            "ICAgICAgICAgICAgICAgICAgdXBzdHJlYW1fdGFyZ2V0ID0gdXJsbGliLnBhcnNlLnVy"
+            "bHVuc3BsaXQoCiAgICAgICAgICAgICAgICAgICAgICAgICgiIiwgIiIsIHBhcnNlZC5w"
+            "YXRoIG9yICIvIiwgcGFyc2VkLnF1ZXJ5LCAiIikKICAgICAgICAgICAgICAgICAgICAp"
+            "CiAgICAgICAgICAgICAgICAgICAgdXBzdHJlYW0gPSBodHRwLmNsaWVudC5IVFRQQ29u"
+            "bmVjdGlvbigiMTI3LjAuMC4xIiwgb3JpZ2luX3BvcnQsIHRpbWVvdXQ9NSkKICAgICAg"
+            "ICAgICAgICAgICAgICB1cHN0cmVhbS5yZXF1ZXN0KAogICAgICAgICAgICAgICAgICAg"
+            "ICAgICAiR0VUIiwKICAgICAgICAgICAgICAgICAgICAgICAgdXBzdHJlYW1fdGFyZ2V0"
+            "LAogICAgICAgICAgICAgICAgICAgICAgICBoZWFkZXJzPXsKICAgICAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICJIb3N0IjogIjEyNy4wLjAuMTp7fSIuZm9ybWF0KG9yaWdpbl9w"
+            "b3J0KSwKICAgICAgICAgICAgICAgICAgICAgICAgICAgICJDb25uZWN0aW9uIjogImNs"
+            "b3NlIiwKICAgICAgICAgICAgICAgICAgICAgICAgfSwKICAgICAgICAgICAgICAgICAg"
+            "ICApCiAgICAgICAgICAgICAgICAgICAgcmVzcG9uc2UgPSB1cHN0cmVhbS5nZXRyZXNw"
+            "b25zZSgpCiAgICAgICAgICAgICAgICAgICAgYm9keSA9IHJlc3BvbnNlLnJlYWQoKQoK"
+            "ICAgICAgICAgICAgICAgICAgICBzZWxmLnNlbmRfcmVzcG9uc2UocmVzcG9uc2Uuc3Rh"
+            "dHVzKQogICAgICAgICAgICAgICAgICAgIHNlbGYuc2VuZF9oZWFkZXIoIkNvbnRlbnQt"
+            "VHlwZSIsICJ0ZXh0L3BsYWluIikKICAgICAgICAgICAgICAgICAgICBzZWxmLnNlbmRf"
+            "aGVhZGVyKCJDb250ZW50LUxlbmd0aCIsIHN0cihsZW4oYm9keSkpKQogICAgICAgICAg"
+            "ICAgICAgICAgIHNlbGYuc2VuZF9oZWFkZXIoIkNvbm5lY3Rpb24iLCAiY2xvc2UiKQog"
+            "ICAgICAgICAgICAgICAgICAgIHNlbGYuZW5kX2hlYWRlcnMoKQogICAgICAgICAgICAg"
+            "ICAgICAgIHNlbGYud2ZpbGUud3JpdGUoYm9keSkKICAgICAgICAgICAgICAgIGV4Y2Vw"
+            "dCBFeGNlcHRpb246CiAgICAgICAgICAgICAgICAgICAgZml4dHVyZV9lcnJvcnMuYXBw"
+            "ZW5kKHRyYWNlYmFjay5mb3JtYXRfZXhjKCkpCiAgICAgICAgICAgICAgICAgICAgdHJ5"
+            "OgogICAgICAgICAgICAgICAgICAgICAgICBzZWxmLnNlbmRfZXJyb3IoNTAyKQogICAg"
+            "ICAgICAgICAgICAgICAgIGV4Y2VwdCBFeGNlcHRpb246CiAgICAgICAgICAgICAgICAg"
+            "ICAgICAgIGZpeHR1cmVfZXJyb3JzLmFwcGVuZCh0cmFjZWJhY2suZm9ybWF0X2V4Yygp"
+            "KQogICAgICAgICAgICAgICAgZmluYWxseToKICAgICAgICAgICAgICAgICAgICBpZiB1"
+            "cHN0cmVhbSBpcyBub3QgTm9uZToKICAgICAgICAgICAgICAgICAgICAgICAgdXBzdHJl"
+            "YW0uY2xvc2UoKQoKICAgICAgICBwcm94eV9odHRwZCA9IENhcHR1cmluZ0hUVFBTZXJ2"
+            "ZXIoKCIxMjcuMC4wLjEiLCAwKSwgUHJveHlIYW5kbGVyKQogICAgICAgIHByb3h5X3Bv"
+            "cnQgPSBwcm94eV9odHRwZC5zZXJ2ZXJfYWRkcmVzc1sxXQogICAgICAgIHByb3h5X3Vy"
+            "bCA9ICJodHRwOi8vMTI3LjAuMC4xOnt9Ii5mb3JtYXQocHJveHlfcG9ydCkKCiAgICAg"
+            "ICAgb3JpZ2luX3RocmVhZCA9IHRocmVhZGluZy5UaHJlYWQodGFyZ2V0PW9yaWdpbl9o"
+            "dHRwZC5zZXJ2ZV9mb3JldmVyLCBkYWVtb249VHJ1ZSkKICAgICAgICBwcm94eV90aHJl"
+            "YWQgPSB0aHJlYWRpbmcuVGhyZWFkKHRhcmdldD1wcm94eV9odHRwZC5zZXJ2ZV9mb3Jl"
+            "dmVyLCBkYWVtb249VHJ1ZSkKICAgICAgICBvcmlnaW5fdGhyZWFkLnN0YXJ0KCkKICAg"
+            "ICAgICBwcm94eV90aHJlYWQuc3RhcnQoKQoKICAgICAgICBlbnZpcm9ubWVudCA9IG9z"
+            "LmVudmlyb24uY29weSgpCiAgICAgICAgZm9yIHZhcmlhYmxlIGluICgKICAgICAgICAg"
+            "ICAgIkFMTF9QUk9YWSIsICJhbGxfcHJveHkiLCAiSFRUUF9QUk9YWSIsICJodHRwX3By"
+            "b3h5IiwKICAgICAgICAgICAgIkhUVFBTX1BST1hZIiwgImh0dHBzX3Byb3h5IiwgIk5P"
+            "X1BST1hZIiwgIm5vX3Byb3h5IiwKICAgICAgICApOgogICAgICAgICAgICBlbnZpcm9u"
+            "bWVudC5wb3AodmFyaWFibGUsIE5vbmUpCiAgICAgICAgZW52aXJvbm1lbnRbIkhPTUUi"
+            "XSA9IHRlbXBvcmFyeV9kaXJlY3RvcnkKICAgICAgICBlbnZpcm9ubWVudFsiQ1VSTF9I"
+            "T01FIl0gPSB0ZW1wb3JhcnlfZGlyZWN0b3J5CgogICAgICAgIHJlc3VsdCA9IHN1YnBy"
+            "b2Nlc3MucnVuKAogICAgICAgICAgICBbCiAgICAgICAgICAgICAgICBjdXJsLAogICAg"
+            "ICAgICAgICAgICAgIi0tZGlzYWJsZSIsCiAgICAgICAgICAgICAgICAiLS1zaWxlbnQi"
+            "LAogICAgICAgICAgICAgICAgIi0tc2hvdy1lcnJvciIsCiAgICAgICAgICAgICAgICAi"
+            "LS1mYWlsIiwKICAgICAgICAgICAgICAgICItLW1heC10aW1lIiwKICAgICAgICAgICAg"
+            "ICAgICIxMCIsCiAgICAgICAgICAgICAgICAiLS1wcm94eSIsCiAgICAgICAgICAgICAg"
+            "ICBwcm94eV91cmwsCiAgICAgICAgICAgICAgICAiLS1ub3Byb3h5IiwKICAgICAgICAg"
+            "ICAgICAgICIiLAogICAgICAgICAgICAgICAgb3JpZ2luX3VybCwKICAgICAgICAgICAg"
+            "XSwKICAgICAgICAgICAgc3Rkb3V0PXN1YnByb2Nlc3MuUElQRSwKICAgICAgICAgICAg"
+            "c3RkZXJyPXN1YnByb2Nlc3MuUElQRSwKICAgICAgICAgICAgZW52PWVudmlyb25tZW50"
+            "LAogICAgICAgICAgICB0aW1lb3V0PTE1LAogICAgICAgICAgICBjaGVjaz1GYWxzZSwK"
+            "ICAgICAgICApCgogICAgICAgIGlmIHJlc3VsdC5yZXR1cm5jb2RlICE9IDA6CiAgICAg"
+            "ICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiY3VybCBleGl0IGNvZGU6IHt9Ii5mb3Jt"
+            "YXQocmVzdWx0LnJldHVybmNvZGUpKQogICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBl"
+            "bmQoImN1cmwgc3Rkb3V0OiB7IXJ9Ii5mb3JtYXQocmVzdWx0LnN0ZG91dCkpCiAgICAg"
+            "ICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiY3VybCBzdGRlcnI6IHshcn0iLmZvcm1h"
+            "dChyZXN1bHQuc3RkZXJyKSkKICAgICAgICBpZiByZXN1bHQuc3Rkb3V0ICE9IG9yaWdp"
+            "bl9ib2R5OgogICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoInVuZXhwZWN0ZWQg"
+            "cmVzcG9uc2UgYm9keTogeyFyfSIuZm9ybWF0KHJlc3VsdC5zdGRvdXQpKQogICAgICAg"
+            "IGlmIHByb3h5X2V2ZW50cyAhPSBbb3JpZ2luX3VybF06CiAgICAgICAgICAgIGRpYWdu"
+            "b3N0aWNzLmFwcGVuZCgicHJveHkgb2JzZXJ2YXRpb25zOiB7IXJ9OyBleHBlY3RlZDog"
+            "eyFyfSIuZm9ybWF0KHByb3h5X2V2ZW50cywgW29yaWdpbl91cmxdKSkKICAgICAgICBp"
+            "ZiBvcmlnaW5fZXZlbnRzICE9IFtleHBlY3RlZF9yZXNvdXJjZV06CiAgICAgICAgICAg"
+            "IGRpYWdub3N0aWNzLmFwcGVuZCgib3JpZ2luIG9ic2VydmF0aW9uczogeyFyfTsgZXhw"
+            "ZWN0ZWQ6IHshcn0iLmZvcm1hdChvcmlnaW5fZXZlbnRzLCBbZXhwZWN0ZWRfcmVzb3Vy"
+            "Y2VdKSkKICAgICAgICBpZiBmaXh0dXJlX2Vycm9yczoKICAgICAgICAgICAgZGlhZ25v"
+            "c3RpY3MuYXBwZW5kKCJmaXh0dXJlIGV4Y2VwdGlvbnMgb2NjdXJyZWQiKQoKICAgICAg"
+            "ICBpZiBkaWFnbm9zdGljczoKICAgICAgICAgICAgcmV0dXJuIDEsICJleHBsaWNpdCBw"
+            "cm94eSBiZWhhdmlvciBkaWQgbm90IG1hdGNoIGV4cGVjdGF0aW9ucyIsIGRpYWdub3N0"
+            "aWNzICsgZml4dHVyZV9lcnJvcnMKICAgICAgICByZXR1cm4gMCwgImN1cmwgcm91dGVk"
+            "IHRoZSByZXF1ZXN0IHRocm91Z2ggdGhlIGV4cGxpY2l0IHByb3h5IGFuZCByZXR1cm5l"
+            "ZCB0aGUgb3JpZ2luIHJlc3BvbnNlIiwgW10KCiAgICBleGNlcHQgc3VicHJvY2Vzcy5U"
+            "aW1lb3V0RXhwaXJlZCBhcyBleGM6CiAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJj"
+            "dXJsIHRpbWVkIG91dDoge30iLmZvcm1hdChleGMpKQogICAgICAgIHJldHVybiAxLCAi"
+            "Y3VybCBkaWQgbm90IGNvbXBsZXRlIHRoZSBleHBsaWNpdCBwcm94eSByZXF1ZXN0Iiwg"
+            "ZGlhZ25vc3RpY3MgKyBmaXh0dXJlX2Vycm9ycwogICAgZXhjZXB0IEV4Y2VwdGlvbjoK"
+            "ICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQodHJhY2ViYWNrLmZvcm1hdF9leGMoKSkK"
+            "ICAgICAgICByZXR1cm4gMSwgInRlc3Qgc2V0dXAgb3IgZXhlY3V0aW9uIGZhaWxlZCIs"
+            "IGRpYWdub3N0aWNzICsgZml4dHVyZV9lcnJvcnMKICAgIGZpbmFsbHk6CiAgICAgICAg"
+            "Zm9yIHNlcnZpY2UgaW4gKHByb3h5X2h0dHBkLCBvcmlnaW5faHR0cGQpOgogICAgICAg"
+            "ICAgICBpZiBzZXJ2aWNlIGlzIG5vdCBOb25lOgogICAgICAgICAgICAgICAgdHJ5Ogog"
+            "ICAgICAgICAgICAgICAgICAgIHNlcnZpY2Uuc2h1dGRvd24oKQogICAgICAgICAgICAg"
+            "ICAgZXhjZXB0IEV4Y2VwdGlvbjoKICAgICAgICAgICAgICAgICAgICBmaXh0dXJlX2Vy"
+            "cm9ycy5hcHBlbmQodHJhY2ViYWNrLmZvcm1hdF9leGMoKSkKICAgICAgICAgICAgICAg"
+            "IHRyeToKICAgICAgICAgICAgICAgICAgICBzZXJ2aWNlLnNlcnZlcl9jbG9zZSgpCiAg"
+            "ICAgICAgICAgICAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgICAgICAgICAgICAg"
+            "IGZpeHR1cmVfZXJyb3JzLmFwcGVuZCh0cmFjZWJhY2suZm9ybWF0X2V4YygpKQogICAg"
+            "ICAgIGZvciB3b3JrZXIgaW4gKHByb3h5X3RocmVhZCwgb3JpZ2luX3RocmVhZCk6CiAg"
+            "ICAgICAgICAgIGlmIHdvcmtlciBpcyBub3QgTm9uZToKICAgICAgICAgICAgICAgIHdv"
+            "cmtlci5qb2luKHRpbWVvdXQ9NSkKICAgICAgICBzaHV0aWwucm10cmVlKHRlbXBvcmFy"
+            "eV9kaXJlY3RvcnksIGlnbm9yZV9lcnJvcnM9VHJ1ZSkKCgppZiBfX25hbWVfXyA9PSAi"
+            "X19tYWluX18iOgogICAgY29kZSwgbWVzc2FnZSwgZGV0YWlscyA9IG1haW4oKQogICAg"
+            "Zm9yIGRldGFpbCBpbiBkZXRhaWxzOgogICAgICAgIHByaW50KCJkaWFnbm9zdGljOiB7"
+            "fSIuZm9ybWF0KGRldGFpbCkpCiAgICBpZiBjb2RlID09IDA6CiAgICAgICAgcHJpbnQo"
+            "IlBBU1M6IHt9Ii5mb3JtYXQobWVzc2FnZSkpCiAgICBlbGlmIGNvZGUgPT0gNzc6CiAg"
+            "ICAgICAgcHJpbnQoIlNLSVA6IHt9Ii5mb3JtYXQobWVzc2FnZSkpCiAgICBlbHNlOgog"
+            "ICAgICAgIHByaW50KCJGQUlMOiB7fSIuZm9ybWF0KG1lc3NhZ2UpKQogICAgc3lzLmV4"
+            "aXQoY29kZSkK"
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
-class Handler(http.server.BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1"
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
 
-    def _reply(self, code):
-        self.send_response(code)
-        self.send_header("Content-Length", "0")
-        self.end_headers()
+        Corpus obligation: pkg:curl/resume-partial-download
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_curl_resume_partial_download(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:0eccc3cd7bd1e22938a4ffb43048777c96a18ae"
+            "12e0c3d7cb687e31c592d54c5."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgaHR0cC5zZXJ2ZXIKaW1wb3J0IG9z"
+            "CmltcG9ydCBxdWV1ZQppbXBvcnQgc2h1dGlsCmltcG9ydCBzdWJwcm9jZXNzCmltcG9y"
+            "dCBzeXMKaW1wb3J0IHRlbXBmaWxlCmltcG9ydCB0aHJlYWRpbmcKaW1wb3J0IHRyYWNl"
+            "YmFjawoKCmNsYXNzIFNraXBUZXN0KEV4Y2VwdGlvbik6CiAgICBwYXNzCgoKY2xhc3Mg"
+            "Q2FwdHVyaW5nSFRUUFNlcnZlcihodHRwLnNlcnZlci5UaHJlYWRpbmdIVFRQU2VydmVy"
+            "KToKICAgIGRhZW1vbl90aHJlYWRzID0gVHJ1ZQoKICAgIGRlZiBfX2luaXRfXyhzZWxm"
+            "LCBhZGRyZXNzLCBoYW5kbGVyX2NsYXNzLCBlcnJvcl9zaW5rKToKICAgICAgICBzZWxm"
+            "Ll9lcnJvcl9zaW5rID0gZXJyb3Jfc2luawogICAgICAgIHN1cGVyKCkuX19pbml0X18o"
+            "YWRkcmVzcywgaGFuZGxlcl9jbGFzcykKCiAgICBkZWYgaGFuZGxlX2Vycm9yKHNlbGYs"
+            "IHJlcXVlc3QsIGNsaWVudF9hZGRyZXNzKToKICAgICAgICBzZWxmLl9lcnJvcl9zaW5r"
+            "LnB1dCh0cmFjZWJhY2suZm9ybWF0X2V4YygpKQoKCmRlZiBtYWluKCk6CiAgICBkaWFn"
+            "bm9zdGljcyA9IFtdCiAgICBleGl0X2NvZGUgPSAxCiAgICB2ZXJkaWN0ID0gIkZBSUwi"
+            "CiAgICB0ZW1wX2RpciA9IE5vbmUKICAgIGh0dHBkID0gTm9uZQogICAgc2VydmVyX3Ro"
+            "cmVhZCA9IE5vbmUKCiAgICB0cnk6CiAgICAgICAgY3VybCA9IHNodXRpbC53aGljaCgi"
+            "Y3VybCIpCiAgICAgICAgaWYgY3VybCBpcyBOb25lOgogICAgICAgICAgICByYWlzZSBT"
+            "a2lwVGVzdCgiY3VybCBDTEkgaXMgbm90IGF2YWlsYWJsZSIpCgogICAgICAgIHRlbXBf"
+            "ZGlyID0gdGVtcGZpbGUubWtkdGVtcChwcmVmaXg9ImN1cmwtcmVzdW1lLSIpCiAgICAg"
+            "ICAgZGVzdGluYXRpb24gPSBvcy5wYXRoLmpvaW4odGVtcF9kaXIsICJkb3dubG9hZC5i"
+            "aW4iKQoKICAgICAgICByZW1vdGVfY29udGVudCA9IGJ5dGVzKChpbmRleCAqIDM3ICsg"
+            "MTEpICUgMjU2IGZvciBpbmRleCBpbiByYW5nZSg5ODMxNykpCiAgICAgICAgcHJlZml4"
+            "X2xlbmd0aCA9IDEyMzQ1CiAgICAgICAga25vd25fcHJlZml4ID0gcmVtb3RlX2NvbnRl"
+            "bnRbOnByZWZpeF9sZW5ndGhdCgogICAgICAgIHdpdGggb3BlbihkZXN0aW5hdGlvbiwg"
+            "IndiIikgYXMgb3V0cHV0X2ZpbGU6CiAgICAgICAgICAgIG91dHB1dF9maWxlLndyaXRl"
+            "KGtub3duX3ByZWZpeCkKCiAgICAgICAgd2l0aCBvcGVuKGRlc3RpbmF0aW9uLCAicmIi"
+            "KSBhcyBpbnB1dF9maWxlOgogICAgICAgICAgICBpZiBpbnB1dF9maWxlLnJlYWQoKSAh"
+            "PSBrbm93bl9wcmVmaXg6CiAgICAgICAgICAgICAgICByYWlzZSBBc3NlcnRpb25FcnJv"
+            "cigiY29udHJvbGxlZCBwYXJ0aWFsIGRlc3RpbmF0aW9uIHdhcyBub3QgY3JlYXRlZCBj"
+            "b3JyZWN0bHkiKQoKICAgICAgICBmaXh0dXJlX2Vycm9ycyA9IHF1ZXVlLlF1ZXVlKCkK"
+            "ICAgICAgICBvYnNlcnZhdGlvbnMgPSBxdWV1ZS5RdWV1ZSgpCgogICAgICAgIGNsYXNz"
+            "IFJhbmdlSGFuZGxlcihodHRwLnNlcnZlci5CYXNlSFRUUFJlcXVlc3RIYW5kbGVyKToK"
+            "ICAgICAgICAgICAgcHJvdG9jb2xfdmVyc2lvbiA9ICJIVFRQLzEuMSIKCiAgICAgICAg"
+            "ICAgIGRlZiBsb2dfbWVzc2FnZShzZWxmLCBmb3JtYXRfc3RyaW5nLCAqYXJncyk6CiAg"
+            "ICAgICAgICAgICAgICByZXR1cm4KCiAgICAgICAgICAgIGRlZiBkb19HRVQoc2VsZik6"
+            "CiAgICAgICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICAgICAgc3VwcGxpZWRf"
+            "cmFuZ2UgPSBzZWxmLmhlYWRlcnMuZ2V0KCJSYW5nZSIpCiAgICAgICAgICAgICAgICAg"
+            "ICAgb2JzZXJ2YXRpb25zLnB1dCgoc2VsZi5wYXRoLCBzdXBwbGllZF9yYW5nZSkpCgog"
+            "ICAgICAgICAgICAgICAgICAgIGlmIHNlbGYucGF0aCAhPSAiL3Jlc291cmNlIjoKICAg"
+            "ICAgICAgICAgICAgICAgICAgICAgc2VsZi5zZW5kX2Vycm9yKDQwNCkKICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgcmV0dXJuCgogICAgICAgICAgICAgICAgICAgIGV4cGVjdGVk"
+            "X3JhbmdlID0gImJ5dGVzPXt9LSIuZm9ybWF0KHByZWZpeF9sZW5ndGgpCiAgICAgICAg"
+            "ICAgICAgICAgICAgaWYgc3VwcGxpZWRfcmFuZ2UgIT0gZXhwZWN0ZWRfcmFuZ2U6CiAg"
+            "ICAgICAgICAgICAgICAgICAgICAgIHNlbGYuc2VuZF9yZXNwb25zZSg0MTYpCiAgICAg"
+            "ICAgICAgICAgICAgICAgICAgIHNlbGYuc2VuZF9oZWFkZXIoCiAgICAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICAiQ29udGVudC1SYW5nZSIsICJieXRlcyAqL3t9Ii5mb3JtYXQo"
+            "bGVuKHJlbW90ZV9jb250ZW50KSkKICAgICAgICAgICAgICAgICAgICAgICAgKQogICAg"
+            "ICAgICAgICAgICAgICAgICAgICBzZWxmLnNlbmRfaGVhZGVyKCJDb250ZW50LUxlbmd0"
+            "aCIsICIwIikKICAgICAgICAgICAgICAgICAgICAgICAgc2VsZi5zZW5kX2hlYWRlcigi"
+            "Q29ubmVjdGlvbiIsICJjbG9zZSIpCiAgICAgICAgICAgICAgICAgICAgICAgIHNlbGYu"
+            "ZW5kX2hlYWRlcnMoKQogICAgICAgICAgICAgICAgICAgICAgICByZXR1cm4KCiAgICAg"
+            "ICAgICAgICAgICAgICAgcmVtYWluaW5nID0gcmVtb3RlX2NvbnRlbnRbcHJlZml4X2xl"
+            "bmd0aDpdCiAgICAgICAgICAgICAgICAgICAgc2VsZi5zZW5kX3Jlc3BvbnNlKDIwNikK"
+            "ICAgICAgICAgICAgICAgICAgICBzZWxmLnNlbmRfaGVhZGVyKCJBY2NlcHQtUmFuZ2Vz"
+            "IiwgImJ5dGVzIikKICAgICAgICAgICAgICAgICAgICBzZWxmLnNlbmRfaGVhZGVyKAog"
+            "ICAgICAgICAgICAgICAgICAgICAgICAiQ29udGVudC1SYW5nZSIsCiAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICJieXRlcyB7fS17fS97fSIuZm9ybWF0KAogICAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgcHJlZml4X2xlbmd0aCwgbGVuKHJlbW90ZV9jb250ZW50KSAt"
+            "IDEsIGxlbihyZW1vdGVfY29udGVudCkKICAgICAgICAgICAgICAgICAgICAgICAgKSwK"
+            "ICAgICAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICAgICAgICAgc2VsZi5zZW5k"
+            "X2hlYWRlcigiQ29udGVudC1MZW5ndGgiLCBzdHIobGVuKHJlbWFpbmluZykpKQogICAg"
+            "ICAgICAgICAgICAgICAgIHNlbGYuc2VuZF9oZWFkZXIoIkNvbnRlbnQtVHlwZSIsICJh"
+            "cHBsaWNhdGlvbi9vY3RldC1zdHJlYW0iKQogICAgICAgICAgICAgICAgICAgIHNlbGYu"
+            "c2VuZF9oZWFkZXIoIkNvbm5lY3Rpb24iLCAiY2xvc2UiKQogICAgICAgICAgICAgICAg"
+            "ICAgIHNlbGYuZW5kX2hlYWRlcnMoKQogICAgICAgICAgICAgICAgICAgIHNlbGYud2Zp"
+            "bGUud3JpdGUocmVtYWluaW5nKQogICAgICAgICAgICAgICAgICAgIHNlbGYud2ZpbGUu"
+            "Zmx1c2goKQogICAgICAgICAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbjoKICAgICAgICAg"
+            "ICAgICAgICAgICBmaXh0dXJlX2Vycm9ycy5wdXQodHJhY2ViYWNrLmZvcm1hdF9leGMo"
+            "KSkKICAgICAgICAgICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICAgICAgICAg"
+            "IHNlbGYuc2VuZF9lcnJvcig1MDApCiAgICAgICAgICAgICAgICAgICAgZXhjZXB0IEV4"
+            "Y2VwdGlvbjoKICAgICAgICAgICAgICAgICAgICAgICAgcGFzcwoKICAgICAgICBodHRw"
+            "ZCA9IENhcHR1cmluZ0hUVFBTZXJ2ZXIoKCIxMjcuMC4wLjEiLCAwKSwgUmFuZ2VIYW5k"
+            "bGVyLCBmaXh0dXJlX2Vycm9ycykKICAgICAgICBzZXJ2ZXJfdGhyZWFkID0gdGhyZWFk"
+            "aW5nLlRocmVhZCh0YXJnZXQ9aHR0cGQuc2VydmVfZm9yZXZlciwgZGFlbW9uPVRydWUp"
+            "CiAgICAgICAgc2VydmVyX3RocmVhZC5zdGFydCgpCgogICAgICAgIHBvcnQgPSBodHRw"
+            "ZC5zZXJ2ZXJfYWRkcmVzc1sxXQogICAgICAgIHVybCA9ICJodHRwOi8vMTI3LjAuMC4x"
+            "Ont9L3Jlc291cmNlIi5mb3JtYXQocG9ydCkKICAgICAgICByZXN1bHQgPSBzdWJwcm9j"
+            "ZXNzLnJ1bigKICAgICAgICAgICAgWwogICAgICAgICAgICAgICAgY3VybCwKICAgICAg"
+            "ICAgICAgICAgICItLXNpbGVudCIsCiAgICAgICAgICAgICAgICAiLS1zaG93LWVycm9y"
+            "IiwKICAgICAgICAgICAgICAgICItLWZhaWwiLAogICAgICAgICAgICAgICAgIi0tbm9w"
+            "cm94eSIsCiAgICAgICAgICAgICAgICAiKiIsCiAgICAgICAgICAgICAgICAiLS1jb250"
+            "aW51ZS1hdCIsCiAgICAgICAgICAgICAgICAiLSIsCiAgICAgICAgICAgICAgICAiLS1v"
+            "dXRwdXQiLAogICAgICAgICAgICAgICAgZGVzdGluYXRpb24sCiAgICAgICAgICAgICAg"
+            "ICB1cmwsCiAgICAgICAgICAgIF0sCiAgICAgICAgICAgIHN0ZG91dD1zdWJwcm9jZXNz"
+            "LlBJUEUsCiAgICAgICAgICAgIHN0ZGVycj1zdWJwcm9jZXNzLlBJUEUsCiAgICAgICAg"
+            "ICAgIHRleHQ9VHJ1ZSwKICAgICAgICAgICAgdGltZW91dD0zMCwKICAgICAgICAgICAg"
+            "Y2hlY2s9RmFsc2UsCiAgICAgICAgKQoKICAgICAgICBjYXB0dXJlZF9maXh0dXJlX2Vy"
+            "cm9ycyA9IFtdCiAgICAgICAgd2hpbGUgVHJ1ZToKICAgICAgICAgICAgdHJ5OgogICAg"
+            "ICAgICAgICAgICAgY2FwdHVyZWRfZml4dHVyZV9lcnJvcnMuYXBwZW5kKGZpeHR1cmVf"
+            "ZXJyb3JzLmdldF9ub3dhaXQoKSkKICAgICAgICAgICAgZXhjZXB0IHF1ZXVlLkVtcHR5"
+            "OgogICAgICAgICAgICAgICAgYnJlYWsKCiAgICAgICAgaWYgY2FwdHVyZWRfZml4dHVy"
+            "ZV9lcnJvcnM6CiAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgKICAgICAgICAg"
+            "ICAgICAgICJmaXh0dXJlIGV4Y2VwdGlvbihzKTpcbiIgKyAiXG4iLmpvaW4oY2FwdHVy"
+            "ZWRfZml4dHVyZV9lcnJvcnMpCiAgICAgICAgICAgICkKICAgICAgICAgICAgcmFpc2Ug"
+            "QXNzZXJ0aW9uRXJyb3IoInRoZSBsb29wYmFjayByYW5nZSBmaXh0dXJlIHJhaXNlZCBh"
+            "biBleGNlcHRpb24iKQoKICAgICAgICBpZiByZXN1bHQucmV0dXJuY29kZSAhPSAwOgog"
+            "ICAgICAgICAgICBjb21iaW5lZCA9IChyZXN1bHQuc3Rkb3V0IG9yICIiKSArICJcbiIg"
+            "KyAocmVzdWx0LnN0ZGVyciBvciAiIikKICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBw"
+            "ZW5kKCJjdXJsIG91dHB1dDpcbiIgKyBjb21iaW5lZC5yc3RyaXAoKSkKICAgICAgICAg"
+            "ICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoCiAgICAgICAgICAgICAgICAiY3VybCBleGl0"
+            "ZWQgd2l0aCBzdGF0dXMge30iLmZvcm1hdChyZXN1bHQucmV0dXJuY29kZSkKICAgICAg"
+            "ICAgICAgKQoKICAgICAgICByZXF1ZXN0cyA9IFtdCiAgICAgICAgd2hpbGUgVHJ1ZToK"
+            "ICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgcmVxdWVzdHMuYXBwZW5kKG9i"
+            "c2VydmF0aW9ucy5nZXRfbm93YWl0KCkpCiAgICAgICAgICAgIGV4Y2VwdCBxdWV1ZS5F"
+            "bXB0eToKICAgICAgICAgICAgICAgIGJyZWFrCgogICAgICAgIGV4cGVjdGVkX29ic2Vy"
+            "dmF0aW9uID0gKCIvcmVzb3VyY2UiLCAiYnl0ZXM9e30tIi5mb3JtYXQocHJlZml4X2xl"
+            "bmd0aCkpCiAgICAgICAgaWYgcmVxdWVzdHMgIT0gW2V4cGVjdGVkX29ic2VydmF0aW9u"
+            "XToKICAgICAgICAgICAgcmFpc2UgQXNzZXJ0aW9uRXJyb3IoCiAgICAgICAgICAgICAg"
+            "ICAiZXhwZWN0ZWQgb25lIHJhbmdlZCByZXF1ZXN0IHshcn0sIG9ic2VydmVkIHshcn0i"
+            "LmZvcm1hdCgKICAgICAgICAgICAgICAgICAgICBleHBlY3RlZF9vYnNlcnZhdGlvbiwg"
+            "cmVxdWVzdHMKICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgKQoKICAgICAgICB3"
+            "aXRoIG9wZW4oZGVzdGluYXRpb24sICJyYiIpIGFzIGlucHV0X2ZpbGU6CiAgICAgICAg"
+            "ICAgIGNvbXBsZXRlZF9jb250ZW50ID0gaW5wdXRfZmlsZS5yZWFkKCkKCiAgICAgICAg"
+            "aWYgY29tcGxldGVkX2NvbnRlbnQgIT0gcmVtb3RlX2NvbnRlbnQ6CiAgICAgICAgICAg"
+            "IHJhaXNlIEFzc2VydGlvbkVycm9yKAogICAgICAgICAgICAgICAgInJlc3VtZWQgZGVz"
+            "dGluYXRpb24gZG9lcyBub3QgZXhhY3RseSBlcXVhbCB0aGUga25vd24gcmVtb3RlIGNv"
+            "bnRlbnQgIgogICAgICAgICAgICAgICAgIihleHBlY3RlZCB7fSBieXRlcywgZm91bmQg"
+            "e30gYnl0ZXMpIi5mb3JtYXQoCiAgICAgICAgICAgICAgICAgICAgbGVuKHJlbW90ZV9j"
+            "b250ZW50KSwgbGVuKGNvbXBsZXRlZF9jb250ZW50KQogICAgICAgICAgICAgICAgKQog"
+            "ICAgICAgICAgICApCgogICAgICAgIHZlcmRpY3QgPSAiUEFTUyIKICAgICAgICBleGl0"
+            "X2NvZGUgPSAwCgogICAgZXhjZXB0IFNraXBUZXN0IGFzIGV4YzoKICAgICAgICBkaWFn"
+            "bm9zdGljcy5hcHBlbmQoImRpYWdub3N0aWM6IHt9Ii5mb3JtYXQoZXhjKSkKICAgICAg"
+            "ICB2ZXJkaWN0ID0gIlNLSVAiCiAgICAgICAgZXhpdF9jb2RlID0gNzcKICAgIGV4Y2Vw"
+            "dCBzdWJwcm9jZXNzLlRpbWVvdXRFeHBpcmVkOgogICAgICAgIGRpYWdub3N0aWNzLmFw"
+            "cGVuZCgiZGlhZ25vc3RpYzogY3VybCBkaWQgbm90IGZpbmlzaCB3aXRoaW4gMzAgc2Vj"
+            "b25kcyIpCiAgICAgICAgdmVyZGljdCA9ICJGQUlMIgogICAgICAgIGV4aXRfY29kZSA9"
+            "IDEKICAgIGV4Y2VwdCBFeGNlcHRpb24gYXMgZXhjOgogICAgICAgIGRpYWdub3N0aWNz"
+            "LmFwcGVuZCgiZGlhZ25vc3RpYzoge30iLmZvcm1hdChleGMpKQogICAgICAgIHZlcmRp"
+            "Y3QgPSAiRkFJTCIKICAgICAgICBleGl0X2NvZGUgPSAxCiAgICBmaW5hbGx5OgogICAg"
+            "ICAgIGNsZWFudXBfZXJyb3JzID0gW10KICAgICAgICBpZiBodHRwZCBpcyBub3QgTm9u"
+            "ZToKICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgaHR0cGQuc2h1dGRvd24o"
+            "KQogICAgICAgICAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGV4YzoKICAgICAgICAgICAg"
+            "ICAgIGNsZWFudXBfZXJyb3JzLmFwcGVuZCgiSFRUUCBmaXh0dXJlIHNodXRkb3duIGZh"
+            "aWxlZDoge30iLmZvcm1hdChleGMpKQogICAgICAgICAgICB0cnk6CiAgICAgICAgICAg"
+            "ICAgICBodHRwZC5zZXJ2ZXJfY2xvc2UoKQogICAgICAgICAgICBleGNlcHQgRXhjZXB0"
+            "aW9uIGFzIGV4YzoKICAgICAgICAgICAgICAgIGNsZWFudXBfZXJyb3JzLmFwcGVuZCgi"
+            "SFRUUCBmaXh0dXJlIGNsb3NlIGZhaWxlZDoge30iLmZvcm1hdChleGMpKQogICAgICAg"
+            "IGlmIHNlcnZlcl90aHJlYWQgaXMgbm90IE5vbmU6CiAgICAgICAgICAgIHNlcnZlcl90"
+            "aHJlYWQuam9pbih0aW1lb3V0PTUpCiAgICAgICAgICAgIGlmIHNlcnZlcl90aHJlYWQu"
+            "aXNfYWxpdmUoKToKICAgICAgICAgICAgICAgIGNsZWFudXBfZXJyb3JzLmFwcGVuZCgi"
+            "SFRUUCBmaXh0dXJlIHRocmVhZCBkaWQgbm90IHN0b3AiKQogICAgICAgIGlmIHRlbXBf"
+            "ZGlyIGlzIG5vdCBOb25lOgogICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBz"
+            "aHV0aWwucm10cmVlKHRlbXBfZGlyKQogICAgICAgICAgICBleGNlcHQgRXhjZXB0aW9u"
+            "IGFzIGV4YzoKICAgICAgICAgICAgICAgIGNsZWFudXBfZXJyb3JzLmFwcGVuZCgidGVt"
+            "cG9yYXJ5IGZpbGUgY2xlYW51cCBmYWlsZWQ6IHt9Ii5mb3JtYXQoZXhjKSkKCiAgICAg"
+            "ICAgaWYgY2xlYW51cF9lcnJvcnM6CiAgICAgICAgICAgIGRpYWdub3N0aWNzLmV4dGVu"
+            "ZCgiZGlhZ25vc3RpYzogIiArIGl0ZW0gZm9yIGl0ZW0gaW4gY2xlYW51cF9lcnJvcnMp"
+            "CiAgICAgICAgICAgIHZlcmRpY3QgPSAiRkFJTCIKICAgICAgICAgICAgZXhpdF9jb2Rl"
+            "ID0gMQoKICAgIGZvciBkaWFnbm9zdGljIGluIGRpYWdub3N0aWNzOgogICAgICAgIHBy"
+            "aW50KGRpYWdub3N0aWMpCiAgICBwcmludCgie306IGN1cmwgcmVzdW1lZCB0aGUgcGFy"
+            "dGlhbCBkZXN0aW5hdGlvbiBmcm9tIHRoZSByYW5nZS1jYXBhYmxlIHJlc291cmNlIi5m"
+            "b3JtYXQodmVyZGljdCkpCiAgICBzeXMuZXhpdChleGl0X2NvZGUpCgoKaWYgX19uYW1l"
+            "X18gPT0gIl9fbWFpbl9fIjoKICAgIG1haW4oKQo="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
-    def do_PUT(self):
-        (root / "request_path").write_text(self.path)
-        if self.path != "{endpoint_path}":
-            self._reply(404)
-            return
-        length_text = self.headers.get("Content-Length")
-        if length_text is None:
-            self._reply(411)
-            return
-        length = int(length_text)
-        data = self.rfile.read(length)
-        (root / "received.bin").write_bytes(data)
-        self._reply(204)
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
 
-    def log_message(self, message, *args):
-        return
+        Corpus obligation: pkg:curl/retrieve-response-headers
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_curl_retrieve_respon_3c53e884(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:660985a27284e16ed2779b1dc9a746af99c02c8"
+            "3e26d378eaff1e7958a5e618d."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgcXVldWUKaW1wb3J0IHNodXRpbApp"
+            "bXBvcnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0aHJlYWRpbmcKaW1wb3J0"
+            "IHRyYWNlYmFjawpmcm9tIGh0dHAuc2VydmVyIGltcG9ydCBCYXNlSFRUUFJlcXVlc3RI"
+            "YW5kbGVyLCBUaHJlYWRpbmdIVFRQU2VydmVyCgoKQk9EWSA9IGIiQ1VSTF9IRUFEX0JP"
+            "RFlfTVVTVF9OT1RfQVBQRUFSXzdmMzFjMiIKSEVBREVSX05BTUUgPSAiWC1PYmxpZ2F0"
+            "aW9uLUhlYWRlciIKSEVBREVSX1ZBTFVFID0gImtub3duLWhlYWRlci12YWx1ZSIKCgpj"
+            "bGFzcyBUZXN0RmFpbHVyZShFeGNlcHRpb24pOgogICAgcGFzcwoKCmNsYXNzIEZpeHR1"
+            "cmVTZXJ2ZXIoVGhyZWFkaW5nSFRUUFNlcnZlcik6CiAgICBkYWVtb25fdGhyZWFkcyA9"
+            "IFRydWUKCiAgICBkZWYgaGFuZGxlX2Vycm9yKHNlbGYsIHJlcSwgYWRkcik6CiAgICAg"
+            "ICAgc2VsZi5fZml4dHVyZV9lcnJvcnMucHV0KHRyYWNlYmFjay5mb3JtYXRfZXhjKCkp"
+            "CgoKY2xhc3MgSGFuZGxlcihCYXNlSFRUUFJlcXVlc3RIYW5kbGVyKToKICAgIGRlZiBf"
+            "cmVjb3JkX21ldGhvZChzZWxmKToKICAgICAgICBzZWxmLnNlcnZlci5fbWV0aG9kcy5w"
+            "dXQoc2VsZi5jb21tYW5kKQoKICAgIGRlZiBfc2VuZF9rbm93bl9oZWFkZXJzKHNlbGYp"
+            "OgogICAgICAgIHNlbGYuc2VuZF9yZXNwb25zZSgyMDApCiAgICAgICAgc2VsZi5zZW5k"
+            "X2hlYWRlcihIRUFERVJfTkFNRSwgSEVBREVSX1ZBTFVFKQogICAgICAgIHNlbGYuc2Vu"
+            "ZF9oZWFkZXIoIkNvbnRlbnQtVHlwZSIsICJ0ZXh0L3BsYWluIikKICAgICAgICBzZWxm"
+            "LnNlbmRfaGVhZGVyKCJDb250ZW50LUxlbmd0aCIsIHN0cihsZW4oQk9EWSkpKQogICAg"
+            "ICAgIHNlbGYuZW5kX2hlYWRlcnMoKQoKICAgIGRlZiBkb19IRUFEKHNlbGYpOgogICAg"
+            "ICAgIHNlbGYuX3JlY29yZF9tZXRob2QoKQogICAgICAgIHNlbGYuX3NlbmRfa25vd25f"
+            "aGVhZGVycygpCgogICAgZGVmIGRvX0dFVChzZWxmKToKICAgICAgICBzZWxmLl9yZWNv"
+            "cmRfbWV0aG9kKCkKICAgICAgICBzZWxmLl9zZW5kX2tub3duX2hlYWRlcnMoKQogICAg"
+            "ICAgIHNlbGYud2ZpbGUud3JpdGUoQk9EWSkKCiAgICBkZWYgbG9nX21lc3NhZ2Uoc2Vs"
+            "ZiwgZm10LCAqYXJncyk6CiAgICAgICAgcmV0dXJuCgoKZGVmIGNoZWNrKGNvbmRpdGlv"
+            "biwgbWVzc2FnZSk6CiAgICBpZiBub3QgY29uZGl0aW9uOgogICAgICAgIHJhaXNlIFRl"
+            "c3RGYWlsdXJlKG1lc3NhZ2UpCgoKZGVmIHJ1bl90ZXN0KCk6CiAgICBjdXJsID0gc2h1"
+            "dGlsLndoaWNoKCJjdXJsIikKICAgIGNoZWNrKGN1cmwgaXMgbm90IE5vbmUsICJjdXJs"
+            "IENMSSBpcyBub3QgYXZhaWxhYmxlIikKCiAgICBtZXRob2RzID0gcXVldWUuUXVldWUo"
+            "KQogICAgZml4dHVyZV9lcnJvcnMgPSBxdWV1ZS5RdWV1ZSgpCiAgICBodHRwZCA9IE5v"
+            "bmUKICAgIHdvcmtlciA9IE5vbmUKICAgIHJlc3VsdCA9IE5vbmUKCiAgICB0cnk6CiAg"
+            "ICAgICAgaHR0cGQgPSBGaXh0dXJlU2VydmVyKCgiMTI3LjAuMC4xIiwgMCksIEhhbmRs"
+            "ZXIpCiAgICAgICAgaHR0cGQuX21ldGhvZHMgPSBtZXRob2RzCiAgICAgICAgaHR0cGQu"
+            "X2ZpeHR1cmVfZXJyb3JzID0gZml4dHVyZV9lcnJvcnMKICAgICAgICB3b3JrZXIgPSB0"
+            "aHJlYWRpbmcuVGhyZWFkKHRhcmdldD1odHRwZC5zZXJ2ZV9mb3JldmVyLCBkYWVtb249"
+            "VHJ1ZSkKICAgICAgICB3b3JrZXIuc3RhcnQoKQoKICAgICAgICBwb3J0ID0gaHR0cGQu"
+            "c2VydmVyX2FkZHJlc3NbMV0KICAgICAgICB1cmwgPSAiaHR0cDovLzEyNy4wLjAuMTp7"
+            "fS9yZXNwb25zZSIuZm9ybWF0KHBvcnQpCiAgICAgICAgcmVzdWx0ID0gc3VicHJvY2Vz"
+            "cy5ydW4oCiAgICAgICAgICAgIFsKICAgICAgICAgICAgICAgIGN1cmwsCiAgICAgICAg"
+            "ICAgICAgICAiLS1oZWFkIiwKICAgICAgICAgICAgICAgICItLXNpbGVudCIsCiAgICAg"
+            "ICAgICAgICAgICAiLS1zaG93LWVycm9yIiwKICAgICAgICAgICAgICAgICItLW5vcHJv"
+            "eHkiLAogICAgICAgICAgICAgICAgIioiLAogICAgICAgICAgICAgICAgIi0tbWF4LXRp"
+            "bWUiLAogICAgICAgICAgICAgICAgIjEwIiwKICAgICAgICAgICAgICAgIHVybCwKICAg"
+            "ICAgICAgICAgXSwKICAgICAgICAgICAgc3Rkb3V0PXN1YnByb2Nlc3MuUElQRSwKICAg"
+            "ICAgICAgICAgc3RkZXJyPXN1YnByb2Nlc3MuUElQRSwKICAgICAgICAgICAgdGltZW91"
+            "dD0xNSwKICAgICAgICAgICAgY2hlY2s9RmFsc2UsCiAgICAgICAgKQogICAgZmluYWxs"
+            "eToKICAgICAgICBpZiBodHRwZCBpcyBub3QgTm9uZToKICAgICAgICAgICAgaHR0cGQu"
+            "c2h1dGRvd24oKQogICAgICAgICAgICBodHRwZC5zZXJ2ZXJfY2xvc2UoKQogICAgICAg"
+            "IGlmIHdvcmtlciBpcyBub3QgTm9uZToKICAgICAgICAgICAgd29ya2VyLmpvaW4odGlt"
+            "ZW91dD01KQoKICAgIGNhcHR1cmVkX2ZpeHR1cmVfZXJyb3JzID0gW10KICAgIHdoaWxl"
+            "IG5vdCBmaXh0dXJlX2Vycm9ycy5lbXB0eSgpOgogICAgICAgIGNhcHR1cmVkX2ZpeHR1"
+            "cmVfZXJyb3JzLmFwcGVuZChmaXh0dXJlX2Vycm9ycy5nZXRfbm93YWl0KCkpCiAgICBj"
+            "aGVjaygKICAgICAgICBub3QgY2FwdHVyZWRfZml4dHVyZV9lcnJvcnMsCiAgICAgICAg"
+            "ImZpeHR1cmUgZXhjZXB0aW9uKHMpOlxuIiArICJcbiIuam9pbihjYXB0dXJlZF9maXh0"
+            "dXJlX2Vycm9ycyksCiAgICApCiAgICBjaGVjayhyZXN1bHQgaXMgbm90IE5vbmUsICJj"
+            "dXJsIHdhcyBub3QgZXhlY3V0ZWQiKQoKICAgIHN0ZG91dCA9IHJlc3VsdC5zdGRvdXQu"
+            "ZGVjb2RlKCJsYXRpbi0xIiwgZXJyb3JzPSJyZXBsYWNlIikKICAgIHN0ZGVyciA9IHJl"
+            "c3VsdC5zdGRlcnIuZGVjb2RlKCJsYXRpbi0xIiwgZXJyb3JzPSJyZXBsYWNlIikKICAg"
+            "IGNvbWJpbmVkID0gc3Rkb3V0ICsgIlxuIiArIHN0ZGVycgoKICAgIGNoZWNrKAogICAg"
+            "ICAgIHJlc3VsdC5yZXR1cm5jb2RlID09IDAsCiAgICAgICAgImN1cmwgZXhpdGVkIHdp"
+            "dGgge31cbnN0ZG91dDogeyFyfVxuc3RkZXJyOiB7IXJ9Ii5mb3JtYXQoCiAgICAgICAg"
+            "ICAgIHJlc3VsdC5yZXR1cm5jb2RlLCBzdGRvdXQsIHN0ZGVycgogICAgICAgICksCiAg"
+            "ICApCgogICAgb2JzZXJ2ZWRfbWV0aG9kcyA9IFtdCiAgICB3aGlsZSBub3QgbWV0aG9k"
+            "cy5lbXB0eSgpOgogICAgICAgIG9ic2VydmVkX21ldGhvZHMuYXBwZW5kKG1ldGhvZHMu"
+            "Z2V0X25vd2FpdCgpKQogICAgY2hlY2soCiAgICAgICAgb2JzZXJ2ZWRfbWV0aG9kcyA9"
+            "PSBbIkhFQUQiXSwKICAgICAgICAiZXhwZWN0ZWQgZXhhY3RseSBvbmUgSEVBRCByZXF1"
+            "ZXN0LCBvYnNlcnZlZCB7IXJ9Ii5mb3JtYXQob2JzZXJ2ZWRfbWV0aG9kcyksCiAgICAp"
+            "CgogICAgbm9ybWFsaXplZF9saW5lcyA9IFtsaW5lLnN0cmlwKCkgZm9yIGxpbmUgaW4g"
+            "c3Rkb3V0LnJlcGxhY2UoIlxyXG4iLCAiXG4iKS5zcGxpdCgiXG4iKV0KICAgIGNoZWNr"
+            "KAogICAgICAgIGFueShsaW5lLnN0YXJ0c3dpdGgoIkhUVFAvIikgYW5kICIgMjAwICIg"
+            "aW4gbGluZSBmb3IgbGluZSBpbiBub3JtYWxpemVkX2xpbmVzKSwKICAgICAgICAiY3Vy"
+            "bCBvdXRwdXQgZGlkIG5vdCBkaXNwbGF5IHRoZSBIVFRQIDIwMCByZXNwb25zZSBzdGF0"
+            "dXM6IHshcn0iLmZvcm1hdChzdGRvdXQpLAogICAgKQogICAgZXhwZWN0ZWRfaGVhZGVy"
+            "ID0gInt9OiB7fSIuZm9ybWF0KEhFQURFUl9OQU1FLCBIRUFERVJfVkFMVUUpLmxvd2Vy"
+            "KCkKICAgIGNoZWNrKAogICAgICAgIGFueShsaW5lLmxvd2VyKCkgPT0gZXhwZWN0ZWRf"
+            "aGVhZGVyIGZvciBsaW5lIGluIG5vcm1hbGl6ZWRfbGluZXMpLAogICAgICAgICJjdXJs"
+            "IG91dHB1dCBkaWQgbm90IGRpc3BsYXkgdGhlIGtub3duIHJlc3BvbnNlIGhlYWRlcjog"
+            "eyFyfSIuZm9ybWF0KHN0ZG91dCksCiAgICApCiAgICBleHBlY3RlZF9sZW5ndGggPSAi"
+            "Y29udGVudC1sZW5ndGg6IHt9Ii5mb3JtYXQobGVuKEJPRFkpKQogICAgY2hlY2soCiAg"
+            "ICAgICAgYW55KGxpbmUubG93ZXIoKSA9PSBleHBlY3RlZF9sZW5ndGggZm9yIGxpbmUg"
+            "aW4gbm9ybWFsaXplZF9saW5lcyksCiAgICAgICAgImN1cmwgb3V0cHV0IGRpZCBub3Qg"
+            "ZGlzcGxheSB0aGUgcmVzcG9uc2UgQ29udGVudC1MZW5ndGg6IHshcn0iLmZvcm1hdChz"
+            "dGRvdXQpLAogICAgKQogICAgY2hlY2soCiAgICAgICAgQk9EWS5kZWNvZGUoImFzY2lp"
+            "Iikgbm90IGluIGNvbWJpbmVkLAogICAgICAgICJjdXJsIGRpc3BsYXllZCB0aGUgcmVz"
+            "cG9uc2UgYm9keSB3aGlsZSB1c2luZyAtLWhlYWQiLAogICAgKQoKCmRlZiBtYWluKCk6"
+            "CiAgICB0cnk6CiAgICAgICAgcnVuX3Rlc3QoKQogICAgZXhjZXB0IEV4Y2VwdGlvbiBh"
+            "cyBleGM6CiAgICAgICAgZGV0YWlsID0gIiIuam9pbih0cmFjZWJhY2suZm9ybWF0X2V4"
+            "Y2VwdGlvbih0eXBlKGV4YyksIGV4YywgZXhjLl9fdHJhY2ViYWNrX18pKS5yc3RyaXAo"
+            "KQogICAgICAgIGZvciBsaW5lIGluIGRldGFpbC5zcGxpdGxpbmVzKCk6CiAgICAgICAg"
+            "ICAgIHByaW50KCJERVRBSUw6ICIgKyBsaW5lKQogICAgICAgIHByaW50KCJGQUlMOiBj"
+            "dXJsIC0taGVhZCBiZWhhdmlvciBkaWQgbm90IG1lZXQgdGhlIG9ibGlnYXRpb24iKQog"
+            "ICAgICAgIHN5cy5leGl0KDEpCgogICAgcHJpbnQoIlBBU1M6IGN1cmwgLS1oZWFkIHVz"
+            "ZWQgSEVBRCBhbmQgZGlzcGxheWVkIGhlYWRlcnMgd2l0aG91dCB0aGUgcmVzcG9uc2Ug"
+            "Ym9keSIpCiAgICBzeXMuZXhpdCgwKQoKCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6"
+            "CiAgICBtYWluKCkK"
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
 
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
 
-server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-(root / "port").write_text(str(server.server_port) + "\n")
-server.serve_forever()
-"""
-        command = rf"""
-tmp=$(mktemp -d /tmp/curl-upload.XXXXXX)
-server_pid=
-helper_ok=1
-ready=0
-cat <<'PY' > "$tmp/server.py"
-{helper}
-PY
-test -s "$tmp/server.py" || helper_ok=0
-python3 -m py_compile "$tmp/server.py" \
-    >"$tmp/compile.log" 2>&1 || helper_ok=0
-printf '%s\n' \
-    'curl upload payload: first line' \
-    'curl upload payload: second line' >"$tmp/source.bin"
-if [ "$helper_ok" -eq 1 ]; then
-    python3 "$tmp/server.py" serve "$tmp" \
-        >"$tmp/server.out" 2>"$tmp/server.err" &
-    server_pid=$!
-    attempt=0
-    while [ "$attempt" -lt 50 ]; do
-        if [ -s "$tmp/port" ]; then
-            port=$(cat "$tmp/port")
-            if python3 "$tmp/server.py" probe "$port" \
-                >/dev/null 2>&1; then
-                ready=1
-                break
-            fi
-        fi
-        sleep 0.1
-        attempt=$((attempt + 1))
-    done
-fi
-echo FIXTURE_BEGIN
-echo "HELPER_OK=$helper_ok"
-echo "READY=$ready"
-echo SERVER_LOG_BEGIN
-tail -n 20 "$tmp/compile.log" 2>/dev/null || true
-tail -n 20 "$tmp/server.err" 2>/dev/null || true
-echo SERVER_LOG_END
-echo FIXTURE_END
-curl_rc=NOT_RUN
-received=MISSING
-request_path=MISSING
-bytes_match=no
-source_size=$(wc -c <"$tmp/source.bin" 2>/dev/null || echo MISSING)
-received_size=MISSING
-if [ "$ready" -eq 1 ]; then
-    url="http://127.0.0.1:$port{endpoint_path}"
-    curl --silent --show-error --upload-file "$tmp/source.bin" "$url" \
-        >"$tmp/curl.log" 2>&1
-    curl_rc=$?
-    if [ -f "$tmp/received.bin" ]; then
-        received=present
-        received_size=$(wc -c <"$tmp/received.bin" 2>/dev/null || echo MISSING)
-        if cmp -s "$tmp/source.bin" "$tmp/received.bin"; then
-            bytes_match=yes
-        fi
-    fi
-    request_path=$(cat "$tmp/request_path" 2>/dev/null || echo MISSING)
-fi
-echo UPLOAD_BEGIN
-echo "CURL_RC=$curl_rc"
-echo "RECEIVED=$received"
-echo "REQUEST_PATH=$request_path"
-echo "SOURCE_SIZE=$source_size"
-echo "RECEIVED_SIZE=$received_size"
-echo "BYTES_MATCH=$bytes_match"
-echo CURL_LOG_BEGIN
-tail -n 20 "$tmp/curl.log" 2>/dev/null || true
-echo CURL_LOG_END
-echo UPLOAD_END
-if [ -n "$server_pid" ]; then
-    kill "$server_pid" 2>/dev/null || true
-    wait "$server_pid" 2>/dev/null || true
-fi
-rm -rf "$tmp"
-exit 0
-"""
-        result = node.execute(command, shell=True)
-        text = combined_output(result)
-        assert_that(result.exit_code).described_as(
-            f"upload fixture script failed with output: {text}"
-        ).is_equal_to(0)
-        fixture = section(text, "FIXTURE_BEGIN", "FIXTURE_END")
-        fixture_lines = section_lines(text, "FIXTURE_BEGIN", "FIXTURE_END")
-        if "READY=1" not in fixture_lines:
-            raise SkippedException(
-                f"loopback upload fixture did not become ready: {fixture}"
-            )
-        assert_that(fixture_lines).described_as(
-            f"fixture evidence was: {fixture}"
-        ).contains("HELPER_OK=1")
-        upload = section(text, "UPLOAD_BEGIN", "UPLOAD_END")
-        upload_lines = section_lines(text, "UPLOAD_BEGIN", "UPLOAD_END")
-        assert_that(upload_lines).described_as(
-            f"curl upload evidence was: {upload}"
-        ).contains("CURL_RC=0")
-        assert_that(upload_lines).described_as(
-            f"endpoint receipt evidence was: {upload}"
-        ).contains("RECEIVED=present")
-        assert_that(upload_lines).described_as(
-            f"request path evidence was: {upload}"
-        ).contains(f"REQUEST_PATH={endpoint_path}")
-        assert_that(upload_lines).described_as(
-            f"uploaded-byte comparison evidence was: {upload}"
-        ).contains("BYTES_MATCH=yes")
+        Corpus obligation: pkg:curl/retry-transient-http-response
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_curl_retry_transient_c9cc0706(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:d950c023f2c982d58091bba4c1b6016eae8e1e0"
+            "a80c8c9f2d94cfb63a2b0ded4."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgaHR0cC5zZXJ2ZXIKaW1wb3J0IHNo"
+            "dXRpbAppbXBvcnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0aHJlYWRpbmcK"
+            "aW1wb3J0IHRpbWUKaW1wb3J0IHRyYWNlYmFjawoKClJFVFJZX0FGVEVSX1NFQ09ORFMg"
+            "PSAyClNVQ0NFU1NfQk9EWSA9IGIicmV0cnktc3VjY2Vzc1xuIgpUQVJHRVRfUEFUSCA9"
+            "ICIvcmV0cnkiCgoKY2xhc3MgVGVzdEZhaWx1cmUoRXhjZXB0aW9uKToKICAgIHBhc3MK"
+            "CgpjbGFzcyBGaXh0dXJlU3RhdGU6CiAgICBkZWYgX19pbml0X18oc2VsZik6CiAgICAg"
+            "ICAgc2VsZi5sb2NrID0gdGhyZWFkaW5nLkxvY2soKQogICAgICAgIHNlbGYucmVxdWVz"
+            "dHMgPSBbXQogICAgICAgIHNlbGYuZXhjZXB0aW9ucyA9IFtdCgoKY2xhc3MgRml4dHVy"
+            "ZVNlcnZlcihodHRwLnNlcnZlci5UaHJlYWRpbmdIVFRQU2VydmVyKToKICAgIGRhZW1v"
+            "bl90aHJlYWRzID0gVHJ1ZQoKICAgIGRlZiBfX2luaXRfXyhzZWxmLCBhZGRyZXNzLCBo"
+            "YW5kbGVyX2NsYXNzLCBmaXh0dXJlX3N0YXRlKToKICAgICAgICBzZWxmLmZpeHR1cmVf"
+            "c3RhdGUgPSBmaXh0dXJlX3N0YXRlCiAgICAgICAgc3VwZXIoKS5fX2luaXRfXyhhZGRy"
+            "ZXNzLCBoYW5kbGVyX2NsYXNzKQoKICAgIGRlZiBoYW5kbGVfZXJyb3Ioc2VsZiwgcmVx"
+            "dWVzdCwgY2xpZW50X2FkZHJlc3MpOgogICAgICAgIHdpdGggc2VsZi5maXh0dXJlX3N0"
+            "YXRlLmxvY2s6CiAgICAgICAgICAgIHNlbGYuZml4dHVyZV9zdGF0ZS5leGNlcHRpb25z"
+            "LmFwcGVuZCh0cmFjZWJhY2suZm9ybWF0X2V4YygpKQoKCmNsYXNzIFJldHJ5SGFuZGxl"
+            "cihodHRwLnNlcnZlci5CYXNlSFRUUFJlcXVlc3RIYW5kbGVyKToKICAgIGRlZiBkb19H"
+            "RVQoc2VsZik6CiAgICAgICAgbm93ID0gdGltZS5tb25vdG9uaWMoKQogICAgICAgIHN0"
+            "YXRlID0gc2VsZi5zZXJ2ZXIuZml4dHVyZV9zdGF0ZQogICAgICAgIHdpdGggc3RhdGUu"
+            "bG9jazoKICAgICAgICAgICAgb3JkaW5hbCA9IGxlbihzdGF0ZS5yZXF1ZXN0cykgKyAx"
+            "CiAgICAgICAgICAgIGlmIHNlbGYucGF0aCAhPSBUQVJHRVRfUEFUSDoKICAgICAgICAg"
+            "ICAgICAgIHN0YXR1cyA9IDQwNAogICAgICAgICAgICBlbGlmIG9yZGluYWwgPT0gMToK"
+            "ICAgICAgICAgICAgICAgIHN0YXR1cyA9IDQyOQogICAgICAgICAgICBlbGlmIG9yZGlu"
+            "YWwgPT0gMjoKICAgICAgICAgICAgICAgIHN0YXR1cyA9IDIwMAogICAgICAgICAgICBl"
+            "bHNlOgogICAgICAgICAgICAgICAgc3RhdHVzID0gNTAwCiAgICAgICAgICAgIHN0YXRl"
+            "LnJlcXVlc3RzLmFwcGVuZCh7CiAgICAgICAgICAgICAgICAib3JkaW5hbCI6IG9yZGlu"
+            "YWwsCiAgICAgICAgICAgICAgICAicGF0aCI6IHNlbGYucGF0aCwKICAgICAgICAgICAg"
+            "ICAgICJ0aW1lIjogbm93LAogICAgICAgICAgICAgICAgInN0YXR1cyI6IHN0YXR1cywK"
+            "ICAgICAgICAgICAgfSkKCiAgICAgICAgaWYgc3RhdHVzID09IDQyOToKICAgICAgICAg"
+            "ICAgc2VsZi5zZW5kX3Jlc3BvbnNlKDQyOSkKICAgICAgICAgICAgc2VsZi5zZW5kX2hl"
+            "YWRlcigiUmV0cnktQWZ0ZXIiLCBzdHIoUkVUUllfQUZURVJfU0VDT05EUykpCiAgICAg"
+            "ICAgICAgIHNlbGYuc2VuZF9oZWFkZXIoIkNvbnRlbnQtTGVuZ3RoIiwgIjAiKQogICAg"
+            "ICAgICAgICBzZWxmLmVuZF9oZWFkZXJzKCkKICAgICAgICBlbGlmIHN0YXR1cyA9PSAy"
+            "MDA6CiAgICAgICAgICAgIHNlbGYuc2VuZF9yZXNwb25zZSgyMDApCiAgICAgICAgICAg"
+            "IHNlbGYuc2VuZF9oZWFkZXIoIkNvbnRlbnQtVHlwZSIsICJ0ZXh0L3BsYWluIikKICAg"
+            "ICAgICAgICAgc2VsZi5zZW5kX2hlYWRlcigiQ29udGVudC1MZW5ndGgiLCBzdHIobGVu"
+            "KFNVQ0NFU1NfQk9EWSkpKQogICAgICAgICAgICBzZWxmLmVuZF9oZWFkZXJzKCkKICAg"
+            "ICAgICAgICAgc2VsZi53ZmlsZS53cml0ZShTVUNDRVNTX0JPRFkpCiAgICAgICAgZWxz"
+            "ZToKICAgICAgICAgICAgc2VsZi5zZW5kX3Jlc3BvbnNlKHN0YXR1cykKICAgICAgICAg"
+            "ICAgc2VsZi5zZW5kX2hlYWRlcigiQ29udGVudC1MZW5ndGgiLCAiMCIpCiAgICAgICAg"
+            "ICAgIHNlbGYuZW5kX2hlYWRlcnMoKQoKICAgIGRlZiBsb2dfbWVzc2FnZShzZWxmLCBm"
+            "b3JtYXQsICphcmdzKToKICAgICAgICByZXR1cm4KCgpkZWYgX2Rpc3BsYXkoZGF0YSk6"
+            "CiAgICByZXR1cm4gZGF0YS5kZWNvZGUoInV0Zi04IiwgZXJyb3JzPSJyZXBsYWNlIikK"
+            "CgpkZWYgbWFpbigpOgogICAgZGlhZ25vc3RpY3MgPSBbXQogICAgZXhpdF9jb2RlID0g"
+            "MQogICAgdmVyZGljdCA9ICJGQUlMOiBjdXJsIHJldHJ5IGJlaGF2aW9yIHdhcyBub3Qg"
+            "dmVyaWZpZWQiCiAgICBmaXh0dXJlID0gTm9uZQogICAgZml4dHVyZV90aHJlYWQgPSBO"
+            "b25lCiAgICBzdGF0ZSA9IEZpeHR1cmVTdGF0ZSgpCgogICAgY3VybCA9IHNodXRpbC53"
+            "aGljaCgiY3VybCIpCiAgICBpZiBjdXJsIGlzIE5vbmU6CiAgICAgICAgcHJpbnQoIlNL"
+            "SVA6IGN1cmwgQ0xJIGlzIG5vdCBhdmFpbGFibGUiKQogICAgICAgIHN5cy5leGl0KDc3"
+            "KQoKICAgIHRyeToKICAgICAgICBmaXh0dXJlID0gRml4dHVyZVNlcnZlcigoIjEyNy4w"
+            "LjAuMSIsIDApLCBSZXRyeUhhbmRsZXIsIHN0YXRlKQogICAgICAgIGZpeHR1cmVfdGhy"
+            "ZWFkID0gdGhyZWFkaW5nLlRocmVhZCh0YXJnZXQ9Zml4dHVyZS5zZXJ2ZV9mb3JldmVy"
+            "LCBkYWVtb249VHJ1ZSkKICAgICAgICBmaXh0dXJlX3RocmVhZC5zdGFydCgpCgogICAg"
+            "ICAgIHBvcnQgPSBmaXh0dXJlLnNlcnZlcl9hZGRyZXNzWzFdCiAgICAgICAgdXJsID0g"
+            "Imh0dHA6Ly8xMjcuMC4wLjE6ezB9ezF9Ii5mb3JtYXQocG9ydCwgVEFSR0VUX1BBVEgp"
+            "CiAgICAgICAgY29tbWFuZCA9IFsKICAgICAgICAgICAgY3VybCwKICAgICAgICAgICAg"
+            "Ii1xIiwKICAgICAgICAgICAgIi0tc2lsZW50IiwKICAgICAgICAgICAgIi0tc2hvdy1l"
+            "cnJvciIsCiAgICAgICAgICAgICItLW5vcHJveHkiLAogICAgICAgICAgICAiKiIsCiAg"
+            "ICAgICAgICAgICItLXJldHJ5IiwKICAgICAgICAgICAgIjEiLAogICAgICAgICAgICAi"
+            "LS1tYXgtdGltZSIsCiAgICAgICAgICAgICIxMCIsCiAgICAgICAgICAgIHVybCwKICAg"
+            "ICAgICBdCiAgICAgICAgcmVzdWx0ID0gc3VicHJvY2Vzcy5ydW4oCiAgICAgICAgICAg"
+            "IGNvbW1hbmQsCiAgICAgICAgICAgIHN0ZG91dD1zdWJwcm9jZXNzLlBJUEUsCiAgICAg"
+            "ICAgICAgIHN0ZGVycj1zdWJwcm9jZXNzLlBJUEUsCiAgICAgICAgICAgIHRpbWVvdXQ9"
+            "MTUsCiAgICAgICAgICAgIGNoZWNrPUZhbHNlLAogICAgICAgICkKCiAgICAgICAgaWYg"
+            "cmVzdWx0LnJldHVybmNvZGUgIT0gMDoKICAgICAgICAgICAgcmFpc2UgVGVzdEZhaWx1"
+            "cmUoCiAgICAgICAgICAgICAgICAiY3VybCBleGl0ZWQgd2l0aCB7MH07IHN0ZG91dD17"
+            "MSFyfTsgc3RkZXJyPXsyIXJ9Ii5mb3JtYXQoCiAgICAgICAgICAgICAgICAgICAgcmVz"
+            "dWx0LnJldHVybmNvZGUsCiAgICAgICAgICAgICAgICAgICAgX2Rpc3BsYXkocmVzdWx0"
+            "LnN0ZG91dCksCiAgICAgICAgICAgICAgICAgICAgX2Rpc3BsYXkocmVzdWx0LnN0ZGVy"
+            "ciksCiAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICkKICAgICAgICBpZiByZXN1"
+            "bHQuc3Rkb3V0ICE9IFNVQ0NFU1NfQk9EWToKICAgICAgICAgICAgcmFpc2UgVGVzdEZh"
+            "aWx1cmUoCiAgICAgICAgICAgICAgICAiY3VybCBvdXRwdXQgd2FzIHswIXJ9LCBleHBl"
+            "Y3RlZCB7MSFyfSIuZm9ybWF0KAogICAgICAgICAgICAgICAgICAgIHJlc3VsdC5zdGRv"
+            "dXQsIFNVQ0NFU1NfQk9EWQogICAgICAgICAgICAgICAgKQogICAgICAgICAgICApCgog"
+            "ICAgICAgIHdpdGggc3RhdGUubG9jazoKICAgICAgICAgICAgcmVxdWVzdHMgPSBsaXN0"
+            "KHN0YXRlLnJlcXVlc3RzKQoKICAgICAgICBpZiBsZW4ocmVxdWVzdHMpICE9IDI6CiAg"
+            "ICAgICAgICAgIHJhaXNlIFRlc3RGYWlsdXJlKAogICAgICAgICAgICAgICAgImZpeHR1"
+            "cmUgcmVjZWl2ZWQgezB9IHJlcXVlc3RzLCBleHBlY3RlZCBleGFjdGx5IDI6IHsxIXJ9"
+            "Ii5mb3JtYXQoCiAgICAgICAgICAgICAgICAgICAgbGVuKHJlcXVlc3RzKSwgcmVxdWVz"
+            "dHMKICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgKQogICAgICAgIGlmIFtpdGVt"
+            "WyJwYXRoIl0gZm9yIGl0ZW0gaW4gcmVxdWVzdHNdICE9IFtUQVJHRVRfUEFUSCwgVEFS"
+            "R0VUX1BBVEhdOgogICAgICAgICAgICByYWlzZSBUZXN0RmFpbHVyZSgidW5leHBlY3Rl"
+            "ZCByZXF1ZXN0IHBhdGhzOiB7MCFyfSIuZm9ybWF0KHJlcXVlc3RzKSkKICAgICAgICBp"
+            "ZiBbaXRlbVsic3RhdHVzIl0gZm9yIGl0ZW0gaW4gcmVxdWVzdHNdICE9IFs0MjksIDIw"
+            "MF06CiAgICAgICAgICAgIHJhaXNlIFRlc3RGYWlsdXJlKCJ1bmV4cGVjdGVkIGZpeHR1"
+            "cmUgcmVzcG9uc2Ugc2VxdWVuY2U6IHswIXJ9Ii5mb3JtYXQocmVxdWVzdHMpKQoKICAg"
+            "ICAgICByZXRyeV9kZWxheSA9IHJlcXVlc3RzWzFdWyJ0aW1lIl0gLSByZXF1ZXN0c1sw"
+            "XVsidGltZSJdCiAgICAgICAgaWYgcmV0cnlfZGVsYXkgPCAxLjg6CiAgICAgICAgICAg"
+            "IHJhaXNlIFRlc3RGYWlsdXJlKAogICAgICAgICAgICAgICAgInJldHJ5IGFycml2ZWQg"
+            "YWZ0ZXIgezouM2Z9cywgdG9vIHNvb24gdG8gaG9ub3IgUmV0cnktQWZ0ZXI6IHt9Ii5m"
+            "b3JtYXQoCiAgICAgICAgICAgICAgICAgICAgcmV0cnlfZGVsYXksIFJFVFJZX0FGVEVS"
+            "X1NFQ09ORFMKICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgKQoKICAgICAgICBl"
+            "eGl0X2NvZGUgPSAwCiAgICAgICAgdmVyZGljdCA9ICJQQVNTOiBjdXJsIHJldHJpZWQg"
+            "SFRUUCA0MjkgYWZ0ZXIgUmV0cnktQWZ0ZXIgYW5kIHJldHVybmVkIHRoZSBzdWNjZXNz"
+            "ZnVsIHJlc3BvbnNlIgogICAgZXhjZXB0IHN1YnByb2Nlc3MuVGltZW91dEV4cGlyZWQg"
+            "YXMgZXhjOgogICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiY3VybCB0aW1lZCBvdXQ6"
+            "IHswfSIuZm9ybWF0KGV4YykpCiAgICBleGNlcHQgVGVzdEZhaWx1cmUgYXMgZXhjOgog"
+            "ICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZChzdHIoZXhjKSkKICAgIGV4Y2VwdCBFeGNl"
+            "cHRpb246CiAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJ0ZXN0IGV4Y2VwdGlvbjpc"
+            "biIgKyB0cmFjZWJhY2suZm9ybWF0X2V4YygpKQogICAgZmluYWxseToKICAgICAgICBp"
+            "ZiBmaXh0dXJlIGlzIG5vdCBOb25lOgogICAgICAgICAgICB0cnk6CiAgICAgICAgICAg"
+            "ICAgICBmaXh0dXJlLnNodXRkb3duKCkKICAgICAgICAgICAgZXhjZXB0IEV4Y2VwdGlv"
+            "bjoKICAgICAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiZml4dHVyZSBzaHV0"
+            "ZG93biBleGNlcHRpb246XG4iICsgdHJhY2ViYWNrLmZvcm1hdF9leGMoKSkKICAgICAg"
+            "ICAgICAgICAgIGV4aXRfY29kZSA9IDEKICAgICAgICAgICAgICAgIHZlcmRpY3QgPSAi"
+            "RkFJTDogY3VybCByZXRyeSBiZWhhdmlvciB3YXMgbm90IHZlcmlmaWVkIgogICAgICAg"
+            "ICAgICB0cnk6CiAgICAgICAgICAgICAgICBmaXh0dXJlLnNlcnZlcl9jbG9zZSgpCiAg"
+            "ICAgICAgICAgIGV4Y2VwdCBFeGNlcHRpb246CiAgICAgICAgICAgICAgICBkaWFnbm9z"
+            "dGljcy5hcHBlbmQoImZpeHR1cmUgY2xvc2UgZXhjZXB0aW9uOlxuIiArIHRyYWNlYmFj"
+            "ay5mb3JtYXRfZXhjKCkpCiAgICAgICAgICAgICAgICBleGl0X2NvZGUgPSAxCiAgICAg"
+            "ICAgICAgICAgICB2ZXJkaWN0ID0gIkZBSUw6IGN1cmwgcmV0cnkgYmVoYXZpb3Igd2Fz"
+            "IG5vdCB2ZXJpZmllZCIKICAgICAgICBpZiBmaXh0dXJlX3RocmVhZCBpcyBub3QgTm9u"
+            "ZToKICAgICAgICAgICAgZml4dHVyZV90aHJlYWQuam9pbih0aW1lb3V0PTUpCiAgICAg"
+            "ICAgICAgIGlmIGZpeHR1cmVfdGhyZWFkLmlzX2FsaXZlKCk6CiAgICAgICAgICAgICAg"
+            "ICBkaWFnbm9zdGljcy5hcHBlbmQoImZpeHR1cmUgc2VydmVyIHRocmVhZCBkaWQgbm90"
+            "IHN0b3AiKQogICAgICAgICAgICAgICAgZXhpdF9jb2RlID0gMQogICAgICAgICAgICAg"
+            "ICAgdmVyZGljdCA9ICJGQUlMOiBjdXJsIHJldHJ5IGJlaGF2aW9yIHdhcyBub3QgdmVy"
+            "aWZpZWQiCgogICAgICAgIHdpdGggc3RhdGUubG9jazoKICAgICAgICAgICAgZml4dHVy"
+            "ZV9leGNlcHRpb25zID0gbGlzdChzdGF0ZS5leGNlcHRpb25zKQogICAgICAgIGlmIGZp"
+            "eHR1cmVfZXhjZXB0aW9uczoKICAgICAgICAgICAgZm9yIGl0ZW0gaW4gZml4dHVyZV9l"
+            "eGNlcHRpb25zOgogICAgICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJmaXh0"
+            "dXJlIGV4Y2VwdGlvbjpcbiIgKyBpdGVtKQogICAgICAgICAgICBleGl0X2NvZGUgPSAx"
+            "CiAgICAgICAgICAgIHZlcmRpY3QgPSAiRkFJTDogY3VybCByZXRyeSBiZWhhdmlvciB3"
+            "YXMgbm90IHZlcmlmaWVkIgoKICAgIGlmIGV4aXRfY29kZSAhPSAwOgogICAgICAgIGZv"
+            "ciBpdGVtIGluIGRpYWdub3N0aWNzOgogICAgICAgICAgICBwcmludChpdGVtKQogICAg"
+            "cHJpbnQodmVyZGljdCkKICAgIHN5cy5leGl0KGV4aXRfY29kZSkKCgppZiBfX25hbWVf"
+            "XyA9PSAiX19tYWluX18iOgogICAgbWFpbigpCg=="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
+
+        Corpus obligation: pkg:curl/send-json-post
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_curl_send_json_post(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:00d31acefeacb0dc6fb1b25eda900389964d2b6"
+            "7dc7063f514f6a2954a96d9c5."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgaHR0cC5zZXJ2ZXIKaW1wb3J0IHNo"
+            "dXRpbAppbXBvcnQgc3VicHJvY2VzcwppbXBvcnQgc3lzCmltcG9ydCB0aHJlYWRpbmcK"
+            "aW1wb3J0IHRyYWNlYmFjawoKCmRlZiBfZGlhZ25vc3RpYyh0ZXh0KToKICAgIHJlbmRl"
+            "cmVkID0gc3RyKHRleHQpLnJzdHJpcCgiXG4iKS5yZXBsYWNlKCJcbiIsICJcbkRJQUdO"
+            "T1NUSUM6ICIpCiAgICBwcmludCgiRElBR05PU1RJQzogIiArIHJlbmRlcmVkKQoKCmRl"
+            "ZiBtYWluKCk6CiAgICBjdXJsID0gc2h1dGlsLndoaWNoKCJjdXJsIikKICAgIGlmIGN1"
+            "cmwgaXMgTm9uZToKICAgICAgICBwcmludCgiU0tJUDogY3VybCBDTEkgaXMgbm90IGF2"
+            "YWlsYWJsZSIpCiAgICAgICAgc3lzLmV4aXQoNzcpCgogICAgcGF5bG9hZCA9ICd7Im1l"
+            "c3NhZ2UiOiJrbm93bi1qc29uLXRleHQiLCJ2YWx1ZSI6NDJ9JwogICAgcmVjb3JkcyA9"
+            "IFtdCiAgICBmaXh0dXJlX2Vycm9ycyA9IFtdCiAgICByZXF1ZXN0X3NlZW4gPSB0aHJl"
+            "YWRpbmcuRXZlbnQoKQogICAgc2VydmVyID0gTm9uZQogICAgc2VydmVyX3RocmVhZCA9"
+            "IE5vbmUKICAgIGRpYWdub3N0aWNzID0gW10KICAgIGNvZGUgPSAxCiAgICB2ZXJkaWN0"
+            "ID0gImN1cmwgLS1qc29uIGJlaGF2aW9yIHdhcyBub3QgdmVyaWZpZWQiCgogICAgY2xh"
+            "c3MgUmVjb3JkaW5nSGFuZGxlcihodHRwLnNlcnZlci5CYXNlSFRUUFJlcXVlc3RIYW5k"
+            "bGVyKToKICAgICAgICBkZWYgX3JlY29yZF9hbmRfcmVzcG9uZChzZWxmKToKICAgICAg"
+            "ICAgICAgdHJ5OgogICAgICAgICAgICAgICAgY29udGVudF9sZW5ndGggPSBpbnQoc2Vs"
+            "Zi5oZWFkZXJzLmdldCgiQ29udGVudC1MZW5ndGgiLCAiMCIpKQogICAgICAgICAgICAg"
+            "ICAgYm9keSA9IHNlbGYucmZpbGUucmVhZChjb250ZW50X2xlbmd0aCkKICAgICAgICAg"
+            "ICAgICAgIHJlY29yZHMuYXBwZW5kKHsKICAgICAgICAgICAgICAgICAgICAibWV0aG9k"
+            "Ijogc2VsZi5jb21tYW5kLAogICAgICAgICAgICAgICAgICAgICJib2R5IjogYm9keSwK"
+            "ICAgICAgICAgICAgICAgICAgICAiaGVhZGVycyI6IGxpc3Qoc2VsZi5oZWFkZXJzLml0"
+            "ZW1zKCkpLAogICAgICAgICAgICAgICAgfSkKICAgICAgICAgICAgICAgIHNlbGYuc2Vu"
+            "ZF9yZXNwb25zZSgyMDQpCiAgICAgICAgICAgICAgICBzZWxmLnNlbmRfaGVhZGVyKCJD"
+            "b250ZW50LUxlbmd0aCIsICIwIikKICAgICAgICAgICAgICAgIHNlbGYuZW5kX2hlYWRl"
+            "cnMoKQogICAgICAgICAgICBleGNlcHQgQmFzZUV4Y2VwdGlvbjoKICAgICAgICAgICAg"
+            "ICAgIGZpeHR1cmVfZXJyb3JzLmFwcGVuZCh0cmFjZWJhY2suZm9ybWF0X2V4YygpKQog"
+            "ICAgICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgICAgIHNlbGYuc2VuZF9l"
+            "cnJvcig1MDApCiAgICAgICAgICAgICAgICBleGNlcHQgQmFzZUV4Y2VwdGlvbjoKICAg"
+            "ICAgICAgICAgICAgICAgICBmaXh0dXJlX2Vycm9ycy5hcHBlbmQodHJhY2ViYWNrLmZv"
+            "cm1hdF9leGMoKSkKICAgICAgICAgICAgZmluYWxseToKICAgICAgICAgICAgICAgIHJl"
+            "cXVlc3Rfc2Vlbi5zZXQoKQoKICAgICAgICBkZWYgZG9fUE9TVChzZWxmKToKICAgICAg"
+            "ICAgICAgc2VsZi5fcmVjb3JkX2FuZF9yZXNwb25kKCkKCiAgICAgICAgZGVmIGRvX0dF"
+            "VChzZWxmKToKICAgICAgICAgICAgc2VsZi5fcmVjb3JkX2FuZF9yZXNwb25kKCkKCiAg"
+            "ICAgICAgZGVmIGRvX1BVVChzZWxmKToKICAgICAgICAgICAgc2VsZi5fcmVjb3JkX2Fu"
+            "ZF9yZXNwb25kKCkKCiAgICAgICAgZGVmIGRvX1BBVENIKHNlbGYpOgogICAgICAgICAg"
+            "ICBzZWxmLl9yZWNvcmRfYW5kX3Jlc3BvbmQoKQoKICAgICAgICBkZWYgZG9fREVMRVRF"
+            "KHNlbGYpOgogICAgICAgICAgICBzZWxmLl9yZWNvcmRfYW5kX3Jlc3BvbmQoKQoKICAg"
+            "ICAgICBkZWYgZG9fSEVBRChzZWxmKToKICAgICAgICAgICAgc2VsZi5fcmVjb3JkX2Fu"
+            "ZF9yZXNwb25kKCkKCiAgICAgICAgZGVmIGxvZ19tZXNzYWdlKHNlbGYsIGZtdCwgKmFy"
+            "Z3MpOgogICAgICAgICAgICByZXR1cm4KCiAgICBjbGFzcyBGaXh0dXJlU2VydmVyKGh0"
+            "dHAuc2VydmVyLkhUVFBTZXJ2ZXIpOgogICAgICAgIGRlZiBoYW5kbGVfZXJyb3Ioc2Vs"
+            "ZiwgcmVxLCBhZGRyKToKICAgICAgICAgICAgZml4dHVyZV9lcnJvcnMuYXBwZW5kKHRy"
+            "YWNlYmFjay5mb3JtYXRfZXhjKCkpCiAgICAgICAgICAgIHJlcXVlc3Rfc2Vlbi5zZXQo"
+            "KQoKICAgIHRyeToKICAgICAgICBzZXJ2ZXIgPSBGaXh0dXJlU2VydmVyKCgiMTI3LjAu"
+            "MC4xIiwgMCksIFJlY29yZGluZ0hhbmRsZXIpCiAgICAgICAgcG9ydCA9IHNlcnZlci5z"
+            "ZXJ2ZXJfYWRkcmVzc1sxXQoKICAgICAgICBkZWYgX3NlcnZlKCk6CiAgICAgICAgICAg"
+            "IHRyeToKICAgICAgICAgICAgICAgIHNlcnZlci5zZXJ2ZV9mb3JldmVyKHBvbGxfaW50"
+            "ZXJ2YWw9MC4wNSkKICAgICAgICAgICAgZXhjZXB0IEJhc2VFeGNlcHRpb246CiAgICAg"
+            "ICAgICAgICAgICBmaXh0dXJlX2Vycm9ycy5hcHBlbmQodHJhY2ViYWNrLmZvcm1hdF9l"
+            "eGMoKSkKICAgICAgICAgICAgICAgIHJlcXVlc3Rfc2Vlbi5zZXQoKQoKICAgICAgICBz"
+            "ZXJ2ZXJfdGhyZWFkID0gdGhyZWFkaW5nLlRocmVhZCh0YXJnZXQ9X3NlcnZlLCBkYWVt"
+            "b249VHJ1ZSkKICAgICAgICBzZXJ2ZXJfdGhyZWFkLnN0YXJ0KCkKCiAgICAgICAgdXJs"
+            "ID0gImh0dHA6Ly8xMjcuMC4wLjE6e30vanNvbiIuZm9ybWF0KHBvcnQpCiAgICAgICAg"
+            "dHJ5OgogICAgICAgICAgICByZXN1bHQgPSBzdWJwcm9jZXNzLnJ1bigKICAgICAgICAg"
+            "ICAgICAgIFsKICAgICAgICAgICAgICAgICAgICBjdXJsLAogICAgICAgICAgICAgICAg"
+            "ICAgICItcSIsCiAgICAgICAgICAgICAgICAgICAgIi0tbm9wcm94eSIsICIqIiwKICAg"
+            "ICAgICAgICAgICAgICAgICAiLS1zaWxlbnQiLAogICAgICAgICAgICAgICAgICAgICIt"
+            "LXNob3ctZXJyb3IiLAogICAgICAgICAgICAgICAgICAgICItLWpzb24iLCBwYXlsb2Fk"
+            "LAogICAgICAgICAgICAgICAgICAgIHVybCwKICAgICAgICAgICAgICAgIF0sCiAgICAg"
+            "ICAgICAgICAgICBzdGRvdXQ9c3VicHJvY2Vzcy5QSVBFLAogICAgICAgICAgICAgICAg"
+            "c3RkZXJyPXN1YnByb2Nlc3MuUElQRSwKICAgICAgICAgICAgICAgIHRleHQ9VHJ1ZSwK"
+            "ICAgICAgICAgICAgICAgIGVycm9ycz0icmVwbGFjZSIsCiAgICAgICAgICAgICAgICB0"
+            "aW1lb3V0PTE1LAogICAgICAgICAgICApCiAgICAgICAgZXhjZXB0IHN1YnByb2Nlc3Mu"
+            "VGltZW91dEV4cGlyZWQgYXMgZXhjOgogICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBl"
+            "bmQoImN1cmwgdGltZWQgb3V0OiB7fSIuZm9ybWF0KGV4YykpCiAgICAgICAgICAgIHJl"
+            "c3VsdCA9IE5vbmUKCiAgICAgICAgcmVxdWVzdF9zZWVuLndhaXQodGltZW91dD0yKQoK"
+            "ICAgICAgICBpZiBmaXh0dXJlX2Vycm9yczoKICAgICAgICAgICAgZGlhZ25vc3RpY3Mu"
+            "YXBwZW5kKCJmaXh0dXJlIGV4Y2VwdGlvbihzKTpcbiIgKyAiXG4iLmpvaW4oZml4dHVy"
+            "ZV9lcnJvcnMpKQogICAgICAgIGVsaWYgcmVzdWx0IGlzIE5vbmU6CiAgICAgICAgICAg"
+            "IHBhc3MKICAgICAgICBlbGlmIHJlc3VsdC5yZXR1cm5jb2RlICE9IDA6CiAgICAgICAg"
+            "ICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiY3VybCBleGl0ZWQgd2l0aCBzdGF0dXMge30i"
+            "LmZvcm1hdChyZXN1bHQucmV0dXJuY29kZSkpCiAgICAgICAgICAgIGRpYWdub3N0aWNz"
+            "LmFwcGVuZCgiY3VybCBzdGRvdXQ6IHshcn0iLmZvcm1hdChyZXN1bHQuc3Rkb3V0KSkK"
+            "ICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJjdXJsIHN0ZGVycjogeyFyfSIu"
+            "Zm9ybWF0KHJlc3VsdC5zdGRlcnIpKQogICAgICAgIGVsaWYgbm90IHJlcXVlc3Rfc2Vl"
+            "bi5pc19zZXQoKToKICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJ0aGUgZW5k"
+            "cG9pbnQgZGlkIG5vdCBvYnNlcnZlIGEgcmVxdWVzdCIpCiAgICAgICAgZWxpZiBsZW4o"
+            "cmVjb3JkcykgIT0gMToKICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJleHBl"
+            "Y3RlZCBleGFjdGx5IG9uZSByZXF1ZXN0LCBvYnNlcnZlZCB7fTogeyFyfSIuZm9ybWF0"
+            "KGxlbihyZWNvcmRzKSwgcmVjb3JkcykpCiAgICAgICAgZWxzZToKICAgICAgICAgICAg"
+            "b2JzZXJ2ZWQgPSByZWNvcmRzWzBdCiAgICAgICAgICAgIGhlYWRlcnMgPSB7fQogICAg"
+            "ICAgICAgICBmb3IgbmFtZSwgdmFsdWUgaW4gb2JzZXJ2ZWRbImhlYWRlcnMiXToKICAg"
+            "ICAgICAgICAgICAgIGhlYWRlcnMuc2V0ZGVmYXVsdChuYW1lLmxvd2VyKCksIFtdKS5h"
+            "cHBlbmQodmFsdWUuc3RyaXAoKSkKCiAgICAgICAgICAgIGNvbnRlbnRfdHlwZXMgPSBb"
+            "dmFsdWUubG93ZXIoKSBmb3IgdmFsdWUgaW4gaGVhZGVycy5nZXQoImNvbnRlbnQtdHlw"
+            "ZSIsIFtdKV0KICAgICAgICAgICAgYWNjZXB0cyA9IFt2YWx1ZS5sb3dlcigpIGZvciB2"
+            "YWx1ZSBpbiBoZWFkZXJzLmdldCgiYWNjZXB0IiwgW10pXQogICAgICAgICAgICBleHBl"
+            "Y3RlZF9ib2R5ID0gcGF5bG9hZC5lbmNvZGUoInV0Zi04IikKICAgICAgICAgICAgZmFp"
+            "bHVyZXMgPSBbXQoKICAgICAgICAgICAgaWYgb2JzZXJ2ZWRbIm1ldGhvZCJdICE9ICJQ"
+            "T1NUIjoKICAgICAgICAgICAgICAgIGZhaWx1cmVzLmFwcGVuZCgibWV0aG9kIHdhcyB7"
+            "IXJ9LCBleHBlY3RlZCAnUE9TVCciLmZvcm1hdChvYnNlcnZlZFsibWV0aG9kIl0pKQog"
+            "ICAgICAgICAgICBpZiBvYnNlcnZlZFsiYm9keSJdICE9IGV4cGVjdGVkX2JvZHk6CiAg"
+            "ICAgICAgICAgICAgICBmYWlsdXJlcy5hcHBlbmQoImJvZHkgd2FzIHshcn0sIGV4cGVj"
+            "dGVkIHshcn0iLmZvcm1hdChvYnNlcnZlZFsiYm9keSJdLCBleHBlY3RlZF9ib2R5KSkK"
+            "ICAgICAgICAgICAgaWYgImFwcGxpY2F0aW9uL2pzb24iIG5vdCBpbiBjb250ZW50X3R5"
+            "cGVzOgogICAgICAgICAgICAgICAgZmFpbHVyZXMuYXBwZW5kKCJDb250ZW50LVR5cGUg"
+            "dmFsdWVzIHdlcmUgeyFyfSwgZXhwZWN0ZWQgYXBwbGljYXRpb24vanNvbiIuZm9ybWF0"
+            "KGhlYWRlcnMuZ2V0KCJjb250ZW50LXR5cGUiLCBbXSkpKQogICAgICAgICAgICBpZiAi"
+            "YXBwbGljYXRpb24vanNvbiIgbm90IGluIGFjY2VwdHM6CiAgICAgICAgICAgICAgICBm"
+            "YWlsdXJlcy5hcHBlbmQoIkFjY2VwdCB2YWx1ZXMgd2VyZSB7IXJ9LCBleHBlY3RlZCBh"
+            "cHBsaWNhdGlvbi9qc29uIi5mb3JtYXQoaGVhZGVycy5nZXQoImFjY2VwdCIsIFtdKSkp"
+            "CgogICAgICAgICAgICBpZiBmYWlsdXJlczoKICAgICAgICAgICAgICAgIGRpYWdub3N0"
+            "aWNzLmV4dGVuZChmYWlsdXJlcykKICAgICAgICAgICAgZWxzZToKICAgICAgICAgICAg"
+            "ICAgIGNvZGUgPSAwCiAgICAgICAgICAgICAgICB2ZXJkaWN0ID0gImN1cmwgLS1qc29u"
+            "IHNlbnQgdGhlIGV4YWN0IEpTT04gYm9keSBhcyBQT1NUIHdpdGggYXBwbGljYXRpb24v"
+            "anNvbiBDb250ZW50LVR5cGUgYW5kIEFjY2VwdCBoZWFkZXJzIgoKICAgIGV4Y2VwdCBC"
+            "YXNlRXhjZXB0aW9uOgogICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgidGVzdCBleGNl"
+            "cHRpb246XG4iICsgdHJhY2ViYWNrLmZvcm1hdF9leGMoKSkKICAgIGZpbmFsbHk6CiAg"
+            "ICAgICAgaWYgc2VydmVyIGlzIG5vdCBOb25lOgogICAgICAgICAgICB0cnk6CiAgICAg"
+            "ICAgICAgICAgICBzZXJ2ZXIuc2h1dGRvd24oKQogICAgICAgICAgICBleGNlcHQgQmFz"
+            "ZUV4Y2VwdGlvbjoKICAgICAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiZml4"
+            "dHVyZSBzaHV0ZG93biBleGNlcHRpb246XG4iICsgdHJhY2ViYWNrLmZvcm1hdF9leGMo"
+            "KSkKICAgICAgICAgICAgICAgIGNvZGUgPSAxCiAgICAgICAgICAgICAgICB2ZXJkaWN0"
+            "ID0gImZpeHR1cmUgY2xlYW51cCBmYWlsZWQiCiAgICAgICAgICAgIHRyeToKICAgICAg"
+            "ICAgICAgICAgIHNlcnZlci5zZXJ2ZXJfY2xvc2UoKQogICAgICAgICAgICBleGNlcHQg"
+            "QmFzZUV4Y2VwdGlvbjoKICAgICAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgi"
+            "Zml4dHVyZSBzb2NrZXQgY2xlYW51cCBleGNlcHRpb246XG4iICsgdHJhY2ViYWNrLmZv"
+            "cm1hdF9leGMoKSkKICAgICAgICAgICAgICAgIGNvZGUgPSAxCiAgICAgICAgICAgICAg"
+            "ICB2ZXJkaWN0ID0gImZpeHR1cmUgY2xlYW51cCBmYWlsZWQiCiAgICAgICAgaWYgc2Vy"
+            "dmVyX3RocmVhZCBpcyBub3QgTm9uZToKICAgICAgICAgICAgc2VydmVyX3RocmVhZC5q"
+            "b2luKHRpbWVvdXQ9MikKICAgICAgICAgICAgaWYgc2VydmVyX3RocmVhZC5pc19hbGl2"
+            "ZSgpOgogICAgICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJmaXh0dXJlIHNl"
+            "cnZlciB0aHJlYWQgZGlkIG5vdCBzdG9wIikKICAgICAgICAgICAgICAgIGNvZGUgPSAx"
+            "CiAgICAgICAgICAgICAgICB2ZXJkaWN0ID0gImZpeHR1cmUgY2xlYW51cCBmYWlsZWQi"
+            "CgogICAgZm9yIGl0ZW0gaW4gZGlhZ25vc3RpY3M6CiAgICAgICAgX2RpYWdub3N0aWMo"
+            "aXRlbSkKCiAgICBpZiBjb2RlID09IDA6CiAgICAgICAgcHJpbnQoIlBBU1M6ICIgKyB2"
+            "ZXJkaWN0KQogICAgZWxzZToKICAgICAgICBwcmludCgiRkFJTDogIiArIHZlcmRpY3Qp"
+            "CiAgICBzeXMuZXhpdChjb2RlKQoKCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAg"
+            "ICBtYWluKCkK"
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
+
+        Corpus obligation: pkg:curl/submit-multipart-form
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_curl_submit_multipart_form(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:0f0733d377d73a8f20a6b42d2b4e19d1ccd031f"
+            "e0fb0ad8af23d05c858c6bbbc."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgZW1haWwucG9saWN5CmltcG9ydCBv"
+            "cwppbXBvcnQgc2h1dGlsCmltcG9ydCBzdWJwcm9jZXNzCmltcG9ydCBzeXMKaW1wb3J0"
+            "IHRlbXBmaWxlCmltcG9ydCB0aHJlYWRpbmcKaW1wb3J0IHRyYWNlYmFjawpmcm9tIGVt"
+            "YWlsLnBhcnNlciBpbXBvcnQgQnl0ZXNQYXJzZXIKZnJvbSBodHRwLnNlcnZlciBpbXBv"
+            "cnQgQmFzZUhUVFBSZXF1ZXN0SGFuZGxlciwgVGhyZWFkaW5nSFRUUFNlcnZlcgoKCmRl"
+            "ZiBtYWluKCk6CiAgICBjdXJsID0gc2h1dGlsLndoaWNoKCJjdXJsIikKICAgIGlmIGN1"
+            "cmwgaXMgTm9uZToKICAgICAgICBwcmludCgiU0tJUDogY3VybCBDTEkgaXMgbm90IGF2"
+            "YWlsYWJsZSIpCiAgICAgICAgc3lzLmV4aXQoNzcpCgogICAgdGVtcF9kaXIgPSBOb25l"
+            "CiAgICBodHRwZCA9IE5vbmUKICAgIHRocmVhZCA9IE5vbmUKICAgIGRpYWdub3N0aWNz"
+            "ID0gW10KICAgIHJlc3VsdF9jb2RlID0gMQogICAgcmVzdWx0X2xpbmUgPSAiRkFJTDog"
+            "bXVsdGlwYXJ0IGZvcm0gdGVzdCBkaWQgbm90IGNvbXBsZXRlIgoKICAgIHJlY2VpdmVk"
+            "ID0gW10KICAgIGZpeHR1cmVfZXJyb3JzID0gW10KICAgIHJlY2VpdmVkX2V2ZW50ID0g"
+            "dGhyZWFkaW5nLkV2ZW50KCkKCiAgICBjbGFzcyBNdWx0aXBhcnRIYW5kbGVyKEJhc2VI"
+            "VFRQUmVxdWVzdEhhbmRsZXIpOgogICAgICAgIGRlZiBkb19QT1NUKHNlbGYpOgogICAg"
+            "ICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBsZW5ndGhfdmFsdWUgPSBzZWxmLmhl"
+            "YWRlcnMuZ2V0KCJDb250ZW50LUxlbmd0aCIpCiAgICAgICAgICAgICAgICBpZiBsZW5n"
+            "dGhfdmFsdWUgaXMgTm9uZToKICAgICAgICAgICAgICAgICAgICByYWlzZSBSdW50aW1l"
+            "RXJyb3IoInJlcXVlc3QgZGlkIG5vdCBwcm92aWRlIENvbnRlbnQtTGVuZ3RoIikKICAg"
+            "ICAgICAgICAgICAgIGJvZHkgPSBzZWxmLnJmaWxlLnJlYWQoaW50KGxlbmd0aF92YWx1"
+            "ZSkpCiAgICAgICAgICAgICAgICByZWNlaXZlZC5hcHBlbmQoewogICAgICAgICAgICAg"
+            "ICAgICAgICJjb250ZW50X3R5cGUiOiBzZWxmLmhlYWRlcnMuZ2V0KCJDb250ZW50LVR5"
+            "cGUiKSwKICAgICAgICAgICAgICAgICAgICAiYm9keSI6IGJvZHksCiAgICAgICAgICAg"
+            "ICAgICB9KQogICAgICAgICAgICAgICAgc2VsZi5zZW5kX3Jlc3BvbnNlKDIwMCkKICAg"
+            "ICAgICAgICAgICAgIHNlbGYuc2VuZF9oZWFkZXIoIkNvbnRlbnQtVHlwZSIsICJ0ZXh0"
+            "L3BsYWluIikKICAgICAgICAgICAgICAgIHNlbGYuc2VuZF9oZWFkZXIoIkNvbnRlbnQt"
+            "TGVuZ3RoIiwgIjIiKQogICAgICAgICAgICAgICAgc2VsZi5lbmRfaGVhZGVycygpCiAg"
+            "ICAgICAgICAgICAgICBzZWxmLndmaWxlLndyaXRlKGIiT0siKQogICAgICAgICAgICBl"
+            "eGNlcHQgRXhjZXB0aW9uOgogICAgICAgICAgICAgICAgZml4dHVyZV9lcnJvcnMuYXBw"
+            "ZW5kKHRyYWNlYmFjay5mb3JtYXRfZXhjKCkpCiAgICAgICAgICAgICAgICB0cnk6CiAg"
+            "ICAgICAgICAgICAgICAgICAgc2VsZi5zZW5kX2Vycm9yKDUwMCkKICAgICAgICAgICAg"
+            "ICAgIGV4Y2VwdCBFeGNlcHRpb246CiAgICAgICAgICAgICAgICAgICAgZml4dHVyZV9l"
+            "cnJvcnMuYXBwZW5kKHRyYWNlYmFjay5mb3JtYXRfZXhjKCkpCiAgICAgICAgICAgIGZp"
+            "bmFsbHk6CiAgICAgICAgICAgICAgICByZWNlaXZlZF9ldmVudC5zZXQoKQoKICAgICAg"
+            "ICBkZWYgbG9nX21lc3NhZ2Uoc2VsZiwgZm9ybWF0X3N0cmluZywgKmFyZ3MpOgogICAg"
+            "ICAgICAgICByZXR1cm4KCiAgICB0cnk6CiAgICAgICAgdGVtcF9kaXIgPSB0ZW1wZmls"
+            "ZS5ta2R0ZW1wKHByZWZpeD0iY3VybC1tdWx0aXBhcnQtIikKICAgICAgICBmaWxlX3Bh"
+            "dGggPSBvcy5wYXRoLmpvaW4odGVtcF9kaXIsICJ1cGxvYWQudHh0IikKICAgICAgICBm"
+            "aWxlX2NvbnRlbnRzID0gYiJsb2NhbCBtdWx0aXBhcnQgZmlsZSBmaXh0dXJlXG5zZWNv"
+            "bmQgbGluZVxuIgogICAgICAgIHRleHRfY29udGVudHMgPSAibG9jYWwgdGV4dCBmaXh0"
+            "dXJlIgoKICAgICAgICB3aXRoIG9wZW4oZmlsZV9wYXRoLCAid2IiKSBhcyBmaXh0dXJl"
+            "X2ZpbGU6CiAgICAgICAgICAgIGZpeHR1cmVfZmlsZS53cml0ZShmaWxlX2NvbnRlbnRz"
+            "KQoKICAgICAgICBodHRwZCA9IFRocmVhZGluZ0hUVFBTZXJ2ZXIoKCIxMjcuMC4wLjEi"
+            "LCAwKSwgTXVsdGlwYXJ0SGFuZGxlcikKICAgICAgICBodHRwZC5kYWVtb25fdGhyZWFk"
+            "cyA9IFRydWUKICAgICAgICB0aHJlYWQgPSB0aHJlYWRpbmcuVGhyZWFkKHRhcmdldD1o"
+            "dHRwZC5zZXJ2ZV9mb3JldmVyLCBkYWVtb249VHJ1ZSkKICAgICAgICB0aHJlYWQuc3Rh"
+            "cnQoKQoKICAgICAgICBlbmRwb2ludCA9ICJodHRwOi8vMTI3LjAuMC4xOnt9L3N1Ym1p"
+            "dCIuZm9ybWF0KGh0dHBkLnNlcnZlcl9hZGRyZXNzWzFdKQogICAgICAgIGNvbW1hbmQg"
+            "PSBbCiAgICAgICAgICAgIGN1cmwsCiAgICAgICAgICAgICItLXNpbGVudCIsCiAgICAg"
+            "ICAgICAgICItLXNob3ctZXJyb3IiLAogICAgICAgICAgICAiLS1mYWlsIiwKICAgICAg"
+            "ICAgICAgIi0tbWF4LXRpbWUiLCAiMTAiLAogICAgICAgICAgICAiLS1vdXRwdXQiLCBv"
+            "cy5kZXZudWxsLAogICAgICAgICAgICAiLS1mb3JtIiwgInRleHQ9IiArIHRleHRfY29u"
+            "dGVudHMsCiAgICAgICAgICAgICItLWZvcm0iLCAiZmlsZT1AIiArIGZpbGVfcGF0aCwK"
+            "ICAgICAgICAgICAgZW5kcG9pbnQsCiAgICAgICAgXQoKICAgICAgICB0cnk6CiAgICAg"
+            "ICAgICAgIGNvbXBsZXRlZCA9IHN1YnByb2Nlc3MucnVuKAogICAgICAgICAgICAgICAg"
+            "Y29tbWFuZCwKICAgICAgICAgICAgICAgIHN0ZG91dD1zdWJwcm9jZXNzLlBJUEUsCiAg"
+            "ICAgICAgICAgICAgICBzdGRlcnI9c3VicHJvY2Vzcy5QSVBFLAogICAgICAgICAgICAg"
+            "ICAgdGV4dD1UcnVlLAogICAgICAgICAgICAgICAgdGltZW91dD0xNSwKICAgICAgICAg"
+            "ICAgICAgIGNoZWNrPUZhbHNlLAogICAgICAgICAgICApCiAgICAgICAgZXhjZXB0IHN1"
+            "YnByb2Nlc3MuVGltZW91dEV4cGlyZWQgYXMgZXhjOgogICAgICAgICAgICBkaWFnbm9z"
+            "dGljcy5hcHBlbmQoImN1cmwgdGltZWQgb3V0OiB7fSIuZm9ybWF0KGV4YykpCiAgICAg"
+            "ICAgICAgIGNvbXBsZXRlZCA9IE5vbmUKCiAgICAgICAgcmVjZWl2ZWRfZXZlbnQud2Fp"
+            "dCh0aW1lb3V0PTIpCgogICAgICAgIGlmIGZpeHR1cmVfZXJyb3JzOgogICAgICAgICAg"
+            "ICBkaWFnbm9zdGljcy5hcHBlbmQoIkxvb3BiYWNrIGZpeHR1cmUgZXhjZXB0aW9uKHMp"
+            "OlxuIiArICJcbiIuam9pbihmaXh0dXJlX2Vycm9ycykpCiAgICAgICAgZWxpZiBjb21w"
+            "bGV0ZWQgaXMgTm9uZToKICAgICAgICAgICAgcGFzcwogICAgICAgIGVsaWYgY29tcGxl"
+            "dGVkLnJldHVybmNvZGUgIT0gMDoKICAgICAgICAgICAgY29tYmluZWQgPSAoY29tcGxl"
+            "dGVkLnN0ZG91dCBvciAiIikgKyAiXG4iICsgKGNvbXBsZXRlZC5zdGRlcnIgb3IgIiIp"
+            "CiAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgKICAgICAgICAgICAgICAgICJj"
+            "dXJsIGV4aXRlZCB3aXRoIHN0YXR1cyB7fS4gT3V0cHV0Olxue30iLmZvcm1hdCgKICAg"
+            "ICAgICAgICAgICAgICAgICBjb21wbGV0ZWQucmV0dXJuY29kZSwgY29tYmluZWQuc3Ry"
+            "aXAoKQogICAgICAgICAgICAgICAgKQogICAgICAgICAgICApCiAgICAgICAgZWxpZiBs"
+            "ZW4ocmVjZWl2ZWQpICE9IDE6CiAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgK"
+            "ICAgICAgICAgICAgICAgICJlbmRwb2ludCByZWNlaXZlZCB7fSByZXF1ZXN0cyBpbnN0"
+            "ZWFkIG9mIGV4YWN0bHkgb25lIi5mb3JtYXQobGVuKHJlY2VpdmVkKSkKICAgICAgICAg"
+            "ICAgKQogICAgICAgIGVsc2U6CiAgICAgICAgICAgIHJlcXVlc3RfZGF0YSA9IHJlY2Vp"
+            "dmVkWzBdCiAgICAgICAgICAgIGNvbnRlbnRfdHlwZSA9IHJlcXVlc3RfZGF0YVsiY29u"
+            "dGVudF90eXBlIl0KICAgICAgICAgICAgaWYgbm90IGNvbnRlbnRfdHlwZToKICAgICAg"
+            "ICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiUE9TVCByZXF1ZXN0IGxhY2tlZCBh"
+            "IENvbnRlbnQtVHlwZSBoZWFkZXIiKQogICAgICAgICAgICBlbHNlOgogICAgICAgICAg"
+            "ICAgICAgc3ludGhldGljX21lc3NhZ2UgPSAoCiAgICAgICAgICAgICAgICAgICAgIkNv"
+            "bnRlbnQtVHlwZToge31cclxuTUlNRS1WZXJzaW9uOiAxLjBcclxuXHJcbiIuZm9ybWF0"
+            "KGNvbnRlbnRfdHlwZSkKICAgICAgICAgICAgICAgICkuZW5jb2RlKCJhc2NpaSIpICsg"
+            "cmVxdWVzdF9kYXRhWyJib2R5Il0KICAgICAgICAgICAgICAgIG1lc3NhZ2UgPSBCeXRl"
+            "c1BhcnNlcihwb2xpY3k9ZW1haWwucG9saWN5LmRlZmF1bHQpLnBhcnNlYnl0ZXMoc3lu"
+            "dGhldGljX21lc3NhZ2UpCgogICAgICAgICAgICAgICAgaWYgbWVzc2FnZS5nZXRfY29u"
+            "dGVudF90eXBlKCkgIT0gIm11bHRpcGFydC9mb3JtLWRhdGEiOgogICAgICAgICAgICAg"
+            "ICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgKICAgICAgICAgICAgICAgICAgICAgICAg"
+            "IlBPU1QgQ29udGVudC1UeXBlIHdhcyB7IXJ9LCBub3QgbXVsdGlwYXJ0L2Zvcm0tZGF0"
+            "YSIuZm9ybWF0KAogICAgICAgICAgICAgICAgICAgICAgICAgICAgbWVzc2FnZS5nZXRf"
+            "Y29udGVudF90eXBlKCkKICAgICAgICAgICAgICAgICAgICAgICAgKQogICAgICAgICAg"
+            "ICAgICAgICAgICkKICAgICAgICAgICAgICAgIGVsaWYgbm90IG1lc3NhZ2UuaXNfbXVs"
+            "dGlwYXJ0KCk6CiAgICAgICAgICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJQ"
+            "T1NUIGJvZHkgd2FzIG5vdCBwYXJzZWFibGUgYXMgbXVsdGlwYXJ0IGRhdGEiKQogICAg"
+            "ICAgICAgICAgICAgZWxzZToKICAgICAgICAgICAgICAgICAgICBwYXJ0cyA9IGxpc3Qo"
+            "bWVzc2FnZS5pdGVyX3BhcnRzKCkpCiAgICAgICAgICAgICAgICAgICAgaWYgbGVuKHBh"
+            "cnRzKSAhPSAyOgogICAgICAgICAgICAgICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBl"
+            "bmQoCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAibXVsdGlwYXJ0IGJvZHkgY29u"
+            "dGFpbmVkIHt9IHBhcnRzIGluc3RlYWQgb2YgZXhhY3RseSB0d28iLmZvcm1hdCgKICAg"
+            "ICAgICAgICAgICAgICAgICAgICAgICAgICAgICBsZW4ocGFydHMpCiAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgICApCiAgICAgICAgICAgICAgICAgICAgICAgICkKICAgICAg"
+            "ICAgICAgICAgICAgICBlbHNlOgogICAgICAgICAgICAgICAgICAgICAgICBieV9uYW1l"
+            "ID0ge30KICAgICAgICAgICAgICAgICAgICAgICAgbWFsZm9ybWVkID0gW10KICAgICAg"
+            "ICAgICAgICAgICAgICAgICAgZm9yIHBhcnQgaW4gcGFydHM6CiAgICAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICBkaXNwb3NpdGlvbiA9IHBhcnQuZ2V0X2NvbnRlbnRfZGlzcG9z"
+            "aXRpb24oKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgbmFtZSA9IHBhcnQuZ2V0"
+            "X3BhcmFtKCJuYW1lIiwgaGVhZGVyPSJjb250ZW50LWRpc3Bvc2l0aW9uIikKICAgICAg"
+            "ICAgICAgICAgICAgICAgICAgICAgIGlmIGRpc3Bvc2l0aW9uICE9ICJmb3JtLWRhdGEi"
+            "IG9yIG5hbWUgaXMgTm9uZToKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBt"
+            "YWxmb3JtZWQuYXBwZW5kKChkaXNwb3NpdGlvbiwgbmFtZSkpCiAgICAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgICAgY29udGludWUKICAgICAgICAgICAgICAgICAgICAgICAg"
+            "ICAgIGlmIG5hbWUgaW4gYnlfbmFtZToKICAgICAgICAgICAgICAgICAgICAgICAgICAg"
+            "ICAgICBtYWxmb3JtZWQuYXBwZW5kKChkaXNwb3NpdGlvbiwgbmFtZSkpCiAgICAgICAg"
+            "ICAgICAgICAgICAgICAgICAgICAgICAgY29udGludWUKICAgICAgICAgICAgICAgICAg"
+            "ICAgICAgICAgIGJ5X25hbWVbbmFtZV0gPSBwYXJ0CgogICAgICAgICAgICAgICAgICAg"
+            "ICAgICBpZiBtYWxmb3JtZWQ6CiAgICAgICAgICAgICAgICAgICAgICAgICAgICBkaWFn"
+            "bm9zdGljcy5hcHBlbmQoCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIm11"
+            "bHRpcGFydCBib2R5IGNvbnRhaW5lZCBtYWxmb3JtZWQgb3IgZHVwbGljYXRlIGZvcm0g"
+            "cGFydHM6IHshcn0iLmZvcm1hdCgKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg"
+            "ICAgICAgbWFsZm9ybWVkCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgKQog"
+            "ICAgICAgICAgICAgICAgICAgICAgICAgICAgKQogICAgICAgICAgICAgICAgICAgICAg"
+            "ICBlbGlmIHNldChieV9uYW1lKSAhPSB7InRleHQiLCAiZmlsZSJ9OgogICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKAogICAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgICAgICJtdWx0aXBhcnQgZm9ybSBuYW1lcyB3ZXJlIHshcn0s"
+            "IGV4cGVjdGVkIHRleHQgYW5kIGZpbGUiLmZvcm1hdCgKICAgICAgICAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgICAgc29ydGVkKGJ5X25hbWUpCiAgICAgICAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgKQogICAg"
+            "ICAgICAgICAgICAgICAgICAgICBlbHNlOgogICAgICAgICAgICAgICAgICAgICAgICAg"
+            "ICAgdGV4dF9wYXlsb2FkID0gYnlfbmFtZVsidGV4dCJdLmdldF9wYXlsb2FkKGRlY29k"
+            "ZT1UcnVlKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgZmlsZV9wYXlsb2FkID0g"
+            "YnlfbmFtZVsiZmlsZSJdLmdldF9wYXlsb2FkKGRlY29kZT1UcnVlKQogICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgICAgdXBsb2FkZWRfbmFtZSA9IGJ5X25hbWVbImZpbGUiXS5n"
+            "ZXRfZmlsZW5hbWUoKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgdGV4dF9maWxl"
+            "bmFtZSA9IGJ5X25hbWVbInRleHQiXS5nZXRfZmlsZW5hbWUoKQoKICAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgIGlmIHRleHRfcGF5bG9hZCAhPSB0ZXh0X2NvbnRlbnRzLmVu"
+            "Y29kZSgidXRmLTgiKToKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBkaWFn"
+            "bm9zdGljcy5hcHBlbmQoInRleHQgZm9ybSBwYXJ0IGRpZCBub3QgY29udGFpbiB0aGUg"
+            "c3VibWl0dGVkIHRleHQiKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgaWYgdGV4"
+            "dF9maWxlbmFtZSBpcyBub3QgTm9uZToKICAgICAgICAgICAgICAgICAgICAgICAgICAg"
+            "ICAgICBkaWFnbm9zdGljcy5hcHBlbmQoInRleHQgZm9ybSBwYXJ0IHVuZXhwZWN0ZWRs"
+            "eSBoYWQgYSBmaWxlbmFtZSIpCiAgICAgICAgICAgICAgICAgICAgICAgICAgICBpZiBm"
+            "aWxlX3BheWxvYWQgIT0gZmlsZV9jb250ZW50czoKICAgICAgICAgICAgICAgICAgICAg"
+            "ICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoImZpbGUgZm9ybSBwYXJ0IGRpZCBu"
+            "b3QgY29udGFpbiB0aGUgbG9jYWwgZmlsZSBieXRlcyIpCiAgICAgICAgICAgICAgICAg"
+            "ICAgICAgICAgICBpZiB1cGxvYWRlZF9uYW1lICE9IG9zLnBhdGguYmFzZW5hbWUoZmls"
+            "ZV9wYXRoKToKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICBkaWFnbm9zdGlj"
+            "cy5hcHBlbmQoCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICJmaWxl"
+            "IGZvcm0gcGFydCBmaWxlbmFtZSB3YXMgeyFyfSwgZXhwZWN0ZWQgeyFyfSIuZm9ybWF0"
+            "KAogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgdXBsb2FkZWRf"
+            "bmFtZSwgb3MucGF0aC5iYXNlbmFtZShmaWxlX3BhdGgpCiAgICAgICAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg"
+            "ICApCgogICAgICAgIGlmIG5vdCBkaWFnbm9zdGljczoKICAgICAgICAgICAgcmVzdWx0"
+            "X2NvZGUgPSAwCiAgICAgICAgICAgIHJlc3VsdF9saW5lID0gIlBBU1M6IGN1cmwgc3Vi"
+            "bWl0dGVkIGJvdGggdGV4dCBhbmQgZmlsZSBwYXJ0cyBhcyBtdWx0aXBhcnQvZm9ybS1k"
+            "YXRhIgogICAgICAgIGVsc2U6CiAgICAgICAgICAgIHJlc3VsdF9jb2RlID0gMQogICAg"
+            "ICAgICAgICByZXN1bHRfbGluZSA9ICJGQUlMOiBjdXJsIG11bHRpcGFydCBmb3JtIHN1"
+            "Ym1pc3Npb24gZGlkIG5vdCBtYXRjaCB0aGUgZXhwZWN0ZWQgcmVxdWVzdCIKCiAgICBl"
+            "eGNlcHQgRXhjZXB0aW9uOgogICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiVGVzdCBl"
+            "eGNlcHRpb246XG4iICsgdHJhY2ViYWNrLmZvcm1hdF9leGMoKSkKICAgICAgICByZXN1"
+            "bHRfY29kZSA9IDEKICAgICAgICByZXN1bHRfbGluZSA9ICJGQUlMOiBjdXJsIG11bHRp"
+            "cGFydCBmb3JtIHRlc3QgcmFpc2VkIGFuIGV4Y2VwdGlvbiIKICAgIGZpbmFsbHk6CiAg"
+            "ICAgICAgaWYgaHR0cGQgaXMgbm90IE5vbmU6CiAgICAgICAgICAgIHRyeToKICAgICAg"
+            "ICAgICAgICAgIGh0dHBkLnNodXRkb3duKCkKICAgICAgICAgICAgICAgIGh0dHBkLnNl"
+            "cnZlcl9jbG9zZSgpCiAgICAgICAgICAgIGV4Y2VwdCBFeGNlcHRpb246CiAgICAgICAg"
+            "ICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoIkhUVFAgZml4dHVyZSBjbGVhbnVwIGV4"
+            "Y2VwdGlvbjpcbiIgKyB0cmFjZWJhY2suZm9ybWF0X2V4YygpKQogICAgICAgICAgICAg"
+            "ICAgcmVzdWx0X2NvZGUgPSAxCiAgICAgICAgICAgICAgICByZXN1bHRfbGluZSA9ICJG"
+            "QUlMOiBjdXJsIG11bHRpcGFydCBmb3JtIGZpeHR1cmUgY2xlYW51cCBmYWlsZWQiCiAg"
+            "ICAgICAgaWYgdGhyZWFkIGlzIG5vdCBOb25lOgogICAgICAgICAgICB0aHJlYWQuam9p"
+            "bih0aW1lb3V0PTMpCiAgICAgICAgICAgIGlmIHRocmVhZC5pc19hbGl2ZSgpOgogICAg"
+            "ICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJIVFRQIGZpeHR1cmUgdGhyZWFk"
+            "IGRpZCBub3Qgc3RvcCIpCiAgICAgICAgICAgICAgICByZXN1bHRfY29kZSA9IDEKICAg"
+            "ICAgICAgICAgICAgIHJlc3VsdF9saW5lID0gIkZBSUw6IGN1cmwgbXVsdGlwYXJ0IGZv"
+            "cm0gZml4dHVyZSBjbGVhbnVwIGZhaWxlZCIKICAgICAgICBpZiB0ZW1wX2RpciBpcyBu"
+            "b3QgTm9uZToKICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgc2h1dGlsLnJt"
+            "dHJlZSh0ZW1wX2RpcikKICAgICAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbjoKICAgICAg"
+            "ICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgiVGVtcG9yYXJ5IGZpeHR1cmUgY2xl"
+            "YW51cCBleGNlcHRpb246XG4iICsgdHJhY2ViYWNrLmZvcm1hdF9leGMoKSkKICAgICAg"
+            "ICAgICAgICAgIHJlc3VsdF9jb2RlID0gMQogICAgICAgICAgICAgICAgcmVzdWx0X2xp"
+            "bmUgPSAiRkFJTDogY3VybCBtdWx0aXBhcnQgZm9ybSBmaXh0dXJlIGNsZWFudXAgZmFp"
+            "bGVkIgoKICAgIGZvciBkaWFnbm9zdGljIGluIGRpYWdub3N0aWNzOgogICAgICAgIHBy"
+            "aW50KGRpYWdub3N0aWMpCiAgICBwcmludChyZXN1bHRfbGluZSkKICAgIHN5cy5leGl0"
+            "KHJlc3VsdF9jb2RlKQoKCmlmIF9fbmFtZV9fID09ICJfX21haW5fXyI6CiAgICBtYWlu"
+            "KCkK"
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
+
+    @TestCaseMetadata(
+        description="""
+        Exact-byte FMF/TMT Python wrapper execution.
+
+        Corpus obligation: pkg:curl/upload-local-file
+        Source eligibility and semantic-quality qualification completed before wrapping.
+        This test was generated automatically from a behavior corpus.
+        """,
+        priority=2,
+        tags=["ai-generated", "fmf-tmt-wrapper"],
+    )
+    def verify_pkg_curl_upload_local_file(self, node: Node) -> None:
+        (
+            "Execute frozen source sha256:58e36565479ff91095fdd259980d60d602ea70f"
+            "d222a3b2eabcd159fc07ca6a8."
+        )
+        payload = (
+            "IyEvdXNyL2Jpbi9lbnYgcHl0aG9uMwppbXBvcnQgaHR0cC5zZXJ2ZXIKaW1wb3J0IG9z"
+            "CmltcG9ydCBzaHV0aWwKaW1wb3J0IHN1YnByb2Nlc3MKaW1wb3J0IHN5cwppbXBvcnQg"
+            "dGVtcGZpbGUKaW1wb3J0IHRocmVhZGluZwppbXBvcnQgdHJhY2ViYWNrCgoKZGVmIG1h"
+            "aW4oKToKICAgIGNvZGUgPSAxCiAgICB2ZXJkaWN0ID0gIkZBSUw6IGN1cmwgdXBsb2Fk"
+            "IHRlc3QgZGlkIG5vdCBjb21wbGV0ZSIKICAgIGRpYWdub3N0aWNzID0gW10KICAgIHRl"
+            "bXBfZGlyID0gTm9uZQogICAgZml4dHVyZSA9IE5vbmUKICAgIGZpeHR1cmVfdGhyZWFk"
+            "ID0gTm9uZQogICAgZml4dHVyZV9lcnJvcnMgPSBbXQogICAgcmVjZWl2ZWRfYm9kaWVz"
+            "ID0gW10KICAgIHN0YXRlX2xvY2sgPSB0aHJlYWRpbmcuTG9jaygpCgogICAgdHJ5Ogog"
+            "ICAgICAgIGN1cmwgPSBzaHV0aWwud2hpY2goImN1cmwiKQogICAgICAgIGlmIGN1cmwg"
+            "aXMgTm9uZToKICAgICAgICAgICAgY29kZSA9IDc3CiAgICAgICAgICAgIHZlcmRpY3Qg"
+            "PSAiU0tJUDogY3VybCBDTEkgaXMgbm90IGF2YWlsYWJsZSIKICAgICAgICAgICAgcmV0"
+            "dXJuIGNvZGUsIHZlcmRpY3QsIGRpYWdub3N0aWNzCgogICAgICAgIHRlbXBfZGlyID0g"
+            "dGVtcGZpbGUubWtkdGVtcChwcmVmaXg9ImN1cmwtdXBsb2FkLXRlc3QtIikKICAgICAg"
+            "ICBsb2NhbF9maWxlID0gb3MucGF0aC5qb2luKHRlbXBfZGlyLCAidXBsb2FkLmJpbiIp"
+            "CiAgICAgICAgZXhwZWN0ZWRfYnl0ZXMgPSBiImN1cmwgdXBsb2FkIGxvY2FsIGZpbGUg"
+            "dGVzdFx4MDBceDAxXHg3Zlx4ODBceGZmXHJcbmZpbmFsIGJ5dGVzIgoKICAgICAgICB3"
+            "aXRoIG9wZW4obG9jYWxfZmlsZSwgIndiIikgYXMgc3RyZWFtOgogICAgICAgICAgICBz"
+            "dHJlYW0ud3JpdGUoZXhwZWN0ZWRfYnl0ZXMpCiAgICAgICAgd2l0aCBvcGVuKGxvY2Fs"
+            "X2ZpbGUsICJyYiIpIGFzIHN0cmVhbToKICAgICAgICAgICAgaWYgc3RyZWFtLnJlYWQo"
+            "KSAhPSBleHBlY3RlZF9ieXRlczoKICAgICAgICAgICAgICAgIHJhaXNlIFJ1bnRpbWVF"
+            "cnJvcigibG9jYWwgdXBsb2FkIGZpbGUgZG9lcyBub3QgY29udGFpbiB0aGUgZXhwZWN0"
+            "ZWQgYnl0ZXMiKQoKICAgICAgICBjbGFzcyBSZWNvcmRpbmdIYW5kbGVyKGh0dHAuc2Vy"
+            "dmVyLkJhc2VIVFRQUmVxdWVzdEhhbmRsZXIpOgogICAgICAgICAgICBkZWYgZG9fUFVU"
+            "KHNlbGYpOgogICAgICAgICAgICAgICAgdHJ5OgogICAgICAgICAgICAgICAgICAgIGxl"
+            "bmd0aF90ZXh0ID0gc2VsZi5oZWFkZXJzLmdldCgiQ29udGVudC1MZW5ndGgiKQogICAg"
+            "ICAgICAgICAgICAgICAgIGlmIGxlbmd0aF90ZXh0IGlzIE5vbmU6CiAgICAgICAgICAg"
+            "ICAgICAgICAgICAgIHJhaXNlIFJ1bnRpbWVFcnJvcigiUFVUIHJlcXVlc3QgZGlkIG5v"
+            "dCBwcm92aWRlIENvbnRlbnQtTGVuZ3RoIikKICAgICAgICAgICAgICAgICAgICBsZW5n"
+            "dGggPSBpbnQobGVuZ3RoX3RleHQpCiAgICAgICAgICAgICAgICAgICAgYm9keSA9IHNl"
+            "bGYucmZpbGUucmVhZChsZW5ndGgpCiAgICAgICAgICAgICAgICAgICAgaWYgbGVuKGJv"
+            "ZHkpICE9IGxlbmd0aDoKICAgICAgICAgICAgICAgICAgICAgICAgcmFpc2UgUnVudGlt"
+            "ZUVycm9yKAogICAgICAgICAgICAgICAgICAgICAgICAgICAgIlBVVCBib2R5IGVuZGVk"
+            "IGVhcmx5OiBleHBlY3RlZCAlZCBieXRlcywgcmVjZWl2ZWQgJWQiCiAgICAgICAgICAg"
+            "ICAgICAgICAgICAgICAgICAlIChsZW5ndGgsIGxlbihib2R5KSkKICAgICAgICAgICAg"
+            "ICAgICAgICAgICAgKQogICAgICAgICAgICAgICAgICAgIHdpdGggc3RhdGVfbG9jazoK"
+            "ICAgICAgICAgICAgICAgICAgICAgICAgcmVjZWl2ZWRfYm9kaWVzLmFwcGVuZChib2R5"
+            "KQogICAgICAgICAgICAgICAgICAgIHNlbGYuc2VuZF9yZXNwb25zZSgyMDQpCiAgICAg"
+            "ICAgICAgICAgICAgICAgc2VsZi5lbmRfaGVhZGVycygpCiAgICAgICAgICAgICAgICBl"
+            "eGNlcHQgRXhjZXB0aW9uOgogICAgICAgICAgICAgICAgICAgIGZpeHR1cmVfZXJyb3Jz"
+            "LmFwcGVuZCh0cmFjZWJhY2suZm9ybWF0X2V4YygpKQogICAgICAgICAgICAgICAgICAg"
+            "IHRyeToKICAgICAgICAgICAgICAgICAgICAgICAgc2VsZi5zZW5kX3Jlc3BvbnNlKDUw"
+            "MCkKICAgICAgICAgICAgICAgICAgICAgICAgc2VsZi5lbmRfaGVhZGVycygpCiAgICAg"
+            "ICAgICAgICAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbjoKICAgICAgICAgICAgICAgICAg"
+            "ICAgICAgZml4dHVyZV9lcnJvcnMuYXBwZW5kKHRyYWNlYmFjay5mb3JtYXRfZXhjKCkp"
+            "CgogICAgICAgICAgICBkZWYgbG9nX21lc3NhZ2Uoc2VsZiwgKl9hcmdzKToKICAgICAg"
+            "ICAgICAgICAgIHJldHVybgoKICAgICAgICBjbGFzcyBSZWNvcmRpbmdTZXJ2ZXIoaHR0"
+            "cC5zZXJ2ZXIuVGhyZWFkaW5nSFRUUFNlcnZlcik6CiAgICAgICAgICAgIGRhZW1vbl90"
+            "aHJlYWRzID0gVHJ1ZQoKICAgICAgICAgICAgZGVmIGhhbmRsZV9lcnJvcihzZWxmLCAq"
+            "X2FyZ3MpOgogICAgICAgICAgICAgICAgZml4dHVyZV9lcnJvcnMuYXBwZW5kKHRyYWNl"
+            "YmFjay5mb3JtYXRfZXhjKCkpCgogICAgICAgIGZpeHR1cmUgPSBSZWNvcmRpbmdTZXJ2"
+            "ZXIoKCIxMjcuMC4wLjEiLCAwKSwgUmVjb3JkaW5nSGFuZGxlcikKICAgICAgICBwb3J0"
+            "ID0gZml4dHVyZS5zZXJ2ZXJfYWRkcmVzc1sxXQogICAgICAgIGZpeHR1cmVfdGhyZWFk"
+            "ID0gdGhyZWFkaW5nLlRocmVhZCh0YXJnZXQ9Zml4dHVyZS5zZXJ2ZV9mb3JldmVyLCBk"
+            "YWVtb249VHJ1ZSkKICAgICAgICBmaXh0dXJlX3RocmVhZC5zdGFydCgpCgogICAgICAg"
+            "IGVuZHBvaW50ID0gImh0dHA6Ly8xMjcuMC4wLjE6JWQvdXBsb2FkIiAlIHBvcnQKICAg"
+            "ICAgICByZXN1bHQgPSBzdWJwcm9jZXNzLnJ1bigKICAgICAgICAgICAgWwogICAgICAg"
+            "ICAgICAgICAgY3VybCwKICAgICAgICAgICAgICAgICItLWRpc2FibGUiLAogICAgICAg"
+            "ICAgICAgICAgIi0tc2lsZW50IiwKICAgICAgICAgICAgICAgICItLXNob3ctZXJyb3Ii"
+            "LAogICAgICAgICAgICAgICAgIi0tZmFpbCIsCiAgICAgICAgICAgICAgICAiLS1ub3By"
+            "b3h5IiwKICAgICAgICAgICAgICAgICIqIiwKICAgICAgICAgICAgICAgICItLXVwbG9h"
+            "ZC1maWxlIiwKICAgICAgICAgICAgICAgIGxvY2FsX2ZpbGUsCiAgICAgICAgICAgICAg"
+            "ICBlbmRwb2ludCwKICAgICAgICAgICAgXSwKICAgICAgICAgICAgc3Rkb3V0PXN1YnBy"
+            "b2Nlc3MuUElQRSwKICAgICAgICAgICAgc3RkZXJyPXN1YnByb2Nlc3MuUElQRSwKICAg"
+            "ICAgICAgICAgdGV4dD1UcnVlLAogICAgICAgICAgICB0aW1lb3V0PTIwLAogICAgICAg"
+            "ICAgICBjaGVjaz1GYWxzZSwKICAgICAgICApCgogICAgICAgIGlmIHJlc3VsdC5yZXR1"
+            "cm5jb2RlICE9IDA6CiAgICAgICAgICAgIGNvbWJpbmVkID0gKHJlc3VsdC5zdGRvdXQg"
+            "b3IgIiIpICsgIlxuIiArIChyZXN1bHQuc3RkZXJyIG9yICIiKQogICAgICAgICAgICBk"
+            "aWFnbm9zdGljcy5hcHBlbmQoImN1cmwgZXhpdGVkIHdpdGggc3RhdHVzICVkIiAlIHJl"
+            "c3VsdC5yZXR1cm5jb2RlKQogICAgICAgICAgICBpZiBjb21iaW5lZC5zdHJpcCgpOgog"
+            "ICAgICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJjdXJsIG91dHB1dDpcbiIg"
+            "KyBjb21iaW5lZC5yc3RyaXAoKSkKICAgICAgICBlbGlmIGZpeHR1cmVfZXJyb3JzOgog"
+            "ICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoIkhUVFAgZml4dHVyZSBleGNlcHRp"
+            "b24ocyk6XG4iICsgIlxuIi5qb2luKGZpeHR1cmVfZXJyb3JzKSkKICAgICAgICBlbHNl"
+            "OgogICAgICAgICAgICB3aXRoIHN0YXRlX2xvY2s6CiAgICAgICAgICAgICAgICBib2Rp"
+            "ZXMgPSBsaXN0KHJlY2VpdmVkX2JvZGllcykKICAgICAgICAgICAgaWYgbGVuKGJvZGll"
+            "cykgIT0gMToKICAgICAgICAgICAgICAgIGRpYWdub3N0aWNzLmFwcGVuZCgKICAgICAg"
+            "ICAgICAgICAgICAgICAiZW5kcG9pbnQgcmVjb3JkZWQgJWQgUFVUIGJvZGllczsgZXhw"
+            "ZWN0ZWQgZXhhY3RseSBvbmUiICUgbGVuKGJvZGllcykKICAgICAgICAgICAgICAgICkK"
+            "ICAgICAgICAgICAgZWxpZiBib2RpZXNbMF0gIT0gZXhwZWN0ZWRfYnl0ZXM6CiAgICAg"
+            "ICAgICAgICAgICBkaWFnbm9zdGljcy5hcHBlbmQoCiAgICAgICAgICAgICAgICAgICAg"
+            "ImVuZHBvaW50IGJ5dGVzIGRpZmZlciBmcm9tIHRoZSBsb2NhbCBmaWxlOiBleHBlY3Rl"
+            "ZCAlciwgcmVjZWl2ZWQgJXIiCiAgICAgICAgICAgICAgICAgICAgJSAoZXhwZWN0ZWRf"
+            "Ynl0ZXMsIGJvZGllc1swXSkKICAgICAgICAgICAgICAgICkKICAgICAgICAgICAgZWxz"
+            "ZToKICAgICAgICAgICAgICAgIGNvZGUgPSAwCiAgICAgICAgICAgICAgICB2ZXJkaWN0"
+            "ID0gIlBBU1M6IGN1cmwgLS11cGxvYWQtZmlsZSBkZWxpdmVyZWQgdGhlIGV4YWN0IGxv"
+            "Y2FsIGZpbGUgYnl0ZXMgdmlhIEhUVFAgUFVUIgoKICAgICAgICBpZiBjb2RlICE9IDAg"
+            "YW5kIGNvZGUgIT0gNzc6CiAgICAgICAgICAgIHZlcmRpY3QgPSAiRkFJTDogY3VybCAt"
+            "LXVwbG9hZC1maWxlIGRpZCBub3QgZGVsaXZlciB0aGUgZXhhY3QgbG9jYWwgZmlsZSBi"
+            "eXRlcyIKCiAgICBleGNlcHQgc3VicHJvY2Vzcy5UaW1lb3V0RXhwaXJlZCBhcyBleGM6"
+            "CiAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKCJjdXJsIHRpbWVkIG91dCBhZnRlciAl"
+            "cyBzZWNvbmRzIiAlIGV4Yy50aW1lb3V0KQogICAgICAgIHZlcmRpY3QgPSAiRkFJTDog"
+            "Y3VybCB1cGxvYWQgdGltZWQgb3V0IgogICAgZXhjZXB0IEV4Y2VwdGlvbjoKICAgICAg"
+            "ICBkaWFnbm9zdGljcy5hcHBlbmQoInRlc3QgZXhjZXB0aW9uOlxuIiArIHRyYWNlYmFj"
+            "ay5mb3JtYXRfZXhjKCkpCiAgICAgICAgdmVyZGljdCA9ICJGQUlMOiBjdXJsIHVwbG9h"
+            "ZCB0ZXN0IGVuY291bnRlcmVkIGFuIHVuZXhwZWN0ZWQgZXJyb3IiCiAgICBmaW5hbGx5"
+            "OgogICAgICAgIGlmIGZpeHR1cmUgaXMgbm90IE5vbmU6CiAgICAgICAgICAgIHRyeToK"
+            "ICAgICAgICAgICAgICAgIGZpeHR1cmUuc2h1dGRvd24oKQogICAgICAgICAgICBleGNl"
+            "cHQgRXhjZXB0aW9uOgogICAgICAgICAgICAgICAgZml4dHVyZV9lcnJvcnMuYXBwZW5k"
+            "KHRyYWNlYmFjay5mb3JtYXRfZXhjKCkpCiAgICAgICAgICAgIHRyeToKICAgICAgICAg"
+            "ICAgICAgIGZpeHR1cmUuc2VydmVyX2Nsb3NlKCkKICAgICAgICAgICAgZXhjZXB0IEV4"
+            "Y2VwdGlvbjoKICAgICAgICAgICAgICAgIGZpeHR1cmVfZXJyb3JzLmFwcGVuZCh0cmFj"
+            "ZWJhY2suZm9ybWF0X2V4YygpKQogICAgICAgIGlmIGZpeHR1cmVfdGhyZWFkIGlzIG5v"
+            "dCBOb25lOgogICAgICAgICAgICBmaXh0dXJlX3RocmVhZC5qb2luKHRpbWVvdXQ9NSkK"
+            "ICAgICAgICBpZiB0ZW1wX2RpciBpcyBub3QgTm9uZToKICAgICAgICAgICAgc2h1dGls"
+            "LnJtdHJlZSh0ZW1wX2RpciwgaWdub3JlX2Vycm9ycz1UcnVlKQoKICAgICAgICBpZiBm"
+            "aXh0dXJlX2Vycm9ycyBhbmQgY29kZSAhPSAwOgogICAgICAgICAgICByZW5kZXJlZCA9"
+            "ICJIVFRQIGZpeHR1cmUgZXhjZXB0aW9uKHMpOlxuIiArICJcbiIuam9pbihmaXh0dXJl"
+            "X2Vycm9ycykKICAgICAgICAgICAgaWYgcmVuZGVyZWQgbm90IGluIGRpYWdub3N0aWNz"
+            "OgogICAgICAgICAgICAgICAgZGlhZ25vc3RpY3MuYXBwZW5kKHJlbmRlcmVkKQoKICAg"
+            "IHJldHVybiBjb2RlLCB2ZXJkaWN0LCBkaWFnbm9zdGljcwoKCmlmIF9fbmFtZV9fID09"
+            "ICJfX21haW5fXyI6CiAgICBleGl0X2NvZGUsIGZpbmFsX3ZlcmRpY3QsIGRldGFpbHMg"
+            "PSBtYWluKCkKICAgIGZvciBkZXRhaWwgaW4gZGV0YWlsczoKICAgICAgICBwcmludChk"
+            "ZXRhaWwpCiAgICBwcmludChmaW5hbF92ZXJkaWN0KQogICAgc3lzLmV4aXQoZXhpdF9j"
+            "b2RlKQo="
+        )
+        runner = (
+            "import base64,sys;source=base64.b64decode(sys.argv[1]);exec(compile("
+            "source,'<frozen-fmf-tmt-python>','exec'))"
+        )
+        command = shlex.join(("python3", "-c", runner, payload))
+        result = node.execute(command, shell=False, timeout=900)
+        detail = (result.stdout + "\n" + result.stderr).strip()
+        assert_that(result.exit_code).described_as(detail).is_equal_to(0)
