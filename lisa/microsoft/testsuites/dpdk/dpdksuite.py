@@ -417,7 +417,32 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            test sriov failsafe with netvsc during vf revoke (receive side)
+            test sriov failsafe during vf revoke (receive side)
+        """,
+        priority=2,
+        maturity="preview",
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+            supported_features=[IsolatedResource],
+        ),
+    )
+    def verify_dpdk_testpmd_hotplug_receiver_failsafe_pmd(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+    ) -> None:
+        self.run_testpmd_hotplug_recv_test(
+            environment, log, variables, pmd=Pmd.FAILSAFE
+        )
+
+    @TestCaseMetadata(
+        description="""
+            test sriov failsafe during vf revoke (receive side)
         """,
         priority=2,
         maturity="preview",
@@ -437,6 +462,25 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         self.run_testpmd_hotplug_recv_test(environment, log, variables, pmd=Pmd.NETVSC)
+
+    @TestCaseMetadata(
+        description="""
+            testpmd with hotplug vf for failsafe pmd (send only version)
+        """,
+        priority=2,
+        maturity="preview",
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            supported_features=[IsolatedResource],
+        ),
+    )
+    def verify_dpdk_testpmd_hotplug_sender_failsafe_pmd(
+        self, node: Node, log: Logger, variables: Dict[str, Any]
+    ) -> None:
+        self.run_testpmd_hotplug_send_test(node, log, variables, pmd=Pmd.FAILSAFE)
 
     @TestCaseMetadata(
         description="""
@@ -1311,7 +1355,8 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
 
     @TestCaseMetadata(
-        description=("""
+        description=(
+            """
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1319,7 +1364,8 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """),
+        """
+        ),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
@@ -1345,7 +1391,8 @@ class Dpdk(TestSuite):
         )
 
     @TestCaseMetadata(
-        description=("""
+        description=(
+            """
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1353,7 +1400,8 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """),
+        """
+        ),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
