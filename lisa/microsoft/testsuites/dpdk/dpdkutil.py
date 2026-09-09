@@ -642,7 +642,14 @@ def initialize_node_resources(
     # *type* of installation is already installed,
     # taking it's creation arguments into account.
     testpmd.install()
-
+    version = testpmd.get_dpdk_version()
+    if version > "22.11.0" and pmd == Pmd.FAILSAFE:
+        raise SkippedException(
+            f"Skipping net_failsafe test on DPDK {str(version)}. "
+            "Please run the net_netvsc version for newer builds. "
+            "see https://learn.microsoft.com/en-us/azure/"
+            "virtual-network/setup-dpdk#run-testpmd for details."
+        )
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
