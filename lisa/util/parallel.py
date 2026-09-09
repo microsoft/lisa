@@ -95,7 +95,9 @@ class TaskManager(Generic[T_RESULT]):
         self._is_verbose = is_verbose
         self._pending_tasks: Queue[Task[T_RESULT]] = Queue()
         self._process_lock = threading.Lock()
+        self._process_condition = threading.Condition(self._process_lock)
         self._stored_exceptions: Queue[Future[T_RESULT]] = Queue()
+        self._completing_futures: Set[Future[T_RESULT]] = set()
         self._orphan_monitor: Optional[threading.Thread] = None
 
     def __enter__(self) -> Any:
@@ -198,6 +200,9 @@ class TaskManager(Generic[T_RESULT]):
                 has_remaining = (
                     not self._pending_tasks.empty() or len(self._futures) > 0
                 )
+                if not has_remaining and self._completing_futures:
+                    self._process_condition.wait()
+                    continue
             if not has_remaining:
                 self.join_exceptions()
                 return
@@ -224,6 +229,7 @@ class TaskManager(Generic[T_RESULT]):
                 # Publish failures before the future stops counting as active.
                 self._stored_exceptions.put(future)
             self._futures.remove(future)
+            self._completing_futures.add(future)
             completed.append((future, self._future_task_map.pop(future)))
         return completed
 
@@ -233,17 +239,22 @@ class TaskManager(Generic[T_RESULT]):
     ) -> None:
         for future, task in completed:
             try:
-                result = future.result()
-            except Exception:
+                try:
+                    result = future.result()
+                except Exception:
+                    task.close()
+                    continue
                 task.close()
-                continue
-            task.close()
 
-            # set result back for tracking order
-            task.result = result
+                # set result back for tracking order
+                task.result = result
 
-            if self._callback:
-                self._callback(result)
+                if self._callback:
+                    self._callback(result)
+            finally:
+                with self._process_condition:
+                    self._completing_futures.remove(future)
+                    self._process_condition.notify_all()
 
     def _process_pending_tasks(
         self, done_futures: Iterable[Future[T_RESULT]] = ()

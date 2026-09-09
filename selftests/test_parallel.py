@@ -232,6 +232,42 @@ class TaskManagerTestCase(TestCase):
             ).is_length(5)
             assert_that(set(callback_results)).is_equal_to({0, 10, 20, 30, 40})
 
+    def test_wait_for_all_workers_waits_for_result_callback(self) -> None:
+        allow_task_to_finish = threading.Event()
+        callback_started = threading.Event()
+        allow_callback_to_finish = threading.Event()
+        wait_finished = threading.Event()
+
+        def task() -> int:
+            allow_task_to_finish.wait()
+            return 1
+
+        def result_callback(_: int) -> None:
+            callback_started.set()
+            allow_callback_to_finish.wait()
+
+        task_manager = TaskManager[int](max_workers=1, callback=result_callback)
+        task_manager.submit_task(Task(task_id=0, task=task, parent_logger=None))
+
+        allow_task_to_finish.set()
+        assert_that(callback_started.wait(timeout=0.5)).is_true()
+
+        def wait_for_all_workers() -> None:
+            task_manager.wait_for_all_workers()
+            wait_finished.set()
+
+        waiter = threading.Thread(target=wait_for_all_workers)
+        waiter.start()
+
+        try:
+            assert_that(wait_finished.wait(timeout=0.1)).described_as(
+                "wait should not return while a result callback is running"
+            ).is_false()
+        finally:
+            allow_callback_to_finish.set()
+        assert_that(wait_finished.wait(timeout=0.5)).is_true()
+        waiter.join()
+
     def test_schedules_next_task_before_result_callback(self) -> None:
         allow_first_task_to_finish = threading.Event()
         allow_second_task_to_finish = threading.Event()
