@@ -248,9 +248,15 @@ class Dpdk(TestSuite):
             raise SkippedException("OVS test not supported on ARM64")
 
         force_dpdk_default_source(variables)
+        test_nics = [node.nics.get_secondary_nic()]
         try:
             test_kit = initialize_node_resources(
-                node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_2MB
+                node,
+                log,
+                variables,
+                Pmd.NETVSC,
+                HugePageSize.HUGE_2MB,
+                test_nics=test_nics,
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -272,7 +278,7 @@ class Dpdk(TestSuite):
 
         try:
             # run OVS tests, providing OVS with the NIC info needed for DPDK init
-            ovs.setup_ovs(node.nics.get_secondary_nic().pci_slot)
+            ovs.setup_ovs(test_nics, test_kit.testpmd)
 
             # validate if OVS was able to initialize DPDK
             node.execute(

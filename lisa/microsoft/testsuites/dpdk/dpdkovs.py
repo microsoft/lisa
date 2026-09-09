@@ -1,15 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from typing import List, Type
+from typing import Dict, List, Tuple, Type
 
-from assertpy import fail
+from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
+from microsoft.testsuites.dpdk.dpdkutil import DpdkDevnameInfo
 from semver import VersionInfo
 
 from lisa.executable import Tool
+from lisa.nic import NicInfo
 from lisa.operating_system import Debian, Fedora
-from lisa.tools import Chown, Gcc, Git, Ip, Make, Modprobe, Uname, Whoami
+from lisa.tools import Cat, Chown, Gcc, Git, Ip, Make, Modprobe, Uname, Whoami
 from lisa.util import SkippedException, UnsupportedDistroException
 
 
@@ -19,6 +21,18 @@ class DpdkOvs(Tool):
         r"v(?P<major>[0-9]+)\.(?P<minor>[0-9]+)\.(?P<patch>[0-9]+)"
     )
     OVS_BRIDGE_NAME = "br-dpdk"  # name for the bridge, can be anything
+
+    # OVS records the DPDK release each OVS release builds against in its own
+    # source tree, so parse the pairing from the checkout instead of keeping a
+    # copy here that goes stale every release.
+    # rendered at https://docs.openvswitch.org/en/latest/faq/releases/
+    OVS_RELEASES_DOC = "Documentation/faq/releases.rst"
+
+    # matches the rows of the "Open vSwitch / DPDK" table, ex: "3.3.x  23.11.7"
+    _ovs_dpdk_pairing_regex = re.compile(
+        r"^\s*(?P<ovs>\d+\.\d+)\.x\s+(?P<dpdk>\d+(?:\.\d+)+)\s*$",
+        re.MULTILINE,
+    )
 
     # constants for tracking setup state
     INIT = 0
@@ -121,17 +135,43 @@ class DpdkOvs(Tool):
             )
             self.ovs_version = VersionInfo(major, minor, patch)
 
+    @staticmethod
+    def _as_version_tuple(version: str) -> Tuple[int, ...]:
+        return tuple(int(part) for part in version.split("."))
+
+    def _get_dpdk_to_ovs_version_map(self) -> Dict[int, str]:
+        # Parse the "Open vSwitch / DPDK" build compatibility table out of the
+        # OVS docs. _install checks out the newest OVS tag, so the table is as
+        # up to date as the OVS release we cloned.
+        releases_doc = self.node.tools[Cat].read(
+            str(self.repo_dir.joinpath(self.OVS_RELEASES_DOC)),
+            force_run=True,
+        )
+
+        version_map: Dict[int, str] = {}
+        for match in self._ovs_dpdk_pairing_regex.finditer(releases_doc):
+            ovs_version = match.group("ovs")
+            # DPDK uses YY.MM versioning, so the major identifies the release
+            # year. The table only pairs against the YY.11 LTS releases.
+            dpdk_major = int(match.group("dpdk").split(".")[0])
+            current = version_map.get(dpdk_major)
+            # Multiple OVS releases build against the same DPDK release. Keep
+            # the oldest, it is the minimum OVS version for that DPDK.
+            if current is None or self._as_version_tuple(
+                ovs_version
+            ) < self._as_version_tuple(current):
+                version_map[dpdk_major] = ovs_version
+
+        if not version_map:
+            fail(
+                "Could not parse the OVS/DPDK version table from "
+                f"{self.OVS_RELEASES_DOC}. The OVS doc format may have changed, "
+                "check https://docs.openvswitch.org/en/latest/faq/releases/"
+            )
+        return version_map
+
     def _force_ovs_dpdk_compatibility(self, dpdk_tool: DpdkTestpmd) -> None:
         dpdk_version = dpdk_tool.get_dpdk_version()
-        # confirm supported ovs:dpdk version pairing based on
-        # https://docs.openvswitch.org/en/latest/faq/releases/
-        # to account for minor releases check release is below a major version threshold
-        dpdk_to_ovs_minimum_version = {
-            19: "2.13.0",
-            20: "2.15.0",
-            21: "2.17.0",
-            22: "3.1.0",
-        }
 
         # check if dpdk version too low
         if dpdk_version < "19.11.0":
@@ -139,14 +179,19 @@ class DpdkOvs(Tool):
                 f"Dpdk version {dpdk_version} is not supported by this test."
             )
 
+        # confirm supported ovs:dpdk version pairing using the table published
+        # in the OVS source tree we checked out during _install.
+        dpdk_to_ovs_minimum_version = self._get_dpdk_to_ovs_version_map()
+
         # check if DPDK version is above the versions in the table.
         if int(dpdk_version.major) not in dpdk_to_ovs_minimum_version.keys():
             # we've already checked out latest OVS
-            # DPDK version is above 22, warn and proceed.
+            # DPDK version is newer than any release OVS documents, warn
+            # and proceed.
             self.node.log.info(
                 "DPDK version is above the maximum in the version match "
-                "table. Using latest OVS. If test fails, the dpdk_to_ovs_minimum "
-                "verison table may need an update. "
+                "table. Using latest OVS. If test fails, OVS may not support "
+                "this DPDK release yet. "
                 "check https://docs.openvswitch.org/en/latest/faq/releases/"
             )
             return
@@ -205,7 +250,30 @@ class DpdkOvs(Tool):
             cwd=self.repo_dir,
         )
 
-    def setup_ovs(self, device_address: str) -> None:
+    def _get_eal_and_device_args(
+        self, nics: List[NicInfo], dpdk_tool: DpdkTestpmd
+    ) -> Tuple[str, str]:
+        assert_that(nics).described_as(
+            "setup_ovs needs at least one test nic to attach to the bridge"
+        ).is_not_empty()
+
+        # dpdk-devname enumerates the ports the EAL actually sees. Running it
+        # both validates the netvsc PMD setup and gives us the EAL device
+        # arguments needed to select those ports.
+        devname_info = DpdkDevnameInfo(testpmd=dpdk_tool)
+        devname_info.get_port_info(nics, expect_ports=len(nics))
+
+        # the devname args are built for a shell invocation, but OVS hands the
+        # value straight to the EAL, so the embedded quoting has to go.
+        eal_args = devname_info.nic_args.replace('"', "")
+
+        # The netvsc PMD drives the synthetic vmbus device, so the PCI address
+        # of the VF does not name the port. Select it by MAC instead, which is
+        # bus agnostic. See netdev_dpdk_process_devargs in lib/netdev-dpdk.c.
+        device_args = f"class=eth,mac={nics[0].mac_addr}"
+        return eal_args, device_args
+
+    def setup_ovs(self, nics: List[NicInfo], dpdk_tool: DpdkTestpmd) -> None:
         # setup OVS and track which state we are in.
         # this will allow a try/except to catch a failure and hold it until
         # until after the teardown. It should also allow teardown
@@ -213,6 +281,8 @@ class DpdkOvs(Tool):
         node = self.node
         modprobe = node.tools[Modprobe]
         self.teardown_state = self.INIT
+
+        eal_args, device_args = self._get_eal_and_device_args(nics, dpdk_tool)
 
         # load ovs driver
         modprobe.load("openvswitch")
@@ -226,6 +296,35 @@ class DpdkOvs(Tool):
             expected_exit_code_failure_message="Could not start ovs-ctl",
         )
         self.teardown_state = self.SERVICE_START
+
+        # Pass the device selection to the EAL. This has to happen before
+        # dpdk-init flips to true, since that is when OVS runs rte_eal_init.
+        node.execute(
+            (
+                "ovs-vsctl --no-wait set Open_vSwitch . "
+                f'other_config:dpdk-extra="{eal_args}"'
+            ),
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Could not set the EAL device arguments for OVS"
+            ),
+        )
+
+        # OVS 4.0 stopped probing devices during EAL init, which breaks the
+        # "class=eth,mac=" lookup because it only searches ports that are
+        # already probed. Older releases probe at init and ignore this key.
+        node.execute(
+            (
+                "ovs-vsctl --no-wait set Open_vSwitch . "
+                "other_config:dpdk-probe-at-init=true"
+            ),
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Could not enable device probing at DPDK init for OVS"
+            ),
+        )
 
         # enable dpdk in ovs config
         node.execute(
@@ -254,7 +353,7 @@ class DpdkOvs(Tool):
         node.execute(
             (
                 f"ovs-vsctl add-port {self.OVS_BRIDGE_NAME} p1 -- "
-                f"set Interface p1 type=dpdk options:dpdk-devargs={device_address}"
+                f'set Interface p1 type=dpdk options:dpdk-devargs="{device_args}"'
             ),
             sudo=True,
             expected_exit_code=0,
