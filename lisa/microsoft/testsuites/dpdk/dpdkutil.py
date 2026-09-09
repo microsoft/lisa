@@ -354,6 +354,7 @@ def run_testpmd_hotplug(
     # kill testpmd and process the output
     for kit in all_kits:
         kit.testpmd.kill_previous_testpmd_command()
+        sleep(1)
         # allow time for SIGINT/SIGKILL shutdown and stats flush
         kit.testpmd.process_testpmd_output(processes[kit].wait_result(timeout=120))
 
@@ -943,127 +944,6 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     )
 
 
-# Multiple ports test
-#  to simplify this
-def verify_dpdk_mutliple_ports(
-    environment: Environment,
-    log: Logger,
-    variables: Dict[str, Any],
-    pmd: Pmd,
-    hugepage_size: HugePageSize,
-    use_service_cores: int = 1,
-    queues: int = 1,
-    result: Optional[TestResult] = None,
-    set_mtu: int = 0,
-) -> Tuple[DpdkTestResources, DpdkTestResources, DpdkTestResources]:
-    # helpful to have the public ips labeled for debugging
-    external_ips = []
-    for node in environment.nodes.list():
-        if isinstance(node, RemoteNode):
-            external_ips += node.connection_info[
-                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
-            ]
-        else:
-            raise SkippedException()
-        # skip MTU test if not on MANA (for now).
-        if set_mtu and not node.nics.is_mana_device_present():
-            raise SkippedException("set mtu test is intended for MANA VMs only.")
-    log.debug(
-        (f"receiver:{external_ips[0]}\nsenders:{external_ips[1]},{external_ips[2]}\n")
-    )
-    receiver, sender_a, sender_b = environment.nodes.list()
-    nic_pairings = {
-        receiver: [
-            receiver.nics.get_nic_by_subnet("10.0.1.0/24"),
-            receiver.nics.get_nic_by_subnet("10.0.2.0/24"),
-        ],
-        sender_a: [sender_a.nics.get_nic_by_subnet("10.0.1.0/24")],
-        sender_b: [sender_b.nics.get_nic_by_subnet("10.0.2.0/24")],
-    }
-    # get test duration variable if set
-    # enables long-running tests to shakeQoS and SLB issue
-    test_duration: int = variables.get("dpdk_test_duration", 15)
-    kill_timeout = test_duration + 5
-
-    test_kits = init_nodes_concurrent(
-        environment,
-        log,
-        variables,
-        pmd,
-        hugepage_size=hugepage_size,
-        specific_pairings=nic_pairings,
-    )
-
-    check_send_receive_compatibility(test_kits)
-    receiver_kit = [kit for kit in test_kits if kit.node is receiver].pop()
-    sender_port_a = [kit for kit in test_kits if kit.node is sender_a].pop()
-    sender_port_b = [kit for kit in test_kits if kit.node is sender_b].pop()
-    sender_kits = [sender_port_a, sender_port_b]
-
-    # annotate test result before starting
-    if result is not None:
-        annotate_dpdk_test_result(test_kit=receiver_kit, test_result=result, log=log)
-
-    kit_cmd_pairs = generate_testpmd_multiple_port_command(
-        pmd,
-        [sender_port_a, sender_port_b],
-        receiver_kit,
-        use_service_cores=use_service_cores,
-        queues=queues,
-        set_mtu=set_mtu,
-    )
-    receive_timeout = kill_timeout + 10
-    receive_result = receiver.tools[Timeout].start_with_timeout(
-        kit_cmd_pairs[receiver_kit],
-        receive_timeout,
-        constants.SIGINT,
-        kill_timeout=receive_timeout,
-    )
-    receive_result.wait_output("start packet forwarding")
-    sender_results: Dict[DpdkTestResources, Process] = dict()
-    for sender in sender_kits:
-        sender_results[sender] = sender.node.tools[Timeout].start_with_timeout(
-            kit_cmd_pairs[sender],
-            test_duration,
-            constants.SIGINT,
-            kill_timeout=kill_timeout,
-        )
-
-    results = dict()
-    for sender in sender_results:
-        results[sender] = sender.testpmd.process_testpmd_output(
-            sender_results[sender].wait_result()
-        )
-    results[receiver_kit] = receiver_kit.testpmd.process_testpmd_output(
-        receive_result.wait_result()
-    )
-
-    # helpful to have the outputs labeled
-    for i in range(0, len(sender_kits)):
-        log.debug(f"\nSENDERS_{i}:\n{results[sender_kits[i]]}")
-    log.debug(f"\nRECEIVER:\n{results[receiver_kit]}")
-
-    rcv_rx_pps = receiver_kit.testpmd.get_mean_rx_pps()
-    log.info(f"receiver rx-pps: {rcv_rx_pps}")
-    sender_pps_measurements = []
-    for i in range(0, len(sender_kits)):
-        sender_pps_measurements += [sender_kits[i].testpmd.get_mean_tx_pps()]
-        log.info(f"sender_{i} tx-pps: {sender_pps_measurements[i]}")
-    for i in range(0, len(sender_kits)):
-        sender_kits[i].dmesg.check_kernel_errors(force_run=True)
-    receiver_kit.dmesg.check_kernel_errors(force_run=True)
-    # differences in NIC type throughput can lead to different snd/rcv counts
-    assert_that(rcv_rx_pps).described_as(
-        "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(DPDK_PPS_THRESHOLD)
-    for sender_pps in sender_pps_measurements:
-        assert_that(sender_pps).described_as(
-            "Throughput for SEND was below the correct order of magnitude"
-        ).is_greater_than(DPDK_PPS_THRESHOLD)
-
-    return receiver_kit, sender_port_a, sender_port_b
-
-
 def do_parallel_cleanup(environment: Environment) -> None:
     def _parallel_cleanup(node: Node) -> None:
         interface = node.features[NetworkInterface]
@@ -1442,16 +1322,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
     # hotplug sriov and run again
     if hotplug_sriov:
-        forwarder.features[NetworkInterface].switch_sriov(
-            enable=False, wait=False, reset_connections=False
-        )
-        forwarder.features[NetworkInterface].switch_sriov(
-            enable=True, wait=False, reset_connections=False
-        )
-        fwd_proc.wait_output(
-            "HN_DRIVER: netvsc_hotplug_retry(): "
-            "Found matching MAC address, adding device",
-            delta_only=True,
+        switch_sriov_for_nics(
+            forwarder, [subnet_a_nics[forwarder], subnet_b_nics[forwarder]]
         )
         _receiver_after = ntttcp[receiver].run_as_server_async(
             subnet_b_nics[receiver].name,
@@ -2171,26 +2043,8 @@ def run_dpdk_symmetric_mp(
             hotplug_times -= 1
             # turn SRIOV off
 
-            node.features[NetworkInterface].switch_sriov(
-                enable=False, wait=False, reset_connections=False
-            )
+            switch_sriov_for_nics(node, test_nics)
 
-            # wait for the RTE_DEV_EVENT_REMOVE message
-            primary.wait_output(
-                "HN_DRIVER: netvsc_hotadd_callback(): "
-                "Device notification type=1",  # RTE_DEV_EVENT_REMOVE
-                delta_only=True,
-            )  # relying on compiler defaults here, not great.
-
-            # turn SRIOV on
-            node.features[NetworkInterface].switch_sriov(
-                enable=True, wait=False, reset_connections=False
-            )
-
-            primary.wait_output(
-                "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=0",
-                delta_only=True,
-            )
             ping.ping_async(
                 target=test_nics[0].ip_addr,
                 nic_name=node.nics.get_primary_nic().name,
