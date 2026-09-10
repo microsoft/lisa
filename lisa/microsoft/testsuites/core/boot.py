@@ -48,7 +48,6 @@ class Boot(TestSuite):
     def verify_boot_with_debug_kernel(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
-        node.mark_dirty()
 
         # Defense-in-depth: catches custom VHD/SIG images whose OS detection
         # may misclassify the node and bypass the supported_os gate.
@@ -66,6 +65,11 @@ class Boot(TestSuite):
                 "This is expected for HPC and minimal images that intentionally "
                 "omit debug kernels."
             )
+
+        # Mark the node as dirty as it modifies the boot entry to use a debug kernel.
+        # This change may cause subsequent tests to run with the debug kernel,
+        # which is not the intended behavior for a kernel validation.
+        node.mark_dirty()
 
         # 3. Install kernel-debug package and set boot with this debug kernel.
         node.os.install_packages("kernel-debug")
