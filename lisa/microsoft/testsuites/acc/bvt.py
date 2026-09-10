@@ -77,7 +77,6 @@ class ACCBasicTest(TestSuite):
                 "deb [arch=amd64] https://download.01.org/"
                 f"intel-sgx/sgx_repo/ubuntu {node.os.information.codename} main"
             ),
-            repo_file="intel-sgx.list",
             keys_location=[
                 "https://download.01.org/intel-sgx/sgx_repo/ubuntu"
                 "/intel-sgx-deb.key",
@@ -98,7 +97,6 @@ class ACCBasicTest(TestSuite):
                 f"{node.os.information.codename}/ "
                 f"{toolchain} main"
             ),
-            repo_file=f"{toolchain}.list",
             keys_location=["https://apt.llvm.org/llvm-snapshot.gpg.key"],
         )
 
@@ -115,7 +113,6 @@ class ACCBasicTest(TestSuite):
                 "deb [arch=amd64] https://packages.microsoft.com/"
                 f"ubuntu/{os_version}/prod {node.os.information.codename} main"
             ),
-            repo_file="msprod.list",
             keys_location=[
                 "https://packages.microsoft.com/keys/microsoft.asc",
             ],
