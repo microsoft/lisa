@@ -65,6 +65,11 @@ class Boot(TestSuite):
                 "omit debug kernels."
             )
 
+        # Mark the node as dirty as it modifies the boot entry to use a debug kernel.
+        # This change may cause subsequent tests to run with the debug kernel,
+        # which is not the intended behavior for a kernel validation.
+        node.mark_dirty()
+
         # 3. Install kernel-debug package and set boot with this debug kernel.
         node.os.install_packages("kernel-debug")
         result = node.execute("grub2-set-default 0", sudo=True)
