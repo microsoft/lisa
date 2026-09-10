@@ -40,7 +40,6 @@ except ModuleNotFoundError as e:
 try:
     import lisa.sut_orchestrator.baremetal.build  # noqa: F401
     import lisa.sut_orchestrator.baremetal.cluster.cluster  # noqa: F401
-    import lisa.sut_orchestrator.baremetal.cluster.idrac  # noqa: F401
     import lisa.sut_orchestrator.baremetal.cluster.pxe  # noqa: F401
     import lisa.sut_orchestrator.baremetal.cluster.rackmanager  # noqa: F401
     import lisa.sut_orchestrator.baremetal.ip_getter  # noqa: F401
@@ -49,6 +48,11 @@ try:
     import lisa.sut_orchestrator.baremetal.source  # noqa: F401
 except ModuleNotFoundError as e:
     print(f"baremetal package is not installed. [{e}]")
+
+try:
+    import lisa.sut_orchestrator.baremetal.cluster.idrac  # noqa: F401
+except ModuleNotFoundError as e:
+    print(f"baremetal idrac module is not installed. [{e}]")
 
 # Aws modules
 try:
