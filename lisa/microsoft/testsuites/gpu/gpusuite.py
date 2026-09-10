@@ -28,7 +28,17 @@ from lisa.operating_system import (
     Windows,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.tools import Dmesg, Lspci, Mkdir, Modprobe, NvidiaSmi, Reboot, Tar, Wget
+from lisa.tools import (
+    Dmesg,
+    Lspci,
+    Mkdir,
+    Modprobe,
+    NvidiaSmi,
+    Reboot,
+    Service,
+    Tar,
+    Wget,
+)
 from lisa.tools.gpu_drivers import ComputeSDK, GpuDriver
 from lisa.tools.python import PythonVenv
 from lisa.util import LisaException, UnsupportedOperationException, get_matched_str
@@ -68,6 +78,14 @@ class GpuTestSuite(TestSuite):
     # A CPU soft lockup during GPU reset is timing dependent, so a single
     # reset is not enough to expose it.
     _gpu_reset_iterations = 3
+
+    # These services open /dev/nvidia* and keep the device busy, which makes
+    # 'nvidia-smi -r' fail with 'In use by another client'.
+    _gpu_holding_services = [
+        "nvidia-persistenced",
+        "nvidia-fabricmanager",
+        "nvidia-dcgm",
+    ]
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
@@ -300,40 +318,46 @@ class GpuTestSuite(TestSuite):
         # A reset can leave the device or the driver in a degraded state.
         node.mark_dirty()
 
-        for iteration in range(1, self._gpu_reset_iterations + 1):
-            log.info(
-                f"resetting {expected_count} GPUs on {node.name}, gpu reset "
-                f"iteration {iteration} of {self._gpu_reset_iterations}"
-            )
-            result = nvidia_smi.reset()
-            if result.exit_code != 0:
-                output = f"{result.stdout}\n{result.stderr}"
-                if self._gpu_reset_unsupported_pattern.search(output):
-                    raise SkippedException(
-                        f"GPU reset is not available to the guest on this VM "
-                        f"size: {output}"
+        stopped_services = self._release_gpu_holders(node, log)
+        try:
+            for iteration in range(1, self._gpu_reset_iterations + 1):
+                log.info(
+                    f"resetting {expected_count} GPUs on {node.name}, gpu reset "
+                    f"iteration {iteration} of {self._gpu_reset_iterations}"
+                )
+                result = nvidia_smi.reset()
+                if result.exit_code != 0:
+                    output = f"{result.stdout}\n{result.stderr}"
+                    if self._gpu_reset_unsupported_pattern.search(output):
+                        raise SkippedException(
+                            f"GPU reset is not available to the guest on this VM "
+                            f"size: {output}"
+                        )
+                    raise LisaException(
+                        f"'nvidia-smi -r' failed with exit code {result.exit_code} "
+                        f"on gpu reset iteration {iteration}: {output}. Verify no "
+                        f"process is holding a GPU and that the VM size allows a "
+                        f"guest initiated reset."
                     )
-                raise LisaException(
-                    f"'nvidia-smi -r' failed with exit code {result.exit_code} on "
-                    f"gpu reset iteration {iteration}: {output}. Verify no process "
-                    f"is holding a GPU and that the VM size allows a guest "
-                    f"initiated reset."
-                )
-            log.debug(f"gpu reset iteration {iteration} output: {result.stdout}")
+                log.debug(f"gpu reset iteration {iteration} output: {result.stdout}")
 
-            new_errors = (
-                set(
-                    dmesg.check_kernel_errors(
-                        force_run=True, throw_error=False
-                    ).splitlines()
+                new_errors = (
+                    set(
+                        dmesg.check_kernel_errors(
+                            force_run=True, throw_error=False
+                        ).splitlines()
+                    )
+                    - baseline_errors
                 )
-                - baseline_errors
-            )
-            assert_that(sorted(new_errors)).described_as(
-                f"new kernel errors appeared in dmesg after gpu reset iteration "
-                f"{iteration}; resetting a GPU must not hang or destabilize the "
-                f"guest kernel"
-            ).is_empty()
+                assert_that(sorted(new_errors)).described_as(
+                    f"new kernel errors appeared in dmesg after gpu reset iteration "
+                    f"{iteration}; resetting a GPU must not hang or destabilize the "
+                    f"guest kernel"
+                ).is_empty()
+        finally:
+            service = node.tools[Service]
+            for name in stopped_services:
+                service.restart_service(name)
 
         actual_count = gpu.get_gpu_count_with_lspci()
         assert_that(actual_count).described_as(
@@ -342,6 +366,24 @@ class GpuTestSuite(TestSuite):
         ).is_equal_to(expected_count)
 
         _check_driver_installed(node, log)
+
+    def _release_gpu_holders(self, node: Node, log: Logger) -> List[str]:
+        service = node.tools[Service]
+        stopped_services: List[str] = []
+        for name in self._gpu_holding_services:
+            if not service.check_service_exists(name):
+                continue
+            if not service.is_service_running(name):
+                continue
+            log.info(f"stopping '{name}' so it does not hold a GPU during reset")
+            service.stop_service(name)
+            stopped_services.append(name)
+
+        # Idle nvidia_uvm/nvidia_drm still count as clients for 'nvidia-smi -r'.
+        node.tools[Modprobe].remove(
+            ["nvidia_drm", "nvidia_uvm", "nvidia_modeset"], ignore_error=True
+        )
+        return stopped_services
 
     @TestCaseMetadata(
         description="""
