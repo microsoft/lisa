@@ -81,11 +81,11 @@ class GpuTestSuite(TestSuite):
 
     # These services open /dev/nvidia* and keep the device busy, which makes
     # 'nvidia-smi -r' fail with 'In use by another client'.
-    _gpu_holding_services = [
+    _gpu_holding_services = (
         "nvidia-persistenced",
         "nvidia-fabricmanager",
         "nvidia-dcgm",
-    ]
+    )
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
@@ -357,7 +357,11 @@ class GpuTestSuite(TestSuite):
         finally:
             service = node.tools[Service]
             for name in stopped_services:
-                service.restart_service(name)
+                # Restoring must not mask the reset failure that got us here.
+                try:
+                    service.start_service(name)
+                except LisaException as identifier:
+                    log.info(f"could not restart '{name}' after reset: {identifier}")
 
         actual_count = gpu.get_gpu_count_with_lspci()
         assert_that(actual_count).described_as(
