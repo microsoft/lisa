@@ -28,10 +28,10 @@ from lisa.operating_system import (
     Windows,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.tools import Lspci, Mkdir, Modprobe, Reboot, Tar, Wget
+from lisa.tools import Dmesg, Lspci, Mkdir, Modprobe, NvidiaSmi, Reboot, Tar, Wget
 from lisa.tools.gpu_drivers import ComputeSDK, GpuDriver
 from lisa.tools.python import PythonVenv
-from lisa.util import UnsupportedOperationException, get_matched_str
+from lisa.util import LisaException, UnsupportedOperationException, get_matched_str
 
 _cudnn_location = (
     "https://developer.download.nvidia.com/compute/redist/cudnn/"
@@ -57,6 +57,17 @@ class GpuTestSuite(TestSuite):
         "Otherwise reinstall numpy",
         re.M,
     )
+
+    # nvidia-smi reports one of these when the platform does not expose the
+    # GPU reset path to the guest, which is a skip rather than a failure.
+    _gpu_reset_unsupported_pattern = re.compile(
+        r"not supported|Insufficient Permissions|has been deprecated",
+        re.IGNORECASE,
+    )
+
+    # A CPU soft lockup during GPU reset is timing dependent, so a single
+    # reset is not enough to expose it.
+    _gpu_reset_iterations = 3
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node: Node = kwargs["node"]
@@ -245,6 +256,92 @@ class GpuTestSuite(TestSuite):
 
         # 2. Enable GPU devices.
         lspci.enable_devices()
+
+    @TestCaseMetadata(
+        description="""
+        This test case verifies that resetting the GPUs does not destabilize
+        the guest kernel.
+
+        Steps:
+        1. Install the gpu driver and validate it is loaded.
+        2. Record the kernel errors already present in dmesg.
+        3. Reset all GPUs with nvidia-smi several times.
+        4. Validate no new kernel error, such as a CPU soft lockup, a call
+            trace or an RCU stall, appeared after each reset.
+        5. Validate the gpu count is unchanged and the driver is still healthy.
+        """,
+        timeout=TIMEOUT,
+        priority=3,
+        requirement=simple_requirement(
+            supported_features=[GpuEnabled()],
+            unsupported_os=[AlmaLinux, Oracle, Suse],
+        ),
+    )
+    def verify_gpu_reset(self, node: Node, log_path: Path, log: Logger) -> None:
+        if _get_supported_driver(node) == ComputeSDK.AMD:
+            raise SkippedException(
+                "GPU reset validation is implemented for NVIDIA GPUs only."
+            )
+
+        _install_driver(node, log_path, log)
+        _check_driver_installed(node, log)
+
+        gpu = node.features[Gpu]
+        expected_count = gpu.get_gpu_count_with_lspci()
+
+        nvidia_smi = node.tools[NvidiaSmi]
+        dmesg = node.tools[Dmesg]
+
+        # Errors already in dmesg are not caused by the reset.
+        baseline_errors = set(
+            dmesg.check_kernel_errors(force_run=True, throw_error=False).splitlines()
+        )
+
+        # A reset can leave the device or the driver in a degraded state.
+        node.mark_dirty()
+
+        for iteration in range(1, self._gpu_reset_iterations + 1):
+            log.info(
+                f"resetting {expected_count} GPUs on {node.name}, gpu reset "
+                f"iteration {iteration} of {self._gpu_reset_iterations}"
+            )
+            result = nvidia_smi.reset()
+            if result.exit_code != 0:
+                output = f"{result.stdout}\n{result.stderr}"
+                if self._gpu_reset_unsupported_pattern.search(output):
+                    raise SkippedException(
+                        f"GPU reset is not available to the guest on this VM "
+                        f"size: {output}"
+                    )
+                raise LisaException(
+                    f"'nvidia-smi -r' failed with exit code {result.exit_code} on "
+                    f"gpu reset iteration {iteration}: {output}. Verify no process "
+                    f"is holding a GPU and that the VM size allows a guest "
+                    f"initiated reset."
+                )
+            log.debug(f"gpu reset iteration {iteration} output: {result.stdout}")
+
+            new_errors = (
+                set(
+                    dmesg.check_kernel_errors(
+                        force_run=True, throw_error=False
+                    ).splitlines()
+                )
+                - baseline_errors
+            )
+            assert_that(sorted(new_errors)).described_as(
+                f"new kernel errors appeared in dmesg after gpu reset iteration "
+                f"{iteration}; resetting a GPU must not hang or destabilize the "
+                f"guest kernel"
+            ).is_empty()
+
+        actual_count = gpu.get_gpu_count_with_lspci()
+        assert_that(actual_count).described_as(
+            "gpu count from lspci changed after reset, some GPUs did not come "
+            "back on the PCI bus"
+        ).is_equal_to(expected_count)
+
+        _check_driver_installed(node, log)
 
     @TestCaseMetadata(
         description="""
