@@ -87,7 +87,6 @@ class AziHsm(TestSuite):
                     "https://packages.microsoft.com/ubuntu/"
                     f"{node.os.information.release}/prod testing main"
                 ),
-                repo_file="microsoft-testing.list",
                 repo_name="AZIHSM Packages",
                 keys_location=[
                     "https://packages.microsoft.com/keys/microsoft.asc",
@@ -95,6 +94,7 @@ class AziHsm(TestSuite):
                 ],
             )
         if isinstance(node.os, CBLMariner):
+            # Azure Linux prior to 3.0 isnot supported by AziHSM
             arch_name = node.os.get_kernel_information().hardware_platform
             if node.os.information.release == "3.0":
                 node.os.add_repository(
@@ -103,7 +103,6 @@ class AziHsm(TestSuite):
                         f"{node.os.information.release}/preview/"
                         f"ms-oss/{arch_name}/"
                     ),
-                    repo_file="preview-ms-oss.repo",
                     repo_name="AZIHSM Packages",
                     keys_location=[
                         "https://packages.microsoft.com/keys/microsoft.asc",
@@ -111,14 +110,13 @@ class AziHsm(TestSuite):
                     ],
                 )
             else:
-                # Assume Azure Linux 4 for now. Will have to refector when Azl5 happens.
+                # Assume Azure Linux 4 for now. Will have to refactor when Azl5 happens.
                 node.os.add_repository(
                     repo=(
                         "https://packages.microsoft.com/azurelinux/"
                         "4/preview/"
                         f"microsoft/{arch_name}/"
                     ),
-                    repo_file="preview-microsoft.repo",
                     repo_name="AZIHSM Packages",
                     keys_location=[
                         "https://packages.microsoft.com/keys/microsoft.asc",
@@ -232,18 +230,6 @@ class AziHsm(TestSuite):
 
         # Indicate we have done this step already
         _PACKAGES_INSTALLED_NODES.add(node)
-
-    def check_driver_package_contents(self, node: Node, log: Logger) -> None:
-        # Make sure the azihsm packages are installed
-        self.install_azihsm_driver_package(node=node, log=log)
-        kernel_version = _AZIHSM_KERNEL_VERSIONS[node]
-        kmod_path = _AZIHSM_KMOD_PATHS[node]
-
-        log.info(f"Checking the driver for kernel version {kernel_version}")
-        # Check that the driver exists where we expect it to be
-        assert_that(node.shell.exists(node.get_pure_path(kmod_path))).described_as(
-            f"{kmod_path} should exist after package installation"
-        ).is_true()
 
     #
     #
@@ -448,6 +434,7 @@ class AziHsm(TestSuite):
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
         self.check_azihsm_device(node=node)
+        node.mark_dirty()  # this case loads/unloads kernel modules
         driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
 
         # Tools we need
