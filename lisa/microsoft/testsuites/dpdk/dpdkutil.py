@@ -1974,9 +1974,13 @@ def run_dpdk_symmetric_mp(
         for nic in node.nics.nics.values()
         if nic != node.nics.get_primary_nic() and nic.lower
     ][:2]
-    ping = node.tools[Ping]
-    ping.install()
 
+    # handle the event where a tool isn't implemented for a platform
+    try:
+        ping = node.tools[Ping]
+        ping.install()
+    except UnsupportedDistroException as err:
+        raise SkippedException(err)
     # initialize for netvsc, we rely on the debug messages in this test
     # to identify the hotplug events.
     try:
@@ -1988,7 +1992,11 @@ def run_dpdk_symmetric_mp(
             HugePageSize.HUGE_2MB,
             test_nics=test_nics,
         )
-    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+    except (
+        NotEnoughMemoryException,
+        UnsupportedOperationException,
+        UnsupportedDistroException,
+    ) as err:
         raise SkippedException(err)
     testpmd = test_kit.testpmd
     testpmd.set_instance_id("symmetric_mp")
