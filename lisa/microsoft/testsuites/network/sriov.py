@@ -195,7 +195,7 @@ class Sriov(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case needs 2 nodes and max nics. And it verifies module of sriov network
+        This case needs 2 nodes and 8 nics. And it verifies module of sriov network
          interface is loaded and each synthetic nic is paired with one VF, and check
          rx statistics of source and tx statistics of dest increase after send 200 Mb
          file from source to dest.
@@ -213,8 +213,8 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=8,
                 data_path=schema.NetworkDataPath.Sriov,
-                nic_count=search_space.IntRange(min=2, choose_max_value=True),
             ),
         ),
     )
@@ -225,7 +225,7 @@ class Sriov(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case needs 2 nodes, max nics and 64 Vcpus. And it verifies module of sriov
+        This case needs 2 nodes, 8 nics and 64 Vcpus. And it verifies module of sriov
          network interface is loaded and each synthetic nic is paired with one VF, and
          check rx statistics of source and tx statistics of dest increase after send 200
          Mb file from source to dest.
@@ -244,8 +244,8 @@ class Sriov(TestSuite):
             min_count=2,
             min_core_count=64,
             network_interface=schema.NetworkInterfaceOptionSettings(
+                nic_count=8,
                 data_path=schema.NetworkDataPath.Sriov,
-                nic_count=search_space.IntRange(min=2, choose_max_value=True),
             ),
         ),
     )
@@ -340,7 +340,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Sriov,
-                max_nic_count=search_space.IntRange(min=8),
+                max_nic_count=8,
             ),
         ),
     )
@@ -377,7 +377,7 @@ class Sriov(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provisioning with max sriov nics.
+        This case verify VM works well when provisioning with max (8) sriov nics.
 
         Steps,
         1. Provision VM with max network interfaces with enabling accelerated network.
@@ -385,10 +385,8 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            network_interface=schema.NetworkInterfaceOptionSettings(
-                data_path=schema.NetworkDataPath.Sriov,
-                nic_count=search_space.IntRange(min=2, choose_max_value=True),
-            ),
+            min_nic_count=8,
+            network_interface=features.Sriov(),
         ),
     )
     def verify_sriov_provision_with_max_nics(self, environment: Environment) -> None:
@@ -397,7 +395,7 @@ class Sriov(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provisioning with max sriov nics.
+        This case verify VM works well when provisioning with max (8) sriov nics.
 
         Steps,
         1. Provision VM with max network interfaces with enabling accelerated network.
@@ -407,10 +405,8 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            network_interface=schema.NetworkInterfaceOptionSettings(
-                data_path=schema.NetworkDataPath.Sriov,
-                nic_count=search_space.IntRange(min=2, choose_max_value=True),
-            ),
+            min_nic_count=8,
+            network_interface=features.Sriov(),
         ),
     )
     def verify_sriov_provision_with_max_nics_reboot(
@@ -425,7 +421,7 @@ class Sriov(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provisioning with max sriov nics.
+        This case verify VM works well when provisioning with max (8) sriov nics.
 
         Steps,
         1. Provision VM with max network interfaces with enabling accelerated network.
@@ -435,10 +431,8 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            network_interface=schema.NetworkInterfaceOptionSettings(
-                data_path=schema.NetworkDataPath.Sriov,
-                nic_count=search_space.IntRange(min=2, choose_max_value=True),
-            ),
+            min_nic_count=8,
+            network_interface=features.Sriov(),
         ),
     )
     def verify_sriov_provision_with_max_nics_reboot_from_platform(
@@ -454,7 +448,7 @@ class Sriov(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provisioning with max sriov nics.
+        This case verify VM works well when provisioning with max (8) sriov nics.
 
         Steps,
         1. Provision VM with max network interfaces with enabling accelerated network.
@@ -464,10 +458,8 @@ class Sriov(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            network_interface=schema.NetworkInterfaceOptionSettings(
-                data_path=schema.NetworkDataPath.Sriov,
-                nic_count=search_space.IntRange(min=2, choose_max_value=True),
-            ),
+            min_nic_count=8,
+            network_interface=features.Sriov(),
         ),
     )
     def verify_sriov_provision_with_max_nics_stop_start_from_platform(
@@ -495,10 +487,8 @@ class Sriov(TestSuite):
         priority=1,
         requirement=simple_requirement(
             min_count=2,
-            network_interface=schema.NetworkInterfaceOptionSettings(
-                data_path=schema.NetworkDataPath.Sriov,
-                nic_count=search_space.IntRange(min=2, choose_max_value=True),
-            ),
+            min_nic_count=8,
+            network_interface=features.Sriov(),
         ),
     )
     def verify_sriov_reload_modules(self, environment: Environment) -> None:
@@ -546,7 +536,7 @@ class Sriov(TestSuite):
         requirement=simple_requirement(
             min_count=2,
             network_interface=schema.NetworkInterfaceOptionSettings(
-                nic_count=search_space.IntRange(min=3),
+                nic_count=search_space.IntRange(min=3, max=8),
                 data_path=schema.NetworkDataPath.Sriov,
             ),
             # BSD is unsupported since this is testing to patches to the linux kernel
