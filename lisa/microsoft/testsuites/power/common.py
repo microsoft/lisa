@@ -29,8 +29,36 @@ from lisa.tools import (
 from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 
+# Some Azure guest/kernel combinations, including certified FIPS kernels,
+# do not support hibernation at all. In those cases the platform returns
+# VMHibernateFailed on every attempt, so we treat it as an unmet precondition
+# rather than a transient failure that can be recovered with retry delay.
+_HIBERNATE_FAILED_MARKER = "VMHibernateFailed"
+
+
+def _is_fips_kernel(node: Node) -> bool:
+    # Azure hibernation is unsupported on the certified FIPS kernel (e.g. Ubuntu
+    # Pro *-azure-fips): it returns VMHibernateFailed on every attempt, so this
+    # is an unmet precondition rather than a test failure.
+    fips_enabled = "0"
+    if node.tools[Ls].path_exists("/proc/sys/crypto/fips_enabled"):
+        fips_enabled = (
+            node.tools[Cat]
+            .read("/proc/sys/crypto/fips_enabled", force_run=True)
+            .strip()
+        )
+    kernel_version = node.execute("uname -r", shell=True).stdout.strip()
+    return fips_enabled == "1" or "fips" in kernel_version.lower()
+
 
 def is_distro_supported(node: Node) -> None:
+    if _is_fips_kernel(node):
+        raise SkippedException(
+            "Azure hibernation is not supported on FIPS-enabled kernels; "
+            f"the platform returns {_HIBERNATE_FAILED_MARKER} on every attempt. "
+            f"Kernel: {node.execute('uname -r', shell=True).stdout.strip()}"
+        )
+
     if not node.tools[KernelConfig].is_enabled("CONFIG_HIBERNATION"):
         raise SkippedException(
             f"CONFIG_HIBERNATION is not enabled in current distro {node.os.name}, "
@@ -136,12 +164,12 @@ def _perform_hibernation_cycle(
     Returns (boot_time_before, boot_time_after) for verification.
     """
 
-    # This is a temporary workaround for a bug observed in Redhat Distros
-    # where the VM is not able to hibernate immediately after installing
-    # the hibernation-setup tool.
-    # A sleep(100) also works, but we are unsure of the exact time required.
-    # So it is safer to reboot the VM.
-    if type(node.os) in (Redhat, AlmaLinux, SLES):
+    # The hibernation-setup tool writes resume=/resume_offset= to the
+    # bootloader, which only takes effect after a reboot; without it the VM
+    # accepts the hibernate uevent but never suspends (seen on Debian and
+    # Ubuntu). A sleep(100) also works, but we are unsure of the exact time
+    # required. So it is safer to reboot the VM.
+    if type(node.os) in (Redhat, AlmaLinux, SLES, Debian, Ubuntu):
         node.reboot()
 
     startstop = node.features[StartStop]
