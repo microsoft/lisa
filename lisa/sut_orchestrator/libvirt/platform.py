@@ -252,18 +252,22 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             self._stop_port_forwarding(environment, log)
 
     def _cleanup(self) -> None:
-        if self.platform_runbook.capture_libvirt_debug_logs:
-            self._disable_libvirt_debug_log()
+        try:
+            if self.platform_runbook.capture_libvirt_debug_logs:
+                self._disable_libvirt_debug_log()
 
-        self._disable_libvirt_keepalive()
+            self._disable_libvirt_keepalive()
 
-        self._capture_libvirt_logs()
+            self._capture_libvirt_logs()
 
-        if self.host_node.is_remote:
-            dmesg_output = self.host_node.tools[Dmesg].get_output(force_run=True)
-            dmesg_path = self.host_node.local_log_path / "dmesg.txt"
-            with open(str(dmesg_path), "w") as f:
-                f.write(dmesg_output)
+            if self.host_node.is_remote:
+                dmesg_output = self.host_node.tools[Dmesg].get_output(force_run=True)
+                dmesg_path = self.host_node.local_log_path / "dmesg.txt"
+                with open(str(dmesg_path), "w") as f:
+                    f.write(dmesg_output)
+        finally:
+            if hasattr(self, "device_pool"):
+                self.device_pool.cleanup()
 
     def _configure_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment)
