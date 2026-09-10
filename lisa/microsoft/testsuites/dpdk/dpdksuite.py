@@ -1518,7 +1518,8 @@ class Dpdk(TestSuite):
 def run_ovs_test(node: Node, log: Logger, variables: Dict[str, Any], pmd: Pmd) -> None:
     if node.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64:
         raise SkippedException("OVS test not supported on ARM64")
-    test_nics = [node.nics.get_secondary_nic()]
+
+    test_nics = [node.nics.get_nic_by_subnet("10.0.1.0/24")]
     try:
         test_kit = initialize_node_resources(
             node,

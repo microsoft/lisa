@@ -4,8 +4,8 @@ import re
 from typing import Dict, List, Tuple, Type
 
 from assertpy import assert_that, fail
+from microsoft.testsuites.dpdk.common import Pmd
 from microsoft.testsuites.dpdk.dpdktestpmd import DpdkTestpmd
-from microsoft.testsuites.dpdk.dpdkutil import DpdkDevnameInfo
 from semver import VersionInfo
 
 from lisa.executable import Tool
@@ -251,7 +251,7 @@ class DpdkOvs(Tool):
         )
 
     def _get_eal_and_device_args(
-        self, nics: List[NicInfo], dpdk_tool: DpdkTestpmd
+        self, nics: List[NicInfo], dpdk_tool: DpdkTestpmd, pmd: Pmd
     ) -> Tuple[str, str]:
         assert_that(nics).described_as(
             "setup_ovs needs at least one test nic to attach to the bridge"
@@ -260,21 +260,23 @@ class DpdkOvs(Tool):
         # dpdk-devname enumerates the ports the EAL actually sees. Running it
         # both validates the netvsc PMD setup and gives us the EAL device
         # arguments needed to select those ports.
-        devname_info = DpdkDevnameInfo(testpmd=dpdk_tool)
-        devname_info.get_port_info(nics, expect_ports=len(nics))
-
+        eal_args_list = dpdk_tool.generate_testpmd_include(nics, 0, pmd)
+        eal_args = " ".join(eal_args_list)
         # the devname args are built for a shell invocation, but OVS hands the
         # value straight to the EAL, so the embedded quoting has to go.
-        eal_args = devname_info.nic_args.replace('"', "")
 
         # The netvsc PMD drives the synthetic vmbus device, so the PCI address
         # of the VF does not name the port. Select it by MAC instead, which is
         # bus agnostic. See netdev_dpdk_process_devargs in lib/netdev-dpdk.c.
-        device_args = f"class=eth,mac={nics[0].mac_addr}"
+        device_args = "class=eth," + ",".join([f"mac={nic.mac_addr}" for nic in nics])
         return eal_args, device_args
 
     def setup_ovs(
-        self, nics: List[NicInfo], dpdk_tool: DpdkTestpmd, queues: int = 2
+        self,
+        nics: List[NicInfo],
+        dpdk_tool: DpdkTestpmd,
+        queues: int = 2,
+        pmd: Pmd = Pmd.NETVSC,
     ) -> None:
         # setup OVS and track which state we are in.
         # this will allow a try/except to catch a failure and hold it until
@@ -283,7 +285,7 @@ class DpdkOvs(Tool):
         node = self.node
         modprobe = node.tools[Modprobe]
         self.teardown_state = self.INIT
-        eal_args, device_args = self._get_eal_and_device_args(nics, dpdk_tool)
+        eal_args, device_args = self._get_eal_and_device_args(nics, dpdk_tool, pmd)
 
         # load ovs driver
         modprobe.load("openvswitch")
