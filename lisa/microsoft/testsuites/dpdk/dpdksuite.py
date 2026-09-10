@@ -1525,7 +1525,11 @@ def run_ovs_test(node: Node, log: Logger, variables: Dict[str, Any], pmd: Pmd) -
             HugePageSize.HUGE_2MB,
             test_nics=test_nics,
         )
-    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+    except (
+        NotEnoughMemoryException,
+        UnsupportedOperationException,
+        UnsupportedDistroException,
+    ) as err:
         raise SkippedException(err)
 
     # checkout OpenVirtualSwitch
