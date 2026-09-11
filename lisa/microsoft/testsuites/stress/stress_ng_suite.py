@@ -34,6 +34,7 @@ from lisa.util.process import Process
 @TestSuiteMetadata(
     area="stress-ng",
     category="stress",
+    maturity="preview",
     description="""
     A suite for running the various classes of stressors provided
     by stress-ng.
