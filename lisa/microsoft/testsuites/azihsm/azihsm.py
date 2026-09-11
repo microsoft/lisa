@@ -83,8 +83,7 @@ class AziHsm(TestSuite):
         if isinstance(node.os, Ubuntu):
             node.os.add_repository(
                 repo=(
-                    "deb [signed-by=/etc/apt/trusted.gpg.d/microsoft.gpg] "
-                    "https://packages.microsoft.com/ubuntu/"
+                    "deb https://packages.microsoft.com/ubuntu/"
                     f"{node.os.information.release}/prod testing main"
                 ),
                 repo_name="AZIHSM Packages",
@@ -94,7 +93,7 @@ class AziHsm(TestSuite):
                 ],
             )
         if isinstance(node.os, CBLMariner):
-            # Azure Linux prior to 3.0 isnot supported by AziHSM
+            # Azure Linux prior to 3.0 is not supported by AziHSM
             arch_name = node.os.get_kernel_information().hardware_platform
             if node.os.information.release == "3.0":
                 node.os.add_repository(
@@ -170,7 +169,7 @@ class AziHsm(TestSuite):
             ).is_true()
 
     #
-    # Make sure all of the azihsm package are installed and up-to-date
+    # Make sure all of the azihsm packages are installed and up-to-date
     #
     def install_all_azihsm_packages(self, node: Node, log: Logger) -> None:
         if node in _PACKAGES_INSTALLED_NODES:
@@ -207,7 +206,11 @@ class AziHsm(TestSuite):
             if not package_exists:
                 # Check if package is available in repositories
                 if not node.os.is_package_in_repo(pkg):
-                    raise SkippedException(f"{pkg} package not found in repositories")
+                    raise SkippedException(
+                        f"{pkg} package not found in repositories"
+                        "Check that a package that matches the distro "
+                        "and architecture exists."
+                    )
 
                 # Package is available, install it
                 log.info(f"Installing package {pkg}")
@@ -245,7 +248,7 @@ class AziHsm(TestSuite):
 
         Phase 1 - Installation.
         1. Package installs without errors.
-        2. Package registered in RPM database.
+        2. Package registered in package database.
         3. Module .ko file exists on disk.
         4. rpm -V reports no discrepancies.
         5. depmod registered the module in modules.dep.
@@ -294,7 +297,9 @@ class AziHsm(TestSuite):
         #
         # Test 5 - depmod registered the module in modules.dep
         remcat = node.tools[Cat]
-        contents = remcat.read(f"/lib/modules/{kernel_version}/modules.dep")
+        contents = remcat.read(
+            f"/lib/modules/{kernel_version}/modules.dep", force_run=True
+        )
 
         # Note: this could be under either 'extra' or 'updates'
         # We do not provide the subdir, so a driver located anywhere
@@ -500,6 +505,7 @@ class AziHsm(TestSuite):
         #
         # Test 14 - Package removal succeeds
         try:
+            # The package unloads the module
             node.os.uninstall_packages(driver_package_name)
             log.info("Package successfully removed")
         except Exception as e:
