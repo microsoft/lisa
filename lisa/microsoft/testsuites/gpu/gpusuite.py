@@ -62,6 +62,10 @@ _cudnn_file_name = "cudnn.tgz"
 class GpuTestSuite(TestSuite):
     TIMEOUT = 2000
 
+    # Each reset is allowed NvidiaSmi.RESET_TIMEOUT, and the case also has to
+    # cover the driver installation, the dmesg checks and the cleanup.
+    GPU_RESET_TIMEOUT = 5400
+
     _pytorch_pattern = re.compile(r"^gpu count: (?P<count>\d+)", re.M)
     _numpy_error_pattern = re.compile(
         "Otherwise reinstall numpy",
@@ -288,7 +292,7 @@ class GpuTestSuite(TestSuite):
             trace or an RCU stall, appeared after each reset.
         5. Validate the gpu count is unchanged and the driver is still healthy.
         """,
-        timeout=TIMEOUT,
+        timeout=GPU_RESET_TIMEOUT,
         priority=3,
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
@@ -310,16 +314,23 @@ class GpuTestSuite(TestSuite):
         nvidia_smi = node.tools[NvidiaSmi]
         dmesg = node.tools[Dmesg]
 
-        # Errors already in dmesg are not caused by the reset.
-        baseline_errors = set(
-            dmesg.check_kernel_errors(force_run=True, throw_error=False).splitlines()
-        )
-
         # A reset can leave the device or the driver in a degraded state.
         node.mark_dirty()
 
-        stopped_services = self._release_gpu_holders(node, log)
+        # Populated as services are stopped so a failure midway still restores
+        # the ones already stopped.
+        stopped_services: List[str] = []
         try:
+            self._release_gpu_holders(node, log, stopped_services)
+
+            # Errors already in dmesg, including any logged while unloading the
+            # nvidia modules, are not caused by the reset.
+            baseline_errors = set(
+                dmesg.check_kernel_errors(
+                    force_run=True, throw_error=False
+                ).splitlines()
+            )
+
             for iteration in range(1, self._gpu_reset_iterations + 1):
                 log.info(
                     f"resetting {expected_count} GPUs on {node.name}, gpu reset "
@@ -358,9 +369,11 @@ class GpuTestSuite(TestSuite):
             service = node.tools[Service]
             for name in stopped_services:
                 # Restoring must not mask the reset failure that got us here.
+                # start_service asserts on the exit code, so a failed restart
+                # surfaces as an AssertionError.
                 try:
                     service.start_service(name)
-                except LisaException as identifier:
+                except (LisaException, AssertionError) as identifier:
                     log.info(f"could not restart '{name}' after reset: {identifier}")
 
         actual_count = gpu.get_gpu_count_with_lspci()
@@ -371,9 +384,10 @@ class GpuTestSuite(TestSuite):
 
         _check_driver_installed(node, log)
 
-    def _release_gpu_holders(self, node: Node, log: Logger) -> List[str]:
+    def _release_gpu_holders(
+        self, node: Node, log: Logger, stopped_services: List[str]
+    ) -> None:
         service = node.tools[Service]
-        stopped_services: List[str] = []
         for name in self._gpu_holding_services:
             if not service.check_service_exists(name):
                 continue
@@ -387,7 +401,6 @@ class GpuTestSuite(TestSuite):
         node.tools[Modprobe].remove(
             ["nvidia_drm", "nvidia_uvm", "nvidia_modeset"], ignore_error=True
         )
-        return stopped_services
 
     @TestCaseMetadata(
         description="""

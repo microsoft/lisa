@@ -44,9 +44,11 @@ class NvidiaSmi(GpuSmi):
         return False
 
     def get_gpu_count(self) -> int:
-        result = self.run("-L")
+        # The GPU count changes with the device state, so a cached result of a
+        # previous query must never be reused.
+        result = self.run("-L", force_run=True)
         if result.exit_code != 0 or (result.exit_code == 0 and result.stdout == ""):
-            result = self.run("-L", sudo=True)
+            result = self.run("-L", sudo=True, force_run=True)
             if result.exit_code != 0 or (result.exit_code == 0 and result.stdout == ""):
                 raise LisaException(
                     f"nvidia-smi command exited with exit_code {result.exit_code}"
