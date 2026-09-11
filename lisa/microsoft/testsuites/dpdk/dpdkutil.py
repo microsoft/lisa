@@ -1,12 +1,10 @@
 import itertools
 import re
-import time
-from collections import deque
 from decimal import Decimal
 from enum import Enum
 from functools import partial
 from pathlib import PurePath
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Pattern, Sequence, Tuple, Union
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
@@ -50,7 +48,7 @@ from lisa import (
     notifier,
 )
 from lisa.base_tools.uname import Uname
-from lisa.executable import Process
+from lisa.executable import ExecutableResult, Process
 from lisa.features import NetworkInterface
 from lisa.nic import NicInfo
 from lisa.operating_system import OperatingSystem, Ubuntu
@@ -60,6 +58,7 @@ from lisa.tools import (
     Dmesg,
     Echo,
     Firewall,
+    Gcc,
     Hugepages,
     Ip,
     KernelConfig,
@@ -70,12 +69,14 @@ from lisa.tools import (
     Modprobe,
     Ntttcp,
     Ping,
+    Tee,
     Timeout,
 )
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
+from lisa.util import sleep
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
-from lisa.util.parallel import TaskManager, run_in_parallel, run_in_parallel_async
+from lisa.util.parallel import run_in_parallel
 
 
 # DPDK added new flags in 19.11 that some tests rely on for send/recv
@@ -126,19 +127,18 @@ class DpdkTestResources:
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
-    # if mana is present, force a source build of 24.11
-    # if no other source was provided.
-    if node.nics.is_mana_device_present():
-        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
-        variables["dpdk_branch"] = variables.get("dpdk_branch", "v24.11")
     # DPDK packages 17.11 which is EOL and doesn't have the
     # net_vdev_netvsc pmd used for simple handling of hyper-v
     # guests. Force stable source build on this platform.
     # Default to 20.11 unless another version is provided by the
     # user. 20.11 is the latest dpdk version for 18.04.
-    elif isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
+    if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
+    else:
+        # otherwise just use a new build of DPDK unless another is specified
+        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
+        variables["dpdk_branch"] = variables.get("dpdk_branch", "v24.11")
 
 
 def get_rdma_core_installer(
@@ -200,11 +200,187 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
         ).is_true()
 
 
+def testpmd_start_process(kit: DpdkTestResources, cmd: str) -> Process:
+    kit.node.log.debug(f"Starting process: sudo {cmd}")
+    proc = kit.node.execute_async(cmd, sudo=True, shell=True)
+    # Note: This is an extremely long timeout for this command...
+    # But some timeout here is better than none here.
+    # The hotplug tests have really long timeouts, but testpmd
+    # should be able to start within a few seconds.
+    proc.wait_output("start packet forwarding", timeout=60)
+    return proc
+
+
+# tags emitted by azure_uevent_listener for the pci device itself.
+# match the suffix so the plain PCI_ADD/PCI_REMOVE tags are caught too,
+# the device is identified by its pci slot, not by the azure_vf flag.
+_PCI_ADD_TAG = re.compile(r"PCI_ADD$")
+_PCI_REMOVE_TAG = re.compile(r"PCI_REMOVE$")
+
+_PCI_DEVICES_PATH = "/sys/bus/pci/devices"
+_PCI_RESCAN_PATH = "/sys/bus/pci/rescan"
+
+
+def get_vf_pci_slots(node: Node, nics: Optional[List[NicInfo]] = None) -> List[str]:
+    """Get the pci slots of the VF devices attached to the given nics.
+
+    Defaults to every nic on the node. Nics without a VF are skipped.
+    """
+    if nics is None:
+        nics = list(node.nics.nics.values())
+    slots = set([nic.pci_slot for nic in nics if nic.pci_slot])
+    assert_that(slots).described_as(
+        f"Node[{node.name}] has no VF pci devices to hotplug."
+    ).is_not_empty()
+    return list(slots)
+
+
+def remove_pci_devices(node: Node, pci_slots: List[str]) -> None:
+    """Detach pci devices from the guest, the equivalent of a surprise removal.
+
+    echo 1 | sudo tee /sys/bus/pci/devices/$slot/remove
+    """
+    tee = node.tools[Tee]
+    for slot in set(pci_slots):
+        node.log.debug(f"Removing pci device {slot}")
+        tee.write_to_file(
+            "1",
+            node.get_pure_path(f"{_PCI_DEVICES_PATH}/{slot}/remove"),
+            sudo=True,
+        )
+
+
+def rescan_pci_bus(node: Node) -> None:
+    """Re-discover any removed pci devices.
+
+    echo 1 | sudo tee /sys/bus/pci/rescan
+    """
+    node.log.debug("Rescanning the pci bus")
+    node.tools[Tee].write_to_file(
+        "1",
+        node.get_pure_path(_PCI_RESCAN_PATH),
+        sudo=True,
+    )
+
+
+def switch_sriov_for_nic(node: Node, test_nic: NicInfo) -> None:
+    switch_sriov_for_nics(node, [test_nic])
+
+
+def switch_sriov_for_nics(node: Node, test_nics: List[NicInfo]) -> None:
+    # all the VFs are removed and restored together, a single uevent
+    # listener covers the whole set. Running one listener per nic would
+    # have them competing for the same uevent socket.
+    pci_slots = get_vf_pci_slots(node, test_nics)
+
+    # start the uevent listener before triggering hotplug
+    listener = UeventListener(node)
+    listener.start()
+
+    # let testpmd run for a bit before triggering hotplug
+    sleep(10)
+
+    # remove the VF via sysfs instead of asking azure to disable
+    # accelerated networking, it's faster and doesn't touch the platform.
+    remove_pci_devices(node, pci_slots)
+    # wait for uevent listener to see each VF pci device go away
+    listener.wait_for_events(
+        [UeventListener.device_criteria(slot, _PCI_REMOVE_TAG) for slot in pci_slots],
+        timeout=60,
+    )
+
+    # let it run on synthetic path before restoring the VF
+    sleep(10)
+
+    rescan_pci_bus(node)
+    # wait for uevent listener to see each VF pci device come back.
+    # The VF may be paired with a different netdev after the rescan,
+    # seeing the same pci device added back is enough.
+    listener.wait_for_events(
+        [UeventListener.device_criteria(slot, _PCI_ADD_TAG) for slot in pci_slots],
+        timeout=60,
+    )
+
+    # stop the listener and validate that we saw the expected uevents
+    events = listener.stop()
+    node.log.debug(f"uevent listener captured {len(events)} events: {events}")
+    for slot in pci_slots:
+        removes = [
+            e
+            for e in events
+            if e.matches(UeventListener.device_criteria(slot, _PCI_REMOVE_TAG))
+        ]
+        adds = [
+            e
+            for e in events
+            if e.matches(UeventListener.device_criteria(slot, _PCI_ADD_TAG))
+        ]
+        assert_that(removes).described_as(
+            f"Expected a removal uevent for VF {slot} after sysfs remove"
+        ).is_not_empty()
+        assert_that(adds).described_as(
+            f"Expected an add uevent for VF {slot} after pci rescan"
+        ).is_not_empty()
+    # the nic/VF pairing may have changed, refresh the cached info
+    node.nics.reload()
+
+
+# run the send/receive hotplug test.
+def run_testpmd_hotplug(
+    kit_cmd_pairs: Dict[DpdkTestResources, str],
+    sender: DpdkTestResources,
+    receiver: Optional[DpdkTestResources] = None,
+    hotplug: bool = True,
+) -> None:
+    processes: Dict[DpdkTestResources, Process] = {}
+    sender.testpmd.set_instance_id("sender")
+    if receiver:
+        receiver.testpmd.set_instance_id("receiver")
+
+    collect_from = receiver if receiver else sender
+    all_kits = [sender]
+    if receiver:
+        all_kits += [receiver]
+        processes[receiver] = testpmd_start_process(receiver, kit_cmd_pairs[receiver])
+
+    processes[sender] = testpmd_start_process(sender, kit_cmd_pairs[sender])
+    if hotplug:
+        node = collect_from.node
+        # gather the VF pci slot up front, the uevent match criteria are
+        # built from it. The slot is stable across a remove/rescan cycle.
+        test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
+        switch_sriov_for_nic(node, test_nic)
+        check_process_for_segfault(processes[collect_from])
+
+    # let it run for a bit
+    sleep(30)
+    # kill testpmd and process the output
+    for kit in all_kits:
+        kit.testpmd.kill_previous_testpmd_command()
+        sleep(1)
+        # allow time for SIGINT/SIGKILL shutdown and stats flush
+        kit.testpmd.process_testpmd_output(processes[kit].wait_result(timeout=120))
+
+
+def check_process_for_segfault(process: Process) -> None:
+    if process.wait_output(
+        "Segmentation fault (core dumped)", timeout=5, error_on_missing=False
+    ):
+        raise LisaException("Test fail: testpmd crashed.")
+
+
+def check_result_for_segfault(
+    result: Optional[ExecutableResult], label: str = "testpmd"
+) -> None:
+    if result and "Segmentation fault (core dumped)" in result.stdout + result.stderr:
+        raise LisaException(f"Test fail: {label} crashed.")
+
+
 def generate_send_receive_run_info(
     pmd: Pmd,
     sender: DpdkTestResources,
     receiver: DpdkTestResources,
-    multiple_queues: bool = False,
+    queues: int = 1,
     use_service_cores: int = 1,
     set_mtu: int = 0,
 ) -> Dict[DpdkTestResources, str]:
@@ -227,8 +403,9 @@ def generate_send_receive_run_info(
         [snd_nic],
         0,
         "txonly",
+        pmd=pmd,
         extra_args=f"--tx-ip={snd_nic.ip_addr},{rcv_nic.ip_addr}",
-        multiple_queues=multiple_queues,
+        queues=queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
@@ -237,7 +414,8 @@ def generate_send_receive_run_info(
         [rcv_nic],
         0,
         "rxonly",
-        multiple_queues=multiple_queues,
+        pmd=pmd,
+        queues=queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
@@ -255,7 +433,7 @@ def generate_testpmd_multiple_port_command(
     pmd: Pmd,
     senders: List[DpdkTestResources],
     receiver: DpdkTestResources,
-    multiple_queues: bool = False,
+    queues: int = 1,
     use_service_cores: int = 1,
     set_mtu: int = 0,
 ) -> Dict[DpdkTestResources, str]:
@@ -310,8 +488,9 @@ def generate_testpmd_multiple_port_command(
             [sender_nic],
             0,
             "txonly",
+            pmd=pmd,
             extra_args=f"--tx-ip={sender_nic.ip_addr},{receiver_nic.ip_addr}",
-            multiple_queues=multiple_queues,
+            queues=queues,
             service_cores=use_service_cores,
             mtu=set_mtu,
             mbuf_size=maxmtu_int,
@@ -319,18 +498,17 @@ def generate_testpmd_multiple_port_command(
         # store this senders command
         kit_cmd_pairs[sender] = snd_cmd
         # receiver needs multiple ports, so only generate the include.
-        receiver_include = receiver.testpmd.generate_testpmd_include(
-            receiver_nics[sender_subnet], i
+        receiver_includes += receiver.testpmd.generate_testpmd_include(
+            [receiver_nics[sender_subnet]], i, pmd=pmd
         )
-        # and save it
-        receiver_includes += [receiver_include]
 
     # and generate the command with multiple ports for the single receiver:
     rcv_cmd = receiver.testpmd.generate_testpmd_command(
         list([receiver_nics[key] for key in receiver_nics]),
         0,
         "rxonly",
-        multiple_queues=multiple_queues,
+        pmd=pmd,
+        queues=queues,
         service_cores=use_service_cores,
         mtu=set_mtu,
         mbuf_size=maxmtu_int,
@@ -385,7 +563,13 @@ def enable_uio_hv_generic(node: Node) -> None:
 def do_pmd_driver_setup(
     node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: Pmd = Pmd.FAILSAFE
 ) -> None:
-    if pmd == Pmd.NETVSC:
+    if pmd == Pmd.MANA:
+        # the MANA pmd drives the VF directly, so the only setup needed is
+        # to take the synthetic interfaces out of the kernel's hands.
+        for nic in test_nics:
+            node.tools[Ip].down(nic.name)
+        return
+    elif pmd == Pmd.NETVSC:
         # setup system for netvsc pmd
         # https://doc.dpdk.org/guides/nics/netvsc.html
         enable_uio_hv_generic(node)
@@ -472,7 +656,14 @@ def initialize_node_resources(
     # *type* of installation is already installed,
     # taking it's creation arguments into account.
     testpmd.install()
-
+    version = testpmd.get_dpdk_version()
+    if version > "22.11.0" and pmd == Pmd.FAILSAFE:
+        raise SkippedException(
+            f"Skipping net_failsafe test on DPDK {str(version)}. "
+            "Please run the net_netvsc version for newer builds. "
+            "see https://learn.microsoft.com/en-us/azure/"
+            "virtual-network/setup-dpdk#run-testpmd for details."
+        )
     # init and enable hugepages (required by dpdk)
     hugepages = node.tools[Hugepages]
     numa_nodes = node.tools[Lscpu].get_numa_node_count()
@@ -530,72 +721,6 @@ def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None
             )
 
 
-def run_testpmd_concurrent(
-    node_cmd_pairs: Dict[DpdkTestResources, str],
-    seconds: int,
-    log: Logger,
-    hotplug_sriov: bool = False,
-) -> Dict[DpdkTestResources, str]:
-    output: Dict[DpdkTestResources, str] = dict()
-
-    task_manager = start_testpmd_concurrent(node_cmd_pairs, seconds, log, output)
-    if hotplug_sriov:
-        time.sleep(10)  # run testpmd for a bit before disabling sriov
-
-        test_kits = node_cmd_pairs.keys()
-
-        # disable sriov (and wait for change to apply)
-        for node_resources in [x for x in test_kits if x.switch_sriov]:
-            node_resources.nic_controller.switch_sriov(
-                enable=False, wait=True, reset_connections=False
-            )
-
-        # let run for a bit with SRIOV disabled
-        time.sleep(10)
-
-        # re-enable sriov
-        for node_resources in [x for x in test_kits if x.switch_sriov]:
-            node_resources.nic_controller.switch_sriov(
-                enable=True, wait=True, reset_connections=False
-            )
-
-        # run for a bit with SRIOV re-enabled
-        time.sleep(10)
-
-        # kill the commands to collect the output early and terminate before timeout
-        for node_resources in test_kits:
-            node_resources.testpmd.kill_previous_testpmd_command()
-
-    task_manager.wait_for_all_workers()
-
-    return output
-
-
-def start_testpmd_concurrent(
-    node_cmd_pairs: Dict[DpdkTestResources, str],
-    seconds: int,
-    log: Logger,
-    output: Dict[DpdkTestResources, str],
-) -> TaskManager[Tuple[DpdkTestResources, str]]:
-    cmd_pairs_as_tuples = deque(node_cmd_pairs.items())
-
-    def _collect_dict_result(result: Tuple[DpdkTestResources, str]) -> None:
-        output[result[0]] = result[1]
-
-    def _run_command_with_testkit(
-        run_kit: Tuple[DpdkTestResources, str],
-    ) -> Tuple[DpdkTestResources, str]:
-        testkit, cmd = run_kit
-        return (testkit, testkit.testpmd.run_for_n_seconds(cmd, seconds))
-
-    task_manager = run_in_parallel_async(
-        [partial(_run_command_with_testkit, x) for x in cmd_pairs_as_tuples],
-        _collect_dict_result,
-    )
-
-    return task_manager
-
-
 def init_nodes_concurrent(
     environment: Environment,
     log: Logger,
@@ -624,13 +749,15 @@ def init_nodes_concurrent(
                     pmd,
                     hugepage_size=hugepage_size,
                     sample_apps=sample_apps,
-                    test_nics=specific_pairings[node]
-                    if specific_pairings
-                    else [
-                        nic
-                        for nic in node.nics.nics.values()
-                        if nic is not node.nics.get_primary_nic()
-                    ][:test_nic_count],
+                    test_nics=(
+                        specific_pairings[node]
+                        if specific_pairings
+                        else [
+                            nic
+                            for nic in node.nics.nics.values()
+                            if nic is not node.nics.get_primary_nic()
+                        ][:test_nic_count]
+                    ),
                 )
                 for node in environment.nodes.list()
             ],
@@ -647,7 +774,7 @@ def verify_dpdk_build(
     variables: Dict[str, Any],
     pmd: Pmd,
     hugepage_size: HugePageSize,
-    multiple_queues: bool = False,
+    queues: int = 1,
     result: Optional[TestResult] = None,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
@@ -665,7 +792,7 @@ def verify_dpdk_build(
     test_nic = node.nics.get_secondary_nic()
 
     testpmd_cmd = testpmd.generate_testpmd_command(
-        [test_nic], 0, "txonly", multiple_queues=multiple_queues
+        [test_nic], 0, "txonly", pmd=pmd, queues=queues
     )
     testpmd.run_for_n_seconds(testpmd_cmd, 10)
     tx_pps = testpmd.get_mean_tx_pps()
@@ -687,7 +814,7 @@ def verify_dpdk_send_receive(
     pmd: Pmd,
     hugepage_size: HugePageSize,
     use_service_cores: int = 1,
-    multiple_queues: bool = False,
+    queues: int = 1,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
     check_sender_packet_drops: bool = False,
@@ -717,6 +844,8 @@ def verify_dpdk_send_receive(
 
     check_send_receive_compatibility(test_kits)
     sender, receiver = test_kits
+    sender.testpmd.set_instance_id("sender")
+    receiver.testpmd.set_instance_id("receiver")
 
     # annotate test result before starting
     if result is not None:
@@ -727,18 +856,18 @@ def verify_dpdk_send_receive(
         sender,
         receiver,
         use_service_cores=use_service_cores,
-        multiple_queues=multiple_queues,
+        queues=queues,
         set_mtu=set_mtu,
     )
     receive_timeout = kill_timeout + 10
-    receive_result = receiver.node.tools[Timeout].start_with_timeout(
+    receive_process = receiver.node.tools[Timeout].start_with_timeout(
         kit_cmd_pairs[receiver],
         receive_timeout,
         constants.SIGINT,
         kill_timeout=receive_timeout,
     )
-    receive_result.wait_output("start packet forwarding")
-    sender_result = sender.node.tools[Timeout].start_with_timeout(
+    receive_process.wait_output("start packet forwarding")
+    send_process = sender.node.tools[Timeout].start_with_timeout(
         kit_cmd_pairs[sender],
         test_duration,
         constants.SIGINT,
@@ -746,10 +875,21 @@ def verify_dpdk_send_receive(
     )
 
     results = dict()
-    results[sender] = sender.testpmd.process_testpmd_output(sender_result.wait_result())
-    results[receiver] = receiver.testpmd.process_testpmd_output(
-        receive_result.wait_result()
-    )
+    # NOTE: the sleeps here allow testpmd
+    #       to reliably generate output and give time
+    #       for the process (and buffer) to collect
+    #       the output.
+    sleep(10)
+    for kit in [sender, receiver]:
+        kit.testpmd.kill_previous_testpmd_command()
+    sleep(5)
+    # now collect the results and process them.
+    send_result = send_process.wait_result()
+    receive_result = receive_process.wait_result()
+    for res, label in [(send_result, "sender"), (receive_result, "receiver")]:
+        check_result_for_segfault(res, f"testpmd {label}")
+    results[sender] = sender.testpmd.process_testpmd_output(send_result)
+    results[receiver] = receiver.testpmd.process_testpmd_output(receive_result)
 
     # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")
@@ -820,6 +960,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     log: Logger,
     variables: Dict[str, Any],
     pmd: Pmd,
+    queues: int,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
@@ -833,132 +974,11 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         pmd,
         HugePageSize.HUGE_2MB,
         use_service_cores=1,
-        multiple_queues=True,
+        queues=queues,
         result=result,
         set_mtu=set_mtu,
         grading_metric=grading_metric,
     )
-
-
-# Multiple ports test
-#  to simplify this
-def verify_dpdk_mutliple_ports(
-    environment: Environment,
-    log: Logger,
-    variables: Dict[str, Any],
-    pmd: Pmd,
-    hugepage_size: HugePageSize,
-    use_service_cores: int = 1,
-    multiple_queues: bool = False,
-    result: Optional[TestResult] = None,
-    set_mtu: int = 0,
-) -> Tuple[DpdkTestResources, DpdkTestResources, DpdkTestResources]:
-    # helpful to have the public ips labeled for debugging
-    external_ips = []
-    for node in environment.nodes.list():
-        if isinstance(node, RemoteNode):
-            external_ips += node.connection_info[
-                constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
-            ]
-        else:
-            raise SkippedException()
-        # skip MTU test if not on MANA (for now).
-        if set_mtu and not node.nics.is_mana_device_present():
-            raise SkippedException("set mtu test is intended for MANA VMs only.")
-    log.debug(
-        (f"receiver:{external_ips[0]}\nsenders:{external_ips[1]},{external_ips[2]}\n")
-    )
-    receiver, sender_a, sender_b = environment.nodes.list()
-    nic_pairings = {
-        receiver: [
-            receiver.nics.get_nic_by_subnet("10.0.1.0/24"),
-            receiver.nics.get_nic_by_subnet("10.0.2.0/24"),
-        ],
-        sender_a: [sender_a.nics.get_nic_by_subnet("10.0.1.0/24")],
-        sender_b: [sender_b.nics.get_nic_by_subnet("10.0.2.0/24")],
-    }
-    # get test duration variable if set
-    # enables long-running tests to shakeQoS and SLB issue
-    test_duration: int = variables.get("dpdk_test_duration", 15)
-    kill_timeout = test_duration + 5
-
-    test_kits = init_nodes_concurrent(
-        environment,
-        log,
-        variables,
-        pmd,
-        hugepage_size=hugepage_size,
-        specific_pairings=nic_pairings,
-    )
-
-    check_send_receive_compatibility(test_kits)
-    receiver_kit = [kit for kit in test_kits if kit.node is receiver].pop()
-    sender_port_a = [kit for kit in test_kits if kit.node is sender_a].pop()
-    sender_port_b = [kit for kit in test_kits if kit.node is sender_b].pop()
-    sender_kits = [sender_port_a, sender_port_b]
-
-    # annotate test result before starting
-    if result is not None:
-        annotate_dpdk_test_result(test_kit=receiver_kit, test_result=result, log=log)
-
-    kit_cmd_pairs = generate_testpmd_multiple_port_command(
-        pmd,
-        [sender_port_a, sender_port_b],
-        receiver_kit,
-        use_service_cores=use_service_cores,
-        multiple_queues=multiple_queues,
-        set_mtu=set_mtu,
-    )
-    receive_timeout = kill_timeout + 10
-    receive_result = receiver.tools[Timeout].start_with_timeout(
-        kit_cmd_pairs[receiver_kit],
-        receive_timeout,
-        constants.SIGINT,
-        kill_timeout=receive_timeout,
-    )
-    receive_result.wait_output("start packet forwarding")
-    sender_results: Dict[DpdkTestResources, Process] = dict()
-    for sender in sender_kits:
-        sender_results[sender] = sender.node.tools[Timeout].start_with_timeout(
-            kit_cmd_pairs[sender],
-            test_duration,
-            constants.SIGINT,
-            kill_timeout=kill_timeout,
-        )
-
-    results = dict()
-    for sender in sender_results:
-        results[sender] = sender.testpmd.process_testpmd_output(
-            sender_results[sender].wait_result()
-        )
-    results[receiver_kit] = receiver_kit.testpmd.process_testpmd_output(
-        receive_result.wait_result()
-    )
-
-    # helpful to have the outputs labeled
-    for i in range(0, len(sender_kits)):
-        log.debug(f"\nSENDERS_{i}:\n{results[sender_kits[i]]}")
-    log.debug(f"\nRECEIVER:\n{results[receiver_kit]}")
-
-    rcv_rx_pps = receiver_kit.testpmd.get_mean_rx_pps()
-    log.info(f"receiver rx-pps: {rcv_rx_pps}")
-    sender_pps_measurements = []
-    for i in range(0, len(sender_kits)):
-        sender_pps_measurements += [sender_kits[i].testpmd.get_mean_tx_pps()]
-        log.info(f"sender_{i} tx-pps: {sender_pps_measurements[i]}")
-    for i in range(0, len(sender_kits)):
-        sender_kits[i].dmesg.check_kernel_errors(force_run=True)
-    receiver_kit.dmesg.check_kernel_errors(force_run=True)
-    # differences in NIC type throughput can lead to different snd/rcv counts
-    assert_that(rcv_rx_pps).described_as(
-        "Throughput for RECEIVE was below the correct order-of-magnitude"
-    ).is_greater_than(DPDK_PPS_THRESHOLD)
-    for sender_pps in sender_pps_measurements:
-        assert_that(sender_pps).described_as(
-            "Throughput for SEND was below the correct order of magnitude"
-        ).is_greater_than(DPDK_PPS_THRESHOLD)
-
-    return receiver_kit, sender_port_a, sender_port_b
 
 
 def do_parallel_cleanup(environment: Environment) -> None:
@@ -1245,6 +1265,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         )
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
+    fwd_kit.testpmd.set_instance_id("forwarder")
     if result is not None:
         annotate_dpdk_test_result(test_kit=fwd_kit, test_result=result, log=log)
     # NOTE: we're cheating here and not dynamically picking the port IDs
@@ -1277,14 +1298,11 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
 
     # generate the dpdk include arguments to add to our commandline
-    include_devices = [
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_a_nics[forwarder], dpdk_port_a, force_netvsc=True
-        ),
-        fwd_kit.testpmd.generate_testpmd_include(
-            subnet_b_nics[forwarder], dpdk_port_b, force_netvsc=True
-        ),
-    ]
+    include_devices = fwd_kit.testpmd.generate_testpmd_include(
+        [subnet_a_nics[forwarder]], dpdk_port_a, pmd=Pmd.NETVSC
+    ) + fwd_kit.testpmd.generate_testpmd_include(
+        [subnet_b_nics[forwarder]], dpdk_port_b, pmd=Pmd.NETVSC
+    )
 
     # Generating port,queue,core mappings for forwarder
     # NOTE: For DPDK 'N queues' means N queues * N PORTS
@@ -1342,16 +1360,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
     # hotplug sriov and run again
     if hotplug_sriov:
-        forwarder.features[NetworkInterface].switch_sriov(
-            enable=False, wait=False, reset_connections=False
-        )
-        forwarder.features[NetworkInterface].switch_sriov(
-            enable=True, wait=False, reset_connections=False
-        )
-        fwd_proc.wait_output(
-            "HN_DRIVER: netvsc_hotplug_retry(): "
-            "Found matching MAC address, adding device",
-            delta_only=True,
+        switch_sriov_for_nics(
+            forwarder, [subnet_a_nics[forwarder], subnet_b_nics[forwarder]]
         )
         _receiver_after = ntttcp[receiver].run_as_server_async(
             subnet_b_nics[receiver].name,
@@ -1665,6 +1675,243 @@ class DpdkDevnameInfo:
         return self.port_mask
 
 
+# Output line format from azure_uevent_listener:
+# [HH:MM:SS.mmm] TAG subsystem=X pci=... driver=... ifname=... name=... ...
+_uevent_line_regex = re.compile(
+    r"\[(?P<timestamp>[\d:.]+)\]\s+(?P<tag>\S+)\s+(?P<properties>.*)"
+)
+
+# a criteria value is either an exact string or a regex to search for
+UeventCriteria = Mapping[str, Union[str, Pattern[str]]]
+
+
+class UeventEntry:
+    """One parsed event from the uevent listener output."""
+
+    def __init__(self, timestamp: str, tag: str, properties: Dict[str, str]) -> None:
+        self.timestamp = timestamp
+        self.tag = tag
+        self.properties = properties
+
+    @property
+    def subsystem(self) -> str:
+        return self.properties.get("subsystem", "")
+
+    @property
+    def pci_slot(self) -> str:
+        return self.properties.get("pci", "")
+
+    @property
+    def interface(self) -> str:
+        return self.properties.get("ifname", "")
+
+    @property
+    def driver(self) -> str:
+        return self.properties.get("driver", "")
+
+    @property
+    def is_azure_vf(self) -> bool:
+        return self.properties.get("azure_vf") == "yes"
+
+    @property
+    def devpath(self) -> str:
+        return self.properties.get("devpath", "")
+
+    def matches(self, criteria: UeventCriteria) -> bool:
+        """Check the event against a dict of expected properties.
+
+        Every entry must match for the event to match. 'tag' is matched
+        against the event tag, any other key is matched against the parsed
+        event properties (subsystem, pci, driver, ifname, name, devnode,
+        azure_vf, devpath). String values must be equal, compiled regexes are
+        searched within the value.
+        """
+        for key, expected in criteria.items():
+            actual = self.tag if key == "tag" else self.properties.get(key, "")
+            if isinstance(expected, str):
+                if actual != expected:
+                    return False
+            elif not expected.search(actual):
+                return False
+        return True
+
+    def __repr__(self) -> str:
+        return f"UeventEntry({self.tag}, {self.properties})"
+
+
+class UeventListener:
+    """
+    Wrapper around the azure_uevent_listener C program.
+    Compiles and runs the uevent listener in the background, then
+    provides methods to stop it and parse captured hotplug events.
+    """
+
+    _SOURCE_FILE = "azure_uevent_listener.c"
+    _BINARY_NAME = "azure-uevent-listener"
+    _LOCAL_DIR = PurePath(__file__).parent / "uevent_listener"
+
+    def __init__(self, node: Node) -> None:
+        self._node = node
+        self._process: Optional[Process] = None
+        self._remote_binary = node.working_path.joinpath(self._BINARY_NAME)
+        self._compiled = False
+
+    def compile(self) -> None:
+        """Copy source to the node and compile it."""
+        if self._compiled:
+            return
+        remote_src = self._node.working_path.joinpath(self._SOURCE_FILE)
+        self._node.shell.copy(
+            self._LOCAL_DIR / self._SOURCE_FILE,
+            remote_src,
+        )
+        self._node.tools[Gcc].compile(
+            str(remote_src),
+            output_name=str(self._remote_binary),
+            arguments="-O2 -Wall",
+        )
+        self._compiled = True
+
+    def start(self, show_all: bool = False, verbose: bool = False) -> None:
+        """Start the listener in the background. Requires root."""
+        self.compile()
+        flags = ""
+        if show_all:
+            flags += " -a"
+        if verbose:
+            flags += " -v"
+        cmd = f"{str(self._remote_binary)}{flags}"
+        self._process = self._node.execute_async(cmd, sudo=True, shell=True)
+        # wait for the "watching kernel uevents" banner
+        self._process.wait_output("watching kernel uevents", timeout=10)
+
+    def wait_for_event(
+        self,
+        criteria: Optional[UeventCriteria] = None,
+        timeout: int = 60,
+        error_on_missing: bool = True,
+        **properties: Union[str, Pattern[str]],
+    ) -> Optional[UeventEntry]:
+        """Block until an event matching all the given properties is seen.
+
+        Properties can be passed as a dict and/or as keyword arguments, for
+        example:
+            listener.wait_for_event(tag="VF_PCI_REMOVE", devpath=vf_devpath)
+            listener.wait_for_event({"tag": re.compile("REMOVE"),
+                                     "azure_vf": "yes"})
+        Returns the matching event, or None if nothing matched and
+        error_on_missing is False.
+        """
+        if self._process is None:
+            raise LisaException("UeventListener is not running")
+        expected: Dict[str, Union[str, Pattern[str]]] = dict(criteria or {})
+        expected.update(properties)
+        if not expected:
+            raise LisaException("wait_for_event requires at least one property")
+
+        matched = self.wait_for_events(
+            [expected], timeout=timeout, error_on_missing=error_on_missing
+        )
+        return matched[0] if matched else None
+
+    def wait_for_events(
+        self,
+        criteria_list: Sequence[UeventCriteria],
+        timeout: int = 60,
+        error_on_missing: bool = True,
+    ) -> List[UeventEntry]:
+        """Block until every entry in criteria_list has matched an event.
+
+        The output is scanned once, so the events may arrive in any order.
+        Returns the matching events, or the partial list when nothing matched
+        and error_on_missing is False.
+        """
+        if self._process is None:
+            raise LisaException("UeventListener is not running")
+        if not criteria_list:
+            raise LisaException("wait_for_events requires at least one criteria")
+
+        pending = list(criteria_list)
+        matched: List[UeventEntry] = []
+
+        def _is_match(line: str) -> bool:
+            entry = self.parse_line(line)
+            if entry is None:
+                return False
+            for criteria in pending:
+                if entry.matches(criteria):
+                    pending.remove(criteria)
+                    matched.append(entry)
+                    break
+            # only stop once every criteria has been seen
+            return not pending
+
+        self._process.wait_line(
+            _is_match,
+            timeout=timeout,
+            error_on_missing=error_on_missing,
+            description=f"uevents matching {list(criteria_list)}",
+        )
+        return matched
+
+    def stop(self, timeout: int = 30) -> List[UeventEntry]:
+        """Send SIGINT, collect output, and return parsed events."""
+        if self._process is None:
+            return []
+        self._node.tools[Kill].by_name(
+            self._BINARY_NAME, signum=SIGINT, ignore_not_exist=True
+        )
+        result = self._process.wait_result(timeout=timeout)
+        self._process = None
+        return self.parse_output(result.stdout)
+
+    @staticmethod
+    def device_criteria(
+        pci_slot: str, tag: Union[str, Pattern[str]]
+    ) -> Dict[str, Union[str, Pattern[str]]]:
+        """Build match criteria for every event of one pci device.
+
+        The pci slot is the PCI_SLOT_NAME property on pci events only, but it
+        is always a path segment of DEVPATH, so matching the devpath catches
+        the net and infiniband events for the same device as well.
+        """
+        return {"tag": tag, "devpath": re.compile(re.escape(pci_slot))}
+
+    @staticmethod
+    def parse_line(line: str) -> Optional[UeventEntry]:
+        """Parse a single uevent listener output line, None if it's not one."""
+        match = _uevent_line_regex.match(line.strip())
+        if not match:
+            return None
+        props: Dict[str, str] = {}
+        for token in match.group("properties").split():
+            if "=" in token:
+                key, value = token.split("=", 1)
+                props[key] = value
+        if not props:
+            # banner and other non-event output
+            return None
+        return UeventEntry(
+            timestamp=match.group("timestamp"),
+            tag=match.group("tag"),
+            properties=props,
+        )
+
+    @staticmethod
+    def parse_output(output: str) -> List[UeventEntry]:
+        """Parse uevent listener stdout into a list of UeventEntry."""
+        entries: List[UeventEntry] = []
+        for line in output.splitlines():
+            entry = UeventListener.parse_line(line)
+            if entry is not None:
+                entries.append(entry)
+        return entries
+
+    def get_events_by_tag(self, output: str, tag: str) -> List[UeventEntry]:
+        """Filter parsed events by tag (e.g. VF_PCI_ADD, NETDEV_REMOVE)."""
+        return [e for e in self.parse_output(output) if e.tag == tag]
+
+
 # TODO: remove this method in 2028 when all updated versions are LTS
 def _apply_workaround_for_symmetric_mp_main(node: Node) -> None:
     # workaround for unmerged code in dpdk project
@@ -1727,9 +1974,13 @@ def run_dpdk_symmetric_mp(
         for nic in node.nics.nics.values()
         if nic != node.nics.get_primary_nic() and nic.lower
     ][:2]
-    ping = node.tools[Ping]
-    ping.install()
 
+    # handle the event where a tool isn't implemented for a platform
+    try:
+        ping = node.tools[Ping]
+        ping.install()
+    except UnsupportedDistroException as err:
+        raise SkippedException(err)
     # initialize for netvsc, we rely on the debug messages in this test
     # to identify the hotplug events.
     try:
@@ -1741,9 +1992,14 @@ def run_dpdk_symmetric_mp(
             HugePageSize.HUGE_2MB,
             test_nics=test_nics,
         )
-    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+    except (
+        NotEnoughMemoryException,
+        UnsupportedOperationException,
+        UnsupportedDistroException,
+    ) as err:
         raise SkippedException(err)
     testpmd = test_kit.testpmd
+    testpmd.set_instance_id("symmetric_mp")
     if isinstance(testpmd.installer, PackageManagerInstall):
         # The Testpmd tool doesn't get re-initialized
         # even if you invoke it with new arguments.
@@ -1834,26 +2090,8 @@ def run_dpdk_symmetric_mp(
             hotplug_times -= 1
             # turn SRIOV off
 
-            node.features[NetworkInterface].switch_sriov(
-                enable=False, wait=False, reset_connections=False
-            )
+            switch_sriov_for_nics(node, test_nics)
 
-            # wait for the RTE_DEV_EVENT_REMOVE message
-            primary.wait_output(
-                "HN_DRIVER: netvsc_hotadd_callback(): "
-                "Device notification type=1",  # RTE_DEV_EVENT_REMOVE
-                delta_only=True,
-            )  # relying on compiler defaults here, not great.
-
-            # turn SRIOV on
-            node.features[NetworkInterface].switch_sriov(
-                enable=True, wait=False, reset_connections=False
-            )
-
-            primary.wait_output(
-                "HN_DRIVER: netvsc_hotadd_callback(): Device notification type=0",
-                delta_only=True,
-            )
             ping.ping_async(
                 target=test_nics[0].ip_addr,
                 nic_name=node.nics.get_primary_nic().name,
