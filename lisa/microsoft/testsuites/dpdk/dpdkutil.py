@@ -680,18 +680,19 @@ def initialize_node_resources(
 
     # check an assumption that our nics are bound to hv_netvsc
     # at test start.
-
-    assert_that(test_nic.module_name).described_as(
-        f"Error: Expected test nic {test_nic.name} to be "
-        f"bound to hv_netvsc. Found {test_nic.module_name}."
-    ).is_equal_to("hv_netvsc")
-
-    # netvsc pmd requires uio_hv_generic to be loaded before use
+    if pmd != Pmd.MANA and test_nic.lower:
+        assert_that(test_nic.module_name).described_as(
+            f"Error: Expected test nic {test_nic.name} to be "
+            f"bound to hv_netvsc. Found {test_nic.module_name}."
+        ).is_equal_to("hv_netvsc")
 
     # Allow user to pass in an explicit list of nics to use for the test.
     if test_nics is None:
         test_nics = [node.nics.get_secondary_nic()]
 
+    # perform any pmd-specific setup before returning the kit.
+    # - mana NIC needs to be set 'down'
+    # - netvsc pmd requires uio_hv_generic to be loaded before use
     do_pmd_driver_setup(node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd)
 
     return DpdkTestResources(_node=node, _testpmd=testpmd, _rdma_core=rdma_core)
@@ -753,10 +754,9 @@ def init_nodes_concurrent(
                         specific_pairings[node]
                         if specific_pairings
                         else [
-                            nic
-                            for nic in node.nics.nics.values()
-                            if nic is not node.nics.get_primary_nic()
-                        ][:test_nic_count]
+                            node.nics.get_nic_by_subnet(f"10.0.{i+1}.0/24")
+                            for i in range(test_nic_count)
+                        ]
                     ),
                 )
                 for node in environment.nodes.list()
