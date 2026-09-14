@@ -9,12 +9,16 @@
 #   test_dir           - Working directory for test files
 #   cvt_binaries_url   - URL to download CVT binaries archive (indskflt_ct + inm_dmit)
 #   driver_tarball_url - URL to download driver tarball (optional, skipped if driver loaded)
+#
+# Environment:
+#   CVT_TEST_TIMEOUT_SECONDS - Per-test timeout in seconds (default: 1800)
 
 set -o pipefail
 
 test_dir=$1
 cvt_binaries_url=$2
 driver_tarball_url=$3
+cvt_test_timeout_seconds=${CVT_TEST_TIMEOUT_SECONDS:-1800}
 
 FAILED_TEST=1
 PASSED_TEST=0
@@ -114,12 +118,9 @@ update_cvt_status_testcase()
 
     # Check if test case already exists (update in place) or add new
     if grep -q "\"name\": \"$tc_name\"" "$cvt_status_file"; then
-        # Use awk for multi-line update of existing test case
         awk -v name="$tc_name" -v status="$tc_status" -v time="$tc_time" '
         /"name":/ && index($0, "\"" name "\"") {
-            print; getline;
             sub(/"status": "[^"]*"/, "\"status\": \"" status "\"");
-            print; getline;
             sub(/"time": "[^"]*"/, "\"time\": \"" time "\"");
             print; next
         }
@@ -335,11 +336,25 @@ download_cvt_binaries()
 identify_source_and_target_disk()
 {
     log "Identifying data disks by size..."
+    lsblk -b -o NAME,SIZE,TYPE,MOUNTPOINT 2>&1 | tee -a "$cvt_log_file"
     local all_disks
     all_disks=$(fdisk -l 2>/dev/null | grep "^Disk /dev/" | grep -v "loop\|ram" | awk '{print $2}' | sed 's/://')
+    local root_source
+    root_source=$(findmnt -n -o SOURCE /)
+    local root_disk
+    root_disk=$(lsblk -no PKNAME "$root_source" 2>/dev/null)
+    if [ -n "$root_disk" ]; then
+        root_disk="/dev/$root_disk"
+    else
+        root_disk="$root_source"
+    fi
 
     local disk
     for disk in $all_disks; do
+        if [ "$disk" = "$root_disk" ]; then
+            log "Skipping root disk: $disk"
+            continue
+        fi
         local disk_size
         disk_size=$(blockdev --getsize64 "$disk" 2>/dev/null)
         if [ "$disk_size" = "1073741824" ]; then
@@ -429,14 +444,21 @@ startcvt()
     "$test_dir/inm_dmit" --op=start_notify &
     local dmit_pid=$!
 
-    time "$test_dir/indskflt_ct" \
+    local cvt_ret=0
+    time timeout --signal=TERM --kill-after=30 "$cvt_test_timeout_seconds" \
+        "$test_dir/indskflt_ct" \
         --tc="$testname" \
         --loggerPath="$cvt_logs_dir" \
         "--pair[" -type=d-f -sd="$source_dev" -td="$target_dir/target_file.tgt" \
-        -subtest="$subtestname" -log="$cvt_log" "]" >> "$cvt_op" 2>&1
+        -subtest="$subtestname" -log="$cvt_log" "]" >> "$cvt_op" 2>&1 || cvt_ret=$?
 
     kill $dmit_pid 2>/dev/null
     wait $dmit_pid 2>/dev/null
+
+    if [ "$cvt_ret" -eq 124 ] || [ "$cvt_ret" -eq 137 ]; then
+        log "$subtestname: TIMED OUT after ${cvt_test_timeout_seconds}s"
+        return $FAILED_TEST
+    fi
 
     if grep -qi "DI Test Passed" "$cvt_op"; then
         log "$subtestname: PASSED"
