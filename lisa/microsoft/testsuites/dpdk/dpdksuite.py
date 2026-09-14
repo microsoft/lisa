@@ -111,6 +111,36 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
+            mana pmd version.
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            Requires the MANA NIC.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        maturity="preview",
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_build_mana(
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        verify_dpdk_build(
+            node, log, variables, Pmd.MANA, HugePageSize.HUGE_2MB, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
             netvsc pmd version.
             This test case checks DPDK can be built and installed correctly.
             Prerequisites, accelerated networking must be enabled.
@@ -534,22 +564,16 @@ class Dpdk(TestSuite):
         self._check_rx_or_tx_pps(tx_or_rx, during_hotplug, sriov_enabled=False)
         self._check_rx_or_tx_pps(tx_or_rx, after_reenable, sriov_enabled=True)
         after_over_before = after_reenable / before_hotplug
-        if after_reenable < before_hotplug:
-            assert_that(after_over_before).described_as(
-                "Error: pps of vf was very different before and "
-                "after hotplug. "
-                f"before: {before_hotplug} after: {after_reenable}"
-            ).is_close_to(1, tolerance=0.125)
-        if after_reenable >= before_hotplug:
-            # better throughput after the hotplug is odd but fine.
-            # This check is more generous for the
-            # 'pps got better' case. The base PPS threshold is
-            # still asserted in checks elsewhere.
-            assert_that(after_over_before).described_as(
-                "Error: pps of vf was very different before and "
-                "after hotplug. "
-                f"before: {before_hotplug} after: {after_reenable}"
-            ).is_close_to(1, tolerance=0.15)
+        # note: we allow some slack here for the functional test.
+        #       This is just to avoid random failures on small SKUs,
+        #       while still flagging egregious regressions.
+        #
+        #        Regressions of <15% will show up in the perf tests.
+        assert_that(after_over_before).described_as(
+            "Error: pps of vf was very different before and "
+            "after hotplug. "
+            f"before: {before_hotplug} after: {after_reenable}"
+        ).is_close_to(1, tolerance=0.15)
 
     def _check_rx_or_tx_pps(
         self, tx_or_rx: str, pps: int, sriov_enabled: bool = True
@@ -1326,7 +1350,8 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
 
     @TestCaseMetadata(
-        description=("""
+        description=(
+            """
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1334,7 +1359,8 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """),
+        """
+        ),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
@@ -1360,7 +1386,8 @@ class Dpdk(TestSuite):
         )
 
     @TestCaseMetadata(
-        description=("""
+        description=(
+            """
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1368,7 +1395,8 @@ class Dpdk(TestSuite):
                 packets will not be able to jump the subnets.  This imitates
                 a network virtual appliance setup, firewall, or other data plane
                 tool for managing network traffic with DPDK.
-        """),
+        """
+        ),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
@@ -1556,7 +1584,7 @@ def run_ovs_test(node: Node, log: Logger, variables: Dict[str, Any], pmd: Pmd) -
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
-                "OVS repoted that DPDK EAL failed to initialize."
+                "OVS reported that DPDK EAL failed to initialize."
             ),
         )
     finally:
