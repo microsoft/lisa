@@ -357,7 +357,7 @@ def run_testpmd_hotplug(
     # kill testpmd and process the output
     for kit in all_kits:
         kit.testpmd.kill_previous_testpmd_command()
-        sleep(1)
+        sleep(2)
         # allow time for SIGINT/SIGKILL shutdown and stats flush
         kit.testpmd.process_testpmd_output(processes[kit].wait_result(timeout=120))
 
