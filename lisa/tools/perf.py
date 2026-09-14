@@ -32,7 +32,11 @@ class Perf(Tool):
                 self.node.tools[Uname].get_linux_information().kernel_version_raw
             )
             if isinstance(self.node.os, CBLMariner):
-                self.node.os.install_packages("kernel-tools")
+                if self.node.os.information.version >= "4.0.0":
+                    # Azure Linux 4.0 has perf in a separate package
+                    self.node.os.install_packages("perf")
+                else:
+                    self.node.os.install_packages("kernel-tools")
             elif isinstance(self.node.os, (Redhat, Suse)):
                 self.node.os.install_packages("perf")
             elif isinstance(
