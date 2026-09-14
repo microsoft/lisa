@@ -47,6 +47,8 @@ TestStatus = Enum(
         "SKIPPED",
         # A test result is failed with known issue.
         "ATTEMPTED",
+        # A test was explicitly excluded/skipped before runtime
+        "EXPUNGED",
     ],
 )
 
@@ -352,6 +354,7 @@ def _is_completed_status(status: TestStatus) -> bool:
         TestStatus.PASSED,
         TestStatus.SKIPPED,
         TestStatus.ATTEMPTED,
+        TestStatus.EXPUNGED,
     ]
 
 
