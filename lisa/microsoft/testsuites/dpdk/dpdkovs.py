@@ -44,7 +44,7 @@ class DpdkOvs(Tool):
 
     @property
     def command(self) -> str:
-        return "ovs"
+        return "/usr/share/openvswitch/scripts/ovs-ctl"
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
@@ -102,7 +102,7 @@ class DpdkOvs(Tool):
         self.ovs_build_path = node.get_pure_path(build_path).joinpath("ovs_build")
 
         # create the dir and chown it since partition ownership is not guaranteed
-        node.shell.mkdir(self.ovs_build_path)
+        node.shell.mkdir(self.ovs_build_path, exist_ok=True)
         username = node.tools[Whoami].get_username()
         node.tools[Chown].change_owner(self.ovs_build_path, username, recurse=True)
 
@@ -111,6 +111,7 @@ class DpdkOvs(Tool):
         self.repo_dir = git.clone(
             "https://github.com/openvswitch/ovs.git",
             cwd=self.ovs_build_path,
+            fail_on_exists=False,
         )
         latest_version_tag = git.get_tag(cwd=self.repo_dir)
         git.checkout(latest_version_tag, cwd=self.repo_dir)
