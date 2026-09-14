@@ -25,10 +25,9 @@ from microsoft.testsuites.dpdk.dpdkutil import (
     init_nodes_concurrent,
     initialize_node_resources,
     run_dpdk_symmetric_mp,
-    run_testpmd_concurrent,
+    run_testpmd_hotplug,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
-    verify_dpdk_mutliple_ports,
     verify_dpdk_send_receive,
     verify_dpdk_send_receive_multi_txrx_queue,
 )
@@ -108,6 +107,36 @@ class Dpdk(TestSuite):
     ) -> None:
         verify_dpdk_build(
             node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_2MB, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            mana pmd version.
+            This test case checks DPDK can be built and installed correctly.
+            Prerequisites, accelerated networking must be enabled.
+            The VM should have at least two network interfaces,
+             with one interface for management.
+            Requires the MANA NIC.
+            More details refer https://docs.microsoft.com/en-us/azure/virtual-network/setup-dpdk#prerequisites # noqa: E501
+        """,
+        priority=2,
+        maturity="preview",
+        requirement=simple_requirement(
+            min_core_count=8,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_build_mana(
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        verify_dpdk_build(
+            node, log, variables, Pmd.MANA, HugePageSize.HUGE_2MB, result=result
         )
 
     @TestCaseMetadata(
@@ -241,51 +270,12 @@ class Dpdk(TestSuite):
             ),
         ),
     )
-    def verify_dpdk_ovs(
+    def verify_dpdk_ovs_netvsc(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
-        if node.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64:
-            raise SkippedException("OVS test not supported on ARM64")
-
         force_dpdk_default_source(variables)
-        try:
-            test_kit = initialize_node_resources(
-                node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_2MB
-            )
-        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
-            raise SkippedException(err)
-
-        # checkout OpenVirtualSwitch
-        ovs: DpdkOvs = node.tools[DpdkOvs]
-
-        # check for runbook variable to skip dpdk version check
-        use_latest_ovs = variables.get("use_latest_ovs", False)
-        # provide ovs build with DPDK tool info and build
-        ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
-
-        # enable hugepages needed for dpdk EAL
-        hugepages = node.tools[Hugepages]
-        try:
-            hugepages.init_hugepages(HugePageSize.HUGE_2MB)
-        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
-            raise SkippedException(err)
-
-        try:
-            # run OVS tests, providing OVS with the NIC info needed for DPDK init
-            ovs.setup_ovs(node.nics.get_secondary_nic().pci_slot)
-
-            # validate if OVS was able to initialize DPDK
-            node.execute(
-                "ovs-vsctl get Open_vSwitch . dpdk_initialized",
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "OVS repoted that DPDK EAL failed to initialize."
-                ),
-            )
-        finally:
-            ovs.stop_ovs()
+        run_ovs_test(node, log, variables, Pmd.NETVSC)
 
     @TestCaseMetadata(
         description="""
@@ -532,8 +522,10 @@ class Dpdk(TestSuite):
 
         kit_cmd_pairs = generate_send_receive_run_info(pmd, sender, receiver)
 
-        run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
+        run_testpmd_hotplug(
+            kit_cmd_pairs=kit_cmd_pairs,
+            sender=sender,
+            receiver=receiver,
         )
 
         hotplug_pps_set = receiver.testpmd.get_mean_rx_pps_sriov_hotplug()
@@ -553,15 +545,13 @@ class Dpdk(TestSuite):
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
         testpmd = test_kit.testpmd
-        test_nic = node.nics.get_secondary_nic()
-        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly")
+        test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
+        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd)
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }
 
-        run_testpmd_concurrent(
-            kit_cmd_pairs, DPDK_VF_REMOVAL_MAX_TEST_TIME, log, hotplug_sriov=True
-        )
+        run_testpmd_hotplug(kit_cmd_pairs=kit_cmd_pairs, sender=test_kit)
 
         hotplug_pps_set = testpmd.get_mean_tx_pps_sriov_hotplug()
         self._check_rx_or_tx_pps_sriov_hotplug("TX", hotplug_pps_set)
@@ -574,10 +564,16 @@ class Dpdk(TestSuite):
         self._check_rx_or_tx_pps(tx_or_rx, during_hotplug, sriov_enabled=False)
         self._check_rx_or_tx_pps(tx_or_rx, after_reenable, sriov_enabled=True)
         after_over_before = after_reenable / before_hotplug
+        # note: we allow some slack here for the functional test.
+        #       This is just to avoid random failures on small SKUs,
+        #       while still flagging egregious regressions.
+        #
+        #        Regressions of <15% will show up in the perf tests.
         assert_that(after_over_before).described_as(
-            "Error: pps of vf was very different before and after hotplug. "
+            "Error: pps of vf was very different before and "
+            "after hotplug. "
             f"before: {before_hotplug} after: {after_reenable}"
-        ).is_close_to(1, tolerance=0.125)
+        ).is_close_to(1, tolerance=0.15)
 
     def _check_rx_or_tx_pps(
         self, tx_or_rx: str, pps: int, sriov_enabled: bool = True
@@ -741,9 +737,26 @@ class Dpdk(TestSuite):
                 )
             )
 
+    def _verify_dpdk_send_receive_with_queues(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        pmd: Pmd,
+        queues: int,
+        result: TestResult,
+    ) -> None:
+        try:
+            verify_dpdk_send_receive_multi_txrx_queue(
+                environment, log, variables, pmd, queues=queues, result=result
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for default failsafe driver setup.
+            Tests a basic sender/receiver setup for default failsafe driver setup
+            with 1 rx/tx queue, backed by 1 dedicated forwarding core.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the
             expected order-of-magnitude.
@@ -751,45 +764,154 @@ class Dpdk(TestSuite):
         priority=2,
         maturity="preview",
         requirement=simple_requirement(
-            min_core_count=8,
+            min_core_count=3,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
-    def verify_dpdk_send_receive_multi_txrx_queue_failsafe(
+    def verify_dpdk_send_receive_1_queue_failsafe(
         self,
         environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        try:
-            verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, Pmd.FAILSAFE, result=result
-            )
-        except UnsupportedPackageVersionException as err:
-            raise SkippedException(err)
+        self._verify_dpdk_send_receive_with_queues(
+            environment, log, variables, Pmd.FAILSAFE, queues=1, result=result
+        )
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for dpdk netvsc pmd with jumbo frames.
-            Default is set to request an mtu of 9k, test will skip if it's not possible.
+            Tests a basic sender/receiver setup for default failsafe driver setup
+            with 2 rx/tx queues, backed by 2 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
-            Test checks that traffic flowed, and annotates the Gbps throughput.
-            """,
+            We check both to make sure the received traffic is within the
+            expected order-of-magnitude.
+        """,
         priority=2,
-        maturity="preview",
         requirement=simple_requirement(
-            min_core_count=8,
+            min_core_count=4,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
-    def verify_dpdk_send_receive_multi_txrx_queue_max_mtu_netvsc(
+    def verify_dpdk_send_receive_2_queue_failsafe(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        self._verify_dpdk_send_receive_with_queues(
+            environment, log, variables, Pmd.FAILSAFE, queues=2, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for default failsafe driver setup
+            with 4 rx/tx queues, backed by 4 dedicated forwarding cores.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the
+            expected order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=6,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_4_queue_failsafe(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        self._verify_dpdk_send_receive_with_queues(
+            environment, log, variables, Pmd.FAILSAFE, queues=4, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for default failsafe driver setup
+            with 8 rx/tx queues, backed by 8 dedicated forwarding cores.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the
+            expected order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=10,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_8_queue_failsafe(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        self._verify_dpdk_send_receive_with_queues(
+            environment, log, variables, Pmd.FAILSAFE, queues=8, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for default failsafe driver setup
+            with 16 rx/tx queues, backed by 16 dedicated forwarding cores.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the
+            expected order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=18,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_16_queue_failsafe(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        self._verify_dpdk_send_receive_with_queues(
+            environment, log, variables, Pmd.FAILSAFE, queues=16, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with jumbo
+            frames, using 4 rx/tx queues backed by 4 dedicated forwarding cores.
+            Default is set to request an mtu of 9k, test will skip if it's not possible.
+            Sender sends the packets, receiver receives them.
+            Test checks that traffic flowed, and annotates the Gbps throughput.
+            """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=6,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+    )
+    def verify_dpdk_send_receive_4_queue_max_mtu_netvsc(
         self,
         environment: Environment,
         log: Logger,
@@ -804,6 +926,7 @@ class Dpdk(TestSuite):
                 log,
                 variables,
                 Pmd.NETVSC,
+                queues=4,
                 result=result,
                 set_mtu=mtu_size,
                 grading_metric=DpdkGradeMetric.BPS,
@@ -813,7 +936,8 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for dpdk netvsc pmd with MTU of 1500.
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with MTU of
+            1500, using 4 rx/tx queues backed by 4 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
             Test will fail if MTU set fails and/or DPDK crashes.
             Test Gbps throughput is annotated into the test result.
@@ -821,14 +945,14 @@ class Dpdk(TestSuite):
         priority=2,
         maturity="preview",
         requirement=simple_requirement(
-            min_core_count=8,
+            min_core_count=6,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
-    def verify_dpdk_send_receive_multi_txrx_queue_1500_mtu_netvsc(
+    def verify_dpdk_send_receive_4_queue_1500_mtu_netvsc(
         self,
         environment: Environment,
         log: Logger,
@@ -843,6 +967,7 @@ class Dpdk(TestSuite):
                 log,
                 variables,
                 Pmd.NETVSC,
+                queues=4,
                 result=result,
                 set_mtu=mtu_size,
                 grading_metric=DpdkGradeMetric.BPS,
@@ -852,7 +977,8 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for dpdk netvsc pmd with MTU of 4k.
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with MTU of
+            4k, using 4 rx/tx queues backed by 4 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
             Test will fail if MTU set fails and/or DPDK crashes.
             Test Gbps throughput is annotated into the test result.
@@ -860,14 +986,14 @@ class Dpdk(TestSuite):
         priority=2,
         maturity="preview",
         requirement=simple_requirement(
-            min_core_count=8,
+            min_core_count=6,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
-    def verify_dpdk_send_receive_multi_txrx_queue_4k_mtu_netvsc(
+    def verify_dpdk_send_receive_4_queue_4k_mtu_netvsc(
         self,
         environment: Environment,
         log: Logger,
@@ -877,11 +1003,12 @@ class Dpdk(TestSuite):
         # allow configuring for different platforms
         mtu_size = 4000
         try:
-            snd, rcv = verify_dpdk_send_receive_multi_txrx_queue(
+            verify_dpdk_send_receive_multi_txrx_queue(
                 environment,
                 log,
                 variables,
                 Pmd.NETVSC,
+                queues=4,
                 result=result,
                 set_mtu=mtu_size,
                 grading_metric=DpdkGradeMetric.BPS,
@@ -891,7 +1018,8 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for dpdk netvsc pmd with MTU of 8k.
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with MTU of
+            8k, using 4 rx/tx queues backed by 4 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
             Test will fail if MTU set fails and/or DPDK crashes.
             Test Gbps throughput is annotated into the test result.
@@ -899,14 +1027,14 @@ class Dpdk(TestSuite):
         priority=2,
         maturity="preview",
         requirement=simple_requirement(
-            min_core_count=8,
+            min_core_count=6,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
     )
-    def verify_dpdk_send_receive_multi_txrx_queue_8k_mtu_netvsc(
+    def verify_dpdk_send_receive_4_queue_8k_mtu_netvsc(
         self,
         environment: Environment,
         log: Logger,
@@ -921,6 +1049,7 @@ class Dpdk(TestSuite):
                 log,
                 variables,
                 Pmd.NETVSC,
+                queues=4,
                 result=result,
                 set_mtu=mtu_size,
                 grading_metric=DpdkGradeMetric.BPS,
@@ -930,7 +1059,8 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for default failsafe driver setup.
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with 1
+            rx/tx queue, backed by 1 dedicated forwarding core.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the expected
             order-of-magnitude.
@@ -938,26 +1068,140 @@ class Dpdk(TestSuite):
         priority=2,
         maturity="preview",
         requirement=simple_requirement(
-            min_core_count=8,
+            min_core_count=3,
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
+        timeout=600,
     )
-    def verify_dpdk_send_receive_multi_txrx_queue_netvsc(
+    def verify_dpdk_send_receive_1_queue_netvsc(
         self,
         environment: Environment,
         log: Logger,
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        try:
-            verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, Pmd.NETVSC, result=result
-            )
-        except UnsupportedPackageVersionException as err:
-            raise SkippedException(err)
+        self._verify_dpdk_send_receive_with_queues(
+            environment, log, variables, Pmd.NETVSC, queues=1, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with 2
+            rx/tx queues, backed by 2 dedicated forwarding cores.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=4,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+        timeout=600,
+    )
+    def verify_dpdk_send_receive_2_queue_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        self._verify_dpdk_send_receive_with_queues(
+            environment, log, variables, Pmd.NETVSC, queues=2, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with 4
+            rx/tx queues, backed by 4 dedicated forwarding cores.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=6,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+        timeout=600,
+    )
+    def verify_dpdk_send_receive_4_queue_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        self._verify_dpdk_send_receive_with_queues(
+            environment, log, variables, Pmd.NETVSC, queues=4, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with 8
+            rx/tx queues, backed by 8 dedicated forwarding cores.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=10,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+        timeout=600,
+    )
+    def verify_dpdk_send_receive_8_queue_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        self._verify_dpdk_send_receive_with_queues(
+            environment, log, variables, Pmd.NETVSC, queues=8, result=result
+        )
+
+    @TestCaseMetadata(
+        description="""
+            Tests a basic sender/receiver setup for dpdk netvsc pmd with 16
+            rx/tx queues, backed by 16 dedicated forwarding cores.
+            Sender sends the packets, receiver receives them.
+            We check both to make sure the received traffic is within the expected
+            order-of-magnitude.
+        """,
+        priority=2,
+        requirement=simple_requirement(
+            min_core_count=18,
+            min_nic_count=2,
+            network_interface=Sriov(),
+            unsupported_features=[Gpu, Infiniband],
+            min_count=2,
+        ),
+        timeout=600,
+    )
+    def verify_dpdk_send_receive_16_queue_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        self._verify_dpdk_send_receive_with_queues(
+            environment, log, variables, Pmd.NETVSC, queues=16, result=result
+        )
 
     @TestCaseMetadata(
         description="""
@@ -1104,44 +1348,6 @@ class Dpdk(TestSuite):
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
-
-    @TestCaseMetadata(
-        description="""
-                Run testpmd with multiple senders to a single receiver
-                using the netvsc pmd. This test checks how the receiver VM
-                handles a large volume of traffic on multiple ports.
-                Otherwise it is very similar to the
-                single sender / single receiver version of the tests.
-            """,
-        priority=3,
-        maturity="preview",
-        requirement=simple_requirement(
-            supported_os=[Ubuntu],
-            min_core_count=8,
-            min_count=3,
-            min_nic_count=3,
-            network_interface=Sriov(),
-            unsupported_features=[Gpu, Infiniband],
-        ),
-    )
-    def verify_dpdk_testpmd_multiple_port_receive_netvsc_pmd(
-        self,
-        environment: Environment,
-        log: Logger,
-        variables: Dict[str, Any],
-        result: TestResult,
-    ) -> None:
-        force_dpdk_default_source(variables)
-        pmd = Pmd.NETVSC
-        verify_dpdk_mutliple_ports(
-            environment,
-            log,
-            variables,
-            hugepage_size=HugePageSize.HUGE_2MB,
-            pmd=pmd,
-            result=result,
-            multiple_queues=True,
-        )
 
     @TestCaseMetadata(
         description=(
@@ -1331,3 +1537,55 @@ class Dpdk(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         do_parallel_cleanup(environment)
+
+
+def run_ovs_test(node: Node, log: Logger, variables: Dict[str, Any], pmd: Pmd) -> None:
+    if node.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64:
+        raise SkippedException("OVS test not supported on ARM64")
+
+    test_nics = [node.nics.get_nic_by_subnet("10.0.1.0/24")]
+    try:
+        test_kit = initialize_node_resources(
+            node,
+            log,
+            variables,
+            pmd,
+            HugePageSize.HUGE_2MB,
+            test_nics=test_nics,
+        )
+    except (
+        NotEnoughMemoryException,
+        UnsupportedOperationException,
+        UnsupportedDistroException,
+    ) as err:
+        raise SkippedException(err)
+
+    # checkout OpenVirtualSwitch
+    ovs: DpdkOvs = node.tools.create(DpdkOvs)
+
+    # check for runbook variable to skip dpdk version check
+    use_latest_ovs = variables.get("use_latest_ovs", False)
+    # provide ovs build with DPDK tool info and build
+    ovs.build_with_dpdk(test_kit.testpmd, use_latest_ovs=use_latest_ovs)
+    # enable hugepages needed for dpdk EAL
+    hugepages = node.tools[Hugepages]
+    try:
+        hugepages.init_hugepages(HugePageSize.HUGE_2MB)
+    except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        raise SkippedException(err)
+
+    try:
+        # run OVS tests, providing OVS with the NIC info needed for DPDK init
+        ovs.setup_ovs(test_nics, test_kit.testpmd)
+
+        # validate if OVS was able to initialize DPDK
+        node.execute(
+            "ovs-vsctl get Open_vSwitch . dpdk_initialized",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "OVS reported that DPDK EAL failed to initialize."
+            ),
+        )
+    finally:
+        ovs.stop_ovs()
