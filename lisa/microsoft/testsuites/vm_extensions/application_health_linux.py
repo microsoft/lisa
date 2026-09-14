@@ -57,7 +57,7 @@ class ApplicationHealthLinuxTests(VmExtensionTestBase):  # type: ignore[misc]
         tags=["microsoft.managedservices.applicationhealthlinux"],
         maturity="preview",
     )
-    def microsoft_managedservices_applicationhealthlinux_functional_test(
+    def microsoft_managedservices_applicationhealthlinux_boot_validation_test(
         self, log: Logger, node: Node, variables: Dict[str, Any]
     ) -> None:
         publisher = self._resolve_publisher(variables)
