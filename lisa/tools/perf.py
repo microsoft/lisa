@@ -5,7 +5,7 @@ import re
 from typing import List
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse
+from lisa.operating_system import CBLMariner, Debian, Posix, Redhat, Suse, Ubuntu
 from lisa.tools import Uname
 from lisa.util import SkippedException, find_patterns_in_lines
 
@@ -35,6 +35,15 @@ class Perf(Tool):
                 self.node.os.install_packages("kernel-tools")
             elif isinstance(self.node.os, (Redhat, Suse)):
                 self.node.os.install_packages("perf")
+            elif isinstance(self.node.os, Ubuntu) and kernel_ver.endswith("-azure"):
+                self.node.os.install_packages(
+                    [
+                        f"linux-tools-{kernel_ver}",
+                        f"linux-cloud-tools-{kernel_ver}",
+                        "linux-tools-azure",
+                        "linux-cloud-tools-azure",
+                    ]
+                )
             elif isinstance(
                 self.node.os, Debian
             ) and self.node.os.information.codename in {"buster", "bullseye"}:
