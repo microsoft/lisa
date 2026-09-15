@@ -558,6 +558,7 @@ class DeviceStatistics:
     def __init__(
         self, interface: str, device_statistics_raw: str, bsd: bool = False
     ) -> None:
+        self.raw_output = device_statistics_raw
         self._parse_statistics_info(interface, device_statistics_raw, bsd)
 
     def _parse_statistics_info(self, interface: str, raw_str: str, bsd: bool) -> None:
@@ -1258,9 +1259,9 @@ class Ethtool(Tool):
         """
         use this method to get the delta of an operation.
         """
-        new_statistics = self.get_device_statistics(
-            interface=interface, force_run=True
-        ).counters
+        new_statistics = dict(
+            self.get_device_statistics(interface=interface, force_run=True).counters
+        )
 
         for key, value in previous_statistics.items():
             new_statistics[key] = new_statistics.get(key, 0) - value

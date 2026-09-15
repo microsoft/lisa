@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 from assertpy import assert_that
 
 from lisa.operating_system import Alpine
-from lisa.tools.ethtool import DeviceCoalesceSettings, Ethtool
+from lisa.tools.ethtool import DeviceCoalesceSettings, DeviceStatistics, Ethtool
 from lisa.util import LisaException, UnsupportedDistroException
 
 
@@ -49,3 +49,23 @@ rx-frames: n/a
 
         with self.assertRaises(UnsupportedDistroException):
             ethtool._install_rx_cqe_frames_ethtool()
+
+    def test_statistics_delta_preserves_cached_absolute_values(self) -> None:
+        raw_output = """NIC statistics:
+     rx_0_packets: 15
+     tx_0_packets: 28
+"""
+        statistics = DeviceStatistics("eth1", raw_output)
+        ethtool = Ethtool.__new__(Ethtool)
+        cast(Any, ethtool).get_device_statistics = MagicMock(return_value=statistics)
+        ethtool._log = MagicMock()
+
+        delta = ethtool.get_device_statistics_delta(
+            "eth1", {"rx_0_packets": 10, "tx_0_packets": 20}
+        )
+
+        assert_that(delta).is_equal_to({"rx_0_packets": 5, "tx_0_packets": 8})
+        assert_that(statistics.counters).described_as(
+            "Calculating a delta must not replace cached absolute counters."
+        ).is_equal_to({"rx_0_packets": 15, "tx_0_packets": 28})
+        assert_that(statistics.raw_output).is_equal_to(raw_output)
