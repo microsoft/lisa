@@ -10,7 +10,7 @@ from retry import retry
 
 from lisa.executable import Tool
 from lisa.operating_system import BSD, Posix
-from lisa.tools import Fdisk
+from lisa.tools.fdisk import Fdisk
 from lisa.tools.mkfs import FileSystem, Mkfs
 from lisa.util import LisaException, find_groups_in_lines
 
