@@ -51,6 +51,7 @@ class LibvirtDevicePool(BaseDevicePool):
     def configure_device_passthrough_pool(
         self,
         device_configs: Optional[List[HostDevicePoolSchema]],
+        stabilize_management_route: bool = False,
     ) -> None:
         if not device_configs:
             return
@@ -70,7 +71,9 @@ class LibvirtDevicePool(BaseDevicePool):
         if not allow_unsafe_interrupt:
             raise LisaException("Allowing unsafe interrupt failed")
 
-        if any(config.type == HostDevicePoolType.PCI_NIC for config in device_configs):
+        if stabilize_management_route and any(
+            config.type == HostDevicePoolType.PCI_NIC for config in device_configs
+        ):
             self._stabilize_management_route()
 
         # Dump the initialized pool to ease debugging of passthrough issues.
@@ -412,6 +415,13 @@ class LibvirtDevicePool(BaseDevicePool):
 
     def cleanup(self) -> None:
         if not self._management_route_cleanup_command:
+            return
+
+        if self._allocated_device_groups.get(HostDevicePoolType.PCI_NIC):
+            self.host_node.log.info(
+                "Keeping the temporary SSH peer route because passthrough NICs "
+                "are still allocated."
+            )
             return
 
         cleanup_command = self._management_route_cleanup_command
