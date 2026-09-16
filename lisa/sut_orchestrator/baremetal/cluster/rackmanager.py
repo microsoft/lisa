@@ -45,7 +45,7 @@ class RackManagerSerialConsole(features.SerialConsole):
 
     def write(self, data: str) -> None:
         self._login()
-        self._process.input(f"{data}\n")
+        self._input(f"{data}\n")
 
     def close(self) -> None:
         if self._process:
@@ -98,6 +98,25 @@ class RackManagerSerialConsole(features.SerialConsole):
                 return state
         return self._get_prompt_state(output_offset)
 
+    def _input(self, content: str, is_log_input: bool = True) -> None:
+        if not self._process.is_running():
+            self._raise_serial_process_exit()
+        try:
+            self._process.input(content, is_log_input=is_log_input)
+        except OSError as error:
+            self._raise_serial_process_exit(error)
+
+    def _raise_serial_process_exit(self, cause: Optional[OSError] = None) -> None:
+        result = self._process.wait_result()
+        message = (
+            "Rack Manager serial session exited before input could be sent. "
+            f"Exit code: {result.exit_code}. "
+            f"stdout: {result.stdout!r}. stderr: {result.stderr!r}."
+        )
+        if cause:
+            raise LisaException(message) from cause
+        raise LisaException(message)
+
     def _login(self, timeout: int = SERIAL_LOGIN_TIMEOUT) -> None:
         prompt_state = self._get_prompt_state()
         if prompt_state == "shell":
@@ -106,7 +125,7 @@ class RackManagerSerialConsole(features.SerialConsole):
         for _ in range(SERIAL_PROMPT_WAKE_ATTEMPTS):
             if prompt_state != "empty" and prompt_state != "unknown":
                 break
-            self._process.input("\n")
+            self._input("\n")
             prompt_state = self._wait_for_prompt_state(SERIAL_PROMPT_WAKE_TIMEOUT)
 
         if prompt_state == "shell":
@@ -123,7 +142,7 @@ class RackManagerSerialConsole(features.SerialConsole):
             self._get_console_log(saved_path=None).decode("utf-8", errors="ignore")
         )
         if prompt_state == "login":
-            self._process.input(f"{self._username}\n")
+            self._input(f"{self._username}\n")
             password_found = self._process.wait_output(
                 "Password:",
                 timeout=SERIAL_PASSWORD_TIMEOUT,
@@ -138,7 +157,7 @@ class RackManagerSerialConsole(features.SerialConsole):
             output_offset = len(
                 self._get_console_log(saved_path=None).decode("utf-8", errors="ignore")
             )
-            self._process.input(f"{self._password}\n")
+            self._input(f"{self._password}\n", is_log_input=False)
 
         deadline = time.time() + SERIAL_LOGIN_RETRY_TIMEOUT
         while time.time() < deadline:
