@@ -5,8 +5,9 @@ import importlib
 import sys
 from types import ModuleType
 from unittest import TestCase
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+from assertpy import assert_that
 from paramiko.ssh_exception import SSHException
 
 
@@ -31,6 +32,47 @@ def _load_device_pool_module() -> ModuleType:
 
 
 class LibvirtDevicePoolTestCase(TestCase):
+    def test_pool_configuration_does_not_change_management_route(self) -> None:
+        device_pool_module = _load_device_pool_module()
+        host_node = MagicMock()
+        host_node.execute.return_value = MagicMock(stdout="")
+        pool = device_pool_module.LibvirtDevicePool(host_node, MagicMock())
+        device_config = MagicMock(type=device_pool_module.HostDevicePoolType.PCI_NIC)
+
+        with patch.object(pool, "_check_passthrough_support"), patch.object(
+            device_pool_module.BaseDevicePool, "configure_device_passthrough_pool"
+        ):
+            pool.configure_device_passthrough_pool([device_config])
+
+        host_node.execute.assert_not_called()
+        assert_that(pool._management_route_cleanup_command).is_empty()
+
+    def test_pool_configuration_opts_in_to_nic_route_guard(self) -> None:
+        device_pool_module = _load_device_pool_module()
+        for pool_type in (
+            device_pool_module.HostDevicePoolType.PCI_NIC,
+            device_pool_module.HostDevicePoolType.PCI_GPU,
+            device_pool_module.HostDevicePoolType.PCI_NVME,
+        ):
+            with self.subTest(pool_type=pool_type):
+                host_node = MagicMock()
+                pool = device_pool_module.LibvirtDevicePool(host_node, MagicMock())
+                device_config = MagicMock(type=pool_type)
+
+                with patch.object(pool, "_check_passthrough_support"), patch.object(
+                    device_pool_module.BaseDevicePool,
+                    "configure_device_passthrough_pool",
+                ), patch.object(pool, "_stabilize_management_route") as route_guard:
+                    pool.configure_device_passthrough_pool(
+                        [device_config], stabilize_management_route=True
+                    )
+
+                if pool_type == device_pool_module.HostDevicePoolType.PCI_NIC:
+                    route_guard.assert_called_once_with()
+                else:
+                    route_guard.assert_not_called()
+                host_node.execute.assert_not_called()
+
     def test_stabilize_management_route_away_from_passthrough_nic(self) -> None:
         device_pool_module = _load_device_pool_module()
         host_node = MagicMock()
@@ -125,6 +167,64 @@ class LibvirtDevicePoolTestCase(TestCase):
         host_node.tools[
             device_pool_module.Readlink
         ].get_canonical_path.assert_not_called()
+
+    def test_management_route_cleanup_waits_for_all_nics(self) -> None:
+        device_pool_module = _load_device_pool_module()
+        host_node = MagicMock()
+        host_node.execute.return_value = MagicMock(exit_code=0)
+        pool = device_pool_module.LibvirtDevicePool(host_node, MagicMock())
+        pool_type = device_pool_module.HostDevicePoolType.PCI_NIC
+        pool.available_host_devices = {
+            pool_type: {
+                "iommu_grp_31": [
+                    device_pool_module.DeviceAddressSchema(
+                        domain="0000", bus="19", slot="00", function="0"
+                    )
+                ],
+                "iommu_grp_32": [
+                    device_pool_module.DeviceAddressSchema(
+                        domain="0000", bus="19", slot="00", function="1"
+                    )
+                ],
+            }
+        }
+        node_contexts = []
+        for _group in list(pool.available_host_devices[pool_type]):
+            node_contexts.append(
+                device_pool_module.NodeContext(
+                    passthrough_devices=[
+                        device_pool_module.DevicePassthroughContext(
+                            pool_type=pool_type,
+                            device_list=pool.request_devices(pool_type, 1),
+                        )
+                    ]
+                )
+            )
+        cleanup_command = "ip route del 192.0.2.10/32"
+        pool._management_route_cleanup_command = cleanup_command
+
+        pool.cleanup()
+        host_node.execute.assert_not_called()
+
+        pool.release_devices(node_contexts[0])
+        pool.cleanup()
+
+        host_node.execute.assert_not_called()
+        assert_that(pool._management_route_cleanup_command).described_as(
+            "The remaining passthrough VM still needs the SSH route guard"
+        ).is_equal_to(cleanup_command)
+
+        pool.release_devices(node_contexts[1])
+        pool.cleanup()
+
+        host_node.execute.assert_called_once_with(
+            cmd=cleanup_command,
+            shell=True,
+            sudo=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
+        assert_that(pool._management_route_cleanup_command).is_empty()
 
     def test_management_route_cleanup_tolerates_disconnected_host(self) -> None:
         device_pool_module = _load_device_pool_module()

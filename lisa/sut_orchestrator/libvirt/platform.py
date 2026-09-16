@@ -202,6 +202,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         # Configure device passthrough params
         self.device_pool.configure_device_passthrough_pool(
             self.platform_runbook.device_pools,
+            stabilize_management_route=True,
         )
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
