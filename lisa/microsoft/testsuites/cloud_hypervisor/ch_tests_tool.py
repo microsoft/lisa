@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type, cast
 from assertpy.assertpy import assert_that, fail
 
 from lisa import Node
+from lisa.base_tools import Dpkg, Rpm
 from lisa.executable import ExecutableResult, Tool
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
@@ -33,6 +34,7 @@ from lisa.tools import (
     Uname,
     Whoami,
 )
+from lisa.tools.grep import Grep
 from lisa.util import (
     LisaException,
     SkippedException,
@@ -1439,75 +1441,77 @@ exit $ec
             self.env_vars["MIGRATABLE_VERSION"] = os.environ["MIGRATABLE_VERSION"]
 
     def _log_custom_kernel_metadata(self, kernel_path: str) -> None:
-        metadata_command = (
-            "kernel_path="
-            + shlex.quote(kernel_path)
-            + r"""
-echo "[uvm-kernel] path=$kernel_path"
-if [ ! -r "$kernel_path" ]; then
-    echo "[uvm-kernel] readable=false"
-    exit 0
-fi
+        metadata = [f"[uvm-kernel] path={kernel_path}"]
+        quoted_path = shlex.quote(str(self.node.get_pure_path(kernel_path)))
+        try:
+            result = self.node.execute(f"test -r {quoted_path}", no_error_log=True)
+            if result.exit_code != 0:
+                metadata.append("[uvm-kernel] readable=false")
+                return
 
-embedded_pattern='(Linux version )?[0-9]+\.[0-9]+\.[0-9]+'
-embedded_pattern="${embedded_pattern}[^[:space:][:cntrl:]]* \([^[:cntrl:]]+\)"
-embedded_build=$(
-    LC_ALL=C grep -a -o -E -m1 "$embedded_pattern" "$kernel_path" \
-        2>/dev/null | head -n 1 || true
-)
-if [ -z "$embedded_build" ] && command -v strings >/dev/null 2>&1; then
-    embedded_build=$(
-        strings -a "$kernel_path" 2>/dev/null \
-            | grep -a -E -m1 \
-                '^(Linux version )?[0-9]+\.[0-9]+\.[0-9]+[^[:space:]]* \(' \
-            || true
-    )
-fi
-if [ -n "$embedded_build" ]; then
-    echo "[uvm-kernel] embedded-build=$embedded_build"
-else
-    echo "[uvm-kernel] embedded-build=unavailable"
-fi
-
-kernel_sha=""
-if command -v sha256sum >/dev/null 2>&1; then
-    kernel_sha=$(sha256sum "$kernel_path" | cut -d ' ' -f 1)
-    echo "[uvm-kernel] sha256=$kernel_sha"
-fi
-
-if command -v file >/dev/null 2>&1; then
-    echo "[uvm-kernel] file=$(file -b "$kernel_path" 2>&1)"
-fi
-
-if command -v rpm >/dev/null 2>&1; then
-    package=$(
-        rpm -qf --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n' \
-            "$kernel_path" 2>/dev/null || true
-    )
-    if [ -n "$package" ]; then
-        echo "[uvm-kernel] package=$package"
-    fi
-elif command -v dpkg-query >/dev/null 2>&1; then
-    package=$(dpkg-query -S "$kernel_path" 2>/dev/null | head -n 1 || true)
-    if [ -n "$package" ]; then
-        echo "[uvm-kernel] package=$package"
-    fi
-fi
-exit 0
-"""
-        )
-        result = self.node.execute(metadata_command, shell=True)
-        metadata = "\n".join(
-            output
-            for output in (result.stdout.strip(), result.stderr.strip())
-            if output
-        )
-        if result.exit_code != 0:
-            self._log.debug(
-                f"Failed to inspect selected UVM kernel '{kernel_path}': {metadata}"
+            embedded_pattern = (
+                r"(Linux version )?[0-9]+\.[0-9]+\.[0-9]+"
+                r"[^[:space:][:cntrl:]]* \([^[:cntrl:]]+\)"
             )
-        elif metadata:
-            self._log.info(f"Selected UVM kernel metadata:\n{metadata}")
+            result = self.node.tools[Grep].run(
+                f"-a -o -E -m 1 {shlex.quote(embedded_pattern)} -- {quoted_path}",
+                force_run=True,
+                update_envs={"LC_ALL": "C"},
+                no_error_log=True,
+            )
+            embedded_build = ""
+            if result.exit_code == 0 and result.stdout.strip():
+                embedded_build = result.stdout.strip().splitlines()[0]
+            if not embedded_build:
+                result = self.node.execute(
+                    f"strings -a -- {quoted_path}",
+                    no_error_log=True,
+                    no_debug_log=True,
+                )
+                if result.exit_code == 0:
+                    match = re.search(
+                        r"^(Linux version )?[0-9]+\.[0-9]+\.[0-9]+[^\s]* \([^\r\n]*",
+                        result.stdout,
+                        re.MULTILINE,
+                    )
+                    if match:
+                        embedded_build = match.group(0)
+            metadata.append(
+                f"[uvm-kernel] embedded-build={embedded_build or 'unavailable'}"
+            )
+
+            for name, command in (
+                ("sha256", f"sha256sum -- {quoted_path}"),
+                ("file", f"file -b -- {quoted_path}"),
+            ):
+                result = self.node.execute(command, no_error_log=True)
+                output = result.stdout.strip()
+                if result.exit_code == 0 and output:
+                    if name == "sha256":
+                        output = output.split()[0]
+                    metadata.append(f"[uvm-kernel] {name}={output}")
+
+            package_format = shlex.quote(r"%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n")
+            package_queries: Tuple[Tuple[Type[Tool], str], ...] = (
+                (Rpm, f"-qf --qf {package_format} -- {quoted_path}"),
+                (Dpkg, f"-S -- {quoted_path}"),
+            )
+            for package_type, arguments in package_queries:
+                package_tool = package_type(self.node)
+                if not package_tool.exists:
+                    continue
+                result = package_tool.run(arguments, force_run=True, no_error_log=True)
+                if result.exit_code == 0 and result.stdout.strip():
+                    package = result.stdout.strip().splitlines()[0]
+                    metadata.append(f"[uvm-kernel] package={package}")
+                break
+        except LisaException as error:
+            self._log.debug(
+                f"Failed to inspect selected UVM kernel '{kernel_path}': {error}"
+            )
+        finally:
+            metadata_text = "\n".join(metadata)
+            self._log.info(f"Selected UVM kernel metadata:\n{metadata_text}")
 
     def _set_ms_kernel_environment(self) -> None:
         if self.use_ms_guest_kernel:
