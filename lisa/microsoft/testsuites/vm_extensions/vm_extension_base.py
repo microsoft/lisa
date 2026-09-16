@@ -256,11 +256,11 @@ class VmExtensionTestBase(TestSuite):
         Publisher and type come from the 'extension_publisher' /
         'extension_type' runbook variables, falling back to the suite's
         PUBLISHER / EXTENSION_TYPE. The version is required (no DEFAULT_VERSION
-        fallback) and must be a 'Major.Minor' or 'Major.Minor.Patch' value; the
-        case is skipped otherwise. When a full 'Major.Minor.Patch' version is
-        requested, the actually-installed version is verified to match. After
-        provisioning succeeds the VM is checked for SSH reachability. The
-        deployed extension is named
+        fallback) and must be a 'Major.Minor', 'Major.Minor.Patch', or
+        'Major.Minor.Patch.Revision' value; the case is skipped otherwise. When
+        a full three- or four-part version is requested, the actually-installed
+        version is verified to match. After provisioning succeeds the VM is
+        checked for SSH reachability. The deployed extension is named
         '<publisher>_<extension_type>_boot_validation_test'. Install/cleanup
         reuse the shared ``_install`` / ``_uninstall`` helpers.
         """
@@ -269,9 +269,9 @@ class VmExtensionTestBase(TestSuite):
 
         # Azure installs by 'Major.Minor'; normalize and skip on malformed
         # input. normalize_type_handler_version raises LisaException when the
-        # version is not a valid 'Major.Minor'/'Major.Minor.Patch' value.
-        # is_patch_version is True when a full 'Major.Minor.Patch' was
-        # requested (Azure must then install exactly that patch).
+        # version is not a valid two-, three-, or four-part value.
+        # is_patch_version is True when a full three- or four-part version was
+        # requested (Azure must then install that exact candidate version).
         try:
             (
                 install_version,
@@ -279,8 +279,9 @@ class VmExtensionTestBase(TestSuite):
             ) = extension.normalize_type_handler_version(version)
         except LisaException:
             raise SkippedException(
-                f"Version '{version}' is not a valid 'Major.Minor' or "
-                "'Major.Minor.Patch' value. Please set a valid version."
+                f"Version '{version}' is not a valid 'Major.Minor', "
+                "'Major.Minor.Patch', or 'Major.Minor.Patch.Revision' value. "
+                "Please set a valid version."
             )
 
         publisher = self._resolve_publisher(variables)
@@ -297,21 +298,25 @@ class VmExtensionTestBase(TestSuite):
             )
             self._assert_provisioned(result, variables)
 
-            # Verify the actually-installed version. When a full
-            # 'Major.Minor.Patch' was requested, Azure must deliver exactly
-            # that patch; a 'Major.Minor' request lets Azure choose the patch,
+            # Verify the actually-installed version. When a full three- or
+            # four-part version was requested, Azure must deliver that exact
+            # candidate; a 'Major.Minor' request lets Azure choose the patch,
             # so it is only logged. Mirrors GenericVmExtension.
             installed_version = extension.get_installed_type_handler_version(
                 extension_name
             )
             if is_patch_version:
-                assert_that(installed_version).described_as(
+                assert_that(
+                    extension.are_type_handler_versions_equal(
+                        version, installed_version
+                    )
+                ).described_as(
                     f"Installed extension '{extension_name}' version mismatch: "
                     f"expected '{version}', actual '{installed_version}'. Verify "
                     f"which patch version Azure delivers for the requested "
                     f"major.minor version and whether this version is published "
                     f"in the current region."
-                ).is_equal_to(version)
+                ).is_true()
             log.info(
                 f"Installed extension '{extension_name}' "
                 f"version: {installed_version}"
