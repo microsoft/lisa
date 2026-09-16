@@ -8,8 +8,6 @@ from itertools import combinations
 from pathlib import PurePosixPath
 from typing import Any, Dict, List, Optional, cast
 
-from paramiko.ssh_exception import SSHException
-
 from lisa.node import Node, RemoteNode
 from lisa.sut_orchestrator.util.device_pool import BaseDevicePool
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
