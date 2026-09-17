@@ -98,11 +98,11 @@ def _get_pci_address_str(device: PciAddressLike) -> str:
 
 
 def _countspace_to_int(value: search_space.CountSpace) -> int:
-    chosen = search_space.choose_value_countspace(value, value)
+    chosen = search_space.generate_min_capability_countspace(value, value)
     if not isinstance(chosen, int):
         raise LisaException(
-            f"choose_value_countspace() returned non-int value '{chosen}' "
-            f"of type '{type(chosen).__name__}'. Verify the countspace "
+            f"generate_min_capability_countspace() returned non-int value "
+            f"'{chosen}' of type '{type(chosen).__name__}'. Verify the countspace "
             "configuration resolves to a single integer value."
         )
     return chosen
