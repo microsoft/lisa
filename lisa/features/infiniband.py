@@ -288,7 +288,6 @@ class Infiniband(Feature):
             "rdma-core-devel",
             "libibverbs",
             "libibverbs-utils",
-            "build-essential",
             "ucx",
             "ucx-ib",
             "ucx-rdmacm",
@@ -341,6 +340,13 @@ class Infiniband(Feature):
                     ubuntu_required_packages.append(package)
             node.os.install_packages(ubuntu_required_packages)
         elif isinstance(node.os, CBLMariner):
+            if node.os.information.version >= "4.0.0":
+                # build-essential not available on Azure Linux 4.0
+                cblmariner_required_packages.extend(
+                    ["kernel-headers", "binutils", "glibc-devel", "gcc", "make"]
+                )
+            else:
+                cblmariner_required_packages.append("build-essential")
             node.os.install_packages(cblmariner_required_packages)
         else:
             raise UnsupportedDistroException(
