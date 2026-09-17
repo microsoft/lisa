@@ -109,7 +109,7 @@ class XdpTool(Tool):
                     keys_location=["https://apt.llvm.org/llvm-snapshot.gpg.key"],
                 )
             package_list = [
-                "llvm libelf-dev libpcap-dev build-essential pkg-config m4 tshark "
+                "libelf-dev libpcap-dev build-essential pkg-config m4 tshark "
                 "netcat-openbsd tcpdump iputils-ping"
             ]
             if arch == "aarch64":
@@ -121,17 +121,27 @@ class XdpTool(Tool):
                         package_list.append(package)
             else:
                 package_list.append("gcc-multilib")
+            # Pick a clang/llvm pair of the same major version. The unversioned
+            # "llvm" metapackage must not be used: the rolling
+            # llvm-toolchain-<codename> repository makes it resolve to the
+            # latest LLVM major version, whose runtime packages are not
+            # installable alongside the versioned clang selected below.
             for ver in range(18, 9, -1):
                 clang_pkg = f"clang-{ver}"
-                if self.node.os.is_package_in_repo(clang_pkg):
+                llvm_pkg = f"llvm-{ver}"
+                if self.node.os.is_package_in_repo(
+                    clang_pkg
+                ) and self.node.os.is_package_in_repo(llvm_pkg):
                     package_list.append(clang_pkg)
+                    package_list.append(llvm_pkg)
                     config_envs.update({"CLANG": clang_pkg, "LLC": f"llc-{ver}"})
                     break
             else:
                 raise UnsupportedDistroException(
                     self.node.os,
-                    "No clang package (clang-18 through clang-10) found in "
-                    "any configured repository.",
+                    "No matching clang/llvm package pair (clang-18/llvm-18 "
+                    "through clang-10/llvm-10) found in any configured "
+                    "repository.",
                 )
             self.node.os.install_packages(package_list)
 
