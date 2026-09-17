@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from threading import Lock
+from typing import cast
 from weakref import WeakKeyDictionary, WeakSet
 
 from assertpy import assert_that
@@ -17,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Cat, Uname
-from lisa.operating_system import CBLMariner, Ubuntu
+from lisa.operating_system import CBLMariner, Posix, Ubuntu
 from lisa.tools import Lsmod, Modinfo, Modprobe
 from lisa.util import check_till_timeout
 
@@ -148,15 +149,18 @@ class AziHsm(TestSuite):
         self.setup_package_repository(node=node, log=log)
         with _STATE_LOCK:
             driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
+        # Package management APIs are only available on Posix operating
+        # systems, which is enforced by this suite's supported_os.
+        posix_os = cast(Posix, node.os)
 
         log.info(f"Checking package {driver_package_name}")
 
         # Check that the package is already installed
-        package_exists = node.os.package_exists(driver_package_name)
+        package_exists = posix_os.package_exists(driver_package_name)
 
         if not package_exists:
             # Check that the package is available in configured repositories
-            if not node.os.is_package_in_repo(driver_package_name):
+            if not posix_os.is_package_in_repo(driver_package_name):
                 raise SkippedException(
                     f"{driver_package_name} package not found in repositories. "
                     "Check that a package that matches the target "
@@ -165,19 +169,19 @@ class AziHsm(TestSuite):
 
             # Package is available, install it
             log.info(f"Installing package {driver_package_name}")
-            node.os.install_packages(driver_package_name)
+            posix_os.install_packages(driver_package_name)
 
             # Verify package is installed
-            package_installed = node.os.package_exists(driver_package_name)
+            package_installed = posix_os.package_exists(driver_package_name)
             assert_that(package_installed).described_as(
                 f"{driver_package_name} package should be installed"
             ).is_true()
         else:
             # Make sure everything is up-to-date
             log.info(f"Updating package {driver_package_name}")
-            node.os.update_packages(driver_package_name)
+            posix_os.update_packages(driver_package_name)
             # Verify package was installed
-            package_installed = node.os.package_exists(driver_package_name)
+            package_installed = posix_os.package_exists(driver_package_name)
             log.info(f"{driver_package_name} status {package_installed}")
             assert_that(package_installed).described_as(
                 f"{driver_package_name} package should be installed"
@@ -218,36 +222,40 @@ class AziHsm(TestSuite):
                 "Supported operating systems are Ubuntu and CBLMariner."
             )
 
+        # Package management APIs are only available on Posix operating
+        # systems, which is enforced by this suite's supported_os.
+        posix_os = cast(Posix, node.os)
+
         for pkg in azihsm_pkg_list:
             log.info(f"Checking package {pkg}")
 
             # Check if the package is already installed
-            package_exists = node.os.package_exists(pkg)
+            package_exists = posix_os.package_exists(pkg)
 
             if not package_exists:
                 # Check if package is available in repositories
-                if not node.os.is_package_in_repo(pkg):
+                if not posix_os.is_package_in_repo(pkg):
                     raise SkippedException(
-                        f"{pkg} package not found in repositories"
+                        f"{pkg} package not found in repositories. "
                         "Check that a package that matches the distro "
                         "and architecture exists."
                     )
 
                 # Package is available, install it
                 log.info(f"Installing package {pkg}")
-                node.os.install_packages(pkg)
+                posix_os.install_packages(pkg)
 
                 # Verify package is installed
-                package_installed = node.os.package_exists(pkg)
+                package_installed = posix_os.package_exists(pkg)
                 assert_that(package_installed).described_as(
                     f"{pkg} package should be installed"
                 ).is_true()
             else:
                 # Make sure everything is up-to-date
                 log.info(f"Updating package {pkg}")
-                node.os.update_packages(pkg)
+                posix_os.update_packages(pkg)
                 # Verify package was installed
-                package_installed = node.os.package_exists(pkg)
+                package_installed = posix_os.package_exists(pkg)
                 assert_that(package_installed).described_as(
                     f"{pkg} package should be installed"
                 ).is_true()
@@ -285,23 +293,26 @@ class AziHsm(TestSuite):
             driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
             kernel_version = _AZIHSM_KERNEL_VERSIONS[node]
             kmod_path = _AZIHSM_KMOD_PATHS[node]
+        # Package management APIs are only available on Posix operating
+        # systems, which is enforced by this suite's supported_os.
+        posix_os = cast(Posix, node.os)
 
         #
         # Remove the driver package so that we can explicitly test its install
-        package_installed = node.os.package_exists(driver_package_name)
+        package_installed = posix_os.package_exists(driver_package_name)
         if package_installed:
             log.info(f"Uninstalling {driver_package_name}")
-            node.os.uninstall_packages(driver_package_name)
+            posix_os.uninstall_packages(driver_package_name)
 
         #
         # Test 1 - Package installs without errors
         log.info(f"Installing {driver_package_name}")
-        node.os.install_packages(driver_package_name)
+        posix_os.install_packages(driver_package_name)
 
         #
         # Test 2 - Package is registered in the package database
         log.info(f"Checking {driver_package_name}")
-        package_installed = node.os.package_exists(driver_package_name)
+        package_installed = posix_os.package_exists(driver_package_name)
         assert_that(package_installed).described_as(
             f"{driver_package_name} package should be installed"
         ).is_true()
@@ -360,7 +371,7 @@ class AziHsm(TestSuite):
         finally:
             # Uninstalling the driver package leaves the environment modified.
             node.mark_dirty()
-            node.os.uninstall_packages(driver_package_name)
+            cast(Posix, node.os).uninstall_packages(driver_package_name)
 
     #
     #
@@ -450,7 +461,7 @@ class AziHsm(TestSuite):
         finally:
             # Clean up
             modprobe.remove([AZIHSM_NAME], ignore_error=True)
-            node.os.uninstall_packages(driver_package_name)
+            cast(Posix, node.os).uninstall_packages(driver_package_name)
 
     #
     #
@@ -509,7 +520,7 @@ class AziHsm(TestSuite):
         finally:
             # Clean up
             modprobe.remove([AZIHSM_NAME], ignore_error=True)
-            node.os.uninstall_packages(driver_package_name)
+            cast(Posix, node.os).uninstall_packages(driver_package_name)
 
     @TestCaseMetadata(
         description="""
@@ -531,12 +542,15 @@ class AziHsm(TestSuite):
         with _STATE_LOCK:
             driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
             kmod_path = _AZIHSM_KMOD_PATHS[node]
+        # Package management APIs are only available on Posix operating
+        # systems, which is enforced by this suite's supported_os.
+        posix_os = cast(Posix, node.os)
 
         #
         # Test 14 - Package removal succeeds
         try:
             # The package unloads the module
-            node.os.uninstall_packages(driver_package_name)
+            posix_os.uninstall_packages(driver_package_name)
             log.info("Package successfully removed")
         except Exception as e:
             log.error(f"Uninstall failed {e}")
@@ -544,7 +558,7 @@ class AziHsm(TestSuite):
 
         #
         # Test 15 - package gone from package database
-        package_installed = node.os.package_exists(driver_package_name)
+        package_installed = posix_os.package_exists(driver_package_name)
         assert_that(package_installed).described_as(
             f"{driver_package_name} package should NOT be installed"
         ).is_false()
@@ -595,6 +609,8 @@ class AziHsm(TestSuite):
         try:
             result = node.execute(
                 f"/usr/bin/azihsm/driver_tests {params}",
+                expected_exit_code=0,
+                expected_exit_code_failure_message="AZIHSM driver tests failed",
             )
             cmd_output = result.stdout.strip()
         except Exception as e:
@@ -654,25 +670,23 @@ class AziHsm(TestSuite):
                 log.info(f"{test} Failed")
                 failed_tests.append(test)
 
-        # Do the api_cpp_tests here because the output is a different format
+        # Do the api_cpp_tests here because its output format differs from the
+        # Rust-based tests above; use the process exit code to determine
+        # success instead of matching a Rust-specific "test result: ok." line.
         test = "azihsm_api_cpp_tests"
         log.info(f"Running {test}")
         try:
-            result = node.execute(
+            node.execute(
                 f"/usr/bin/azihsm/{test} {params}",
                 update_envs={"AZIHSM_USE_TPM": "1"},
+                expected_exit_code=0,
+                expected_exit_code_failure_message=f"{test} failed",
             )
-            cmd_output = result.stdout.strip()
         except Exception as e:
-            cmd_output = ""
             log.error(f"Exception {e}")
             failed_tests.append(f"{test} ({e})")
         else:
-            if "test result: ok." in cmd_output:
-                log.info(f"{test} Passed")
-            else:
-                log.info(f"{test} Failed")
-                failed_tests.append(test)
+            log.info(f"{test} Passed")
 
         assert_that(failed_tests).described_as(
             f"Not all SDK tests passed, failed tests: {failed_tests}"
