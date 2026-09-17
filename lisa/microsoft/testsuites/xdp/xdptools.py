@@ -81,8 +81,10 @@ class XdpTool(Tool):
         super()._initialize(*args, **kwargs)
         self._command: PurePath = PurePath(self._default_command)
         self._gro_lro_settings: Dict[str, DeviceGroLroSettings] = {}
-        # v1.4.1 requires clang-11
-        self._xdp_tools_tag = "v1.4.1"
+        # v1.6.3 is the first release that builds against glibc 2.43 and
+        # gcc 15 (Ubuntu 26.04). Older tags fail on missing <limits.h> and
+        # _GNU_SOURCE declarations. It also needs clang-11 or later.
+        self._xdp_tools_tag = "v1.6.3"
         if (
             isinstance(self.node.os, Debian)
             and self.node.os.information.version <= "18.4.0"
@@ -109,8 +111,9 @@ class XdpTool(Tool):
                     keys_location=["https://apt.llvm.org/llvm-snapshot.gpg.key"],
                 )
             package_list = [
-                "llvm libelf-dev libpcap-dev build-essential pkg-config m4 tshark "
-                "netcat-openbsd tcpdump iputils-ping"
+                "libelf-dev libpcap-dev build-essential pkg-config m4 tshark "
+                "netcat-openbsd tcpdump iputils-ping ethtool nftables socat "
+                "ndisc6 iputils-arping"
             ]
             if arch == "aarch64":
                 for package in [
@@ -121,17 +124,27 @@ class XdpTool(Tool):
                         package_list.append(package)
             else:
                 package_list.append("gcc-multilib")
+            # Pick a clang/llvm pair of the same major version. The unversioned
+            # "llvm" metapackage must not be used: the rolling
+            # llvm-toolchain-<codename> repository makes it resolve to the
+            # latest LLVM major version, whose runtime packages are not
+            # installable alongside the versioned clang selected below.
             for ver in range(18, 9, -1):
                 clang_pkg = f"clang-{ver}"
-                if self.node.os.is_package_in_repo(clang_pkg):
+                llvm_pkg = f"llvm-{ver}"
+                if self.node.os.is_package_in_repo(
+                    clang_pkg
+                ) and self.node.os.is_package_in_repo(llvm_pkg):
                     package_list.append(clang_pkg)
+                    package_list.append(llvm_pkg)
                     config_envs.update({"CLANG": clang_pkg, "LLC": f"llc-{ver}"})
                     break
             else:
                 raise UnsupportedDistroException(
                     self.node.os,
-                    "No clang package (clang-18 through clang-10) found in "
-                    "any configured repository.",
+                    "No matching clang/llvm package pair (clang-18/llvm-18 "
+                    "through clang-10/llvm-10) found in any configured "
+                    "repository.",
                 )
             self.node.os.install_packages(package_list)
 
@@ -156,6 +169,13 @@ class XdpTool(Tool):
                 "llvm-toolset elfutils-devel m4 wireshark perf make gcc nc tcpdump"
                 # pcaplib
             )
+            # Extra tools required by the xdp-tools test runner. They are
+            # probed individually because the package names are not available
+            # on every Fedora derivative, and a missing one must not abort
+            # the whole installation.
+            for package in ["ethtool", "nftables", "socat", "ndisc6", "iputils"]:
+                if self.node.os.is_package_in_repo(package):
+                    self.node.os.install_packages(package)
         else:
             raise UnsupportedDistroException(self.node.os)
 
@@ -188,6 +208,15 @@ class XdpTool(Tool):
             update_envs = {"C_INCLUDE_PATH": "/usr/include/aarch64-linux-gnu/"}
         else:
             update_envs = {"ARCH": "x86_64"}
+        # xdp-tools and its vendored libbpf submodule are built with "-Werror",
+        # so a newer host compiler turns any new warning into a build failure.
+        # gcc 15 on Ubuntu 26.04 hits this twice: "discarded-qualifiers" in the
+        # libbpf pinned by xdp-tools v1.4.1, and "calloc-transposed-args" in
+        # lib/util/params.c. Every host compile rule of both projects appends
+        # CPPFLAGS after CFLAGS, so "-Wno-error" wins and keeps those
+        # diagnostics as warnings. The BPF programs are unaffected and still
+        # built with "-Werror", because the clang rules don't use CPPFLAGS.
+        update_envs["CPPFLAGS"] = "-Wno-error"
         make.make(
             arguments="",
             cwd=self._code_path,
