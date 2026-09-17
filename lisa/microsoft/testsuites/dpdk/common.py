@@ -289,8 +289,15 @@ class Installer:
                 self._uninstall()
                 self._install_dependencies()
                 self._install()
-            except Exception:
-                self._rollback_installation()
+            except Exception as install_error:
+                try:
+                    self._rollback_installation()
+                except Exception as rollback_error:
+                    self._node.log.debug(
+                        "Installation rollback also failed; preserving the original "
+                        f"{type(install_error).__name__}: {install_error!r}. "
+                        f"Rollback error: {rollback_error!r}"
+                    )
                 raise
 
     def __init__(
@@ -521,6 +528,8 @@ class Pmd(str, Enum):
     # librte_net_netvsc
     # https://doc.dpdk.org/guides/nics/netvsc.html
     NETVSC = "netvsc"
+    # direct use of MANA pmd.
+    MANA = "mana"
 
 
 # set a threshold for an expected PPS minimum with DPDK.
