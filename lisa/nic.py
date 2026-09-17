@@ -226,6 +226,28 @@ class Nics(InitializableMixin):
                 used_module_list.remove(item)
         return used_module_list
 
+    def get_sriov_network_drivers(self) -> List[str]:
+        """Return the MANA or Mellanox drivers used by the SR-IOV NICs.
+
+        Fall back to the PCI device ID when a device has no bound driver, which
+        is the state where driver initialization diagnostics are most useful.
+        """
+        drivers: List[str] = []
+        for module_name in self.get_used_modules(["hv_netvsc"]):
+            if module_name in self._device_module_map and module_name not in drivers:
+                drivers.append(module_name)
+
+        lspci = self._node.tools[Lspci]
+        pci_devices = lspci.get_devices_by_type(
+            constants.DEVICE_TYPE_SRIOV, force_run=True
+        )
+        for pci_device in pci_devices:
+            driver = lspci.get_device_module(constants.DEVICE_TYPE_SRIOV, pci_device)
+            if driver and driver not in drivers:
+                drivers.append(driver)
+
+        return drivers
+
     def get_device_slots(self, exclude_ib: bool = False) -> List[str]:
         """Get PCI slots for NICs.
 
