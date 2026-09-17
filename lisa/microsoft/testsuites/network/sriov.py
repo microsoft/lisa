@@ -539,8 +539,8 @@ class Sriov(TestSuite):
         Steps,
         1. Change scatter-gather feature on synthetic nic,
          verify the the feature status sync to the VF dynamically.
-        2. Disable and enable sriov,
-         check the scatter-gather feature status keep consistent in VF.
+        2. Rescind and re-add the VFs through PCI sysfs,
+         check the scatter-gather feature status keeps consistent in VF.
         """,
         priority=2,
         requirement=simple_requirement(
@@ -650,8 +650,8 @@ class Sriov(TestSuite):
                 "sg setting is not sync into VF.",
             ).is_equal_to(False)
 
-        # disable and enable sriov in network interface level
-        sriov_disable_enable(environment, 3)
+        # Rescind and re-add the VFs through PCI sysfs
+        disable_enable_devices(environment)
         # check VF still paired with synthetic nic
         vm_nics = initialize_nic_info(environment)
 
