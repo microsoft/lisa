@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
+from threading import Lock
 from weakref import WeakKeyDictionary, WeakSet
 
 from assertpy import assert_that
@@ -27,6 +28,9 @@ _PACKAGES_INSTALLED_NODES: WeakSet[Node] = WeakSet()
 _AZIHSM_DRIVER_PACKAGE_NAMES: WeakKeyDictionary[Node, str] = WeakKeyDictionary()
 _AZIHSM_KMOD_PATHS: WeakKeyDictionary[Node, str] = WeakKeyDictionary()
 _AZIHSM_KERNEL_VERSIONS: WeakKeyDictionary[Node, str] = WeakKeyDictionary()
+# Guards access/mutation of the module-level state above, since test cases
+# for different nodes may run concurrently.
+_STATE_LOCK = Lock()
 
 
 @TestSuiteMetadata(
@@ -64,19 +68,28 @@ class AziHsm(TestSuite):
         kernel_version = uname.get_linux_information(force_run=True).kernel_version_raw
 
         if isinstance(node.os, Ubuntu):
-            _AZIHSM_DRIVER_PACKAGE_NAMES[node] = f"azihsm-module-{kernel_version}"
-            _AZIHSM_KMOD_PATHS[
-                node
-            ] = f"/lib/modules/{kernel_version}/updates/azihsm.ko"
-        if isinstance(node.os, CBLMariner):
-            _AZIHSM_DRIVER_PACKAGE_NAMES[node] = f"azihsm-driver-{kernel_version}"
-            _AZIHSM_KMOD_PATHS[node] = f"/lib/modules/{kernel_version}/extra/azihsm.ko"
-        _AZIHSM_KERNEL_VERSIONS[node] = kernel_version
-        log.info(f"Driver Package {_AZIHSM_DRIVER_PACKAGE_NAMES[node]}")
-        log.info(f"Driver Path {_AZIHSM_KMOD_PATHS[node]}")
-        log.info(f"Kernel Version {_AZIHSM_KERNEL_VERSIONS[node]}")
+            driver_package_name = f"azihsm-module-{kernel_version}"
+            kmod_path = f"/lib/modules/{kernel_version}/updates/azihsm.ko"
+        elif isinstance(node.os, CBLMariner):
+            driver_package_name = f"azihsm-driver-{kernel_version}"
+            kmod_path = f"/lib/modules/{kernel_version}/extra/azihsm.ko"
+        else:
+            raise SkippedException(
+                f"AZIHSM is not supported on {node.os.name}. "
+                "Supported operating systems are Ubuntu and CBLMariner."
+            )
 
-        if node in _TESTING_REPO_ADDED_NODES:
+        with _STATE_LOCK:
+            _AZIHSM_DRIVER_PACKAGE_NAMES[node] = driver_package_name
+            _AZIHSM_KMOD_PATHS[node] = kmod_path
+            _AZIHSM_KERNEL_VERSIONS[node] = kernel_version
+            repo_already_added = node in _TESTING_REPO_ADDED_NODES
+
+        log.info(f"Driver Package {driver_package_name}")
+        log.info(f"Driver Path {kmod_path}")
+        log.info(f"Kernel Version {kernel_version}")
+
+        if repo_already_added:
             return
 
         log.info("Adding PMC testing repository")
@@ -92,7 +105,7 @@ class AziHsm(TestSuite):
                     "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                 ],
             )
-        if isinstance(node.os, CBLMariner):
+        else:
             # Azure Linux prior to 3.0 is not supported by AziHSM
             arch_name = node.os.get_kernel_information().hardware_platform
             if node.os.information.release == "3.0":
@@ -124,7 +137,8 @@ class AziHsm(TestSuite):
                 )
 
         # Indicate we have done this step already
-        _TESTING_REPO_ADDED_NODES.add(node)
+        with _STATE_LOCK:
+            _TESTING_REPO_ADDED_NODES.add(node)
 
     #
     # Make sure all of the azihsm package are installed and up-to-date
@@ -132,7 +146,8 @@ class AziHsm(TestSuite):
     def install_azihsm_driver_package(self, node: Node, log: Logger) -> None:
         # Make sure we've added the AZIHSM repo
         self.setup_package_repository(node=node, log=log)
-        driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
+        with _STATE_LOCK:
+            driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
 
         log.info(f"Checking package {driver_package_name}")
 
@@ -172,8 +187,9 @@ class AziHsm(TestSuite):
     # Make sure all of the azihsm packages are installed and up-to-date
     #
     def install_all_azihsm_packages(self, node: Node, log: Logger) -> None:
-        if node in _PACKAGES_INSTALLED_NODES:
-            return
+        with _STATE_LOCK:
+            if node in _PACKAGES_INSTALLED_NODES:
+                return
 
         # Make sure we've added the AZIHSM repo
         self.setup_package_repository(node=node, log=log)
@@ -187,7 +203,7 @@ class AziHsm(TestSuite):
                 "libazihsm-dev",
                 "libengine-azihsm-openssl",
             ]
-        if isinstance(node.os, CBLMariner):
+        elif isinstance(node.os, CBLMariner):
             azihsm_pkg_list = [
                 "azihsm-driver-tests",
                 "azihsm-sdk-tests",
@@ -196,6 +212,11 @@ class AziHsm(TestSuite):
                 "libazihsm-devel",
                 "libengine-azihsm-openssl",
             ]
+        else:
+            raise SkippedException(
+                f"AZIHSM is not supported on {node.os.name}. "
+                "Supported operating systems are Ubuntu and CBLMariner."
+            )
 
         for pkg in azihsm_pkg_list:
             log.info(f"Checking package {pkg}")
@@ -232,7 +253,8 @@ class AziHsm(TestSuite):
                 ).is_true()
 
         # Indicate we have done this step already
-        _PACKAGES_INSTALLED_NODES.add(node)
+        with _STATE_LOCK:
+            _PACKAGES_INSTALLED_NODES.add(node)
 
     #
     #
@@ -259,9 +281,10 @@ class AziHsm(TestSuite):
     def test_package_installation(self, node: Node, log: Logger) -> None:
         # Make sure we've added the AZIHSM repo
         self.setup_package_repository(node=node, log=log)
-        driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
-        kernel_version = _AZIHSM_KERNEL_VERSIONS[node]
-        kmod_path = _AZIHSM_KMOD_PATHS[node]
+        with _STATE_LOCK:
+            driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
+            kernel_version = _AZIHSM_KERNEL_VERSIONS[node]
+            kmod_path = _AZIHSM_KMOD_PATHS[node]
 
         #
         # Remove the driver package so that we can explicitly test its install
@@ -322,7 +345,8 @@ class AziHsm(TestSuite):
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
         self.check_azihsm_device(node=node)
-        driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
+        with _STATE_LOCK:
+            driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
 
         #
         # Test 6 - modinfo succeeds
@@ -334,6 +358,8 @@ class AziHsm(TestSuite):
             ).is_not_empty()
             log.info(f"modinfo output:\n{info}")
         finally:
+            # Uninstalling the driver package leaves the environment modified.
+            node.mark_dirty()
             node.os.uninstall_packages(driver_package_name)
 
     #
@@ -356,7 +382,8 @@ class AziHsm(TestSuite):
         self.install_azihsm_driver_package(node=node, log=log)
         self.check_azihsm_device(node=node)
         node.mark_dirty()  # this case loads/unloads kernel modules
-        driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
+        with _STATE_LOCK:
+            driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
 
         # Tools we need
         modprobe = node.tools[Modprobe]
@@ -440,7 +467,8 @@ class AziHsm(TestSuite):
         self.install_azihsm_driver_package(node=node, log=log)
         self.check_azihsm_device(node=node)
         node.mark_dirty()  # this case loads/unloads kernel modules
-        driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
+        with _STATE_LOCK:
+            driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
 
         # Tools we need
         modprobe = node.tools[Modprobe]
@@ -499,8 +527,10 @@ class AziHsm(TestSuite):
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
         self.check_azihsm_device(node=node)
-        driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
-        kmod_path = _AZIHSM_KMOD_PATHS[node]
+        node.mark_dirty()  # this case uninstalls the driver package
+        with _STATE_LOCK:
+            driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
+            kmod_path = _AZIHSM_KMOD_PATHS[node]
 
         #
         # Test 14 - Package removal succeeds
@@ -602,7 +632,7 @@ class AziHsm(TestSuite):
 
         # The rust based tests only work single threaded
         params = "--test-threads 1"
-        all_tests_passed = True
+        failed_tests = []
 
         for test in sdk_test_list:
             log.info(f"Running {test}")
@@ -615,13 +645,14 @@ class AziHsm(TestSuite):
             except Exception as e:
                 cmd_output = ""
                 log.error(f"Exception: {e}")
-                all_tests_passed = False
+                failed_tests.append(f"{test} ({e})")
+                continue
 
             if "test result: ok." in cmd_output:
                 log.info(f"{test} Passed")
             else:
                 log.info(f"{test} Failed")
-                all_tests_passed = False
+                failed_tests.append(test)
 
         # Do the api_cpp_tests here because the output is a different format
         test = "azihsm_api_cpp_tests"
@@ -630,19 +661,19 @@ class AziHsm(TestSuite):
             result = node.execute(
                 f"/usr/bin/azihsm/{test} {params}",
                 update_envs={"AZIHSM_USE_TPM": "1"},
-                # sudo=True,
-                # expected_exit_code=0,
             )
             cmd_output = result.stdout.strip()
         except Exception as e:
             cmd_output = ""
             log.error(f"Exception {e}")
-            all_tests_passed = False
-
-        if "test result: ok." in cmd_output:
-            log.info(f"{test} Passed")
+            failed_tests.append(f"{test} ({e})")
         else:
-            log.info(f"{test} Failed")
-            all_tests_passed = False
+            if "test result: ok." in cmd_output:
+                log.info(f"{test} Passed")
+            else:
+                log.info(f"{test} Failed")
+                failed_tests.append(test)
 
-        assert_that(all_tests_passed).described_as("Not all SDK tests passed").is_true()
+        assert_that(failed_tests).described_as(
+            f"Not all SDK tests passed, failed tests: {failed_tests}"
+        ).is_empty()
