@@ -11,6 +11,7 @@ Run LISA
    Test case summary <test_summary>
    Test specifications <test_spec>
    Run tests on different platforms <platform>
+   Run tests on a Hyper-V host <hyperv>
    Use runbook <runbook>
    Use command line <command_line>
    Use transformers <transformers>

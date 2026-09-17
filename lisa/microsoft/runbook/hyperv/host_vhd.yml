@@ -1,0 +1,79 @@
+name: $(test_name)
+test_project: $(test_project)
+test_pass: $(test_pass)
+concurrency: $(concurrency)
+
+extension:
+  - ../../testsuites
+
+variable:
+  - name: test_name
+    value: Hyper-V Host VHD Test
+  - name: test_project
+    value: Hyper-V
+  - name: test_pass
+    value: Adhoc
+  - name: test_case_name
+    value: smoke_test
+  - name: hyperv_host_address
+    value: ""
+  - name: hyperv_host_username
+    value: ""
+  - name: hyperv_host_password
+    value: ""
+    is_secret: true
+  - name: guest_vhd_path
+    value: ""
+  - name: guest_username
+    value: lisatest
+  - name: guest_password
+    value: ""
+    is_secret: true
+  - name: hyperv_generation
+    value: 2
+  - name: vm_cpus
+    value: 2
+  - name: vm_memory_mb
+    value: 4096
+  - name: osdisk_size_in_gb
+    value: 0
+  - name: switch_name
+    value: ""
+  - name: keep_environment
+    value: "no"
+  - name: concurrency
+    value: 1
+
+notifier:
+  - type: console
+  - type: html
+    path: lisa.html
+  - type: junit
+    path: lisa.junit.xml
+
+testcase:
+  - criteria:
+      name: $(test_case_name)
+
+platform:
+  - type: hyperv
+    admin_username: $(guest_username)
+    admin_password: $(guest_password)
+    keep_environment: $(keep_environment)
+    requirement:
+      core_count:
+        min: $(vm_cpus)
+      memory_mb:
+        min: $(vm_memory_mb)
+      hyperv:
+        hyperv_generation: $(hyperv_generation)
+        osdisk_size_in_gb: $(osdisk_size_in_gb)
+        switch_name: $(switch_name)
+        vhd:
+          vhd_path: $(guest_vhd_path)
+    hyperv:
+      switch_name: $(switch_name)
+      servers:
+        - address: $(hyperv_host_address)
+          username: $(hyperv_host_username)
+          password: $(hyperv_host_password)
