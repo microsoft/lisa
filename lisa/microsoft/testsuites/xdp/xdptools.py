@@ -81,8 +81,10 @@ class XdpTool(Tool):
         super()._initialize(*args, **kwargs)
         self._command: PurePath = PurePath(self._default_command)
         self._gro_lro_settings: Dict[str, DeviceGroLroSettings] = {}
-        # v1.4.1 requires clang-11
-        self._xdp_tools_tag = "v1.4.1"
+        # v1.6.3 is the first release that builds against glibc 2.43 and
+        # gcc 15 (Ubuntu 26.04). Older tags fail on missing <limits.h> and
+        # _GNU_SOURCE declarations. It also needs clang-11 or later.
+        self._xdp_tools_tag = "v1.6.3"
         if (
             isinstance(self.node.os, Debian)
             and self.node.os.information.version <= "18.4.0"
@@ -110,7 +112,8 @@ class XdpTool(Tool):
                 )
             package_list = [
                 "libelf-dev libpcap-dev build-essential pkg-config m4 tshark "
-                "netcat-openbsd tcpdump iputils-ping"
+                "netcat-openbsd tcpdump iputils-ping ethtool nftables socat "
+                "ndisc6 iputils-arping"
             ]
             if arch == "aarch64":
                 for package in [
@@ -166,6 +169,13 @@ class XdpTool(Tool):
                 "llvm-toolset elfutils-devel m4 wireshark perf make gcc nc tcpdump"
                 # pcaplib
             )
+            # Extra tools required by the xdp-tools test runner. They are
+            # probed individually because the package names are not available
+            # on every Fedora derivative, and a missing one must not abort
+            # the whole installation.
+            for package in ["ethtool", "nftables", "socat", "ndisc6", "iputils"]:
+                if self.node.os.is_package_in_repo(package):
+                    self.node.os.install_packages(package)
         else:
             raise UnsupportedDistroException(self.node.os)
 
