@@ -198,6 +198,15 @@ class XdpTool(Tool):
             update_envs = {"C_INCLUDE_PATH": "/usr/include/aarch64-linux-gnu/"}
         else:
             update_envs = {"ARCH": "x86_64"}
+        # xdp-tools builds its vendored libbpf submodule with "-Werror", so a
+        # newer host compiler turns any new warning into a build failure. For
+        # example, gcc 15 on Ubuntu 26.04 fails to build the libbpf pinned by
+        # xdp-tools v1.4.1 with "-Werror=discarded-qualifiers". libbpf appends
+        # EXTRA_CFLAGS after its own flags, so "-Wno-error" wins and keeps
+        # those diagnostics as warnings. This only relaxes the host build of
+        # the vendored libbpf: EXTRA_CFLAGS is not used by the xdp-tools
+        # makefiles, and the BPF programs are still compiled with "-Werror".
+        update_envs["EXTRA_CFLAGS"] = "-Wno-error"
         make.make(
             arguments="",
             cwd=self._code_path,
