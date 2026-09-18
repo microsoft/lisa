@@ -89,10 +89,9 @@ def _validate_password(
 ) -> None:
     if isinstance(node.os, CBLMariner):
         if node.os.information.version >= "2.0.0":
-            # In Mariner 2.0, there is a security restriction that only allows wheel
-            # group users to use 'su' command. Add current user
-            # (specified during VM creation) to wheel group in Mariner
-            node.tools[Usermod].add_user_to_group("wheel", sudo=True)
+            su_group = "sugroup" if node.os.information.version >= "4.0.0" else "wheel"
+            node.tools[Usermod].add_user_to_group(su_group, sudo=True)
+            node.close()
 
     # simple command to determine if username password combination is valid/invalid
     if type(node.os) is Ubuntu and node.os.information.release in ["18.04", "16.04"]:
