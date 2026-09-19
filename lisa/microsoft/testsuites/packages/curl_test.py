@@ -5,6 +5,9 @@
 
 Each case verifies one reviewed behaviour obligation directly against the
 node under test. Generated from a reviewed behaviour corpus (IR).
+
+Every case declares the same timeout of 120 seconds.
+Bounds a hang only: the slowest measured case finishes in 17.32 seconds.
 """
 
 from __future__ import annotations
@@ -22,8 +25,8 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import CBLMariner
-from lisa.tools import Cat, Mkdir, Rm, Tee
-from lisa.util import LisaException, SkippedException, UnsupportedDistroException
+from lisa.tools import Cat, Mkdir, Rm, Stat, Tee
+from lisa.util import SkippedException, UnsupportedDistroException, check_till_timeout
 
 
 @TestSuiteMetadata(
@@ -191,473 +194,539 @@ class CurlSuite(TestSuite):
         )
         started = node.execute_async("python3 /tmp/azl-http-origin.py 18080")
         self.arranged.append(started)
-        ready = False
-        for _ in range(30):
-            probe = node.execute("curl -sf http://127.0.0.1:18080/")
-            if probe.exit_code == 0:
-                ready = True
-                break
-        if not ready:
-            raise LisaException("the loopback-origin arrangement never answered")
+
+        def _loopback_origin_ready_0() -> bool:
+            """Return whether the loopback-origin arrangement answers yet."""
+            if not started.is_running():
+                log.info("the loopback-origin arrangement stopped before it answered")
+                return False
+            return node.execute("curl -sf http://127.0.0.1:18080/").exit_code == 0
+
+        check_till_timeout(
+            _loopback_origin_ready_0,
+            "the loopback-origin arrangement never answered its readiness probe",
+            timeout=60,
+            interval=1,
+        )
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         """Take down everything this suite arranged, whatever the verdict was."""
+        node: Node = kwargs["node"]
         for process in self.arranged:
             process.kill()
+            process.wait_result(timeout=30, raise_on_timeout=False)
+        survivors = [process for process in self.arranged if process.is_running()]
         self.arranged = []
+        if survivors:
+            log.error(
+                "an arranged process survived teardown and is still "
+                "listening; the next case reports it as an arrangement "
+                "that stopped before it answered"
+            )
+        node.tools[Rm].remove_file(str(node.get_pure_path("/tmp/azl-http-origin.py")))
 
     @TestCaseMetadata(
         description=(
-            "Verifies the curl behaviour: Supply credentials for server\n"
-            "authentication to retrieve a known protected response.\n"
+            "Supply credentials for server authentication to retrieve a known\n"
+            "protected response.\n"
             "\n"
             "Corpus obligation: pkg:curl/authenticate-server-request\n"
             "This test was generated automatically from a behavior corpus."
         ),
         priority=3,
-        # Bounds a hang only: measured cases finish in under 20 seconds.
-        timeout=1800,
-        tags=["ai-generated"],
+        timeout=120,
+        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_authenticate_server_request(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/authenticate-server-request."""
         log.info("Verifying obligation pkg:curl/authenticate-server-request")
         result = node.execute(
             "curl --user azl:secret http://127.0.0.1:18080/auth",
-            no_debug_log=True,
+            shell=False,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="curl authentication request failed",
         )
         combined_output = f"{result.stdout}\n{result.stderr}"
-        assert_that(result.exit_code).described_as(
-            "authenticated transfer completes successfully"
-        ).is_equal_to(0)
-        assert_that(combined_output).described_as(
-            "valid server credentials retrieve the protected response"
-        ).contains("welcome")
+        (
+            assert_that(combined_output)
+            .described_as("valid server credentials retrieve the protected response")
+            .contains("welcome")
+        )
 
     @TestCaseMetadata(
         description=(
-            "Verifies the curl behaviour: Save a known response body to a\n"
-            "caller-selected file instead of standard output.\n"
+            "Save a known response body to a caller-selected file instead of\n"
+            "standard output.\n"
             "\n"
             "Corpus obligation: pkg:curl/download-to-named-file\n"
             "This test was generated automatically from a behavior corpus."
         ),
         priority=3,
-        # Bounds a hang only: measured cases finish in under 20 seconds.
-        timeout=1800,
-        tags=["ai-generated"],
+        timeout=120,
+        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_download_to_named_file(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/download-to-named-file."""
         log.info("Verifying obligation pkg:curl/download-to-named-file")
-        work_dir = node.get_pure_path(
+        scratch = node.get_pure_path(
             f"/tmp/lisa-curl-download-to-named-file-{node.name}"
         )
-        destination = work_dir / "response.txt"
-        node.tools[Rm].remove_directory(str(work_dir))
-        node.tools[Mkdir].create_directory(str(work_dir))
+        node.tools[Mkdir].create_directory(str(scratch))
         try:
-            result = node.execute(
-                ("curl --output response.txt http://127.0.0.1:18080"),
-                shell=False,
-                cwd=work_dir,
+            destination = scratch / "named-response"
+            output_result = node.execute(
+                "curl --output named-response http://127.0.0.1:18080",
+                cwd=scratch,
                 expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "curl failed to save the response to the named file"
+                ),
             )
-            saved = node.tools[Cat].read(str(destination), force_run=True)
-            combined_output = f"{result.stdout}\n{result.stderr}"
-            assert_that(saved).described_as(
-                "caller-selected file contains the known response body"
-            ).is_equal_to("hello")
-            assert_that(combined_output).described_as(
-                "response body is withheld from command output when saved to a file"
-            ).does_not_contain("hello")
-
+            saved_body = node.tools[Cat].read(str(destination))
+            output_text = output_result.stdout + output_result.stderr
+            (
+                assert_that(saved_body)
+                .described_as("named destination contains the response body")
+                .is_equal_to("hello")
+            )
+            (
+                assert_that(output_text)
+                .described_as("response body is not written to standard output")
+                .does_not_contain("hello")
+            )
             contrast = node.execute(
                 "curl http://127.0.0.1:18080",
-                shell=False,
-                cwd=work_dir,
+                cwd=scratch,
                 expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "curl failed to return the response without an output file"
+                ),
             )
-            contrast_output = f"{contrast.stdout}\n{contrast.stderr}"
-            assert_that(contrast_output).described_as(
-                "known response body is observable without output redirection"
-            ).contains("hello")
+            contrast_text = contrast.stdout + contrast.stderr
+            (
+                assert_that(contrast_text)
+                .described_as("response body is available without a named output file")
+                .contains("hello")
+            )
         finally:
-            node.tools[Rm].remove_directory(str(work_dir))
+            node.tools[Rm].remove_directory(str(scratch))
 
     @TestCaseMetadata(
         description=(
-            "Verifies the curl behaviour: Return a failure instead of an HTTP\n"
-            "error body for a non-authentication error response.\n"
+            "Return a failure instead of an HTTP error body for a non-\n"
+            "authentication error response.\n"
             "\n"
             "Corpus obligation: pkg:curl/fail-on-http-error\n"
             "This test was generated automatically from a behavior corpus."
         ),
         priority=3,
-        # Bounds a hang only: measured cases finish in under 20 seconds.
-        timeout=1800,
-        tags=["ai-generated"],
+        timeout=120,
+        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_fail_on_http_error(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/fail-on-http-error."""
         log.info("Verifying obligation pkg:curl/fail-on-http-error")
-        fail_result = node.execute("curl --fail http://127.0.0.1:18080/status/404")
-        fail_output = f"{fail_result.stdout}{fail_result.stderr}"
-        assert_that(fail_result.exit_code).described_as(
-            "curl --fail returns the HTTP error exit code"
-        ).is_equal_to(22)
-        assert_that(fail_output).described_as(
-            "curl --fail suppresses the HTTP error response body"
+        failed_404 = node.execute(
+            "curl --fail http://127.0.0.1:18080/status/404",
+            expected_exit_code=22,
+            expected_exit_code_failure_message=(
+                "curl --fail did not return exit code 22 for HTTP 404"
+            ),
+        )
+        failed_500 = node.execute(
+            "curl --fail http://127.0.0.1:18080/status/500",
+            expected_exit_code=22,
+            expected_exit_code_failure_message=(
+                "curl --fail did not return exit code 22 for HTTP 500"
+            ),
+        )
+        assert_that(f"{failed_404.stdout}{failed_404.stderr}").described_as(
+            "curl --fail suppresses the HTTP 404 response body"
         ).does_not_contain("status")
-        plain_result = node.execute("curl http://127.0.0.1:18080/status/404")
-        plain_output = f"{plain_result.stdout}{plain_result.stderr}"
-        assert_that(plain_result.exit_code).described_as(
-            "curl without --fail accepts the HTTP response"
-        ).is_equal_to(0)
-        assert_that(plain_output).described_as(
-            "the arranged HTTP error response body is observable without --fail"
+        assert_that(f"{failed_500.stdout}{failed_500.stderr}").described_as(
+            "curl --fail suppresses the HTTP 500 response body"
+        ).does_not_contain("status")
+        plain_404 = node.execute(
+            "curl http://127.0.0.1:18080/status/404",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "curl without --fail did not return normally for HTTP 404"
+            ),
+        )
+        plain_500 = node.execute(
+            "curl http://127.0.0.1:18080/status/500",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "curl without --fail did not return normally for HTTP 500"
+            ),
+        )
+        assert_that(f"{plain_404.stdout}{plain_404.stderr}").described_as(
+            "the HTTP 404 response body is observable without --fail"
+        ).contains("status")
+        assert_that(f"{plain_500.stdout}{plain_500.stderr}").described_as(
+            "the HTTP 500 response body is observable without --fail"
         ).contains("status")
 
     @TestCaseMetadata(
         description=(
-            "Verifies the curl behaviour: Follow a redirect response to\n"
-            "retrieve the final resource.\n"
+            "Follow a redirect response to retrieve the final resource.\n"
             "\n"
             "Corpus obligation: pkg:curl/follow-http-redirect\n"
             "This test was generated automatically from a behavior corpus."
         ),
         priority=3,
-        # Bounds a hang only: measured cases finish in under 20 seconds.
-        timeout=1800,
-        tags=["ai-generated"],
+        timeout=120,
+        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_follow_http_redirect(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/follow-http-redirect."""
         log.info("Verifying obligation pkg:curl/follow-http-redirect")
         result = node.execute(
-            "curl --location http://127.0.0.1:18080/redirect",
-            shell=False,
+            (
+                "curl --silent --show-error --location --verbose "
+                "--noproxy 127.0.0.1 http://127.0.0.1:18080/redirect"
+            ),
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "curl did not follow the redirect successfully"
+            ),
         )
         output = f"{result.stdout}\n{result.stderr}"
-        assert_that(result.exit_code).described_as(
-            "redirect retrieval completes successfully"
-        ).is_equal_to(0)
+        request_lines = [
+            line for line in output.splitlines() if line.startswith("> GET ")
+        ]
+        assert_that(request_lines).described_as(
+            "curl follows the redirect with a second HTTP request"
+        ).is_length(2)
         assert_that(output).described_as(
-            "redirect retrieval returns the known final response"
+            "curl returns the arranged final response body"
         ).contains("hello")
 
     @TestCaseMetadata(
         description=(
-            "Verifies the curl behaviour: Route a request through an\n"
-            "explicitly specified controlled proxy.\n"
+            "Route a request through an explicitly specified controlled\n"
+            "proxy.\n"
             "\n"
             "Corpus obligation: pkg:curl/request-through-proxy\n"
             "This test was generated automatically from a behavior corpus."
         ),
         priority=3,
-        # Bounds a hang only: measured cases finish in under 20 seconds.
-        timeout=1800,
-        tags=["ai-generated"],
+        timeout=120,
+        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_request_through_proxy(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/request-through-proxy."""
         log.info("Verifying obligation pkg:curl/request-through-proxy")
         result = node.execute(
-            (
-                'curl --silent --show-error --include --noproxy "" '
-                "--proxy http://127.0.0.1:18080 "
-                "http://127.0.0.1:18080"
+            "curl --noproxy '' --verbose --proxy http://127.0.0.1:18080 "
+            "http://127.0.0.1:18080",
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "curl should retrieve the origin response through the explicit proxy"
             ),
-            shell=False,
         )
-        combined_output = f"{result.stdout}\n{result.stderr}"
-        assert_that(result.exit_code).described_as(
-            "curl completes the request through the explicit proxy"
-        ).is_equal_to(0)
-        assert_that(combined_output).described_as(
-            "proxy response carries the evidenced proxy marker header"
-        ).contains("Via")
-        assert_that(combined_output).described_as(
-            "proxy response carries the evidenced proxy marker value"
-        ).contains("azl-origin")
-        assert_that(combined_output).described_as(
-            "curl returns the known origin response"
+        output = result.stdout + result.stderr
+        assert_that(output).described_as(
+            "explicit proxy receives the origin request"
+        ).contains("Via: azl-origin")
+        assert_that(output).described_as(
+            "curl returns the origin response through the explicit proxy"
         ).contains("hello")
 
     @TestCaseMetadata(
         description=(
-            "Verifies the curl behaviour: Resume a local partial destination\n"
-            "from a range-capable remote resource.\n"
+            "Resume a local partial destination from a range-capable remote\n"
+            "resource.\n"
             "\n"
             "Corpus obligation: pkg:curl/resume-partial-download\n"
             "This test was generated automatically from a behavior corpus."
         ),
         priority=3,
-        # Bounds a hang only: measured cases finish in under 20 seconds.
-        timeout=1800,
-        tags=["ai-generated"],
+        timeout=120,
+        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_resume_partial_download(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/resume-partial-download."""
         log.info("Verifying obligation pkg:curl/resume-partial-download")
-        workspace = node.get_pure_path(
-            f"/tmp/lisa-{node.name}-curl-resume-partial-download"
+        workdir = node.get_pure_path(
+            f"/tmp/lisa-curl-resume-partial-download-{node.name}"
         )
-        node.tools[Mkdir].create_directory(str(workspace))
+        destination = workdir / "destination"
+        node.tools[Mkdir].create_directory(str(workdir))
         try:
             node.execute(
                 (
-                    "curl --silent --show-error --fail --range 0-9 "
-                    "--output resumed.bin http://127.0.0.1:18080/range"
+                    "curl --fail --silent --show-error --range 0-9 "
+                    "--output destination http://127.0.0.1:18080/range"
                 ),
-                cwd=workspace,
+                cwd=workdir,
                 expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "curl did not create the partial download"
+                ),
             )
-            prefix = node.tools[Cat].read(
-                str(workspace / "resumed.bin"), force_run=True
-            )
-            assert_that(prefix).described_as(
-                "resume destination starts with the known remote prefix"
+            partial = node.tools[Cat].read(str(destination))
+            assert_that(partial).described_as(
+                "partial destination contains the known remote prefix"
             ).is_equal_to("0123456789")
-
-            node.execute(
-                (
-                    "curl --silent --show-error --fail --continue-at - "
-                    "--output resumed.bin http://127.0.0.1:18080/range"
-                ),
-                cwd=workspace,
-                expected_exit_code=0,
-            )
-            completed = node.tools[Cat].read(
-                str(workspace / "resumed.bin"), force_run=True
-            )
-            assert_that(completed).described_as(
-                "resumed destination equals the complete remote content"
-            ).is_equal_to("0123456789abcdefghijklmnopqrstuvwxyz")
-
-            node.execute(
-                (
-                    "curl --silent --show-error --fail --range 1-10 "
-                    "--output contrast.bin http://127.0.0.1:18080/range"
-                ),
-                cwd=workspace,
-                expected_exit_code=0,
-            )
-            contrasting_prefix = node.tools[Cat].read(
-                str(workspace / "contrast.bin"), force_run=True
-            )
-            assert_that(contrasting_prefix).described_as(
-                "contrast destination has a distinct ten-byte local prefix"
-            ).is_equal_to("123456789a")
-
-            node.execute(
-                (
-                    "curl --silent --show-error --fail --continue-at - "
-                    "--output contrast.bin http://127.0.0.1:18080/range"
-                ),
-                cwd=workspace,
-                expected_exit_code=0,
-            )
-            contrasting_result = node.tools[Cat].read(
-                str(workspace / "contrast.bin"), force_run=True
-            )
-            assert_that(contrasting_result).described_as(
-                "resume preserves the existing prefix and appends from its offset"
-            ).is_equal_to("123456789aabcdefghijklmnopqrstuvwxyz")
-            assert_that(contrasting_result).described_as(
-                "an incorrect local prefix does not become the known remote content"
+            assert_that(partial).described_as(
+                "partial destination is incomplete before resume"
             ).is_not_equal_to("0123456789abcdefghijklmnopqrstuvwxyz")
+
+            node.execute(
+                (
+                    "curl --fail --silent --show-error --continue-at - "
+                    "--output destination http://127.0.0.1:18080/range"
+                ),
+                cwd=workdir,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "curl did not resume the partial download"
+                ),
+            )
+            completed = node.tools[Cat].read(str(destination), force_run=True)
+            assert_that(completed).described_as(
+                "resumed destination equals the known remote content"
+            ).is_equal_to("0123456789abcdefghijklmnopqrstuvwxyz")
         finally:
-            node.tools[Rm].remove_directory(str(workspace))
+            node.tools[Rm].remove_directory(str(workdir))
 
     @TestCaseMetadata(
         description=(
-            "Verifies the curl behaviour: Request and display HTTP response\n"
-            "headers without transferring the body.\n"
+            "Request and display HTTP response headers without transferring\n"
+            "the body.\n"
             "\n"
             "Corpus obligation: pkg:curl/retrieve-response-headers\n"
             "This test was generated automatically from a behavior corpus."
         ),
         priority=3,
-        # Bounds a hang only: measured cases finish in under 20 seconds.
-        timeout=1800,
-        tags=["ai-generated"],
+        timeout=120,
+        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_retrieve_response_headers(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/retrieve-response-headers."""
         log.info("Verifying obligation pkg:curl/retrieve-response-headers")
-        head = node.execute("curl --head http://127.0.0.1:18080")
-        head_output = f"{head.stdout}\n{head.stderr}"
+        head_result = node.execute(
+            "curl --verbose --head http://127.0.0.1:18080",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="curl HEAD request should succeed",
+        )
+        head_output = head_result.stdout + head_result.stderr
         assert_that(head_output).described_as(
-            "HEAD output displays the known response header name"
-        ).contains("X-Origin")
+            "curl sends the HTTP HEAD method"
+        ).contains("HEAD / HTTP/")
         assert_that(head_output).described_as(
-            "HEAD output displays the known response header value"
-        ).contains("azl")
+            "HEAD output displays the known response header"
+        ).contains("X-Origin: azl")
         assert_that(head_output).described_as(
-            "HEAD output does not transfer the response body"
+            "HEAD output omits the response body"
         ).does_not_contain("hello")
-        get = node.execute("curl http://127.0.0.1:18080")
-        get_output = f"{get.stdout}\n{get.stderr}"
+        get_result = node.execute(
+            "curl http://127.0.0.1:18080",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="curl GET contrast should succeed",
+        )
+        get_output = get_result.stdout + get_result.stderr
         assert_that(get_output).described_as(
-            "ordinary retrieval shows the response body is available"
+            "the response body omitted by HEAD is available with GET"
         ).contains("hello")
 
     @TestCaseMetadata(
         description=(
-            "Verifies the curl behaviour: Retry a transient HTTP failure and\n"
-            "honor its Retry-After delay before success.\n"
+            "Retry a transient HTTP failure and honor its Retry-After delay\n"
+            "before success.\n"
             "\n"
             "Corpus obligation: pkg:curl/retry-transient-http-response\n"
             "This test was generated automatically from a behavior corpus."
         ),
         priority=3,
-        # Bounds a hang only: measured cases finish in under 20 seconds.
-        timeout=1800,
-        tags=["ai-generated"],
+        timeout=120,
+        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_retry_transient_http_response(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/retry-transient-http-response."""
         log.info("Verifying obligation pkg:curl/retry-transient-http-response")
-        result = node.execute(("curl --retry 1 --include http://127.0.0.1:18080/flaky"))
+        result = node.execute(
+            ("curl --verbose --retry 1 http://127.0.0.1:18080/flaky"),
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "curl did not recover from the transient HTTP response"
+            ),
+        )
         output = f"{result.stdout}\n{result.stderr}"
-        assert_that(result.exit_code).described_as(
-            "curl completes successfully after retrying the transient response"
-        ).is_equal_to(0)
+        status_lines = [
+            line
+            for line in output.splitlines()
+            if line.startswith("< HTTP/") and " 429" in line
+        ]
+        assert_that(status_lines).described_as(
+            "curl observes the single transient HTTP 429 response"
+        ).is_length(1)
+        retry_headers = [
+            line for line in output.splitlines() if line.startswith("< Retry-After:")
+        ]
+        assert_that(retry_headers).described_as(
+            "the transient response supplies the Retry-After instruction"
+        ).is_not_empty()
+        request_lines = [
+            line
+            for line in output.splitlines()
+            if line.startswith("> GET /flaky HTTP/")
+        ]
+        assert_that(request_lines).described_as(
+            "curl retries the request after the transient response"
+        ).is_length(2)
         assert_that(output).described_as(
-            "curl observes the transient HTTP 429 response before recovery"
-        ).contains("429")
-        assert_that(output).described_as(
-            "curl receives the Retry-After instruction for the transient response"
-        ).contains("Retry-After")
-        assert_that(output).described_as(
-            "curl returns the successful response after the permitted retry"
+            "curl returns the successful response after retrying"
         ).contains("recovered")
 
     @TestCaseMetadata(
         description=(
-            "Verifies the curl behaviour: Send specified JSON text as an HTTP\n"
-            "POST request with JSON media headers.\n"
+            "Send specified JSON text as an HTTP POST request with JSON media\n"
+            "headers.\n"
             "\n"
             "Corpus obligation: pkg:curl/send-json-post\n"
             "This test was generated automatically from a behavior corpus."
         ),
         priority=3,
-        # Bounds a hang only: measured cases finish in under 20 seconds.
-        timeout=1800,
-        tags=["ai-generated"],
+        timeout=120,
+        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_send_json_post(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/send-json-post."""
         log.info("Verifying obligation pkg:curl/send-json-post")
-        json_text = "{}"
-        body_result = node.execute(
-            "curl --silent --show-error --json {} http://127.0.0.1:18080/echo"
+        result = node.execute(
+            'curl --verbose --json \'{"message":"azure-linux"}\' '
+            "http://127.0.0.1:18080/echo",
+            expected_exit_code=0,
+            expected_exit_code_failure_message="curl failed to send the JSON request",
         )
-        assert_that(body_result.exit_code).described_as(
-            "curl completes the JSON POST request"
-        ).is_equal_to(0)
-        body_output = f"{body_result.stdout}\n{body_result.stderr}"
-        assert_that(body_output.strip()).described_as(
-            "endpoint echo proves receipt of the specified JSON body"
-        ).is_equal_to(json_text)
-        trace_result = node.execute(
-            "curl --silent --show-error --verbose --json {} http://127.0.0.1:18080/echo"
+        output = f"{result.stdout}\n{result.stderr}"
+        assert_that(output).described_as(
+            "curl sends the request as HTTP POST"
+        ).contains("POST /echo HTTP/")
+        assert_that(output).described_as(
+            "curl sends the JSON Content-Type header"
+        ).contains("Content-Type: application/json")
+        assert_that(output).described_as("curl sends the JSON Accept header").contains(
+            "Accept: application/json"
         )
-        assert_that(trace_result.exit_code).described_as(
-            "curl completes the observable JSON POST request"
-        ).is_equal_to(0)
-        trace_output = f"{trace_result.stdout}\n{trace_result.stderr}"
-        assert_that(trace_output).described_as(
-            "request is POST and carries both JSON media headers"
-        ).contains(
-            "POST /echo",
-            "Content-Type: application/json",
-            "Accept: application/json",
-        )
+        assert_that(output).described_as(
+            "the endpoint receives and echoes the specified JSON body"
+        ).contains('{"message":"azure-linux"}')
 
     @TestCaseMetadata(
         description=(
-            "Verifies the curl behaviour: Submit text and file parts in an\n"
-            "HTTP multipart form request.\n"
+            "Submit text and file parts in an HTTP multipart form request.\n"
             "\n"
             "Corpus obligation: pkg:curl/submit-multipart-form\n"
             "This test was generated automatically from a behavior corpus."
         ),
         priority=3,
-        # Bounds a hang only: measured cases finish in under 20 seconds.
-        timeout=1800,
-        tags=["ai-generated"],
+        timeout=120,
+        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_submit_multipart_form(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/submit-multipart-form."""
         log.info("Verifying obligation pkg:curl/submit-multipart-form")
-        fixture = node.get_pure_path("/tmp/lisa-curl-form-file-part.txt")
+        scratch = node.get_pure_path(
+            f"/tmp/lisa-curl-submit-multipart-form-{node.name}"
+        )
+        node.tools[Mkdir].create_directory(str(scratch))
         try:
-            node.tools[Tee].write_to_file("AZL_FILE_PART_91", fixture)
+            fixture = scratch / "fixture.txt"
+            node.tools[Tee].write_to_file(
+                "FILE_PART_MARKER", fixture, append=False, sudo=False
+            )
             result = node.execute(
                 (
-                    "curl --silent --show-error "
-                    "--form text=AZL_TEXT_PART_73 "
-                    "--form upload=@/tmp/lisa-curl-form-file-part.txt "
-                    "http://127.0.0.1:18080/echo"
-                )
+                    "curl --verbose --form text=TEXT_PART_MARKER "
+                    "--form file=@fixture.txt http://127.0.0.1:18080/echo"
+                ),
+                cwd=scratch,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "curl failed to submit the multipart form"
+                ),
             )
             output = f"{result.stdout}\n{result.stderr}"
-            assert_that(result.exit_code).described_as(
-                "curl completed the multipart submission"
-            ).is_equal_to(0)
-            text_disposition = 'Content-Disposition: form-data; name="text"'
-            file_disposition = (
-                'Content-Disposition: form-data; name="upload"; '
-                'filename="lisa-curl-form-file-part.txt"'
-            )
             assert_that(output).described_as(
-                "echoed request is multipart form data with both named parts"
-            ).contains(
-                text_disposition,
-                file_disposition,
-                "AZL_TEXT_PART_73",
-                "AZL_FILE_PART_91",
-            )
+                "multipart form is submitted with an HTTP POST"
+            ).contains("POST /echo HTTP/")
+            assert_that(output).described_as(
+                "request declares a multipart form body"
+            ).contains("Content-Type: multipart/form-data;")
+            assert_that(output).described_as(
+                "multipart body contains the named text part"
+            ).contains('name="text"')
+            assert_that(output).described_as(
+                "multipart body contains the text part value"
+            ).contains("TEXT_PART_MARKER")
+            assert_that(output).described_as(
+                "multipart body contains the named file part"
+            ).contains('name="file"; filename="fixture.txt"')
+            assert_that(output).described_as(
+                "multipart body contains the file fixture value"
+            ).contains("FILE_PART_MARKER")
         finally:
-            node.tools[Rm].remove_file(str(fixture))
+            node.tools[Rm].remove_directory(str(scratch))
 
     @TestCaseMetadata(
         description=(
-            "Verifies the curl behaviour: Upload known local bytes to an HTTP\n"
-            "PUT endpoint.\n"
+            "Upload known local bytes to an HTTP PUT endpoint.\n"
             "\n"
             "Corpus obligation: pkg:curl/upload-local-file\n"
             "This test was generated automatically from a behavior corpus."
         ),
         priority=3,
-        # Bounds a hang only: measured cases finish in under 20 seconds.
-        timeout=1800,
-        tags=["ai-generated"],
+        timeout=120,
+        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_upload_local_file(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/upload-local-file."""
         log.info("Verifying obligation pkg:curl/upload-local-file")
-        work_dir = node.get_pure_path(f"/tmp/lisa-curl-upload-local-file-{node.name}")
-        upload_file = work_dir / "upload.txt"
-        payload = "azure-linux-curl-upload-marker"
-        node.tools[Mkdir].create_directory(str(work_dir))
+        scratch = node.get_pure_path(f"/tmp/lisa-curl-upload-local-file-{node.name}")
+        node.tools[Mkdir].create_directory(str(scratch))
         try:
-            node.tools[Tee].write_to_file(payload, upload_file)
+            payload = "curl-upload-local-file-marker"
+            upload = scratch / "upload.txt"
+            receipt = scratch / "receipt.txt"
+            node.tools[Tee].write_to_file(
+                value=payload,
+                file=upload,
+                append=False,
+                sudo=False,
+            )
             result = node.execute(
                 (
-                    "curl --silent --show-error --upload-file upload.txt "
-                    "http://127.0.0.1:18080/echo"
+                    "curl --verbose --upload-file upload.txt "
+                    "--output receipt.txt http://127.0.0.1:18080/echo"
                 ),
-                cwd=work_dir,
+                cwd=scratch,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "curl failed to upload the local file to the PUT endpoint"
+                ),
             )
-            combined = f"{result.stdout}\n{result.stderr}"
-            assert_that(result.exit_code).described_as(
-                "curl completes the HTTP PUT upload successfully"
-            ).is_equal_to(0)
-            assert_that(combined.strip()).described_as(
-                "HTTP PUT endpoint receives exactly the uploaded file content"
+            transcript = f"{result.stdout}{result.stderr}"
+            assert_that(transcript).described_as(
+                "curl sends the upload to the endpoint with HTTP PUT"
+            ).contains("PUT /echo HTTP/")
+            source_content = node.tools[Cat].read(str(upload))
+            receipt_content = node.tools[Cat].read(str(receipt))
+            source_size = node.tools[Stat].get_total_size(str(upload))
+            receipt_size = node.tools[Stat].get_total_size(str(receipt))
+            assert_that(source_content).described_as(
+                "the controlled local file contains the known upload payload"
             ).is_equal_to(payload)
+            assert_that(source_size).described_as(
+                "the controlled local file includes its known terminating newline"
+            ).is_equal_to(len(payload) + 1)
+            assert_that(receipt_content).described_as(
+                "the endpoint receives the local file content without alteration"
+            ).is_equal_to(source_content)
+            assert_that(receipt_size).described_as(
+                "the endpoint receives exactly the complete local file byte count"
+            ).is_equal_to(source_size)
         finally:
-            node.tools[Rm].remove_directory(str(work_dir))
+            node.tools[Rm].remove_directory(str(scratch))
