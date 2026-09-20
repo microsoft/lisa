@@ -286,7 +286,7 @@ class AziHsm(TestSuite):
         priority=0,
         requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
-    def test_package_installation(self, node: Node, log: Logger) -> None:
+    def verify_package_installation(self, node: Node, log: Logger) -> None:
         # Make sure we've added the AZIHSM repo
         self.setup_package_repository(node=node, log=log)
         with _STATE_LOCK:
@@ -349,7 +349,7 @@ class AziHsm(TestSuite):
         Phase 2.1 - modinfo validation.
         6. modinfo reports information for the azihsm module.
             """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def verify_azihsm_modinfo(self, node: Node, log: Logger) -> None:
@@ -385,7 +385,7 @@ class AziHsm(TestSuite):
         11. modprobe -r unloads the module.
         12. Module gone from lsmod.
             """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def verify_azihsm_module_load_unload(self, node: Node, log: Logger) -> None:
@@ -470,7 +470,7 @@ class AziHsm(TestSuite):
         Phase 2.3 - Repeatable load/unload cycles.
         13. 3 consecutive modprobe / modprobe -r cycles succeed.
             """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def verify_azihsm_module_reload_cycles(self, node: Node, log: Logger) -> None:
@@ -531,7 +531,7 @@ class AziHsm(TestSuite):
         17. modprobe correctly fails after uninstall.
         18. No leftover files in module directory.
             """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def verify_azihsm_package_uninstallation(self, node: Node, log: Logger) -> None:
@@ -594,7 +594,7 @@ class AziHsm(TestSuite):
         description="""
             Run the driver tests
             """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def test_run_azihsm_driver_tests(self, node: Node, log: Logger) -> None:
@@ -628,7 +628,7 @@ class AziHsm(TestSuite):
         description="""
             Run the sdk tests
             """,
-        priority=0,
+        priority=1,
         requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def test_run_azihsm_sdk_tests(self, node: Node, log: Logger) -> None:
