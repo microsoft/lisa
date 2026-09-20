@@ -597,9 +597,11 @@ class AziHsm(TestSuite):
         priority=1,
         requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
-    def test_run_azihsm_driver_tests(self, node: Node, log: Logger) -> None:
+    def verify_azihsm_driver_tests(self, node: Node, log: Logger) -> None:
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
+        self.check_azihsm_device(node=node)
+        node.mark_dirty()  # this case installs packages and runs driver tests
 
         # Make sure the azihsm packages are installed
         self.install_all_azihsm_packages(node=node, log=log)
@@ -631,9 +633,11 @@ class AziHsm(TestSuite):
         priority=1,
         requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
-    def test_run_azihsm_sdk_tests(self, node: Node, log: Logger) -> None:
+    def verify_azihsm_sdk_tests(self, node: Node, log: Logger) -> None:
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
+        self.check_azihsm_device(node=node)
+        node.mark_dirty()  # this case installs packages and runs sdk tests
 
         # Make sure the azihsm packages are installed
         self.install_all_azihsm_packages(node=node, log=log)
