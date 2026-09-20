@@ -289,6 +289,7 @@ class AziHsm(TestSuite):
     def verify_package_installation(self, node: Node, log: Logger) -> None:
         # Make sure we've added the AZIHSM repo
         self.setup_package_repository(node=node, log=log)
+        node.mark_dirty()  # this case installs the driver package
         with _STATE_LOCK:
             driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
             kernel_version = _AZIHSM_KERNEL_VERSIONS[node]
