@@ -169,13 +169,7 @@ class XdpTool(Tool):
                 "llvm-toolset elfutils-devel m4 wireshark perf make gcc nc tcpdump"
                 # pcaplib
             )
-            # Extra tools required by the xdp-tools test runner. They are
-            # probed individually because the package names are not available
-            # on every Fedora derivative, and a missing one must not abort
-            # the whole installation.
-            for package in ["ethtool", "nftables", "socat", "ndisc6", "iputils"]:
-                if self.node.os.is_package_in_repo(package):
-                    self.node.os.install_packages(package)
+            self._install_fedora_test_dependencies(self.node.os)
         else:
             raise UnsupportedDistroException(self.node.os)
 
@@ -225,3 +219,12 @@ class XdpTool(Tool):
         )
 
         return self._check_exists()
+
+    def _install_fedora_test_dependencies(self, os: Fedora) -> None:
+        # Extra tools required by the xdp-tools test runner. They are
+        # probed individually because the package names are not available
+        # on every Fedora derivative, and a missing one must not abort
+        # the whole installation.
+        for package in ["ethtool", "nftables", "socat", "ndisc6", "iputils"]:
+            if os.is_package_in_repo(package):
+                os.install_packages(package)
