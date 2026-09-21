@@ -129,7 +129,8 @@ class XdpTool(Tool):
             # llvm-toolchain-<codename> repository makes it resolve to the
             # latest LLVM major version, whose runtime packages are not
             # installable alongside the versioned clang selected below.
-            for ver in range(18, 9, -1):
+            min_llvm_version = 10 if self._xdp_tools_tag == "v1.2.0" else 11
+            for ver in range(18, min_llvm_version - 1, -1):
                 clang_pkg = f"clang-{ver}"
                 llvm_pkg = f"llvm-{ver}"
                 if self.node.os.is_package_in_repo(
@@ -142,9 +143,12 @@ class XdpTool(Tool):
             else:
                 raise UnsupportedDistroException(
                     self.node.os,
-                    "No matching clang/llvm package pair (clang-18/llvm-18 "
-                    "through clang-10/llvm-10) found in any configured "
-                    "repository.",
+                    f"No matching clang/llvm package pair for xdp-tools "
+                    f"{self._xdp_tools_tag} (clang-18/llvm-18 through "
+                    f"clang-{min_llvm_version}/llvm-{min_llvm_version}) found. "
+                    "Check the configured APT repositories and package indexes; "
+                    "ensure they provide both versioned packages of a matching "
+                    "pair in this range.",
                 )
             self.node.os.install_packages(package_list)
 
