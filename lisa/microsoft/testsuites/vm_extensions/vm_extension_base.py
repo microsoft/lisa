@@ -243,6 +243,7 @@ class VmExtensionTestBase(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
         settings: Dict[str, Any],
+        mark_dirty_before_install: bool = False,
     ) -> None:
         """
         Shared boot-validation flow for VM extensions.
@@ -258,6 +259,8 @@ class VmExtensionTestBase(TestSuite):
         PUBLISHER / EXTENSION_TYPE. The version is required (no DEFAULT_VERSION
         fallback) and must be a 'Major.Minor', 'Major.Minor.Patch', or
         'Major.Minor.Patch.Revision' value; the case is skipped otherwise. When
+        mark_dirty_before_install is set, the node is marked dirty after this
+        validation and immediately before the extension lifecycle begins. When
         a full three- or four-part version is requested, the actually-installed
         version is verified to match. After provisioning succeeds the VM is
         checked for SSH reachability. The deployed extension is named
@@ -288,6 +291,8 @@ class VmExtensionTestBase(TestSuite):
         type_ = self._resolve_type(variables)
         extension_name = f"{publisher}_{type_}_boot_validation_test"
         log.info(f"Installing extension '{extension_name}'...")
+        if mark_dirty_before_install:
+            node.mark_dirty()
         try:
             result = self._install(
                 node,

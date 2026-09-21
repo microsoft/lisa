@@ -90,11 +90,6 @@ class SiteRecoveryTests(VmExtensionTestBase):  # type: ignore[misc]
                     f"node is {type(node.os).__name__} {actual_major_version}."
                 )
 
-        if command == "Install":
-            # Installing the embedded Mobility Service package modifies the VM
-            # beyond the extension resource lifecycle.
-            node.mark_dirty()
-
         case_variables = dict(variables)
         case_variables["extension_publisher"] = publisher
         case_variables["extension_type"] = extension_type
@@ -110,6 +105,7 @@ class SiteRecoveryTests(VmExtensionTestBase):  # type: ignore[misc]
             log=log,
             variables=case_variables,
             settings=_settings(command),
+            mark_dirty_before_install=command == "Install",
         )
 
     @TestCaseMetadata(
