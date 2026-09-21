@@ -43,6 +43,9 @@ class HyperVDevicePoolTestCase(TestCase):
             "IsBoot": False,
             "IsSystem": False,
             "IsMounted": False,
+            "PhysicalDiskCount": 1,
+            "IsStoragePoolMember": False,
+            "StoragePoolNames": "",
         }
         node = SimpleNamespace(tools={PowerShell: powershell})
         pool = HyperVDevicePool(
@@ -70,6 +73,10 @@ class HyperVDevicePoolTestCase(TestCase):
             [nvme_device],
             pool.available_host_devices[HostDevicePoolType.PCI_NVME],
         )
+        cmdlet = powershell.run_cmdlet.call_args.kwargs["cmdlet"]
+        self.assertIn("Get-StoragePool", cmdlet)
+        self.assertIn("-PhysicalDisk", cmdlet)
+        self.assertIn("-not $_.IsPrimordial", cmdlet)
 
     @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
     def test_configure_pci_nvme_pool_from_location_path(
@@ -93,6 +100,9 @@ class HyperVDevicePoolTestCase(TestCase):
             "IsBoot": False,
             "IsSystem": False,
             "IsMounted": False,
+            "PhysicalDiskCount": 1,
+            "IsStoragePoolMember": False,
+            "StoragePoolNames": "",
         }
         node = SimpleNamespace(tools={PowerShell: powershell})
         pool = HyperVDevicePool(
@@ -171,6 +181,9 @@ class HyperVDevicePoolTestCase(TestCase):
                     "IsBoot": False,
                     "IsSystem": False,
                     "IsMounted": False,
+                    "PhysicalDiskCount": 1,
+                    "IsStoragePoolMember": False,
+                    "StoragePoolNames": "",
                 },
                 "not NVMe",
             ),
@@ -181,6 +194,9 @@ class HyperVDevicePoolTestCase(TestCase):
                     "IsBoot": True,
                     "IsSystem": False,
                     "IsMounted": False,
+                    "PhysicalDiskCount": 1,
+                    "IsStoragePoolMember": False,
+                    "StoragePoolNames": "",
                 },
                 "boot",
             ),
@@ -191,6 +207,9 @@ class HyperVDevicePoolTestCase(TestCase):
                     "IsBoot": False,
                     "IsSystem": True,
                     "IsMounted": False,
+                    "PhysicalDiskCount": 1,
+                    "IsStoragePoolMember": False,
+                    "StoragePoolNames": "",
                 },
                 "system",
             ),
@@ -201,8 +220,50 @@ class HyperVDevicePoolTestCase(TestCase):
                     "IsBoot": False,
                     "IsSystem": False,
                     "IsMounted": True,
+                    "PhysicalDiskCount": 1,
+                    "IsStoragePoolMember": False,
+                    "StoragePoolNames": "",
                 },
                 "mounted",
+            ),
+            "missing physical disk": (
+                {
+                    "Number": 1,
+                    "BusType": "NVMe",
+                    "IsBoot": False,
+                    "IsSystem": False,
+                    "IsMounted": False,
+                    "PhysicalDiskCount": 0,
+                    "IsStoragePoolMember": False,
+                    "StoragePoolNames": "",
+                },
+                "exactly one Windows physical disk",
+            ),
+            "ambiguous physical disk": (
+                {
+                    "Number": 1,
+                    "BusType": "NVMe",
+                    "IsBoot": False,
+                    "IsSystem": False,
+                    "IsMounted": False,
+                    "PhysicalDiskCount": 2,
+                    "IsStoragePoolMember": False,
+                    "StoragePoolNames": "",
+                },
+                "exactly one Windows physical disk",
+            ),
+            "storage pool member": (
+                {
+                    "Number": 1,
+                    "BusType": "NVMe",
+                    "IsBoot": False,
+                    "IsSystem": False,
+                    "IsMounted": False,
+                    "PhysicalDiskCount": 1,
+                    "IsStoragePoolMember": True,
+                    "StoragePoolNames": "S2D on LSG2104-07",
+                },
+                "Storage Spaces pool",
             ),
         }
 
@@ -291,6 +352,9 @@ class HyperVDevicePoolTestCase(TestCase):
             "IsBoot": True,
             "IsSystem": True,
             "IsMounted": True,
+            "PhysicalDiskCount": 1,
+            "IsStoragePoolMember": False,
+            "StoragePoolNames": "",
         }
         node = SimpleNamespace(tools={PowerShell: powershell})
         pool = HyperVDevicePool(

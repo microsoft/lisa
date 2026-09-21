@@ -137,6 +137,29 @@ $diskRecords = foreach ($diskDrive in $diskDrives) {{
             -ErrorAction Stop |
         Where-Object {{ @($_.AccessPaths).Count -gt 0 }}
     )
+    $diskUniqueId = ([string]$disk.UniqueId).Trim()
+    $diskSerialNumber = ([string]$disk.SerialNumber).Trim()
+    $diskNumber = ([string]$disk.Number).Trim()
+    $physicalDisks = @(
+        Get-PhysicalDisk -ErrorAction Stop |
+        Where-Object {{
+            $physicalUniqueId = ([string]$_.UniqueId).Trim()
+            $physicalSerialNumber = ([string]$_.SerialNumber).Trim()
+            $physicalDeviceId = ([string]$_.DeviceId).Trim()
+            ($diskUniqueId -and $physicalUniqueId -eq $diskUniqueId) -or
+            ($diskSerialNumber -and $physicalSerialNumber -eq $diskSerialNumber) -or
+            ($physicalDeviceId -eq $diskNumber)
+        }}
+    )
+    $nonPrimordialPools = @()
+    if ($physicalDisks.Count -eq 1) {{
+        $nonPrimordialPools = @(
+            Get-StoragePool `
+                -PhysicalDisk $physicalDisks[0] `
+                -ErrorAction Stop |
+            Where-Object {{ -not $_.IsPrimordial }}
+        )
+    }}
     [PSCustomObject]@{{
         Number = [int]$disk.Number
         FriendlyName = [string]$disk.FriendlyName
@@ -144,6 +167,9 @@ $diskRecords = foreach ($diskDrive in $diskDrives) {{
         IsBoot = [bool]$disk.IsBoot
         IsSystem = [bool]$disk.IsSystem
         IsMounted = ($mountedPartitions.Count -gt 0)
+        PhysicalDiskCount = [int]$physicalDisks.Count
+        IsStoragePoolMember = ($nonPrimordialPools.Count -gt 0)
+        StoragePoolNames = [string]($nonPrimordialPools.FriendlyName -join ', ')
     }}
 }}
 $diskRecords
@@ -174,6 +200,9 @@ $diskRecords
                 "IsBoot",
                 "IsSystem",
                 "IsMounted",
+                "PhysicalDiskCount",
+                "IsStoragePoolMember",
+                "StoragePoolNames",
             }
             missing_properties = required_properties.difference(disk)
             if missing_properties:
@@ -181,6 +210,14 @@ $diskRecords
                     f"Hyper-V PCI NVMe device '{device.instance_id}' returned "
                     "an incomplete Windows disk safety record. Missing: "
                     f"{', '.join(sorted(missing_properties))}"
+                )
+
+            physical_disk_count = disk["PhysicalDiskCount"]
+            if physical_disk_count != 1:
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' must map "
+                    "to exactly one Windows physical disk, found "
+                    f"{physical_disk_count}"
                 )
 
             bus_type = str(disk["BusType"]).strip()
@@ -197,6 +234,9 @@ $diskRecords
                 unsafe_reasons.append("system")
             if disk.get("IsMounted"):
                 unsafe_reasons.append("mounted")
+            if disk.get("IsStoragePoolMember"):
+                pool_names = str(disk["StoragePoolNames"]).strip() or "unknown"
+                unsafe_reasons.append(f"Storage Spaces pool '{pool_names}'")
             if unsafe_reasons:
                 disk_number = disk.get("Number", "unknown")
                 raise LisaException(
