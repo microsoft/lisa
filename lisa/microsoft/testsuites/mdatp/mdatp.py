@@ -88,6 +88,7 @@ class MdatpSuite(TestSuite):
            found
         """,
         priority=3,
+        use_new_environment=True,
         requirement=simple_requirement(
             unsupported_os=[Windows], supported_platform_type=[AZURE]
         ),
