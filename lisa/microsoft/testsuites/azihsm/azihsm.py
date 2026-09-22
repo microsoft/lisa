@@ -19,12 +19,13 @@ from lisa import (
 )
 from lisa.base_tools import Cat, Uname
 from lisa.operating_system import CBLMariner, Posix, Ubuntu
-from lisa.tools import Lsmod, Modinfo, Modprobe
+from lisa.tools import Lsmod, Modinfo, Modprobe, Usermod
 from lisa.util import check_till_timeout
 
 AZIHSM_DEV = "/dev/azihsm0"
 AZIHSM_NAME = "azihsm"
 _TESTING_REPO_ADDED_NODES: WeakSet[Node] = WeakSet()
+_USER_GROUPS_ADDED_NODES: WeakSet[Node] = WeakSet()
 _PACKAGES_INSTALLED_NODES: WeakSet[Node] = WeakSet()
 _AZIHSM_DRIVER_PACKAGE_NAMES: WeakKeyDictionary[Node, str] = WeakKeyDictionary()
 _AZIHSM_KMOD_PATHS: WeakKeyDictionary[Node, str] = WeakKeyDictionary()
@@ -140,6 +141,26 @@ class AziHsm(TestSuite):
         # Indicate we have done this step already
         with _STATE_LOCK:
             _TESTING_REPO_ADDED_NODES.add(node)
+
+    #
+    # Make sure the test user is a member of the groups needed to access the
+    # azihsm device and the tss keys.
+    #
+    def setup_user_groups(self, node: Node, log: Logger) -> None:
+        with _STATE_LOCK:
+            groups_already_added = node in _USER_GROUPS_ADDED_NODES
+
+        if groups_already_added:
+            return
+
+        usermod = node.tools[Usermod]
+        for group in ["azihsm", "tss"]:
+            log.info(f"Adding user to group {group}")
+            usermod.add_user_to_group(group=group, sudo=True)
+
+        # Indicate we have done this step already
+        with _STATE_LOCK:
+            _USER_GROUPS_ADDED_NODES.add(node)
 
     #
     # Make sure all of the azihsm package are installed and up-to-date
@@ -263,6 +284,9 @@ class AziHsm(TestSuite):
         # Indicate we have done this step already
         with _STATE_LOCK:
             _PACKAGES_INSTALLED_NODES.add(node)
+
+        # Make sure the test user can access the azihsm device and tss keys
+        self.setup_user_groups(node=node, log=log)
 
     #
     #
