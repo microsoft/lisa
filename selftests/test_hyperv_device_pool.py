@@ -1,8 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import base64
 from types import SimpleNamespace
-from typing import Any, List, cast
+from typing import Any, Dict, List, Tuple, cast
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -36,17 +37,20 @@ class HyperVDevicePoolTestCase(TestCase):
         )
         get_assignable_devices.return_value = [nvme_device]
         powershell = MagicMock()
-        powershell.run_cmdlet.return_value = {
-            "Number": 1,
-            "FriendlyName": "NVMe data disk",
-            "BusType": "NVMe",
-            "IsBoot": False,
-            "IsSystem": False,
-            "IsMounted": False,
-            "PhysicalDiskCount": 1,
-            "IsStoragePoolMember": False,
-            "StoragePoolNames": "",
-        }
+        powershell.run_cmdlet.side_effect = [
+            1,
+            {
+                "Number": 1,
+                "FriendlyName": "NVMe data disk",
+                "BusType": "NVMe",
+                "IsBoot": False,
+                "IsSystem": False,
+                "IsMounted": False,
+                "PhysicalDiskCount": 1,
+                "IsStoragePoolMember": False,
+                "StoragePoolNames": "",
+            },
+        ]
         node = SimpleNamespace(tools={PowerShell: powershell})
         pool = HyperVDevicePool(
             node=cast(Any, node),
@@ -73,11 +77,19 @@ class HyperVDevicePoolTestCase(TestCase):
             [nvme_device],
             pool.available_host_devices[HostDevicePoolType.PCI_NVME],
         )
-        cmdlet = powershell.run_cmdlet.call_args.kwargs["cmdlet"]
-        self.assertIn("Get-StoragePool", cmdlet)
-        self.assertIn("-PhysicalDisk", cmdlet)
-        self.assertIn("-not $_.IsPrimordial", cmdlet)
-        self.assertIn("IsNullOrWhiteSpace", cmdlet)
+        cmdlets = [
+            call.kwargs["cmdlet"] for call in powershell.run_cmdlet.call_args_list
+        ]
+        self.assertIn("DEVPKEY_Device_Children", cmdlets[0])
+        self.assertIn("Get-StoragePool", cmdlets[1])
+        self.assertIn("-PhysicalDisk", cmdlets[1])
+        self.assertIn("-not $_.IsPrimordial", cmdlets[1])
+        self.assertIn("IsNullOrWhiteSpace", cmdlets[1])
+        for cmdlet in cmdlets:
+            encoded_command = base64.b64encode(
+                f"{cmdlet.rstrip()} | ConvertTo-Json".encode("utf-16-le")
+            ).decode("utf-8")
+            self.assertLess(len(encoded_command), 7000)
 
     @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
     def test_configure_pci_nvme_pool_from_location_path(
@@ -94,17 +106,20 @@ class HyperVDevicePoolTestCase(TestCase):
         )
         get_by_location_path.return_value = [nvme_device]
         powershell = MagicMock()
-        powershell.run_cmdlet.return_value = {
-            "Number": 1,
-            "FriendlyName": "NVMe data disk",
-            "BusType": "NVMe",
-            "IsBoot": False,
-            "IsSystem": False,
-            "IsMounted": False,
-            "PhysicalDiskCount": 1,
-            "IsStoragePoolMember": False,
-            "StoragePoolNames": "",
-        }
+        powershell.run_cmdlet.side_effect = [
+            1,
+            {
+                "Number": 1,
+                "FriendlyName": "NVMe data disk",
+                "BusType": "NVMe",
+                "IsBoot": False,
+                "IsSystem": False,
+                "IsMounted": False,
+                "PhysicalDiskCount": 1,
+                "IsStoragePoolMember": False,
+                "StoragePoolNames": "",
+            },
+        ]
         node = SimpleNamespace(tools={PowerShell: powershell})
         pool = HyperVDevicePool(
             node=cast(Any, node),
@@ -165,17 +180,20 @@ class HyperVDevicePoolTestCase(TestCase):
             instance_id="PCI\\VEN_144D&DEV_A80A",
             location_path="PCIROOT(1)#PCI(0000)",
         )
-        safety_cases = {
-            "missing disk": ([], "exactly one Windows disk"),
-            "incomplete record": ({}, "incomplete Windows disk safety record"),
+        safety_cases: Dict[str, Tuple[Any, Any, str]] = {
+            "missing disk": ([], None, "exactly one Windows disk"),
+            "incomplete record": (
+                1,
+                {},
+                "incomplete Windows disk safety record",
+            ),
             "multiple disks": (
-                [
-                    {"Number": 1, "IsBoot": False},
-                    {"Number": 2, "IsBoot": False},
-                ],
+                [1, 2],
+                None,
                 "exactly one Windows disk",
             ),
             "RAID disk": (
+                1,
                 {
                     "Number": 1,
                     "BusType": "RAID",
@@ -189,6 +207,7 @@ class HyperVDevicePoolTestCase(TestCase):
                 "not NVMe",
             ),
             "boot disk": (
+                0,
                 {
                     "Number": 0,
                     "BusType": "NVMe",
@@ -202,6 +221,7 @@ class HyperVDevicePoolTestCase(TestCase):
                 "boot",
             ),
             "system disk": (
+                0,
                 {
                     "Number": 0,
                     "BusType": "NVMe",
@@ -215,6 +235,7 @@ class HyperVDevicePoolTestCase(TestCase):
                 "system",
             ),
             "mounted disk": (
+                1,
                 {
                     "Number": 1,
                     "BusType": "NVMe",
@@ -228,6 +249,7 @@ class HyperVDevicePoolTestCase(TestCase):
                 "mounted",
             ),
             "missing physical disk": (
+                1,
                 {
                     "Number": 1,
                     "BusType": "NVMe",
@@ -241,6 +263,7 @@ class HyperVDevicePoolTestCase(TestCase):
                 "exactly one Windows physical disk",
             ),
             "ambiguous physical disk": (
+                1,
                 {
                     "Number": 1,
                     "BusType": "NVMe",
@@ -254,6 +277,7 @@ class HyperVDevicePoolTestCase(TestCase):
                 "exactly one Windows physical disk",
             ),
             "storage pool member": (
+                1,
                 {
                     "Number": 1,
                     "BusType": "NVMe",
@@ -268,10 +292,14 @@ class HyperVDevicePoolTestCase(TestCase):
             ),
         }
 
-        for case_name, (disk_records, expected_error) in safety_cases.items():
+        for case_name, (
+            disk_numbers,
+            disk_record,
+            expected_error,
+        ) in safety_cases.items():
             with self.subTest(case_name):
                 powershell = MagicMock()
-                powershell.run_cmdlet.return_value = disk_records
+                powershell.run_cmdlet.side_effect = [disk_numbers, disk_record]
                 node = SimpleNamespace(tools={PowerShell: powershell})
                 pool = HyperVDevicePool(
                     node=cast(Any, node),
@@ -347,16 +375,19 @@ class HyperVDevicePoolTestCase(TestCase):
             location_path="PCIROOT(1)#PCI(0000)",
         )
         powershell = MagicMock()
-        powershell.run_cmdlet.return_value = {
-            "Number": 0,
-            "BusType": "NVMe",
-            "IsBoot": True,
-            "IsSystem": True,
-            "IsMounted": True,
-            "PhysicalDiskCount": 1,
-            "IsStoragePoolMember": False,
-            "StoragePoolNames": "",
-        }
+        powershell.run_cmdlet.side_effect = [
+            0,
+            {
+                "Number": 0,
+                "BusType": "NVMe",
+                "IsBoot": True,
+                "IsSystem": True,
+                "IsMounted": True,
+                "PhysicalDiskCount": 1,
+                "IsStoragePoolMember": False,
+                "StoragePoolNames": "",
+            },
+        ]
         node = SimpleNamespace(tools={PowerShell: powershell})
         pool = HyperVDevicePool(
             node=cast(Any, node),
