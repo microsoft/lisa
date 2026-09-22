@@ -289,13 +289,9 @@ class AziHsm(TestSuite):
         self.setup_user_groups(node=node, log=log)
 
     #
-    #
     # Start of Test Cases
     #
-    #
 
-    #
-    #
     @TestCaseMetadata(
         description="""
         Package installation tests
