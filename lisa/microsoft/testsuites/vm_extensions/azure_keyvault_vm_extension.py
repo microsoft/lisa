@@ -96,6 +96,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         * Deletion of the resources
         """,
         priority=1,
+        tags=["microsoft.azure.keyvault.keyvaultforlinux"],
         requirement=simple_requirement(
             # This test is enabled for Ubuntu & CBLMariner.
             supported_os=[Ubuntu, CBLMariner],

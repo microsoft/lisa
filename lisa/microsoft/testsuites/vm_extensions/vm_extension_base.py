@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from assertpy import assert_that
 from microsoft.testsuites.vm_extensions.runtime_extensions.common import execute_command
@@ -243,6 +243,7 @@ class VmExtensionTestBase(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
         settings: Dict[str, Any],
+        post_provision: Optional[Callable[[Node], None]] = None,
     ) -> None:
         """
         Shared boot-validation flow for VM extensions.
@@ -263,6 +264,12 @@ class VmExtensionTestBase(TestSuite):
         checked for SSH reachability. The deployed extension is named
         '<publisher>_<extension_type>_boot_validation_test'. Install/cleanup
         reuse the shared ``_install`` / ``_uninstall`` helpers.
+
+        ``post_provision`` is an optional hook invoked with the node while the
+        extension is still installed (after provisioning and the reachability
+        check, before cleanup). Suites use it to add extension-specific
+        validation (e.g. handler-log assertions) without duplicating the
+        install/cleanup lifecycle.
         """
         version = self._get_version(variables, use_default=False)
         extension = node.features[AzureExtension]
@@ -322,6 +329,8 @@ class VmExtensionTestBase(TestSuite):
                 f"version: {installed_version}"
             )
             self._assert_vm_reachable(node)
+            if post_provision is not None:
+                post_provision(node)
         finally:
             if self.SUPPORTS_DELETE:
                 self._uninstall(node, name=extension_name)

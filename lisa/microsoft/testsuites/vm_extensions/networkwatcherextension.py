@@ -44,6 +44,7 @@ class NetworkWatcherExtension(TestSuite):
         Deletes the VM Extension.
         """,
         priority=1,
+        tags=["microsoft.azure.networkwatcher.networkwatcheragentlinux"],
         requirement=simple_requirement(
             supported_features=[AzureExtension],
         ),
