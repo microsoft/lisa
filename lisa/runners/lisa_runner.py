@@ -371,6 +371,9 @@ class LisaRunner(BaseRunner):
                     raise SkippedException(e)
                 else:
                     # rerun prepare to calculate resource again.
+                    self._delete_environment_task(
+                        environment=environment, test_results=[]
+                    )
                     environment.status = EnvironmentStatus.New
         except Exception as e:
             if self._need_retry(environment):
