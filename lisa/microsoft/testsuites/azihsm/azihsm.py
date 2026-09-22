@@ -286,12 +286,12 @@ class AziHsm(TestSuite):
                     f"{pkg} package should be installed"
                 ).is_true()
 
+        # Make sure the test user can access the azihsm device and tss keys
+        self.setup_user_groups(node=node, log=log)
+
         # Indicate we have done this step already
         with _STATE_LOCK:
             _PACKAGES_INSTALLED_NODES.add(node)
-
-        # Make sure the test user can access the azihsm device and tss keys
-        self.setup_user_groups(node=node, log=log)
 
     #
     # Start of Test Cases
