@@ -135,28 +135,7 @@ class IntRange(RequirementMixin):
             result.add_reason("capability shouldn't be None")
         else:
             if isinstance(capability, IntRange):
-                if capability.max < self.min:
-                    result.add_reason(
-                        f"capability max({capability.max}) is "
-                        f"smaller than requirement min({self.min})"
-                    )
-                elif capability.max == self.min and not capability.max_inclusive:
-                    result.add_reason(
-                        f"capability max({capability.max}) equals "
-                        f"to requirement min({self.min}), but "
-                        f"capability is not max_inclusive"
-                    )
-                elif capability.min > self.max:
-                    result.add_reason(
-                        f"capability min({capability.min}) is "
-                        f"bigger than requirement max({self.max})"
-                    )
-                elif capability.min == self.max and not self.max_inclusive:
-                    result.add_reason(
-                        f"capability min({capability.min}) equals "
-                        f"to requirement max({self.max}), but "
-                        f"requirement is not max_inclusive"
-                    )
+                self._check_range(capability, result)
             elif isinstance(capability, int):
                 if capability < self.min:
                     result.add_reason(
@@ -184,6 +163,30 @@ class IntRange(RequirementMixin):
                     )
 
         return result
+
+    def _check_range(self, capability: "IntRange", result: ResultReason) -> None:
+        if capability.max < self.min:
+            result.add_reason(
+                f"capability max({capability.max}) is "
+                f"smaller than requirement min({self.min})"
+            )
+        elif capability.max == self.min and not capability.max_inclusive:
+            result.add_reason(
+                f"capability max({capability.max}) equals "
+                f"to requirement min({self.min}), but "
+                f"capability is not max_inclusive"
+            )
+        elif capability.min > self.max:
+            result.add_reason(
+                f"capability min({capability.min}) is "
+                f"bigger than requirement max({self.max})"
+            )
+        elif capability.min == self.max and not self.max_inclusive:
+            result.add_reason(
+                f"capability min({capability.min}) equals "
+                f"to requirement max({self.max}), but "
+                f"requirement is not max_inclusive"
+            )
 
     def _choose_value(self, capability: Any) -> int:
         if isinstance(capability, int):
@@ -414,6 +417,34 @@ def decode_set_space_by_type(
     return decoded_data
 
 
+def _check_countspace_number(
+    requirement: int, capability: CountSpace, result: ResultReason
+) -> None:
+    if isinstance(capability, int):
+        if requirement != capability:
+            result.add_reason(
+                "requirement is a number, capability should be exact "
+                f"much, but requirement: {requirement}, "
+                f"capability: {capability}"
+            )
+    elif isinstance(capability, IntRange):
+        temp_result = capability.check(requirement)
+        if not temp_result.result:
+            result.add_reason(
+                "requirement is a number, capability should include it, "
+                f"but requirement: {requirement}, capability: {capability}"
+            )
+    else:
+        assert isinstance(capability, list), f"actual: {type(capability)}"
+        temp_requirement = IntRange(min=requirement, max=requirement)
+        temp_result = _one_of_matched(temp_requirement, capability)
+        if not temp_result.result:
+            result.add_reason(
+                f"requirement is a number, no capability matched, "
+                f"requirement: {requirement}, capability: {capability}"
+            )
+
+
 def check_countspace(requirement: CountSpace, capability: CountSpace) -> ResultReason:
     result = ResultReason()
     if requirement is not None:
@@ -423,29 +454,7 @@ def check_countspace(requirement: CountSpace, capability: CountSpace) -> ResultR
             )
         else:
             if isinstance(requirement, int):
-                if isinstance(capability, int):
-                    if requirement != capability:
-                        result.add_reason(
-                            "requirement is a number, capability should be exact "
-                            f"much, but requirement: {requirement}, "
-                            f"capability: {capability}"
-                        )
-                elif isinstance(capability, IntRange):
-                    temp_result = capability.check(requirement)
-                    if not temp_result.result:
-                        result.add_reason(
-                            "requirement is a number, capability should include it, "
-                            f"but requirement: {requirement}, capability: {capability}"
-                        )
-                else:
-                    assert isinstance(capability, list), f"actual: {type(capability)}"
-                    temp_requirement = IntRange(min=requirement, max=requirement)
-                    temp_result = _one_of_matched(temp_requirement, capability)
-                    if not temp_result.result:
-                        result.add_reason(
-                            f"requirement is a number, no capability matched, "
-                            f"requirement: {requirement}, capability: {capability}"
-                        )
+                _check_countspace_number(requirement, capability, result)
             elif isinstance(requirement, IntRange):
                 result.merge(requirement.check(capability))
             else:
