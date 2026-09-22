@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import hashlib
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
@@ -10,6 +11,18 @@ from retry import retry
 from lisa import Logger, Node, TestSuite
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import LisaException, SkippedException
+
+_MAX_EXTENSION_NAME_LENGTH = 80
+
+
+def _get_boot_validation_extension_name(publisher: str, extension_type: str) -> str:
+    name = f"{publisher}_{extension_type}_boot_validation_test"
+    if len(name) <= _MAX_EXTENSION_NAME_LENGTH:
+        return name
+
+    digest = hashlib.sha256(name.encode()).hexdigest()[:8]
+    prefix_length = _MAX_EXTENSION_NAME_LENGTH - len(digest) - 1
+    return f"{name[:prefix_length]}_{digest}"
 
 
 class VmExtensionTestBase(TestSuite):
@@ -243,6 +256,7 @@ class VmExtensionTestBase(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
         settings: Dict[str, Any],
+        mark_dirty_before_install: bool = False,
     ) -> None:
         """
         Shared boot-validation flow for VM extensions.
@@ -258,11 +272,14 @@ class VmExtensionTestBase(TestSuite):
         PUBLISHER / EXTENSION_TYPE. The version is required (no DEFAULT_VERSION
         fallback) and must be a 'Major.Minor', 'Major.Minor.Patch', or
         'Major.Minor.Patch.Revision' value; the case is skipped otherwise. When
+        mark_dirty_before_install is set, the node is marked dirty after this
+        validation and immediately before the extension lifecycle begins. When
         a full three- or four-part version is requested, the actually-installed
         version is verified to match. After provisioning succeeds the VM is
-        checked for SSH reachability. The deployed extension is named
-        '<publisher>_<extension_type>_boot_validation_test'. Install/cleanup
-        reuse the shared ``_install`` / ``_uninstall`` helpers.
+        checked for SSH reachability. The deployed extension uses
+        '<publisher>_<extension_type>_boot_validation_test', shortened with a
+        stable hash suffix when needed to satisfy Azure's 80-character limit.
+        Install/cleanup reuse the shared ``_install`` / ``_uninstall`` helpers.
         """
         version = self._get_version(variables, use_default=False)
         extension = node.features[AzureExtension]
@@ -286,8 +303,10 @@ class VmExtensionTestBase(TestSuite):
 
         publisher = self._resolve_publisher(variables)
         type_ = self._resolve_type(variables)
-        extension_name = f"{publisher}_{type_}_boot_validation_test"
+        extension_name = _get_boot_validation_extension_name(publisher, type_)
         log.info(f"Installing extension '{extension_name}'...")
+        if mark_dirty_before_install:
+            node.mark_dirty()
         try:
             result = self._install(
                 node,
