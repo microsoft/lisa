@@ -95,7 +95,7 @@ class HyperVDevicePool(BaseDevicePool):
         powershell = self._server.tools[PowerShell]
         for device in devices:
             escaped_instance_id = device.instance_id.replace("'", "''")
-            disk_records = powershell.run_cmdlet(
+            disk_numbers = powershell.run_cmdlet(
                 cmdlet=f"""
 $controllerId = '{escaped_instance_id}'
 $pending = [System.Collections.Generic.Queue[string]]::new()
@@ -127,80 +127,92 @@ $diskDrives = @(
     Get-CimInstance Win32_DiskDrive |
     Where-Object {{ $seen.Contains([string]$_.PNPDeviceID) }}
 )
-$diskRecords = foreach ($diskDrive in $diskDrives) {{
-    $disk = Get-Disk -Number ([int]$diskDrive.Index) -ErrorAction Stop
-    $mountedPartitions = @(
-        Get-CimInstance `
-            -Namespace ROOT/Microsoft/Windows/Storage `
-            -ClassName MSFT_Partition `
-            -Filter "DiskNumber = $($disk.Number)" `
-            -ErrorAction Stop |
-        Where-Object {{
-            @(
-                $_.AccessPaths |
-                Where-Object {{
-                    -not [string]::IsNullOrWhiteSpace([string]$_)
-                }}
-            ).Count -gt 0
-        }}
-    )
-    $diskUniqueId = ([string]$disk.UniqueId).Trim()
-    $diskSerialNumber = ([string]$disk.SerialNumber).Trim()
-    $diskNumber = ([string]$disk.Number).Trim()
-    $physicalDisks = @(
-        Get-PhysicalDisk -ErrorAction Stop |
-        Where-Object {{
-            $physicalUniqueId = ([string]$_.UniqueId).Trim()
-            $physicalSerialNumber = ([string]$_.SerialNumber).Trim()
-            $physicalDeviceId = ([string]$_.DeviceId).Trim()
-            ($diskUniqueId -and $physicalUniqueId -eq $diskUniqueId) -or
-            ($diskSerialNumber -and $physicalSerialNumber -eq $diskSerialNumber) -or
-            ($physicalDeviceId -eq $diskNumber)
-        }}
-    )
-    $nonPrimordialPools = @()
-    if ($physicalDisks.Count -eq 1) {{
-        $nonPrimordialPools = @(
-            Get-StoragePool `
-                -PhysicalDisk $physicalDisks[0] `
-                -ErrorAction Stop |
-            Where-Object {{ -not $_.IsPrimordial }}
-        )
-    }}
-    [PSCustomObject]@{{
-        Number = [int]$disk.Number
-        FriendlyName = [string]$disk.FriendlyName
-        BusType = [string]$disk.BusType
-        IsBoot = [bool]$disk.IsBoot
-        IsSystem = [bool]$disk.IsSystem
-        IsMounted = ($mountedPartitions.Count -gt 0)
-        PhysicalDiskCount = [int]$physicalDisks.Count
-        IsStoragePoolMember = ($nonPrimordialPools.Count -gt 0)
-        StoragePoolNames = [string]($nonPrimordialPools.FriendlyName -join ', ')
-    }}
-}}
-$diskRecords
+$diskDrives | ForEach-Object {{ [int]$_.Index }}
 """,
                 output_json=True,
                 force_run=True,
             )
-            if disk_records is None or disk_records == "":
-                normalized_records: List[Dict[str, Any]] = []
-            elif isinstance(disk_records, list):
-                normalized_records = disk_records
+            if disk_numbers is None or disk_numbers == "":
+                normalized_disk_numbers: List[Any] = []
+            elif isinstance(disk_numbers, list):
+                normalized_disk_numbers = disk_numbers
             else:
-                normalized_records = [disk_records]
+                normalized_disk_numbers = [disk_numbers]
 
-            if len(normalized_records) != 1 or not isinstance(
-                normalized_records[0], dict
+            if len(normalized_disk_numbers) != 1 or not isinstance(
+                normalized_disk_numbers[0], int
             ):
                 raise LisaException(
                     f"Hyper-V PCI NVMe device '{device.instance_id}' must map "
                     "to exactly one Windows disk, found "
-                    f"{len(normalized_records)}"
+                    f"{len(normalized_disk_numbers)}"
                 )
 
-            disk = normalized_records[0]
+            disk_number = normalized_disk_numbers[0]
+            disk = powershell.run_cmdlet(
+                cmdlet=f"""
+$disk = Get-Disk -Number {disk_number} -ErrorAction Stop
+$mountedPartitions = @(
+    Get-CimInstance `
+        -Namespace ROOT/Microsoft/Windows/Storage `
+        -ClassName MSFT_Partition `
+        -Filter "DiskNumber = $($disk.Number)" `
+        -ErrorAction Stop |
+    Where-Object {{
+        @(
+            $_.AccessPaths |
+            Where-Object {{
+                -not [string]::IsNullOrWhiteSpace([string]$_)
+            }}
+        ).Count -gt 0
+    }}
+)
+$diskUniqueId = ([string]$disk.UniqueId).Trim()
+$diskSerialNumber = ([string]$disk.SerialNumber).Trim()
+$diskNumber = ([string]$disk.Number).Trim()
+$physicalDisks = @(
+    Get-PhysicalDisk -ErrorAction Stop |
+    Where-Object {{
+        $physicalUniqueId = ([string]$_.UniqueId).Trim()
+        $physicalSerialNumber = ([string]$_.SerialNumber).Trim()
+        $physicalDeviceId = ([string]$_.DeviceId).Trim()
+        ($diskUniqueId -and $physicalUniqueId -eq $diskUniqueId) -or
+        ($diskSerialNumber -and $physicalSerialNumber -eq $diskSerialNumber) -or
+        ($physicalDeviceId -eq $diskNumber)
+    }}
+)
+$nonPrimordialPools = @()
+if ($physicalDisks.Count -eq 1) {{
+    $nonPrimordialPools = @(
+        Get-StoragePool `
+            -PhysicalDisk $physicalDisks[0] `
+            -ErrorAction Stop |
+        Where-Object {{ -not $_.IsPrimordial }}
+    )
+}}
+[PSCustomObject]@{{
+    Number = [int]$disk.Number
+    FriendlyName = [string]$disk.FriendlyName
+    BusType = [string]$disk.BusType
+    IsBoot = [bool]$disk.IsBoot
+    IsSystem = [bool]$disk.IsSystem
+    IsMounted = ($mountedPartitions.Count -gt 0)
+    PhysicalDiskCount = [int]$physicalDisks.Count
+    IsStoragePoolMember = ($nonPrimordialPools.Count -gt 0)
+    StoragePoolNames = [string]($nonPrimordialPools.FriendlyName -join ', ')
+}}
+""",
+                output_json=True,
+                force_run=True,
+            )
+            if not isinstance(disk, dict):
+                returned_type = type(disk).__name__
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' returned "
+                    "an invalid Windows disk safety record of type "
+                    f"'{returned_type}'"
+                )
+
             required_properties = {
                 "Number",
                 "BusType",
