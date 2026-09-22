@@ -77,6 +77,7 @@ class HyperVDevicePoolTestCase(TestCase):
         self.assertIn("Get-StoragePool", cmdlet)
         self.assertIn("-PhysicalDisk", cmdlet)
         self.assertIn("-not $_.IsPrimordial", cmdlet)
+        self.assertIn("IsNullOrWhiteSpace", cmdlet)
 
     @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
     def test_configure_pci_nvme_pool_from_location_path(

@@ -135,7 +135,14 @@ $diskRecords = foreach ($diskDrive in $diskDrives) {{
             -ClassName MSFT_Partition `
             -Filter "DiskNumber = $($disk.Number)" `
             -ErrorAction Stop |
-        Where-Object {{ @($_.AccessPaths).Count -gt 0 }}
+        Where-Object {{
+            @(
+                $_.AccessPaths |
+                Where-Object {{
+                    -not [string]::IsNullOrWhiteSpace([string]$_)
+                }}
+            ).Count -gt 0
+        }}
     )
     $diskUniqueId = ([string]$disk.UniqueId).Trim()
     $diskSerialNumber = ([string]$disk.SerialNumber).Trim()
