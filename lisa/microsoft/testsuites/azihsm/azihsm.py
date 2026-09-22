@@ -158,6 +158,11 @@ class AziHsm(TestSuite):
             log.info(f"Adding user to group {group}")
             usermod.add_user_to_group(group=group, sudo=True)
 
+        # Group membership changes don't apply to the already-established
+        # session. Close it so the next command reconnects with a fresh
+        # login that picks up the new group membership.
+        node.close()
+
         # Indicate we have done this step already
         with _STATE_LOCK:
             _USER_GROUPS_ADDED_NODES.add(node)
