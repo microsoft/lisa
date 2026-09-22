@@ -1,32 +1,53 @@
-FROM python:3.14.7-bookworm
+FROM mcr.microsoft.com/azurelinux/base/python:3
+
+ARG PYTHON_VERSION=3.14.7
 
 WORKDIR /app
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        apt-transport-https \
+RUN tdnf update -y && \
+    tdnf install -y \
+        bzip2-devel \
         build-essential \
         ca-certificates \
         curl \
         git \
         gcc \
-        gnupg \
-        libgirepository1.0-dev \
-        libcairo2-dev \
-        libvirt-dev \
-        lsb-release \
+        gdbm-devel \
+        gobject-introspection-devel \
+        cairo-gobject \
+        cairo-devel \
+        libffi-devel \
+        libuuid-devel \
+        libvirt-devel \
+        make \
+        ncurses-devel \
+        openssl-devel \
         pkg-config \
+        python3-devel \
+        python3-pip \
+        python3-virtualenv \
+        readline-devel \
+        sqlite-devel \
         tar \
-        wget && \
-    mkdir -p /etc/apt/keyrings && \
-    curl -sLS https://packages.microsoft.com/keys/microsoft.asc | \
-        gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg && \
-    chmod go+r /etc/apt/keyrings/microsoft.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" \
-        > /etc/apt/sources.list.d/azure-cli.list && \
-    apt-get update && \
-    apt-get install -y --no-install-recommends azure-cli && \
-    rm -rf /var/lib/apt/lists/* /tmp/*
+        wget \
+        xz-devel \
+        zlib-devel \
+        azure-cli \
+        cairo-gobject-devel && \
+    tdnf clean all && \
+    rm -rf /var/cache/tdnf /tmp/*
+
+RUN wget "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz" && \
+    tar -xzf "Python-${PYTHON_VERSION}.tgz" && \
+    cd "Python-${PYTHON_VERSION}" && \
+    ./configure --prefix=/usr/local --with-ensurepip=install && \
+    make -j "$(nproc)" && \
+    make altinstall && \
+    ln -sf "/usr/local/bin/python${PYTHON_VERSION%.*}" /usr/local/bin/python3 && \
+    ln -sf "/usr/local/bin/pip${PYTHON_VERSION%.*}" /usr/local/bin/pip3 && \
+    python3 --version | grep -Fx "Python ${PYTHON_VERSION}" && \
+    cd /app && \
+    rm -rf "Python-${PYTHON_VERSION}" "Python-${PYTHON_VERSION}.tgz"
 
 RUN wget https://aka.ms/downloadazcopy-v10-linux -O azcopy.tar.gz && \
     tar -xvf azcopy.tar.gz && \
