@@ -1,28 +1,32 @@
-FROM mcr.microsoft.com/azurelinux/base/python:3
+FROM python:3.14.7-bookworm
 
 WORKDIR /app
 
-RUN tdnf update -y && \
-    tdnf install -y \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        apt-transport-https \
+        build-essential \
+        ca-certificates \
+        curl \
         git \
         gcc \
-        gobject-introspection-devel \
-        cairo-gobject \
-        cairo-devel \
+        gnupg \
+        libgirepository1.0-dev \
+        libcairo2-dev \
+        libvirt-dev \
+        lsb-release \
         pkg-config \
-        libvirt-devel \
-        python3-devel \
-        python3-pip \
-        python3-virtualenv \
-        build-essential \
-        cairo-gobject-devel \
-        curl \
-        wget \
         tar \
-        azure-cli \
-        ca-certificates && \
-    tdnf clean all && \
-    rm -rf /var/cache/tdnf /tmp/*
+        wget && \
+    mkdir -p /etc/apt/keyrings && \
+    curl -sLS https://packages.microsoft.com/keys/microsoft.asc | \
+        gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg && \
+    chmod go+r /etc/apt/keyrings/microsoft.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/azure-cli/ $(lsb_release -cs) main" \
+        > /etc/apt/sources.list.d/azure-cli.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends azure-cli && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
 
 RUN wget https://aka.ms/downloadazcopy-v10-linux -O azcopy.tar.gz && \
     tar -xvf azcopy.tar.gz && \
