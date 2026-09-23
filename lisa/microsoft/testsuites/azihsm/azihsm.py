@@ -638,7 +638,7 @@ class AziHsm(TestSuite):
         try:
             result = node.execute(
                 f"/usr/bin/azihsm/driver_tests {params}",
-                timeout=1800,
+                timeout=1800,  # Allow up to 30 minutes for the driver tests.
                 expected_exit_code=0,
                 expected_exit_code_failure_message="AZIHSM driver tests failed",
             )
