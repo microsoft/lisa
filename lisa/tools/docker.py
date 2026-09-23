@@ -232,7 +232,11 @@ class Docker(Tool):
                     ["docker-ce", "docker-ce-cli", "containerd.io"]
                 )
         elif isinstance(self.node.os, CBLMariner):
-            self.node.os.install_packages(["moby-engine", "moby-cli"])
+            if self.node.os.information.version >= "4.0.0":
+                # moby-engine automatically installs docker-cli on Azure Linux 4.0
+                self.node.os.install_packages(["moby-engine"])
+            else:
+                self.node.os.install_packages(["moby-engine", "moby-cli"])
         elif isinstance(self.node.os, OpenEuler):
             # openEuler ships a native moby-based "docker" package in its update
             # repository that provides both the daemon and CLI along with a
