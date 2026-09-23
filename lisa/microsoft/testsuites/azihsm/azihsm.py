@@ -638,6 +638,7 @@ class AziHsm(TestSuite):
         try:
             result = node.execute(
                 f"/usr/bin/azihsm/driver_tests {params}",
+                timeout=1800,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="AZIHSM driver tests failed",
             )
@@ -687,6 +688,7 @@ class AziHsm(TestSuite):
                 result = node.execute(
                     f"/usr/bin/azihsm/{test} {params}",
                     update_envs={"AZIHSM_USE_TPM": "1"},
+                    timeout=1800,
                     expected_exit_code=0,
                     expected_exit_code_failure_message=f"{test} failed",
                 )
@@ -712,6 +714,7 @@ class AziHsm(TestSuite):
             node.execute(
                 f"/usr/bin/azihsm/{test} {params}",
                 update_envs={"AZIHSM_USE_TPM": "1"},
+                timeout=1800,
                 expected_exit_code=0,
                 expected_exit_code_failure_message=f"{test} failed",
             )
