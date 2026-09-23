@@ -466,6 +466,7 @@ class AziHsm(TestSuite):
             result = node.execute(
                 f"awk -v mod={AZIHSM_NAME} " "'$1 == mod {print $5}' /proc/modules",
                 sudo=True,
+                shell=True,
             )
 
             assert_that(result.stdout.strip()).described_as(
