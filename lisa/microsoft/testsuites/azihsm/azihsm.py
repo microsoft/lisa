@@ -519,6 +519,20 @@ class AziHsm(TestSuite):
         cycles = 3  # Just cycle through a few times
 
         try:
+            # Ensure the module starts unloaded so every cycle below performs
+            # a real load, rather than the first cycle's load being a no-op
+            # if the module was already loaded (e.g. by check_azihsm_device).
+            if modprobe.is_module_loaded(
+                AZIHSM_NAME, force_run=True, no_error_log=True
+            ):
+                modprobe.remove([AZIHSM_NAME])
+                check_till_timeout(
+                    lambda: not modprobe.is_module_loaded(
+                        AZIHSM_NAME, force_run=True, no_error_log=True
+                    ),
+                    timeout_message="Wait for module to unload",
+                )
+
             #
             # Test 13 - 3 consecutive modprobe / modprobe -r cycles succeed
             for i in range(1, cycles + 1):
@@ -635,22 +649,19 @@ class AziHsm(TestSuite):
         # single-threaded execution, matching the SDK tests below.
         params = "--test-threads 1"
 
-        try:
-            result = node.execute(
-                f"/usr/bin/azihsm/driver_tests {params}",
-                timeout=1800,  # Allow up to 30 minutes for the driver tests.
-                expected_exit_code=0,
-                expected_exit_code_failure_message="AZIHSM driver tests failed",
-            )
-            cmd_output = result.stdout.strip()
-        except Exception as e:
-            cmd_output = ""
-            log.error(f"test failed: {e}")
-            raise
-        else:
-            assert_that(cmd_output).described_as("AZIHSM driver tests failed").contains(
-                "PASSED"
-            )
+        result = node.execute(
+            f"/usr/bin/azihsm/driver_tests {params}",
+            timeout=1800,  # Allow up to 30 minutes for the driver tests.
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "AZIHSM driver tests failed. Review the command output "
+                "above and any AZIHSM/kernel logs to diagnose the cause."
+            ),
+        )
+        cmd_output = result.stdout.strip()
+        assert_that(cmd_output).described_as("AZIHSM driver tests failed").contains(
+            "PASSED"
+        )
 
     #
     #
@@ -659,6 +670,11 @@ class AziHsm(TestSuite):
             Run the sdk tests
             """,
         priority=1,
+        # This case runs 5 SDK binaries sequentially, each with its own
+        # 1800s (30 minute) execute() timeout, so the aggregate worst case
+        # is up to 9000s. Set the case timeout above that aggregate so LISA
+        # doesn't abort the case before later SDK tests finish.
+        timeout=9600,
         requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def verify_azihsm_sdk_tests(self, node: Node, log: Logger) -> None:
@@ -690,7 +706,10 @@ class AziHsm(TestSuite):
                     update_envs={"AZIHSM_USE_TPM": "1"},
                     timeout=1800,
                     expected_exit_code=0,
-                    expected_exit_code_failure_message=f"{test} failed",
+                    expected_exit_code_failure_message=(
+                        f"{test} failed. Review the command output above to "
+                        "diagnose the cause."
+                    ),
                 )
                 cmd_output = result.stdout.strip()
             except Exception as e:
@@ -716,7 +735,10 @@ class AziHsm(TestSuite):
                 update_envs={"AZIHSM_USE_TPM": "1"},
                 timeout=1800,
                 expected_exit_code=0,
-                expected_exit_code_failure_message=f"{test} failed",
+                expected_exit_code_failure_message=(
+                    f"{test} failed. Review the command output above to "
+                    "diagnose the cause."
+                ),
             )
         except Exception as e:
             log.error(f"Exception {e}")
