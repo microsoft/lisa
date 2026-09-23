@@ -40,8 +40,30 @@ CH_STATE_DIRECTORY = "/run/libvirt/ch"
 DOMAIN_STOP_TIMEOUT_SECONDS = 30
 DOMAIN_STOP_KILL_TIMEOUT_SECONDS = 5
 DOMAIN_PROCESS_EXIT_TIMEOUT_SECONDS = 15
+DOMAIN_PROCESS_LOOKUP_TIMEOUT_SECONDS = 15
+DOMAIN_DIAGNOSTICS_TIMEOUT_SECONDS = 30
+HOST_COMMAND_TIMEOUT_GRACE_SECONDS = 10
+DOMAIN_CLEANUP_DELAY_SECONDS = 1
+DELETE_NODE_WATCHDOG_MARGIN_SECONDS = 30
 CONSOLE_CLOSE_TIMEOUT_SECONDS = 15
 PASSTHROUGH_BOOT_RETRY_COUNT = 4
+
+DOMAIN_STOP_OPERATION_TIMEOUT_SECONDS = (
+    DOMAIN_STOP_TIMEOUT_SECONDS
+    + DOMAIN_STOP_KILL_TIMEOUT_SECONDS
+    + HOST_COMMAND_TIMEOUT_GRACE_SECONDS
+)
+DOMAIN_PROCESS_TERMINATION_TIMEOUT_SECONDS = (
+    DOMAIN_PROCESS_EXIT_TIMEOUT_SECONDS + HOST_COMMAND_TIMEOUT_GRACE_SECONDS
+)
+PASSTHROUGH_DELETE_NODE_TIMEOUT_SECONDS = (
+    DOMAIN_PROCESS_LOOKUP_TIMEOUT_SECONDS
+    + (2 * DOMAIN_STOP_OPERATION_TIMEOUT_SECONDS)
+    + DOMAIN_DIAGNOSTICS_TIMEOUT_SECONDS
+    + DOMAIN_PROCESS_TERMINATION_TIMEOUT_SECONDS
+    + DOMAIN_CLEANUP_DELAY_SECONDS
+    + DELETE_NODE_WATCHDOG_MARGIN_SECONDS
+)
 
 
 class CloudHypervisorDomainStopError(LisaException):
@@ -49,6 +71,8 @@ class CloudHypervisorDomainStopError(LisaException):
 
 
 class CloudHypervisorPlatform(BaseLibvirtPlatform):
+    DELETE_NODE_WATCHDOG_TIMEOUT_SECONDS = PASSTHROUGH_DELETE_NODE_TIMEOUT_SECONDS
+
     @classmethod
     def type_name(cls) -> str:
         return CLOUD_HYPERVISOR
@@ -354,7 +378,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
 
         # Let the timed-out libvirt destroy job reap the process and release its
         # host devices before checking the domain state again.
-        time.sleep(1)
+        time.sleep(DOMAIN_CLEANUP_DELAY_SECONDS)
         cleanup_result = self._run_bounded_domain_stop(node_context.vm_name)
         if not self._domain_stop_succeeded(cleanup_result):
             node_context.domain_stop_failed = True
@@ -386,7 +410,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             command,
             sudo=True,
             shell=True,
-            timeout=15,
+            timeout=DOMAIN_PROCESS_LOOKUP_TIMEOUT_SECONDS,
         )
         process_ids = [
             int(line) for line in result.stdout.splitlines() if line.strip().isdigit()
@@ -410,9 +434,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             command,
             sudo=True,
             shell=True,
-            timeout=(
-                DOMAIN_STOP_TIMEOUT_SECONDS + DOMAIN_STOP_KILL_TIMEOUT_SECONDS + 10
-            ),
+            timeout=DOMAIN_STOP_OPERATION_TIMEOUT_SECONDS,
         )
 
     def _force_kill_domain_process(
@@ -441,7 +463,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             command,
             sudo=True,
             shell=True,
-            timeout=DOMAIN_PROCESS_EXIT_TIMEOUT_SECONDS + 10,
+            timeout=DOMAIN_PROCESS_TERMINATION_TIMEOUT_SECONDS,
         )
 
     def _capture_domain_process_diagnostics(
@@ -474,7 +496,10 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             shell=True,
             no_error_log=True,
         )
-        result = process.wait_result(timeout=30, raise_on_timeout=False)
+        result = process.wait_result(
+            timeout=DOMAIN_DIAGNOSTICS_TIMEOUT_SECONDS,
+            raise_on_timeout=False,
+        )
         output = "\n".join(
             part for part in (result.stdout, result.stderr) if part.strip()
         )

@@ -96,6 +96,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     LIBVIRTD_CONF_PATH = PurePosixPath("/etc/libvirt/libvirtd.conf")
     LIBVIRT_DEBUG_LOG_PATH = PurePosixPath("/var/log/libvirt/libvirtd.log")
     LIBVIRT_KEEPALIVE_CONFIG_FILE_MARKER = "lisa-libvirt-keepalive"
+    DELETE_NODE_WATCHDOG_TIMEOUT_SECONDS = 60.0
     # Disable daemon-side keepalive while LISA owns the host; CH domain starts can
     # block longer than libvirt's default 30-second keepalive window.
     LIBVIRT_KEEPALIVE_INTERVAL = -1
@@ -795,7 +796,10 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     def _delete_node(self, node: Node, log: Logger) -> None:
         node_context = get_node_context(node)
 
-        watchdog = Timer(60.0, self._delete_node_watchdog_callback)
+        watchdog = Timer(
+            self.DELETE_NODE_WATCHDOG_TIMEOUT_SECONDS,
+            self._delete_node_watchdog_callback,
+        )
         watchdog.start()
         try:
             # Stop the VM.
