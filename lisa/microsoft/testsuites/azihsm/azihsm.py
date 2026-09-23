@@ -94,6 +94,10 @@ class AziHsm(TestSuite):
         if repo_already_added:
             return
 
+        # Mark the node dirty before mutating it so that a partial failure
+        # here doesn't leave a modified environment eligible for reuse.
+        node.mark_dirty()
+
         log.info("Adding PMC testing repository")
         if isinstance(node.os, Ubuntu):
             node.os.add_repository(
@@ -109,8 +113,15 @@ class AziHsm(TestSuite):
             )
         else:
             # Azure Linux prior to 3.0 is not supported by AziHSM
+            major_version = node.os.information.version.major
+            if major_version < 3:
+                raise SkippedException(
+                    f"AZIHSM is not supported on Azure Linux "
+                    f"{node.os.information.release}. Azure Linux 3.0 or "
+                    "later is required."
+                )
             arch_name = node.os.get_kernel_information().hardware_platform
-            if node.os.information.release == "3.0":
+            if major_version == 3:
                 node.os.add_repository(
                     repo=(
                         "https://packages.microsoft.com/azurelinux/"
@@ -195,7 +206,7 @@ class AziHsm(TestSuite):
 
             # Package is available, install it
             log.info(f"Installing package {driver_package_name}")
-            posix_os.install_packages(driver_package_name)
+            posix_os.install_packages(driver_package_name, signed=True)
 
             # Verify package is installed
             package_installed = posix_os.package_exists(driver_package_name)
@@ -269,7 +280,7 @@ class AziHsm(TestSuite):
 
                 # Package is available, install it
                 log.info(f"Installing package {pkg}")
-                posix_os.install_packages(pkg)
+                posix_os.install_packages(pkg, signed=True)
 
                 # Verify package is installed
                 package_installed = posix_os.package_exists(pkg)
@@ -333,7 +344,7 @@ class AziHsm(TestSuite):
         #
         # Test 1 - Package installs without errors
         log.info(f"Installing {driver_package_name}")
-        posix_os.install_packages(driver_package_name)
+        posix_os.install_packages(driver_package_name, signed=True)
 
         #
         # Test 2 - Package is registered in the package database
@@ -427,23 +438,18 @@ class AziHsm(TestSuite):
         lsmod = node.tools[Lsmod]
 
         try:
-            try:
-                # ensure the module is unloaded before the test
-                if modprobe.is_module_loaded(
-                    AZIHSM_NAME, force_run=True, no_error_log=True
-                ):
-                    modprobe.remove([AZIHSM_NAME])
-                    check_till_timeout(
-                        lambda: not modprobe.is_module_loaded(
-                            AZIHSM_NAME, force_run=True, no_error_log=True
-                        ),
-                        timeout_message="Wait for module to unload",
-                    )
-            except Exception as e:
-                log.error(f"Unload failed {e}")
-                raise
-            else:
-                log.info("module is not loaded as desired")
+            # ensure the module is unloaded before the test
+            if modprobe.is_module_loaded(
+                AZIHSM_NAME, force_run=True, no_error_log=True
+            ):
+                modprobe.remove([AZIHSM_NAME])
+                check_till_timeout(
+                    lambda: not modprobe.is_module_loaded(
+                        AZIHSM_NAME, force_run=True, no_error_log=True
+                    ),
+                    timeout_message="Wait for module to unload",
+                )
+            log.info("module is not loaded as desired")
 
             #
             # Test 7 -  modprobe loads module
@@ -519,18 +525,13 @@ class AziHsm(TestSuite):
                 log.info(f"Load/unload cycle {i}/{cycles}")
                 # Load the module
                 modprobe.load(AZIHSM_NAME)
-                try:
-                    check_till_timeout(
-                        lambda: modprobe.is_module_loaded(
-                            AZIHSM_NAME, force_run=True, no_error_log=True
-                        ),
-                        timeout_message="Wait for module to load",
-                    )
-                except Exception as e:
-                    log.error(f"Load failed {e}")
-                    raise
-                else:
-                    log.info("module loaded")
+                check_till_timeout(
+                    lambda: modprobe.is_module_loaded(
+                        AZIHSM_NAME, force_run=True, no_error_log=True
+                    ),
+                    timeout_message="Wait for module to load",
+                )
+                log.info("module loaded")
 
                 # Unload the module
                 modprobe.remove([AZIHSM_NAME])
@@ -575,13 +576,9 @@ class AziHsm(TestSuite):
 
         #
         # Test 14 - Package removal succeeds
-        try:
-            # The package unloads the module
-            posix_os.uninstall_packages(driver_package_name)
-            log.info("Package successfully removed")
-        except Exception as e:
-            log.error(f"Uninstall failed {e}")
-            raise
+        # The package unloads the module
+        posix_os.uninstall_packages(driver_package_name)
+        log.info("Package successfully removed")
 
         #
         # Test 15 - package gone from package database
@@ -633,6 +630,9 @@ class AziHsm(TestSuite):
         # Make sure the azihsm packages are installed
         self.install_all_azihsm_packages(node=node, log=log)
 
+        # The driver tests exercise a single, exclusively-owned azihsm device,
+        # so running them multi-threaded causes contention/failures. Force
+        # single-threaded execution, matching the SDK tests below.
         params = "--test-threads 1"
 
         try:
@@ -687,6 +687,8 @@ class AziHsm(TestSuite):
                 result = node.execute(
                     f"/usr/bin/azihsm/{test} {params}",
                     update_envs={"AZIHSM_USE_TPM": "1"},
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=f"{test} failed",
                 )
                 cmd_output = result.stdout.strip()
             except Exception as e:
@@ -720,5 +722,7 @@ class AziHsm(TestSuite):
             log.info(f"{test} Passed")
 
         assert_that(failed_tests).described_as(
-            f"Not all SDK tests passed, failed tests: {failed_tests}"
+            "Not all SDK tests passed, failed tests: "
+            f"{failed_tests}. Review the command output above for each "
+            "failing test to diagnose the cause."
         ).is_empty()
