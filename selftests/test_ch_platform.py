@@ -209,6 +209,23 @@ class CloudHypervisorPlatformTestCase(TestCase):
         self.assertTrue(platform.host_node.execute.call_args.kwargs["sudo"])
         self.assertTrue(platform.host_node.execute.call_args.kwargs["shell"])
 
+    def test_delete_watchdog_covers_full_stop_fallback(self) -> None:
+        ch_platform_module = _load_ch_platform_module()
+        fallback_timeout = (
+            ch_platform_module.DOMAIN_PROCESS_LOOKUP_TIMEOUT_SECONDS
+            + (2 * ch_platform_module.DOMAIN_STOP_OPERATION_TIMEOUT_SECONDS)
+            + ch_platform_module.DOMAIN_DIAGNOSTICS_TIMEOUT_SECONDS
+            + ch_platform_module.DOMAIN_PROCESS_TERMINATION_TIMEOUT_SECONDS
+            + ch_platform_module.DOMAIN_CLEANUP_DELAY_SECONDS
+        )
+        platform_type = ch_platform_module.CloudHypervisorPlatform
+        watchdog_timeout = platform_type.DELETE_NODE_WATCHDOG_TIMEOUT_SECONDS
+
+        self.assertGreater(
+            watchdog_timeout,
+            fallback_timeout,
+        )
+
     def test_force_kills_only_exact_domain_after_stop_timeout(self) -> None:
         ch_platform_module = _load_ch_platform_module()
         platform = object.__new__(ch_platform_module.CloudHypervisorPlatform)
