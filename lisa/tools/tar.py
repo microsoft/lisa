@@ -46,6 +46,7 @@ class Tar(Tool):
         sudo: bool = False,
         raise_error: bool = True,
         skip_existing_files: bool = False,
+        exclude: str = "",
     ) -> None:
         # create folder when it doesn't exist
         assert_that(strip_components).described_as(
@@ -74,6 +75,8 @@ class Tar(Tool):
             # This skip-old-files option could silently skip extracting
             # the second version of the tarball.
             tar_cmd += " --skip-old-files"
+        if exclude:
+            tar_cmd += f" --exclude={exclude}"
         result = self.run(tar_cmd, shell=True, force_run=True, sudo=sudo)
         if raise_error:
             result.assert_exit_code(
