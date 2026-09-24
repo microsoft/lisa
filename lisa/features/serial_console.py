@@ -380,6 +380,9 @@ class SerialConsole(Feature):
     def read(self) -> str:
         raise NotImplementedError
 
+    def wait_for_ready(self, timeout: int) -> None:
+        pass
+
     def write(self, data: str) -> None:
         raise NotImplementedError
 

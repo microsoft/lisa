@@ -784,6 +784,24 @@ class RemoteNode(Node):
         self.internal_address = address
         self.internal_port = port
 
+    def update_connection_address(
+        self,
+        address: str,
+        public_address: str = "",
+        use_public_address: bool = True,
+    ) -> None:
+        if not address:
+            raise LisaException("address cannot be empty")
+        if not public_address:
+            public_address = address
+
+        self.close()
+        self._connection_info.address = (
+            public_address if use_public_address else address
+        )
+        self.public_address = public_address
+        self.internal_address = address
+
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         assert self._connection_info, "call setConnectionInfo before use remote node"
         super()._initialize(*args, **kwargs)

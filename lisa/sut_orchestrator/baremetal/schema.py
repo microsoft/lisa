@@ -23,6 +23,7 @@ class ClientSchema:
 @dataclass
 class RackManagerClientSchema(ClientSchema):
     management_port: Optional[int] = field(default=-1)
+    iso_name: str = ""
 
 
 @dataclass_json()
@@ -238,5 +239,6 @@ class PxeCluster(ClusterSchema):
 @dataclass_json()
 @dataclass
 class BareMetalPlatformSchema:
+    maximize_capability: bool = False
     source: Optional[SourceSchema] = field(default=None)
     cluster: List[ClusterSchema] = field(default_factory=list)
