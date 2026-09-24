@@ -131,6 +131,7 @@ def perf_disk(
     overwrite: bool = False,
     ioengine: IoEngine = IoEngine.LIBAIO,
     cwd: Optional[pathlib.PurePath] = None,
+    cpu_affinity_disks: Optional[List[str]] = None,
 ) -> None:
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
@@ -154,19 +155,34 @@ def perf_disk(
         while iodepth <= max_iodepth:
             if num_jobs:
                 numjob = num_jobs[numjobindex]
-            fio_result = fio.launch(
-                name=f"iteration{numjobiterator}",
-                filename=filename,
-                mode=mode.name,
-                time=time,
-                size_gb=size_mb,
-                block_size=f"{block_size}K",
-                iodepth=iodepth,
-                overwrite=overwrite,
-                numjob=numjob,
-                cwd=cwd,
-                ioengine=ioengine,
-            )
+            if cpu_affinity_disks:
+                fio_result = _launch_fio_with_cpu_affinity(
+                    node=node,
+                    fio=fio,
+                    disks=cpu_affinity_disks,
+                    iteration=numjobiterator,
+                    mode=mode.name,
+                    time=time,
+                    size_mb=size_mb,
+                    block_size=block_size,
+                    iodepth=iodepth,
+                    overwrite=overwrite,
+                    ioengine=ioengine,
+                )
+            else:
+                fio_result = fio.launch(
+                    name=f"iteration{numjobiterator}",
+                    filename=filename,
+                    mode=mode.name,
+                    time=time,
+                    size_gb=size_mb,
+                    block_size=f"{block_size}K",
+                    iodepth=iodepth,
+                    overwrite=overwrite,
+                    numjob=numjob,
+                    cwd=cwd,
+                    ioengine=ioengine,
+                )
             fio_result_list.append(fio_result)
             iodepth = iodepth * 2
             numjobindex += 1
@@ -188,6 +204,63 @@ def perf_disk(
     )
     for fio_message in fio_messages:
         notifier.notify(fio_message)
+
+
+def _launch_fio_with_cpu_affinity(
+    node: Node,
+    fio: Fio,
+    disks: List[str],
+    iteration: int,
+    mode: str,
+    time: int,
+    size_mb: int,
+    block_size: int,
+    iodepth: int,
+    overwrite: bool,
+    ioengine: IoEngine,
+) -> FIOResult:
+    job_lines = [
+        "[global]",
+        f"ioengine={ioengine.value}",
+        "direct=1",
+        f"runtime={time}",
+        f"bs={block_size}K",
+        f"rw={mode}",
+        f"iodepth={iodepth}",
+        "group_reporting=1",
+    ]
+    if overwrite:
+        job_lines.append("overwrite=1")
+    job_lines.append("")
+
+    for worker_index, disk_path in enumerate(disks):
+        job_lines.extend(
+            [
+                f"[worker{worker_index + 1}_iteration{iteration}]",
+                f"filename={disk_path}",
+                f"cpus_allowed={worker_index}",
+                "numjobs=1",
+                f"size={size_mb}M",
+                "",
+            ]
+        )
+
+    job_file = node.get_pure_path(f"/tmp/fio_cpu_affinity_{iteration}.fio")
+    node.tools[Echo].write_to_file(
+        "\n".join(job_lines), job_file, sudo=True, ignore_error=False
+    )
+    try:
+        command_result = node.execute(
+            f"{fio.command} {job_file}", sudo=True, timeout=6400
+        )
+        command_result.assert_exit_code(
+            message=f"fio CPU-affinity iteration {iteration} failed"
+        )
+        return fio.get_result_from_raw_output(
+            mode, command_result.stdout, iodepth, len(disks)
+        )
+    finally:
+        node.execute(f"rm -f {job_file}", sudo=True, no_info_log=True)
 
 
 def get_nic_datapath(node: Node) -> str:
@@ -926,6 +999,7 @@ def perf_premium_datadisks(
     start_iodepth: int = 1,
     max_iodepth: int = 256,
     ioengine: IoEngine = IoEngine.LIBAIO,
+    cpu_affinity: bool = False,
 ) -> None:
     disk = node.features[Disk]
     data_disks = disk.get_raw_data_disks()
@@ -937,6 +1011,10 @@ def perf_premium_datadisks(
     filename = ":".join(partition_disks)
     cpu = node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
+    if cpu_affinity:
+        assert_that(disk_count).described_as(
+            "Data disk count must not exceed logical CPU count for fio affinity."
+        ).is_less_than_or_equal_to(thread_count)
     perf_disk(
         node,
         start_iodepth,
@@ -953,6 +1031,7 @@ def perf_premium_datadisks(
         overwrite=True,
         test_result=test_result,
         ioengine=ioengine,
+        cpu_affinity_disks=partition_disks if cpu_affinity else None,
     )
 
 
