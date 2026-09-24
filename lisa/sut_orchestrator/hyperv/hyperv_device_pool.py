@@ -116,12 +116,20 @@ while ($pending.Count -gt 0) {{
         -InstanceId $currentId `
         -KeyName 'DEVPKEY_Device_Children' `
         -ErrorAction SilentlyContinue
-    if ($currentId -eq $controllerId -and $null -eq $childrenProperty) {{
+    $childrenDataProperty = if ($null -ne $childrenProperty) {{
+        $childrenProperty.PSObject.Properties['Data']
+    }} else {{
+        $null
+    }}
+    if ($currentId -eq $controllerId -and
+        $null -eq $childrenDataProperty) {{
         throw "Could not query PnP children for NVMe controller '$controllerId'"
     }}
-    foreach ($childId in @($childrenProperty.Data)) {{
-        if ($childId) {{
-            $pending.Enqueue([string]$childId)
+    if ($null -ne $childrenDataProperty) {{
+        foreach ($childId in @($childrenDataProperty.Value)) {{
+            if ($childId) {{
+                $pending.Enqueue([string]$childId)
+            }}
         }}
     }}
 }}
