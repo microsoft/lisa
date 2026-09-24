@@ -451,12 +451,15 @@ class DeviceRssIndirectionTable:
             )
 
         table: List[int] = []
-        last_row_offset = -1
-        last_row_length = 0
         for row in self._table_row_pattern.finditer(raw_str):
-            last_row_offset = int(row.group("offset"))
+            row_offset = int(row.group("offset"))
+            if row_offset != len(table):
+                raise LisaException(
+                    f"Cannot parse {interface} RSS indirection table: expected "
+                    f"row offset {len(table)}, found {row_offset}. Verify the "
+                    "output format of 'ethtool -x'."
+                )
             entries = [int(entry) for entry in row.group("entries").split()]
-            last_row_length = len(entries)
             table.extend(entries)
 
         if not table:
@@ -468,9 +471,7 @@ class DeviceRssIndirectionTable:
         self.interface = interface
         self.rx_ring_count = int(ring_count.group("count"))
         self.table = table
-        # Expected size derived from the final row offset, used to detect a
-        # truncated or over-reported table.
-        self.indirection_size = last_row_offset + last_row_length
+        self.indirection_size = len(table)
 
 
 class DeviceCoalesceSettings:
@@ -1070,7 +1071,9 @@ class Ethtool(Tool):
         if not force_run and device.device_rss_indirection_table:
             return device.device_rss_indirection_table
 
-        result = self.run(f"-x {interface}", force_run=force_run, shell=True)
+        result = self.run(
+            f"-x {shlex.quote(interface)}", force_run=force_run, shell=True
+        )
         if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool -x {interface} operation not supported."
@@ -1092,12 +1095,45 @@ class Ethtool(Tool):
         "equal 4" or "default". The raw result is returned so callers can
         assert on rejection of invalid specifications.
         """
-        return self.run(
-            f"-X {interface} {spec}",
+        try:
+            spec_tokens = shlex.split(spec)
+        except ValueError as identifier:
+            raise LisaException(
+                f"Cannot parse RSS indirection table specification '{spec}': "
+                f"{identifier}. Use 'default', 'equal N', or 'weight W0 W1 ...'."
+            ) from identifier
+
+        is_default = spec_tokens == ["default"]
+        is_equal = (
+            len(spec_tokens) == 2
+            and spec_tokens[0] == "equal"
+            and spec_tokens[1].isdecimal()
+            and int(spec_tokens[1]) > 0
+        )
+        is_weight = (
+            len(spec_tokens) > 1
+            and spec_tokens[0] == "weight"
+            and all(token.isdecimal() for token in spec_tokens[1:])
+            and any(int(token) > 0 for token in spec_tokens[1:])
+        )
+        if not (is_default or is_equal or is_weight):
+            raise LisaException(
+                f"Unsupported RSS indirection table specification '{spec}'. "
+                "Use 'default', 'equal N', or 'weight W0 W1 ...' with "
+                "non-negative integer values."
+            )
+
+        quoted_spec = " ".join(shlex.quote(token) for token in spec_tokens)
+        result = self.run(
+            f"-X {shlex.quote(interface)} {quoted_spec}",
             sudo=True,
             force_run=True,
             shell=True,
         )
+        if result.exit_code == 0:
+            device = self._get_or_create_device_setting(interface)
+            device.device_rss_indirection_table = None
+        return result
 
     def change_device_rss_indirection_table(
         self, interface: str, spec: str
@@ -1139,13 +1175,17 @@ class Ethtool(Tool):
         self, interface: str, parameter: str, value: int
     ) -> ExecutableResult:
         """Set one coalescing parameter and return the raw command result."""
-        return self.run(
+        result = self.run(
             f"-C {shlex.quote(interface)} {shlex.quote(parameter)} "
             f"{shlex.quote(str(value))}",
             sudo=True,
             force_run=True,
             shell=True,
         )
+        if result.exit_code == 0:
+            device = self._get_or_create_device_setting(interface)
+            device.device_coalesce_settings = None
+        return result
 
     def get_device_rx_hash_level(
         self, interface: str, protocol: str, force_run: bool = False

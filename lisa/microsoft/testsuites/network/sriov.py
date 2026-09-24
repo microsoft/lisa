@@ -398,21 +398,27 @@ class Sriov(TestSuite):
             expected_rx = self._get_supported_ring_size(original_rx, max_rx)
             expected_tx = self._get_supported_ring_size(original_tx, max_tx)
 
-            actual_settings = ethtool.change_device_ring_buffer_settings(
-                vf_nic, expected_rx, expected_tx
-            )
-
+            node.mark_dirty()
             try:
+                actual_settings = ethtool.change_device_ring_buffer_settings(
+                    vf_nic, expected_rx, expected_tx
+                )
                 # A VF driver reports back the ring size it was given, so
                 # this is an equality check rather than a range.
                 assert_that(
-                    int(actual_settings.current_ring_buffer_settings["RX"]),
-                    "Changing RX Ringbuffer setting didn't succeed",
-                ).is_equal_to(expected_rx)
+                    int(actual_settings.current_ring_buffer_settings["RX"])
+                ).described_as(
+                    f"{vf_nic} did not apply the requested RX ring size."
+                ).is_equal_to(
+                    expected_rx
+                )
                 assert_that(
-                    int(actual_settings.current_ring_buffer_settings["TX"]),
-                    "Changing TX Ringbuffer setting didn't succeed",
-                ).is_equal_to(expected_tx)
+                    int(actual_settings.current_ring_buffer_settings["TX"])
+                ).described_as(
+                    f"{vf_nic} did not apply the requested TX ring size."
+                ).is_equal_to(
+                    expected_tx
+                )
             finally:
                 # Restore even when the checks above fail, so a failure does
                 # not hand a resized ring to the cases that follow.
@@ -421,13 +427,19 @@ class Sriov(TestSuite):
                 )
 
             assert_that(
-                int(reverted_settings.current_ring_buffer_settings["RX"]),
-                "Reverting RX Ringbuffer setting to original value didn't succeed",
-            ).is_equal_to(original_rx)
+                int(reverted_settings.current_ring_buffer_settings["RX"])
+            ).described_as(
+                f"{vf_nic} RX ring size was not restored to its original value."
+            ).is_equal_to(
+                original_rx
+            )
             assert_that(
-                int(reverted_settings.current_ring_buffer_settings["TX"]),
-                "Reverting TX Ringbuffer setting to original value didn't succeed",
-            ).is_equal_to(original_tx)
+                int(reverted_settings.current_ring_buffer_settings["TX"])
+            ).described_as(
+                f"{vf_nic} TX ring size was not restored to its original value."
+            ).is_equal_to(
+                original_tx
+            )
 
     def _get_vf_nics(self, node: Node, log: Logger, purpose: str) -> List[str]:
         node.nics.reload()
@@ -454,12 +466,24 @@ class Sriov(TestSuite):
         # One step rather than the maximum: rings are preallocated, so the
         # maximum can cost about 1 GB on a 32 queue VF and fail on -ENOMEM.
         # Powers of two because a driver may round the request up to one.
+        if maximum <= 0:
+            raise SkippedException(
+                f"The VF reports a non-tunable ring maximum of {maximum}; "
+                "there is no supported alternate ring size to validate."
+            )
         ceiling = 1 << (maximum.bit_length() - 1)
         step_up = 1 << current.bit_length()
         if step_up <= ceiling:
-            return step_up
-        # Already at the largest power of two the device allows.
-        return max(ceiling // 2, 1)
+            candidate = step_up
+        else:
+            # Already at the largest power of two the device allows.
+            candidate = max(ceiling // 2, 1)
+        if candidate == current:
+            raise SkippedException(
+                f"The VF ring is fixed at {current}; there is no supported "
+                "alternate ring size to validate."
+            )
+        return candidate
 
     def _require_device_up(self, ip: Ip, vf_nic: str, log: Logger) -> None:
         # Several ethtool set operations, RSS in particular, are rejected with
@@ -507,6 +531,7 @@ class Sriov(TestSuite):
 
         vf_nics = self._get_vf_nics(node, log, "RSS hash key")
 
+        node.mark_dirty()
         for vf_nic in vf_nics:
             self._verify_vf_rss_hash_key(ethtool, ip, vf_nic, log)
 
@@ -537,8 +562,8 @@ class Sriov(TestSuite):
 
             new_key = self._get_alternate_hash_key(key_bytes)
             log.info(f"Setting {vf_nic} RSS hash key to {new_key}")
-            changed = ethtool.change_device_rss_hash_key(vf_nic, new_key)
             try:
+                changed = ethtool.change_device_rss_hash_key(vf_nic, new_key)
                 assert_that(changed.rss_hash_key.lower()).described_as(
                     f"{vf_nic} did not apply the RSS hash key exactly as written, "
                     "the key does not round-trip through the driver."
@@ -589,7 +614,8 @@ class Sriov(TestSuite):
            it is applied.
         4. Try to redistribute across more queues than the device has and
            verify it is rejected.
-        5. Restore the driver default and verify it matches the original table.
+          5. If the original table is the driver default, restore that default and
+              verify it matches the original table exactly.
 
         This test is generated by the lisa_test_writer prompt.
         """,
@@ -609,6 +635,7 @@ class Sriov(TestSuite):
 
         vf_nics = self._get_vf_nics(node, log, "RSS indirection table")
 
+        node.mark_dirty()
         for vf_nic in vf_nics:
             self._verify_vf_rss_indirection_table(ethtool, ip, vf_nic, log)
 
@@ -654,6 +681,14 @@ class Sriov(TestSuite):
                 raise SkippedException(
                     f"{vf_nic} exposes {ring_count} RX ring, the indirection table "
                     "cannot be redistributed across a subset of queues."
+                )
+
+            default_table = [index % ring_count for index in range(len(original.table))]
+            if original.table != default_table:
+                raise SkippedException(
+                    f"{vf_nic} starts with a custom RSS indirection table. "
+                    "ethtool can restore the driver default but cannot replay "
+                    "an arbitrary bucket table, so the test will not mutate it."
                 )
 
             target_queues = ring_count // 2
@@ -761,6 +796,7 @@ class Sriov(TestSuite):
         ip = node.tools[Ip]
         vf_nics = self._get_vf_nics(node, log, "receive CQE coalescing settings")
 
+        node.mark_dirty()
         for vf_nic in vf_nics:
             self._verify_vf_coalesce_settings(ethtool, ip, vf_nic, log)
 
@@ -860,7 +896,11 @@ class Sriov(TestSuite):
                 pattern in output for pattern in self.COALESCE_VALUE_REJECTION_PATTERNS
             ):
                 result.assert_exit_code(
-                    message=f"Couldn't set {vf_nic} {parameter} to {candidate}.",
+                    message=(
+                        f"Couldn't set {vf_nic} {parameter} to {candidate}. "
+                        "Verify the driver exposes this setting through ethtool "
+                        "netlink and inspect the command output."
+                    ),
                     include_output=True,
                 )
             after_rejection = ethtool.get_device_coalesce_settings(
@@ -951,6 +991,7 @@ class Sriov(TestSuite):
                 # Schedule the restore before changing the device. A command
                 # can succeed while its readback assertion fails.
                 original_counts[vf_nic] = original.current_channels
+                node.mark_dirty()
                 self._verify_vf_channel_counts(
                     ethtool,
                     vf_nic,
@@ -976,7 +1017,7 @@ class Sriov(TestSuite):
                         )
                         log.error(message)
                         restoration_failures.append(message)
-                except LisaException as identifier:
+                except (AssertionError, LisaException) as identifier:
                     message = (
                         f"Failed to restore {vf_nic} combined channel count to "
                         f"{original_count}: {identifier}. Inspect the driver and "

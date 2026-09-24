@@ -8,11 +8,99 @@ from unittest.mock import MagicMock
 from assertpy import assert_that
 
 from lisa.operating_system import Alpine
-from lisa.tools.ethtool import DeviceCoalesceSettings, DeviceStatistics, Ethtool
+from lisa.tools.ethtool import (
+    DeviceCoalesceSettings,
+    DeviceRssIndirectionTable,
+    DeviceStatistics,
+    Ethtool,
+)
 from lisa.util import LisaException, UnsupportedDistroException
+from lisa.util.process import ExecutableResult
 
 
 class EthtoolTestCase(TestCase):
+    def test_parse_rss_indirection_table(self) -> None:
+        output = """RX flow hash indirection table for eth1 with 4 RX ring(s):
+    0:      0     1     2     3
+    4:      0     1     2     3
+RSS hash key:
+6d:5a:56:da
+"""
+
+        settings = DeviceRssIndirectionTable("eth1", output)
+
+        assert_that(settings.rx_ring_count).is_equal_to(4)
+        assert_that(settings.table).is_equal_to([0, 1, 2, 3, 0, 1, 2, 3])
+        assert_that(settings.indirection_size).is_equal_to(8)
+
+    def test_reject_missing_rss_indirection_table_row(self) -> None:
+        output = """RX flow hash indirection table for eth1 with 4 RX ring(s):
+    0:      0     1     2     3
+    8:      0     1     2     3
+"""
+
+        with self.assertRaises(LisaException):
+            DeviceRssIndirectionTable("eth1", output)
+
+    def test_reject_missing_rss_indirection_table_entries(self) -> None:
+        output = """RX flow hash indirection table for eth1 with 4 RX ring(s):
+RSS hash key:
+6d:5a:56:da
+"""
+
+        with self.assertRaises(LisaException):
+            DeviceRssIndirectionTable("eth1", output)
+
+    def test_rss_indirection_setter_quotes_and_invalidates_cache(self) -> None:
+        ethtool = Ethtool.__new__(Ethtool)
+        ethtool._device_settings_map = {}
+        cached = DeviceRssIndirectionTable(
+            "eth 1",
+            """RX flow hash indirection table for eth1 with 1 RX ring(s):
+    0:      0
+""",
+        )
+        ethtool._get_or_create_device_setting(
+            "eth 1"
+        ).device_rss_indirection_table = cached
+        result = ExecutableResult("", "", 0, "", "", 0)
+        cast(Any, ethtool).run = MagicMock(return_value=result)
+
+        actual = ethtool.set_device_rss_indirection_table("eth 1", "equal 2")
+
+        assert_that(actual).is_same_as(result)
+        cast(Any, ethtool).run.assert_called_once_with(
+            "-X 'eth 1' equal 2", sudo=True, force_run=True, shell=True
+        )
+        assert_that(
+            ethtool._get_or_create_device_setting("eth 1").device_rss_indirection_table
+        ).is_none()
+
+    def test_rss_indirection_setter_rejects_shell_syntax(self) -> None:
+        ethtool = Ethtool.__new__(Ethtool)
+        ethtool._device_settings_map = {}
+        cast(Any, ethtool).run = MagicMock()
+
+        with self.assertRaises(LisaException):
+            ethtool.set_device_rss_indirection_table("eth1", "equal 2; reboot")
+
+        cast(Any, ethtool).run.assert_not_called()
+
+    def test_coalesce_setter_invalidates_cache(self) -> None:
+        ethtool = Ethtool.__new__(Ethtool)
+        ethtool._device_settings_map = {}
+        device = ethtool._get_or_create_device_setting("eth1")
+        device.device_coalesce_settings = DeviceCoalesceSettings(
+            "eth1", "rx-cqe-frames: 1"
+        )
+        result = ExecutableResult("", "", 0, "", "", 0)
+        cast(Any, ethtool).run = MagicMock(return_value=result)
+
+        actual = ethtool.set_device_coalesce_setting("eth1", "rx-cqe-frames", 4)
+
+        assert_that(actual).is_same_as(result)
+        assert_that(device.device_coalesce_settings).is_none()
+
     def test_parse_coalesce_settings(self) -> None:
         output = """Coalesce parameters for eth1:
 Adaptive RX: off  TX: off
