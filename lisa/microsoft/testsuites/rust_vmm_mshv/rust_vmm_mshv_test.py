@@ -21,7 +21,10 @@ from lisa.util.process import ExecutableResult
     description="""
     This test suite is for executing the rust-vmm/mshv tests
     """,
-    requirement=simple_requirement(supported_os=[Linux]),
+    requirement=simple_requirement(
+        supported_os=[Linux],
+        supported_host_capabilities=["mshv"],
+    ),
 )
 class RustVmmTestSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

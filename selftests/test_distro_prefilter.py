@@ -21,8 +21,10 @@ from lisa.operating_system import (
     Ubuntu,
     Windows,
 )
+from lisa.runners.lisa_runner import _resolve_target_capabilities
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.testselector import (
+    _is_capability_compatible,
     _is_os_compatible,
     _is_platform_compatible,
     select_testcases,
@@ -54,6 +56,8 @@ def _build_case(
     unsupported_os: Any = None,
     supported_platform_type: Any = None,
     unsupported_platform_type: Any = None,
+    supported_host_capabilities: Any = None,
+    unsupported_host_capabilities: Any = None,
 ) -> TestCaseMetadata:
     """Construct a TestCaseMetadata with the requested OS requirement,
     bypassing the global registry. The returned object can be passed to
@@ -64,6 +68,8 @@ def _build_case(
         unsupported_os=unsupported_os,
         supported_platform_type=supported_platform_type,
         unsupported_platform_type=unsupported_platform_type,
+        supported_host_capabilities=supported_host_capabilities,
+        unsupported_host_capabilities=unsupported_host_capabilities,
     )
     metadata = TestCaseMetadata(
         description=f"des_{name}", priority=2, requirement=requirement
@@ -367,6 +373,90 @@ class SelectTestcasesPrefilterTestCase(TestCase):
         self.assertTrue(_is_platform_compatible(cases[2], [AZURE, HYPERV]))
         self.assertFalse(_is_platform_compatible(cases[3], [AZURE]))
         self.assertTrue(_is_platform_compatible(cases[3], [HYPERV]))
+
+    def test_target_mshv_drops_non_mshv_capability_cases(self) -> None:
+        cases = [
+            _build_case("any_host"),
+            _build_case("mshv_only", supported_host_capabilities=["mshv"]),
+            _build_case("not_mshv", unsupported_host_capabilities=["mshv"]),
+        ]
+
+        # target provides mshv: mshv_only kept, not_mshv dropped
+        results = select_testcases(
+            filters=None, init_cases=cases, target_capabilities=["mshv"]
+        )
+        self.assertEqual(
+            sorted(result.name for result in results),
+            ["any_host", "mshv_only"],
+        )
+
+    def test_no_target_capability_keeps_all_cases(self) -> None:
+        cases = [
+            _build_case("any_host"),
+            _build_case("mshv_only", supported_host_capabilities=["mshv"]),
+        ]
+
+        # gate off (empty target): capability filter must not drop anything
+        results = select_testcases(
+            filters=None, init_cases=cases, target_capabilities=None
+        )
+        self.assertEqual(
+            sorted(result.name for result in results),
+            ["any_host", "mshv_only"],
+        )
+
+    def test_target_without_mshv_drops_mshv_cases(self) -> None:
+        cases = [
+            _build_case("any_host"),
+            _build_case("mshv_only", supported_host_capabilities=["mshv"]),
+        ]
+
+        # gate on but target does not list mshv: mshv_only dropped pre-deploy
+        results = select_testcases(
+            filters=None, init_cases=cases, target_capabilities=["virtualization"]
+        )
+        self.assertEqual(
+            sorted(result.name for result in results),
+            ["any_host"],
+        )
+        self.assertFalse(_is_capability_compatible(cases[1], ["virtualization"]))
+        self.assertTrue(_is_capability_compatible(cases[1], ["mshv"]))
+        self.assertTrue(_is_capability_compatible(cases[0], []))
+
+
+class ResolveTargetCapabilitiesTestCase(TestCase):
+    def test_gate_off_returns_empty(self) -> None:
+        self.assertEqual(
+            _resolve_target_capabilities({"target_host_capabilities": "mshv"}), []
+        )
+
+    def test_gate_on_without_declaration_returns_empty(self) -> None:
+        self.assertEqual(
+            _resolve_target_capabilities({"enable_capability_pre_filtering": "true"}),
+            [],
+        )
+
+    def test_gate_on_parses_comma_separated(self) -> None:
+        self.assertEqual(
+            _resolve_target_capabilities(
+                {
+                    "enable_capability_pre_filtering": "true",
+                    "target_host_capabilities": "mshv, virtualization",
+                }
+            ),
+            ["mshv", "virtualization"],
+        )
+
+    def test_gate_on_accepts_list(self) -> None:
+        self.assertEqual(
+            _resolve_target_capabilities(
+                {
+                    "enable_capability_pre_filtering": True,
+                    "target_host_capabilities": ["mshv"],
+                }
+            ),
+            ["mshv"],
+        )
 
 
 class GlobalRegistryPrefilterTestCase(TestCase):
