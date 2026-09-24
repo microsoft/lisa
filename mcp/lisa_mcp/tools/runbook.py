@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from typing import Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 
-def register_runbook_tools(mcp: FastMCP) -> None:  # noqa: C901
+def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
     @mcp.tool()
     def lisa_generate_runbook(
         platform: str = "azure",

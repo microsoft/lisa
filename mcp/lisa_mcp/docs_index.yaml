@@ -9,7 +9,6 @@
 # supplementary — additional docs loaded when extra context helps
 
 tools:
-
   # ── test_writer.py ─────────────────────────────────────────────
   lisa_write_test:
     primary: .github/prompts/lisa_test_writer.prompt.md
@@ -37,6 +36,15 @@ tools:
   lisa_list_test_requirements:
     primary: docs/write_test/write_case.rst
     supplementary: []
+
+  lisa_save_test:
+    primary: docs/write_test/write_case.rst
+    supplementary: []
+
+  lisa_list_tests:
+    primary: docs/run_test/microsoft_tests.rst
+    supplementary:
+      - docs/write_test/write_case.rst
 
   # ── runbook.py ─────────────────────────────────────────────────
   lisa_generate_runbook:
@@ -125,6 +133,13 @@ tools:
     supplementary:
       - docs/run_test/command_line.rst
 
+  lisa_get_config:
+    primary: docs/run_test/azure_auth.rst
+    supplementary: []
+
+  lisa_save_config:
+    primary: docs/run_test/azure_auth.rst
+    supplementary: []
 
 # ── Topic index (used by explain_concept for targeted lookup) ────
 #
@@ -133,30 +148,30 @@ tools:
 # doesn't have a match.
 
 topics:
-  runbook:       docs/run_test/runbook.rst
-  platform:      docs/run_test/platform.rst
-  environment:   docs/write_test/concepts.rst
-  node:          docs/write_test/concepts.rst
-  feature:       docs/write_test/extension.rst
-  tool:          docs/write_test/extension.rst
-  extension:     docs/write_test/extension.rst
-  test suite:    docs/write_test/write_case.rst
-  test case:     docs/write_test/write_case.rst
-  transformer:   docs/run_test/transformers.rst
-  combinator:    docs/write_test/concepts.rst
-  variable:      docs/run_test/runbook.rst
-  notifier:      docs/write_test/extension.rst
-  requirement:   docs/write_test/concepts.rst
-  capability:    docs/write_test/concepts.rst
-  search_space:  docs/write_test/concepts.rst
-  priority:      docs/run_test/microsoft_tests.rst
-  log agent:     lisa/ai/README.md
-  log analysis:  lisa/ai/README.md
-  ai analysis:   lisa/ai/README.md
-  tier:          docs/run_test/microsoft_tests.rst
-  install:       docs/install.rst
+  runbook: docs/run_test/runbook.rst
+  platform: docs/run_test/platform.rst
+  environment: docs/write_test/concepts.rst
+  node: docs/write_test/concepts.rst
+  feature: docs/write_test/extension.rst
+  tool: docs/write_test/extension.rst
+  extension: docs/write_test/extension.rst
+  test suite: docs/write_test/write_case.rst
+  test case: docs/write_test/write_case.rst
+  transformer: docs/run_test/transformers.rst
+  combinator: docs/write_test/concepts.rst
+  variable: docs/run_test/runbook.rst
+  notifier: docs/write_test/extension.rst
+  requirement: docs/write_test/concepts.rst
+  capability: docs/write_test/concepts.rst
+  search_space: docs/write_test/concepts.rst
+  priority: docs/run_test/microsoft_tests.rst
+  log agent: lisa/ai/README.md
+  log analysis: lisa/ai/README.md
+  ai analysis: lisa/ai/README.md
+  tier: docs/run_test/microsoft_tests.rst
+  install: docs/install.rst
   authentication: docs/run_test/azure_auth.rst
-  azure:         docs/run_test/quick_run.rst
-  troubleshoot:  docs/run_test/troubleshoot_failures.rst
-  guidelines:    docs/write_test/guidelines.rst
-  contributing:  docs/contributing.rst
+  azure: docs/run_test/quick_run.rst
+  troubleshoot: docs/run_test/troubleshoot_failures.rst
+  guidelines: docs/write_test/guidelines.rst
+  contributing: docs/contributing.rst

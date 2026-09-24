@@ -2,8 +2,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install git (needed for repo clone)
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+# Install git (needed for repo clone) and curl (needed by the healthcheck)
+RUN apt-get update && apt-get install -y --no-install-recommends git curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Clone the LISA repo
@@ -14,8 +14,13 @@ RUN git clone --depth 1 --branch ${LISA_BRANCH} \
 # Overlay local MCP source so unpushed changes are included in the image
 COPY . /app/lisa/mcp
 
-# Install the MCP server package (with Azure blob download support)
-RUN pip install --no-cache-dir "/app/lisa/mcp[azure]"
+# Build args are exposed to RUN as environment variables, and pip reads
+# PIP_INDEX_URL. Set it when public PyPI is unreachable, e.g.
+#   --build-arg PIP_INDEX_URL=https://<your-mirror>/pypi/simple/
+ARG PIP_INDEX_URL
+
+# Install the MCP server package with SSE transport and Azure blob download
+RUN pip install --no-cache-dir "/app/lisa/mcp[sse,azure]"
 
 # Point the MCP server at the cloned repo
 ENV LISA_REPO_ROOT=/app/lisa
@@ -27,6 +32,9 @@ RUN useradd --create-home --shell /usr/sbin/nologin --uid 10001 mcp \
 USER mcp
 
 EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s \
+    CMD curl -f http://localhost:8080/health || exit 1
 
 ENTRYPOINT ["lisa-mcp"]
 CMD ["--transport", "sse", "--port", "8080"]

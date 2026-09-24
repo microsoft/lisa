@@ -10,13 +10,17 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 dependencies = [
-    "mcp[cli]>=1.0.0",
+    # Requires mcp 2.x: FastMCP was renamed MCPServer in 2.0 and the old
+    # mcp.server.fastmcp module raises on import.
+    "mcp[cli]>=2.0,<3",
     "pyyaml>=6.0",
-    "uvicorn>=0.24.0",
-    "starlette>=0.27.0",
 ]
 
 [project.optional-dependencies]
+sse = [
+    "starlette>=0.27.0",
+    "uvicorn>=0.24.0",
+]
 azure = [
     "azure-identity>=1.15.0",
     "azure-storage-blob>=12.19.0",
