@@ -56,6 +56,7 @@ from lisa.tools import (
     Mount,
     Readlink,
     Service,
+    Timeout,
 )
 from lisa.util import (
     LisaException,
@@ -88,6 +89,9 @@ class Sriov(TestSuite):
     # Allow the tree enumeration, shell startup, and result transfer to finish
     # after accounting for the worst-case timeout of every candidate file.
     DEBUGFS_TREE_TIMEOUT_PADDING_SECONDS = 30
+    # Leave ten minutes of the default one-hour case timeout for setup,
+    # result parsing, assertions, and cleanup.
+    DEBUGFS_TREE_MAX_TIMEOUT_SECONDS = 3000
     # `timeout` reports 124 when it has to signal the child, and 137 when that
     # signal had to be escalated to KILL. Either way the read never answered.
     DEBUGFS_READ_TIMEOUT_EXIT_CODES = (-124, -137)
@@ -1177,11 +1181,25 @@ class Sriov(TestSuite):
     ) -> List[Tuple[str, int]]:
         # Emits "<byte_count>\t<path>" per readable file and
         # "ERR<exit_code>\t<path>" per file whose read fails.
-        scratch = "/tmp/lisa_debugfs_read"
+        timeout = node.tools[Timeout]
+        timeout.run(
+            parameters=(
+                f"-k {self.DEBUGFS_READ_KILL_GRACE_SECONDS} "
+                f"{self.DEBUGFS_READ_TIMEOUT_SECONDS} true"
+            ),
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "timeout must support -k before reading debugfs. Install GNU "
+                "coreutils or verify that the timeout command supports a KILL "
+                "grace period."
+            ),
+        )
+
         # -k escalates to KILL a second after the read declines to stop, so a
         # read that ignores the first signal cannot stall the whole walk.
         per_file = (
-            f"if timeout -k {self.DEBUGFS_READ_KILL_GRACE_SECONDS} "
+            f"if {timeout.command} -k {self.DEBUGFS_READ_KILL_GRACE_SECONDS} "
             f"{self.DEBUGFS_READ_TIMEOUT_SECONDS} "
             f'head -c {self.DEBUGFS_READ_CAP_BYTES} "$1" > "$2" 2>/dev/null; '
             'then printf "%s\\t%s\\n" "$(wc -c < "$2")" "$1"; '
@@ -1206,20 +1224,38 @@ class Sriov(TestSuite):
         candidate_count = len(
             [path for path in candidates.stdout.split("\x00") if path]
         )
-        overall_timeout = (
-            candidate_count
-            * (self.DEBUGFS_READ_TIMEOUT_SECONDS + self.DEBUGFS_READ_KILL_GRACE_SECONDS)
-            + self.DEBUGFS_TREE_TIMEOUT_PADDING_SECONDS
+        overall_timeout = min(
+            (
+                candidate_count
+                * (
+                    self.DEBUGFS_READ_TIMEOUT_SECONDS
+                    + self.DEBUGFS_READ_KILL_GRACE_SECONDS
+                )
+                + self.DEBUGFS_TREE_TIMEOUT_PADDING_SECONDS
+            ),
+            self.DEBUGFS_TREE_MAX_TIMEOUT_SECONDS,
         )
-        result = node.execute(
-            f"find '{debugfs_root}' -type f -perm -u+r "
-            f"-exec sh -c '{per_file}' _ {{}} '{scratch}' \\;; "
-            f"rm -f '{scratch}'",
-            sudo=True,
-            shell=True,
-            no_info_log=True,
-            timeout=overall_timeout,
-        )
+        try:
+            result = node.execute(
+                "umask 077; "
+                'scratch="$(mktemp /tmp/lisa_debugfs_read.XXXXXX)" || exit $?; '
+                "cleanup() { status=$?; trap - 0 HUP INT TERM; "
+                'rm -f "$scratch"; exit "$status"; }; '
+                "trap cleanup 0 HUP INT TERM; "
+                f"find '{debugfs_root}' -type f -perm -u+r "
+                f"-exec sh -c '{per_file}' _ {{}} \"$scratch\" \\;",
+                sudo=True,
+                shell=True,
+                no_info_log=True,
+                timeout=overall_timeout,
+            )
+        except LisaTimeoutException as error:
+            raise LisaException(
+                f"reading {candidate_count} debugfs files under {debugfs_root} "
+                f"did not finish within {overall_timeout} seconds. At least one "
+                "diagnostic entry is blocked or too slow to inspect; check dmesg "
+                "for a driver error or lockup."
+            ) from error
         result.assert_exit_code(
             0,
             message=(
