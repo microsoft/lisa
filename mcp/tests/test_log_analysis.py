@@ -51,42 +51,44 @@ class TestAnalyzeLog(unittest.TestCase):
 
 
 class TestExplainFailure(unittest.TestCase):
-    """Validate failure classification."""
+    """Validate failure classification.
+
+    These call the production classifier. An inline copy in this file would
+    only prove the copy matches itself.
+    """
 
     def test_classifies_kernel_panic(self) -> None:
+        from lisa_mcp.tools.log_analysis import _classify_failure
+
         text = "Kernel panic - not syncing: VFS: Unable to mount root fs"
-        result = _classify(text)
-        self.assertIn("kernel", result.lower())
+        self.assertIn("kernel", _classify_failure(text).lower())
 
     def test_classifies_connectivity(self) -> None:
+        from lisa_mcp.tools.log_analysis import _classify_failure
+
         text = "TcpConnectionException: failed to connect to 10.0.0.5:22"
-        result = _classify(text)
-        self.assertIn("connect", result.lower())
+        self.assertIn("connect", _classify_failure(text).lower())
 
     def test_classifies_assertion(self) -> None:
+        from lisa_mcp.tools.log_analysis import _classify_failure
+
         text = "AssertionError: assert_that(0).is_equal_to(1)"
-        result = _classify(text)
-        self.assertIn("assert", result.lower())
+        self.assertIn("assert", _classify_failure(text).lower())
 
     def test_classifies_timeout(self) -> None:
+        from lisa_mcp.tools.log_analysis import _classify_failure
+
         text = "Operation timed out after 300 seconds"
-        result = _classify(text)
-        self.assertIn("timeout", result.lower())
+        self.assertIn("timeout", _classify_failure(text).lower())
+
+    def test_unclassified_text_is_reported(self) -> None:
+        from lisa_mcp.tools.log_analysis import _classify_failure
+
+        self.assertIn("unclassified", _classify_failure("all good").lower())
 
 
-def _classify(text: str) -> str:
-    """Simple classification for testing."""
-    text_lower = text.lower()
-    categories = []
-    if "kernel panic" in text_lower or "oops" in text_lower:
-        categories.append("Kernel Error")
-    if "tcpconnection" in text_lower or "connection" in text_lower:
-        categories.append("Connectivity Error")
-    if "assertionerror" in text_lower or "assert_that" in text_lower:
-        categories.append("Assertion Failure")
-    if "timeout" in text_lower or "timed out" in text_lower:
-        categories.append("Timeout")
-    return ", ".join(categories) if categories else "Unknown"
+if __name__ == "__main__":
+    unittest.main()
 
 
 if __name__ == "__main__":

@@ -180,11 +180,13 @@ class {class_name}(TestSuite):
         if supported_features:
             features = [f.strip() for f in supported_features.split(",")]
             req_parts.append(f"supported_features=[{', '.join(features)}]")
-        if min_core_count:
+        # `is not None`, not truthiness: 0 is a legitimate requirement value
+        # and must not be silently dropped from the generated requirement.
+        if min_core_count is not None:
             req_parts.append(f"min_core_count={min_core_count}")
-        if min_nic_count:
+        if min_nic_count is not None:
             req_parts.append(f"min_nic_count={min_nic_count}")
-        if min_data_disk_count:
+        if min_data_disk_count is not None:
             req_parts.append(f"min_data_disk_count={min_data_disk_count}")
 
         req_str = ",\n            ".join(req_parts)
@@ -869,6 +871,28 @@ def _extract_test_cases(content: str) -> list[dict[str, object]]:
     return cases
 
 
+# Matches description="...", description='''...''', and the triple-quoted
+# multi-line form that most suites in this repo actually use. The closing
+# delimiter is back-referenced so a single quote inside a """ block is fine.
+_DESCRIPTION_RE = re.compile(
+    r"""description\s*=\s*(\"\"\"|'''|"|')(.*?)\1""",
+    re.DOTALL,
+)
+
+
+def _extract_description(block: str) -> str:
+    """Return the last ``description=`` value in *block*, whitespace collapsed.
+
+    The last match wins: when the window reaches back over a previous
+    decorator, the nearest description is the one belonging to the member
+    that follows.
+    """
+    matches = _DESCRIPTION_RE.findall(block)
+    if not matches:
+        return ""
+    return " ".join(matches[-1][1].split())
+
+
 def _extract_existing_tests(
     repo_root: Path,
     suite_files: list[str],
@@ -910,15 +934,11 @@ def _extract_existing_tests(
             method_match = re.match(r"def\s+((?:verify|test)_\w+)\s*\(", stripped)
             if method_match:
                 method_name = method_match.group(1)
-                # Look for description in preceding @TestCaseMetadata
-                desc = ""
-                for j in range(max(0, i - 10), i):
-                    desc_match = re.search(
-                        r'description\s*=\s*["\'](.+?)["\']', lines[j]
-                    )
-                    if desc_match:
-                        desc = desc_match.group(1)
-                        break
+                # Look for description in the preceding @TestCaseMetadata.
+                # The window is generous because most suites in this repo
+                # write the description as a multi-line triple-quoted string.
+                block = "\n".join(lines[max(0, i - 30) : i])
+                desc = _extract_description(block)
                 methods.append(
                     {
                         "name": method_name,

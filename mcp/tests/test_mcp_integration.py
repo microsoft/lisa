@@ -45,6 +45,14 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+def _restore_env(name: str, previous: Optional[str]) -> None:
+    """Put an environment variable back the way it was."""
+    if previous is None:
+        os.environ.pop(name, None)
+    else:
+        os.environ[name] = previous
+
+
 def _make_server_params():
     """Create StdioServerParameters pointing at our server.py."""
     return StdioServerParameters(
@@ -217,17 +225,32 @@ class TestSSETransport(unittest.TestCase):
 
         from lisa_mcp.server import _build_sse_app
 
-        previous = os.environ.get("LISA_MCP_API_KEY")
+        previous_key = os.environ.get("LISA_MCP_API_KEY")
+        previous_hosts = os.environ.get("ALLOWED_HOSTS")
         os.environ["LISA_MCP_API_KEY"] = api_key
         os.environ["ALLOWED_HOSTS"] = "localhost,127.0.0.1"
         try:
             # Port 0 lets the OS pick a free port, so parallel runs don't clash.
             config = uvicorn.Config(
-                _build_sse_app(), host="127.0.0.1", port=0, log_level="warning"
+                _build_sse_app("127.0.0.1"),
+                host="127.0.0.1",
+                port=0,
+                log_level="warning",
             )
             server = uvicorn.Server(config)
             serve_task = asyncio.create_task(server.serve())
+            # Bounded wait: if serve() dies during startup (port in use, bad
+            # app) `started` never flips, and an unbounded loop would hang
+            # the whole suite instead of reporting the real error.
+            deadline = asyncio.get_running_loop().time() + 30
             while not server.started:
+                if serve_task.done():
+                    # Re-raises the startup failure.
+                    serve_task.result()
+                    raise AssertionError("uvicorn exited before it finished starting")
+                if asyncio.get_running_loop().time() > deadline:
+                    serve_task.cancel()
+                    raise AssertionError("uvicorn did not start within 30s")
                 await asyncio.sleep(0.05)
             port = server.servers[0].sockets[0].getsockname()[1]
 
@@ -245,10 +268,8 @@ class TestSSETransport(unittest.TestCase):
                 server.should_exit = True
                 await serve_task
         finally:
-            if previous is None:
-                os.environ.pop("LISA_MCP_API_KEY", None)
-            else:
-                os.environ["LISA_MCP_API_KEY"] = previous
+            _restore_env("LISA_MCP_API_KEY", previous_key)
+            _restore_env("ALLOWED_HOSTS", previous_hosts)
 
     def test_sse_handshake_completes(self) -> None:
         names = _run(self._serve_and_connect(api_key=""))
@@ -264,11 +285,14 @@ class TestSSETransport(unittest.TestCase):
 
         from lisa_mcp.server import _build_sse_app
 
-        previous = os.environ.get("LISA_MCP_API_KEY")
+        previous_key = os.environ.get("LISA_MCP_API_KEY")
+        previous_hosts = os.environ.get("ALLOWED_HOSTS")
         os.environ["LISA_MCP_API_KEY"] = "test-key"
         os.environ["ALLOWED_HOSTS"] = "localhost,127.0.0.1"
         try:
-            client = TestClient(_build_sse_app(), base_url="http://localhost")
+            client = TestClient(
+                _build_sse_app("127.0.0.1"), base_url="http://localhost"
+            )
 
             response = client.get("/health")
             self.assertEqual(response.status_code, 200)
@@ -285,10 +309,24 @@ class TestSSETransport(unittest.TestCase):
                 400,
             )
         finally:
-            if previous is None:
-                os.environ.pop("LISA_MCP_API_KEY", None)
-            else:
-                os.environ["LISA_MCP_API_KEY"] = previous
+            _restore_env("LISA_MCP_API_KEY", previous_key)
+            _restore_env("ALLOWED_HOSTS", previous_hosts)
+
+    def test_public_bind_without_api_key_is_refused(self) -> None:
+        """A network-reachable listener must not come up unauthenticated."""
+        from lisa_mcp.server import _build_sse_app
+
+        previous_key = os.environ.get("LISA_MCP_API_KEY")
+        os.environ.pop("LISA_MCP_API_KEY", None)
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                _build_sse_app("0.0.0.0")
+            self.assertIn("LISA_MCP_API_KEY", str(ctx.exception))
+
+            # Loopback stays usable without a key for local development.
+            _build_sse_app("127.0.0.1")
+        finally:
+            _restore_env("LISA_MCP_API_KEY", previous_key)
 
 
 class TestRealExecution(unittest.TestCase):

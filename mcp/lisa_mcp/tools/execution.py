@@ -24,11 +24,8 @@ from lisa_mcp.config import (
     render_config_prompt,
     save_azure_config,
 )
+from lisa_mcp.runtime import get_transport
 from lisa_mcp.tools._repo import find_repo_root
-
-# Transport the server was started with. lisa_run is local-only, so it has to
-# know whether it is serving a remote SSE client.
-_transport = "stdio"
 
 # LISA variables are "name:value"; secrets use the "s:name:value" form.
 _VARIABLE_RE = re.compile(r"^(s:)?[A-Za-z_][A-Za-z0-9_]*:.+$", re.DOTALL)
@@ -48,8 +45,8 @@ def _runbook_platform_types(runbook: Path) -> set[str]:
     """Return the platform types a runbook declares, lowercased.
 
     An empty set means "unknown" — an unreadable runbook, or one that pulls
-    its platform in through `include`. Callers must not treat that as proof
-    that no cloud platform is involved.
+    its platform in through `include`. Callers must treat unknown as
+    possibly-Azure rather than assuming a local run.
     """
     try:
         data = yaml.safe_load(runbook.read_text(encoding="utf-8"))
@@ -67,15 +64,65 @@ def _runbook_platform_types(runbook: Path) -> set[str]:
     }
 
 
+def _runbook_node_types(runbook: Path) -> set[str]:
+    """Return the node types declared under ``environment.environments``.
+
+    A runbook that pins its own nodes (the `hello_world.yml` style) has no
+    `platform` section at all \u2014 LISA falls back to `ready`. Reading the node
+    types is what tells those apart from a runbook whose platform simply
+    lives in an `include`.
+    """
+    try:
+        data = yaml.safe_load(runbook.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError):
+        return set()
+    if not isinstance(data, dict):
+        return set()
+
+    environment = data.get("environment")
+    if not isinstance(environment, dict):
+        return set()
+    environments = environment.get("environments")
+    if not isinstance(environments, list):
+        return set()
+
+    types: set[str] = set()
+    for env in environments:
+        if not isinstance(env, dict):
+            continue
+        for node in env.get("nodes") or []:
+            if isinstance(node, dict) and isinstance(node.get("type"), str):
+                types.add(node["type"].strip().lower())
+    return types
+
+
+# Node types that never provision cloud resources.
+_LOCAL_NODE_TYPES = {"local", "remote", "ready"}
+
+
+def _needs_azure_config(runbook: Path) -> bool:
+    """Whether a run of *runbook* should be gated on Azure settings.
+
+    Errs toward prompting: an include-based or unparseable runbook has an
+    unknown platform, and launching what turns out to be an Azure run with
+    no subscription or resource group just fails late and confusingly.
+    """
+    platform_types = _runbook_platform_types(runbook)
+    if platform_types:
+        return "azure" in platform_types
+
+    # No platform section. If the runbook supplies its own non-cloud nodes,
+    # there is nothing for Azure settings to do.
+    node_types = _runbook_node_types(runbook)
+    if node_types and node_types <= _LOCAL_NODE_TYPES:
+        return False
+
+    return True
+
+
 def _normalize_exit_code(code: int) -> int:
     """Windows reports exit codes as unsigned 32-bit, so -1 arrives as 4294967295."""
     return code - 0x100000000 if code > 0x7FFFFFFF else code
-
-
-def set_transport(transport: str) -> None:
-    """Record the transport the server was started with."""
-    global _transport
-    _transport = transport
 
 
 def _parse_variables(variables: str) -> tuple[list[str], Optional[str]]:
@@ -193,7 +240,7 @@ def register_execution_tools(mcp: MCPServer) -> None:  # noqa: C901
                        (e.g. "admin_username:azureuser marketplace_image:...")
             debug: Emit DEBUG level logs to the console
         """
-        if _transport != "stdio":
+        if get_transport() != "stdio":
             return (
                 "**`lisa_run` is not available on a remote MCP server.**\n\n"
                 "Test execution needs LISA, Docker, and your Azure credentials "
@@ -218,7 +265,7 @@ def register_execution_tools(mcp: MCPServer) -> None:  # noqa: C901
             )
 
         missing = missing_azure_settings()
-        if missing and "azure" in _runbook_platform_types(runbook):
+        if missing and _needs_azure_config(runbook):
             return render_config_prompt(missing)
 
         base_command = _lisa_command(repo_root)

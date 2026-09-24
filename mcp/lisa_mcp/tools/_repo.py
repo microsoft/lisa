@@ -22,22 +22,27 @@ _MCP_DIR = _PACKAGE_DIR.parent
 
 
 def find_repo_root() -> Optional[Path]:
-    """Walk up from this file to find the LISA repository root.
+    """Locate the LISA repository root.
 
-    The repo root is identified by having a ``lisa/`` package directory
-    and a ``pyproject.toml``.
+    ``LISA_REPO_ROOT`` wins over the checkout this package was installed
+    from. It is documented as the way to point the server at a different
+    clone, which only works if it is consulted first — an editable install
+    always sits next to a valid repo, so a package-first order would make
+    the override silently dead.
+
+    Otherwise the repo root is the directory alongside ``mcp/`` that holds
+    both a ``lisa/`` package and a ``pyproject.toml``.
     """
-    # mcp/ lives alongside lisa/ at the repo root
-    candidate = _MCP_DIR.parent
-    if (candidate / "lisa").is_dir() and (candidate / "pyproject.toml").is_file():
-        return candidate
-
-    # Fallback: check LISA_REPO_ROOT env var
     env_root = os.environ.get("LISA_REPO_ROOT")
     if env_root:
         p = Path(env_root)
         if p.is_dir():
             return p
+
+    # mcp/ lives alongside lisa/ at the repo root
+    candidate = _MCP_DIR.parent
+    if (candidate / "lisa").is_dir() and (candidate / "pyproject.toml").is_file():
+        return candidate
 
     return None
 

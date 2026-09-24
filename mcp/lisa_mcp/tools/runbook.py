@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import copy
 from typing import Optional
 
 from mcp.server.mcpserver import MCPServer
@@ -15,7 +16,7 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
     def lisa_generate_runbook(
         platform: str = "azure",
         area: Optional[str] = None,
-        priority: Optional[int] = None,
+        max_priority: Optional[int] = None,
         tags: Optional[str] = None,
         vm_size: Optional[str] = None,
         location: Optional[str] = None,
@@ -29,7 +30,8 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         Args:
             platform: Target platform — "azure", "hyperv", "local", "remote"
             area: Test area filter (e.g. "provisioning", "network")
-            priority: Max priority level (0-3) to include
+            max_priority: Highest priority level to include; emits the
+                inclusive range `priority: [0, max_priority]`
             tags: Comma-separated test tags to filter on
             vm_size: Azure VM size (e.g. "Standard_DS2_v2")
             location: Azure region (e.g. "westus2")
@@ -103,20 +105,34 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         # Test cases
         sections.append("")
         sections.append("testcase:")
-        sections.append("  - criteria:")
+
+        # Build the filters first: a `- criteria:` with nothing under it
+        # parses as `criteria: null`, which selects every test in the repo.
+        # Emit the block only when there is something to filter on.
+        criteria_lines = []
         if area:
-            sections.append(f"      area: {area}")
-        if priority is not None:
-            sections.append(f"      priority: [0, {priority}]")
+            criteria_lines.append(f"      area: {area}")
+        if max_priority is not None:
+            criteria_lines.append(f"      priority: [0, {max_priority}]")
         if tags:
             tag_list = [t.strip() for t in tags.split(",")]
-            sections.append(f"      tags: [{', '.join(tag_list)}]")
+            criteria_lines.append(f"      tags: [{', '.join(tag_list)}]")
+
+        if criteria_lines:
+            sections.append("  - criteria:")
+            sections.extend(criteria_lines)
 
         if test_names:
             names = [n.strip() for n in test_names.split(",")]
             for name in names:
                 sections.append("  - criteria:")
                 sections.append(f"      name: {name}")
+
+        if not criteria_lines and not test_names:
+            sections.append("  # No filters were given, so every test would run.")
+            sections.append("  # Narrow this down before using the runbook:")
+            sections.append("  - criteria:")
+            sections.append("      area: <area>   # e.g. provisioning, network")
 
         runbook_yaml = "\n".join(sections) + "\n"
 
@@ -160,7 +176,19 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
                 "Missing `platform` section — "
                 "LISA needs at least one platform configured."
             )
-        elif isinstance(doc["platform"], list):
+        elif not isinstance(doc["platform"], list):
+            errors.append(
+                f"`platform` must be a list of platform mappings, got "
+                f"{type(doc['platform']).__name__}. Write it as:\n"
+                "  platform:\n"
+                "    - type: azure"
+            )
+        elif not doc["platform"]:
+            errors.append(
+                "`platform` is an empty list — LISA needs at least one "
+                "platform entry with a `type` field."
+            )
+        else:
             for i, p in enumerate(doc["platform"]):
                 if not isinstance(p, dict):
                     errors.append(f"platform[{i}] must be a mapping.")
@@ -245,7 +273,8 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         """
         import yaml
 
-        fixes = []
+        fixes: list[str] = []
+        unfixable: list[str] = []
 
         try:
             doc = yaml.safe_load(runbook_content)
@@ -258,12 +287,19 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         if not isinstance(doc, dict):
             return "Runbook must be a YAML mapping at the top level."
 
-        modified = dict(doc)
+        modified = copy.deepcopy(doc)
 
-        # Fix: missing platform
+        # Deliberately not auto-adding a missing `platform`: defaulting to
+        # azure would turn an incomplete runbook into one that provisions
+        # billable cloud resources without the author ever asking for it.
         if "platform" not in modified:
-            modified["platform"] = [{"type": "azure"}]
-            fixes.append("Added default `platform` section with `type: azure`.")
+            unfixable.append(
+                "Missing `platform` — not auto-filled, because guessing a "
+                "cloud platform here could provision billable resources. "
+                "Add the platform you actually intend to run on, e.g.:\n"
+                "  platform:\n"
+                "    - type: local     # or azure, hyperv, ready, ..."
+            )
 
         # Fix: platform as dict instead of list
         if isinstance(modified.get("platform"), dict):
@@ -311,14 +347,15 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         # Dump corrected YAML
         corrected_yaml = yaml.dump(modified, default_flow_style=False, sort_keys=False)
 
+        sections = []
         if fixes:
             fix_list = "\n".join(f"- {f}" for f in fixes)
-            return (
-                f"**Fixes applied ({len(fixes)}):**\n{fix_list}\n\n"
-                f"**Corrected runbook:**\n\n```yaml\n{corrected_yaml}```"
-            )
-        else:
-            return (
-                "No structural issues found. The runbook looks correct.\n\n"
-                f"```yaml\n{corrected_yaml}```"
-            )
+            sections.append(f"**Fixes applied ({len(fixes)}):**\n{fix_list}")
+        if unfixable:
+            todo_list = "\n".join(f"- {u}" for u in unfixable)
+            sections.append(f"**Needs your input ({len(unfixable)}):**\n{todo_list}")
+        if not sections:
+            sections.append("No structural issues found. The runbook looks correct.")
+
+        sections.append(f"**Runbook:**\n\n```yaml\n{corrected_yaml}```")
+        return "\n\n".join(sections)

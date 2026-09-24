@@ -100,11 +100,23 @@ lisa-mcp
 
 # Hosted mode — SSE/HTTP transport (for agent-to-agent pipelines, CI systems)
 pip install "lisa-mcp[sse]"
+export LISA_MCP_API_KEY="<shared secret>"
+export LISA_LOG_ROOT="/var/log/lisa"
 lisa-mcp --transport sse --port 8080
 ```
 
 SSE mode exposes `GET /sse`, `POST /messages/`, and `GET /health` for load
 balancer probes.
+
+The server **refuses to start** when `--host` is network-reachable (the
+default `0.0.0.0`) and `LISA_MCP_API_KEY` is unset. The tools can write test
+files into the repo and read logs off disk, so an open listener would hand
+those capabilities to anyone who can reach the port. Bind to `127.0.0.1` if
+you genuinely want an unauthenticated local-only server.
+
+Over SSE, the log tools additionally require `LISA_LOG_ROOT` and refuse any
+path outside it — without that confinement `lisa_read_log_file` and friends
+would be an arbitrary file reader for authenticated clients.
 
 ### Test execution settings
 
@@ -186,13 +198,14 @@ need no `env` block.
 
 ### Environment Variables
 
-| Variable              | Description                                                                               |
-| --------------------- | ----------------------------------------------------------------------------------------- |
-| `LISA_REPO_ROOT`      | Override auto-detected LISA repo root path                                                |
-| `LISA_MCP_CONFIG`     | Override the `~/.lisa/mcp_config.yaml` location                                           |
-| `LISA_MCP_API_KEY`    | SSE mode: shared secret required in the `X-API-Key` header. Unset means no authentication |
-| `ALLOWED_HOSTS`       | SSE mode: comma-separated `Host` header allowlist (default `localhost,127.0.0.1`)         |
-| `FORWARDED_ALLOW_IPS` | SSE mode: proxy IPs permitted to set `X-Forwarded-*` (default `127.0.0.1`)                |
+| Variable              | Description                                                                                      |
+| --------------------- | ------------------------------------------------------------------------------------------------ |
+| `LISA_REPO_ROOT`      | Override auto-detected LISA repo root path. Takes precedence over the install location           |
+| `LISA_MCP_CONFIG`     | Override the `~/.lisa/mcp_config.yaml` location                                                  |
+| `LISA_MCP_API_KEY`    | SSE mode: shared secret required in the `X-API-Key` header. **Mandatory for non-loopback binds** |
+| `LISA_LOG_ROOT`       | Confines the log tools to this directory. **Mandatory in SSE mode**; optional for stdio          |
+| `ALLOWED_HOSTS`       | SSE mode: comma-separated `Host` header allowlist (default `localhost,127.0.0.1`)                |
+| `FORWARDED_ALLOW_IPS` | SSE mode: proxy IPs permitted to set `X-Forwarded-*` (default `127.0.0.1`)                       |
 
 ### Remote Server (recommended for teams)
 
@@ -209,9 +222,16 @@ docker build -t lisa-mcp .
 
 docker run -d --name lisa-mcp -p 8080:8080 \
   -e LISA_MCP_API_KEY="<shared secret>" \
+  -e LISA_LOG_ROOT="/app/logs" \
   -e ALLOWED_HOSTS="your-server,localhost" \
+  -v /var/log/lisa:/app/logs:ro \
   lisa-mcp
 ```
+
+`LISA_MCP_API_KEY` is required — the server exits at startup without it,
+because the container binds `0.0.0.0`. `LISA_LOG_ROOT` is required before the
+log tools will read from disk in SSE mode; mount the directory holding the
+runs you want analysed.
 
 Keep `localhost` in `ALLOWED_HOSTS`. The container's `HEALTHCHECK` curls
 `http://localhost:8080/health` from inside, so dropping it makes host
@@ -236,6 +256,8 @@ Without a reachable index the build fails inside `pip install` with
 git clone https://github.com/microsoft/lisa.git
 cd lisa/mcp
 pip install -e .
+export LISA_MCP_API_KEY="<shared secret>"
+export LISA_LOG_ROOT="/var/log/lisa"
 lisa-mcp --transport sse --port 8080
 ```
 

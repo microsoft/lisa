@@ -70,7 +70,7 @@ def main() -> int:
     group.add_argument(
         "--smoke",
         action="store_true",
-        help="Quick smoke test — verify all 25 tools are registered",
+        help="Quick smoke test — verify every tool is registered",
     )
     parser.add_argument(
         "--xml",
@@ -78,13 +78,13 @@ def main() -> int:
         help="Output JUnit XML reports into the test-results/ directory",
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
+        "-q",
+        "--quiet",
         action="store_true",
-        default=True,
-        help="Verbose output (default: True)",
+        help="Reduce output to one character per test (default: verbose)",
     )
     args = parser.parse_args()
+    verbosity = 1 if args.quiet else 2
 
     if args.unit:
         mode = "unit"
@@ -103,7 +103,7 @@ def main() -> int:
 
             runner = xmlrunner.XMLTestRunner(
                 output="test-results",
-                verbosity=2 if args.verbose else 1,
+                verbosity=verbosity,
             )
         except ImportError:
             print(
@@ -112,9 +112,9 @@ def main() -> int:
                 "Falling back to text output.\n",
                 file=sys.stderr,
             )
-            runner = unittest.TextTestRunner(verbosity=2 if args.verbose else 1)
+            runner = unittest.TextTestRunner(verbosity=verbosity)
     else:
-        runner = unittest.TextTestRunner(verbosity=2 if args.verbose else 1)
+        runner = unittest.TextTestRunner(verbosity=verbosity)
 
     print(f"{'=' * 60}")
     print(f"LISA MCP Server Tests — mode: {mode}")

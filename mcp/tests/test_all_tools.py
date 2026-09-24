@@ -14,6 +14,7 @@ and verify correct behavior with realistic inputs.
 import os
 import subprocess
 import sys
+import tarfile
 import tempfile
 import textwrap
 import unittest
@@ -27,14 +28,17 @@ if str(_MCP_DIR) not in sys.path:
 
 from server import mcp  # noqa: E402 — registers all tools
 
+from lisa_mcp import runtime  # noqa: E402
 from lisa_mcp.config import (  # noqa: E402
     CONFIG_ENV_VAR,
     missing_azure_settings,
     save_azure_config,
 )
+from lisa_mcp.runtime import set_transport  # noqa: E402
 from lisa_mcp.tools import execution  # noqa: E402
+from lisa_mcp.tools import log_analysis  # noqa: E402
 from lisa_mcp.tools._repo import find_repo_root  # noqa: E402
-from lisa_mcp.tools.execution import _VARIABLE_NAMES, set_transport  # noqa: E402
+from lisa_mcp.tools.execution import _VARIABLE_NAMES  # noqa: E402
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PASSING_LOG = FIXTURES_DIR / "sample_passing_run.log"
@@ -45,9 +49,10 @@ SAMPLE_RUNBOOK = FIXTURES_DIR / "sample_runbook.yml"
 def _call(tool_name: str, **kwargs: object) -> str:
     """Invoke a registered MCP tool by name and return its string result."""
     tools = {t.name: t for t in mcp._tool_manager.list_tools()}
-    assert (
-        tool_name in tools
-    ), f"Tool '{tool_name}' not found. Available: {sorted(tools)}"
+    if tool_name not in tools:
+        raise AssertionError(
+            f"Tool '{tool_name}' not found. Available: {sorted(tools)}"
+        )
     # Access the underlying function
     fn = tools[tool_name].fn
     return fn(**kwargs)
@@ -149,7 +154,7 @@ class TestGenerateRunbook(unittest.TestCase):
             "lisa_generate_runbook",
             platform="azure",
             area="provisioning",
-            priority=1,
+            max_priority=1,
             location="westus2",
         )
         self.assertIn("type: azure", result)
@@ -1079,9 +1084,147 @@ class TestRunbookPlatformDetection(unittest.TestCase):
         self.assertIn("azure", execution._runbook_platform_types(azure))
 
 
+class TestAzureConfigGate(unittest.TestCase):
+    """`lisa_run` must prompt whenever Azure settings could be needed."""
+
+    def setUp(self) -> None:
+        self._tmp_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self) -> None:
+        self._tmp_dir.cleanup()
+
+    def _needs_config(self, content: str) -> bool:
+        path = Path(self._tmp_dir.name) / "runbook.yml"
+        path.write_text(content, encoding="utf-8")
+        return execution._needs_azure_config(path)
+
+    def test_azure_platform_is_gated(self) -> None:
+        self.assertTrue(self._needs_config("platform:\n  - type: azure\n"))
+
+    def test_declared_non_azure_platform_is_not_gated(self) -> None:
+        self.assertFalse(self._needs_config("platform:\n  - type: ready\n"))
+
+    def test_include_based_runbook_is_gated(self) -> None:
+        """The platform hides in the include, so it may well be Azure."""
+        self.assertTrue(
+            self._needs_config('include:\n  - path: "./shared_azure.yml"\n')
+        )
+
+    def test_unparseable_runbook_is_gated(self) -> None:
+        self.assertTrue(self._needs_config("platform:\n  - type: azure\n\tbad: tab\n"))
+
+    def test_self_hosted_local_nodes_are_not_gated(self) -> None:
+        """hello_world.yml style: no platform, nodes declared inline."""
+        self.assertFalse(
+            self._needs_config(
+                "environment:\n"
+                "  environments:\n"
+                "    - nodes:\n"
+                "        - type: local\n"
+            )
+        )
+
+
 # ======================================================================
 # Cross-cutting: verify all registered tools
 # ======================================================================
+
+
+class TestLogRootSandbox(unittest.TestCase):
+    """Log tools must not become an arbitrary file reader over the network."""
+
+    def setUp(self) -> None:
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        self._prev_root = os.environ.get("LISA_LOG_ROOT")
+        self._prev_transport = runtime.get_transport()
+
+    def tearDown(self) -> None:
+        runtime.set_transport(self._prev_transport)
+        if self._prev_root is None:
+            os.environ.pop("LISA_LOG_ROOT", None)
+        else:
+            os.environ["LISA_LOG_ROOT"] = self._prev_root
+        self._tmp_dir.cleanup()
+
+    def test_remote_without_log_root_is_refused(self) -> None:
+        os.environ.pop("LISA_LOG_ROOT", None)
+        runtime.set_transport("sse")
+        resolved, err = log_analysis._resolve_under_log_root(self._tmp_dir.name)
+        self.assertIsNone(resolved)
+        self.assertIn("LISA_LOG_ROOT", str(err))
+
+    def test_local_without_log_root_is_allowed(self) -> None:
+        os.environ.pop("LISA_LOG_ROOT", None)
+        runtime.set_transport("stdio")
+        resolved, err = log_analysis._resolve_under_log_root(self._tmp_dir.name)
+        self.assertIsNone(err)
+        self.assertIsNotNone(resolved)
+
+    def test_path_outside_root_is_refused(self) -> None:
+        os.environ["LISA_LOG_ROOT"] = self._tmp_dir.name
+        outside = str(Path(self._tmp_dir.name).parent / "elsewhere.log")
+        resolved, err = log_analysis._resolve_under_log_root(outside)
+        self.assertIsNone(resolved)
+        self.assertIn("outside", str(err))
+
+    def test_analyze_log_honours_the_sandbox(self) -> None:
+        """lisa_analyze_log used to read log_path without any check."""
+        os.environ["LISA_LOG_ROOT"] = self._tmp_dir.name
+        outside = Path(self._tmp_dir.name).parent / "secret.log"
+        outside.write_text("topsecret", encoding="utf-8")
+        try:
+            result = _call("lisa_analyze_log", log_path=str(outside))
+        finally:
+            outside.unlink()
+        self.assertNotIn("topsecret", result)
+        self.assertIn("LISA_LOG_ROOT", result)
+
+
+class TestDownloadHostGuard(unittest.TestCase):
+    """HTTPS alone does not make a download destination safe."""
+
+    def test_loopback_host_is_rejected(self) -> None:
+        with self.assertRaises(ValueError) as ctx:
+            log_analysis._reject_internal_host("localhost")
+        self.assertIn("non-public", str(ctx.exception))
+
+    def test_private_literal_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            log_analysis._reject_internal_host("10.0.0.5")
+
+    def test_link_local_metadata_address_is_rejected(self) -> None:
+        """169.254.169.254 is the cloud instance metadata endpoint."""
+        with self.assertRaises(ValueError):
+            log_analysis._reject_internal_host("169.254.169.254")
+
+    def test_unresolvable_host_is_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            log_analysis._reject_internal_host("no-such-host.invalid")
+
+
+class TestArchiveExtraction(unittest.TestCase):
+    """Archive members must not be able to write outside the extract dir."""
+
+    def test_symlink_members_are_dropped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "logs.tar"
+            with tarfile.open(archive, "w") as tf:
+                payload = Path(tmp) / "real.log"
+                payload.write_text("hello", encoding="utf-8")
+                tf.add(payload, arcname="real.log")
+
+                link = tarfile.TarInfo("escape.log")
+                link.type = tarfile.SYMTYPE
+                link.linkname = "/etc/passwd"
+                tf.addfile(link)
+
+            extract_root = Path(tmp) / "out"
+            extract_root.mkdir()
+            result = log_analysis._extract_archive(str(archive), str(extract_root))
+
+            extracted = {p.name for p in Path(result).rglob("*")}
+            self.assertIn("real.log", extracted)
+            self.assertNotIn("escape.log", extracted)
 
 
 class TestToolRegistration(unittest.TestCase):

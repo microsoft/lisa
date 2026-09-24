@@ -4,13 +4,15 @@
 """LISA MCP Server — AI-native developer tools for the LISA test framework."""
 
 import argparse
+import ipaddress
 import logging
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
 from lisa_mcp.auth import ApiKeyMiddleware
-from lisa_mcp.tools.execution import register_execution_tools, set_transport
+from lisa_mcp.runtime import set_transport
+from lisa_mcp.tools.execution import register_execution_tools
 from lisa_mcp.tools.knowledge import register_knowledge_tools
 from lisa_mcp.tools.log_analysis import register_log_analysis_tools
 from lisa_mcp.tools.runbook import register_runbook_tools
@@ -59,8 +61,22 @@ register_knowledge_tools(mcp)
 register_execution_tools(mcp)
 
 
-def _build_sse_app() -> Any:
-    """Assemble the Starlette app serving MCP over SSE."""
+def _is_loopback(host: str) -> bool:
+    """Whether binding to *host* keeps the listener off the network."""
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return host.lower() in ("localhost", "")
+
+
+def _build_sse_app(host: str = "127.0.0.1") -> Any:
+    """Assemble the Starlette app serving MCP over SSE.
+
+    Raises:
+        SystemExit: when *host* is network-reachable and no API key is set.
+            The tools can write into the repo, download logs, and read files,
+            so an unauthenticated public listener is never safe.
+    """
     import os
 
     from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -84,16 +100,26 @@ def _build_sse_app() -> Any:
     default_hosts = "localhost,127.0.0.1"
     allowed_hosts = os.environ.get("ALLOWED_HOSTS", default_hosts).split(",")
 
-    # Optional shared-secret auth. When LISA_MCP_API_KEY is set, every request
-    # except /health must carry a matching X-API-Key header.
+    # Shared-secret auth. Every request except /health must carry a matching
+    # X-API-Key header.
     wrapped: Any = app
     api_key = os.environ.get("LISA_MCP_API_KEY", "").strip()
     if api_key:
         wrapped = ApiKeyMiddleware(wrapped, api_key=api_key)
-    else:
+    elif _is_loopback(host):
         log.warning(
             "LISA_MCP_API_KEY is not set — the SSE endpoint is unauthenticated. "
-            "Set it before exposing this server outside localhost."
+            "This is allowed only because it is bound to loopback (%s).",
+            host,
+        )
+    else:
+        raise SystemExit(
+            f"Refusing to start: --host {host} is reachable from the network "
+            "but LISA_MCP_API_KEY is not set. The MCP tools can write files "
+            "into the repo and read logs, so an unauthenticated listener "
+            "would expose them to anyone who can reach the port.\n\n"
+            "Set LISA_MCP_API_KEY=<shared secret>, or bind to 127.0.0.1 for "
+            "local-only use."
         )
 
     return TrustedHostMiddleware(wrapped, allowed_hosts=allowed_hosts)
@@ -150,7 +176,7 @@ def main() -> None:
         forwarded_allow_ips = os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1")
 
         uvicorn.run(
-            _build_sse_app(),
+            _build_sse_app(args.host),
             host=args.host,
             port=args.port,
             log_level="info",

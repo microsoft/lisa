@@ -1,11 +1,48 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-"""Tests for authoring tools."""
+"""Tests for authoring tools.
 
+These exercise the real registered MCP tools rather than inline copies of
+their logic — a reimplementation in the test file can only ever confirm
+that the test file agrees with itself.
+"""
+
+import sys
 import unittest
+from pathlib import Path
 
 import yaml
+
+# Ensure mcp/ is on sys.path so `server` imports work.
+_MCP_DIR = Path(__file__).resolve().parent.parent
+if str(_MCP_DIR) not in sys.path:
+    sys.path.insert(0, str(_MCP_DIR))
+
+from server import mcp  # noqa: E402 — registers all tools
+
+
+def _call(tool_name: str, **kwargs: object) -> str:
+    """Invoke a registered MCP tool by name and return its string result."""
+    tools = {t.name: t for t in mcp._tool_manager.list_tools()}
+    if tool_name not in tools:
+        raise AssertionError(
+            f"Tool '{tool_name}' not found. Available: {sorted(tools)}"
+        )
+    return tools[tool_name].fn(**kwargs)
+
+
+def _extract_yaml(tool_output: str) -> str:
+    """Pull the ```yaml fenced block out of a tool's markdown response."""
+    marker = "```yaml"
+    start = tool_output.find(marker)
+    if start == -1:
+        raise AssertionError(f"No yaml block in tool output:\n{tool_output}")
+    start += len(marker)
+    end = tool_output.find("```", start)
+    if end == -1:
+        raise AssertionError(f"Unterminated yaml block in output:\n{tool_output}")
+    return tool_output[start:end]
 
 
 class TestScaffoldTestSuite(unittest.TestCase):
@@ -14,40 +51,64 @@ class TestScaffoldTestSuite(unittest.TestCase):
     def test_generates_valid_class(self) -> None:
         from lisa_mcp.tools.test_writer import _to_snake_case
 
-        assert _to_snake_case("MyNewFeature") == "my_new_feature"
-        assert _to_snake_case("GPUValidation") == "gpu_validation"
-        assert _to_snake_case("SRIOVTest") == "sriov_test"
-        assert _to_snake_case("Simple") == "simple"
+        self.assertEqual(_to_snake_case("MyNewFeature"), "my_new_feature")
+        self.assertEqual(_to_snake_case("GPUValidation"), "gpu_validation")
+        self.assertEqual(_to_snake_case("SRIOVTest"), "sriov_test")
+        self.assertEqual(_to_snake_case("Simple"), "simple")
 
 
 class TestGenerateRunbook(unittest.TestCase):
-    """Validate generate_runbook produces valid YAML."""
+    """Validate lisa_generate_runbook produces valid YAML."""
 
     def test_basic_runbook_is_valid_yaml(self) -> None:
-        # Exercise the tool indirectly by importing the module and calling
-        # the generation logic. Since tools are registered on an MCP instance,
-        # we test the YAML output pattern.
-        runbook_yaml = _make_basic_runbook()
-        doc = yaml.safe_load(runbook_yaml)
+        output = _call("lisa_generate_runbook", platform="local", area="demo")
+        doc = yaml.safe_load(_extract_yaml(output))
         self.assertIsInstance(doc, dict)
         self.assertIn("platform", doc)
         self.assertIn("testcase", doc)
 
     def test_azure_runbook_has_subscription(self) -> None:
-        runbook_yaml = _make_azure_runbook()
-        doc = yaml.safe_load(runbook_yaml)
+        output = _call("lisa_generate_runbook", platform="azure", area="provisioning")
+        doc = yaml.safe_load(_extract_yaml(output))
         variables = doc.get("variable", [])
         names = [v["name"] for v in variables if isinstance(v, dict)]
         self.assertIn("subscription_id", names)
 
+    def test_no_filters_omits_empty_criteria(self) -> None:
+        """A criteria block with no filters would select every test."""
+        output = _call("lisa_generate_runbook", platform="local")
+        doc = yaml.safe_load(_extract_yaml(output))
+        for entry in doc.get("testcase", []):
+            self.assertIsNotNone(
+                entry.get("criteria"),
+                "empty `criteria:` matches all tests — omit it instead",
+            )
+
 
 class TestValidateRunbook(unittest.TestCase):
-    """Validate runbook validation catches common issues."""
+    """Validate lisa_validate_runbook catches common issues."""
 
     def test_missing_platform(self) -> None:
         doc = yaml.dump({"testcase": [{"criteria": {"area": "demo"}}]})
-        result = _validate(doc)
+        result = _call("lisa_validate_runbook", runbook_content=doc)
         self.assertIn("platform", result.lower())
+
+    def test_platform_as_mapping_is_rejected(self) -> None:
+        """LISA expects a list; a bare mapping silently configures nothing."""
+        doc = yaml.dump(
+            {
+                "platform": {"type": "azure"},
+                "testcase": [{"criteria": {"area": "demo"}}],
+            }
+        )
+        result = _call("lisa_validate_runbook", runbook_content=doc)
+        self.assertIn("**Errors:**", result)
+        self.assertIn("list", result.lower())
+
+    def test_empty_platform_list_is_rejected(self) -> None:
+        doc = yaml.dump({"platform": [], "testcase": [{"criteria": {"area": "demo"}}]})
+        result = _call("lisa_validate_runbook", runbook_content=doc)
+        self.assertIn("**Errors:**", result)
 
     def test_valid_runbook_passes(self) -> None:
         doc = yaml.dump(
@@ -58,87 +119,40 @@ class TestValidateRunbook(unittest.TestCase):
                 "extension": ["../../lisa/microsoft/testsuites"],
             }
         )
-        result = _validate(doc)
+        result = _call("lisa_validate_runbook", runbook_content=doc)
         self.assertIn("valid", result.lower())
 
 
-# ---------------------------------------------------------------------------
-# Helpers — inline versions of tool logic for testing without MCP server
-# ---------------------------------------------------------------------------
+class TestFixRunbook(unittest.TestCase):
+    """Validate lisa_fix_runbook repairs safely."""
 
+    def test_missing_platform_is_not_auto_filled(self) -> None:
+        """Defaulting to azure would provision billable resources unasked."""
+        doc = yaml.dump({"testcase": [{"criteria": {"area": "demo"}}]})
+        result = _call("lisa_fix_runbook", runbook_content=doc)
+        fixed = yaml.safe_load(_extract_yaml(result))
+        self.assertNotIn("platform", fixed)
+        self.assertIn("Needs your input", result)
 
-def _make_basic_runbook() -> str:
-    return """\
-name: generated-runbook
-concurrency: 1
+    def test_input_document_is_not_mutated(self) -> None:
+        """The tool must not edit nested structures it was handed."""
+        original: dict = {
+            "platform": [{"type": "azure", "keep_environment": True}],
+            "testcase": [{"criteria": {"area": "demo"}}],
+        }
+        _call("lisa_fix_runbook", runbook_content=yaml.dump(original))
+        self.assertIs(original["platform"][0]["keep_environment"], True)
 
-platform:
-  - type: local
-
-notifier:
-  - type: console
-
-testcase:
-  - criteria:
-      area: demo
-"""
-
-
-def _make_azure_runbook() -> str:
-    return """\
-name: generated-runbook
-concurrency: 1
-
-platform:
-  - type: azure
-    admin_username: "$(admin_username)"
-    admin_private_key_file: "$(admin_private_key_file)"
-
-variable:
-  - name: admin_username
-    value: ""
-  - name: admin_private_key_file
-    value: ""
-  - name: subscription_id
-    value: ""
-    is_secret: true
-
-notifier:
-  - type: console
-
-testcase:
-  - criteria:
-      area: provisioning
-"""
-
-
-def _validate(runbook_content: str) -> str:
-    """Inline runbook validation matching the authoring tool logic."""
-    errors = []
-    warnings = []
-
-    doc = yaml.safe_load(runbook_content)
-    if not isinstance(doc, dict):
-        return "Error: not a mapping"
-
-    if "platform" not in doc:
-        errors.append("Missing `platform` section.")
-    if "testcase" not in doc and "testcase_raw" not in doc:
-        errors.append("Missing `testcase` section.")
-    if "notifier" not in doc:
-        warnings.append("No notifier section.")
-    if "extension" not in doc:
-        warnings.append("No extension section.")
-
-    if not errors and not warnings:
-        return "Runbook structure looks valid. No issues found."
-
-    parts = []
-    if errors:
-        parts.append("Errors: " + "; ".join(errors))
-    if warnings:
-        parts.append("Warnings: " + "; ".join(warnings))
-    return " ".join(parts)
+    def test_keep_environment_bool_is_quoted(self) -> None:
+        doc = yaml.dump(
+            {
+                "platform": [{"type": "azure", "keep_environment": False}],
+                "testcase": [{"criteria": {"area": "demo"}}],
+            }
+        )
+        result = _call("lisa_fix_runbook", runbook_content=doc)
+        fixed = yaml.safe_load(_extract_yaml(result))
+        self.assertEqual(fixed["platform"][0]["keep_environment"], "no")
 
 
 if __name__ == "__main__":

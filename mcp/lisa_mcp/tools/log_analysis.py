@@ -5,9 +5,11 @@
 
 from __future__ import annotations
 
+import ipaddress
 import os
 import re
 import shutil
+import socket
 import tarfile
 import tempfile
 import time
@@ -19,6 +21,7 @@ from urllib.request import Request, urlopen
 
 from mcp.server.mcpserver import MCPServer
 
+from lisa_mcp.runtime import is_remote
 from lisa_mcp.tools._repo import find_repo_root, load_context_file, load_docs_for_tool
 
 
@@ -291,7 +294,7 @@ def register_log_analysis_tools(mcp: MCPServer) -> None:  # noqa: C901
         result += "\n\n".join(explanations)
 
         # Append official troubleshooting guidance if available
-        troubleshoot_docs = load_docs_for_tool("explain_failure")
+        troubleshoot_docs = load_docs_for_tool("lisa_explain_failure")
         if troubleshoot_docs:
             result += (
                 "\n\n---\n\n"
@@ -398,7 +401,7 @@ def register_log_analysis_tools(mcp: MCPServer) -> None:  # noqa: C901
         """
         try:
             result_dir, count, size_mb = _download_url_to_dir(url, auth_token)
-        except Exception as exc:
+        except _download_error_types() as exc:
             return f"**Error:** Download failed — {type(exc).__name__}: {exc}"
 
         if size_mb is not None:
@@ -471,10 +474,13 @@ def register_log_analysis_tools(mcp: MCPServer) -> None:  # noqa: C901
                 resolved_path, _count, _size_mb = _download_url_to_dir(
                     log_url, auth_token
                 )
-            except Exception as exc:
+            except _download_error_types() as exc:
                 return f"**Error:** Download failed — {type(exc).__name__}: {exc}"
         elif log_path:
-            resolved_path = log_path
+            confined, err = _resolve_under_log_root(log_path)
+            if err:
+                return err
+            resolved_path = str(confined)
         else:
             return (
                 "**Error:** Provide either `log_path` (local directory) "
@@ -660,7 +666,7 @@ def register_log_analysis_tools(mcp: MCPServer) -> None:  # noqa: C901
         for root, _, files in os.walk(path_obj):
             for fname in files:
                 fpath = os.path.join(root, fname)
-                if os.path.relpath(fpath, path).startswith("."):
+                if os.path.relpath(fpath, resolved).startswith("."):
                     continue
                 _, ext = os.path.splitext(fpath.lower())
                 if ext not in extensions:
@@ -801,7 +807,7 @@ def register_log_analysis_tools(mcp: MCPServer) -> None:  # noqa: C901
             for root, _, files in os.walk(p):
                 for fname in files:
                     fpath = os.path.join(root, fname)
-                    if os.path.relpath(fpath, folder_path).startswith("."):
+                    if os.path.relpath(fpath, resolved).startswith("."):
                         continue
                     _, ext = os.path.splitext(fpath.lower())
                     if ext in extensions:
@@ -861,7 +867,7 @@ def register_log_analysis_tools(mcp: MCPServer) -> None:  # noqa: C901
             source_context = _find_test_source(repo_root, test_name)
 
         error_patterns = load_context_file("error_patterns.md")
-        troubleshoot_docs = load_docs_for_tool("diagnose_test")
+        troubleshoot_docs = load_docs_for_tool("lisa_diagnose_bug")
 
         sections = []
         sections.append(f"## Diagnosis for `{test_name}`\n")
@@ -903,15 +909,16 @@ _MAX_READ_LINES = 300
 _MAX_READ_CHARS = 30000
 # Cap remote downloads to defend against disk exhaustion in hosted SSE mode.
 _MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
+_MAX_DOWNLOAD_BLOBS = 20000
 
 
 def _resolve_under_log_root(path: str) -> tuple[Optional[Path], Optional[str]]:
-    """Resolve *path* and confirm it lives under ``LISA_LOG_ROOT`` (if set).
+    """Resolve *path* and confirm it lives under ``LISA_LOG_ROOT``.
 
-    When the env var is unset (typical for local stdio usage), the path is
-    returned unchanged. When set, any path that resolves outside the root —
-    or that doesn't exist as a child of it — is rejected. This blocks remote
-    file disclosure when the server is exposed over SSE.
+    Local stdio sessions already run with the user's own privileges, so an
+    unset root simply means "no restriction". A remote session is different:
+    without a root every log tool becomes an arbitrary file reader, so the
+    root is mandatory there.
     """
     log_root = os.environ.get("LISA_LOG_ROOT")
     try:
@@ -919,6 +926,12 @@ def _resolve_under_log_root(path: str) -> tuple[Optional[Path], Optional[str]]:
     except (OSError, RuntimeError) as exc:
         return None, f"**Error:** Could not resolve path `{path}`: {exc}"
     if not log_root:
+        if is_remote():
+            return None, (
+                "**Error:** LISA_LOG_ROOT is not configured. A remote server "
+                "must confine log tools to a directory before it will read "
+                "from disk. Set LISA_LOG_ROOT=/path/to/logs and restart."
+            )
         return resolved, None
     try:
         root = Path(log_root).resolve()
@@ -974,8 +987,13 @@ def _get_log_text(
     if content:
         return content
     if path:
-        p = Path(path)
-        if not p.exists():
+        # Same sandbox as the other file tools — otherwise these two become
+        # the easy way around LISA_LOG_ROOT.
+        resolved, err = _resolve_under_log_root(path)
+        if err:
+            return err.replace("**Error:**", "Error:", 1)
+        p = resolved
+        if p is None or not p.exists():
             return f"Error: File not found — {path}"
         size = p.stat().st_size
         if size > _MAX_LOG_SIZE:
@@ -1274,6 +1292,59 @@ def _parse_portal_storage_url(url: str) -> Optional[dict[str, str]]:
     return {"account": account, "container": container, "prefix": prefix}
 
 
+def _download_error_types() -> tuple[type[BaseException], ...]:
+    """Exception types a log download may legitimately raise.
+
+    Catching these instead of bare ``Exception`` keeps genuine bugs (a typo
+    in this module, say) crashing loudly instead of being reported to the
+    caller as a download failure. azure-core is an optional extra, so its
+    base error is only included when installed.
+    """
+    errors: list[type[BaseException]] = [
+        ValueError,  # unsupported scheme, blocked host, size limit exceeded
+        OSError,  # network and filesystem; URLError/HTTPError subclass this
+        ImportError,  # the `azure` extra is not installed
+        tarfile.TarError,
+        zipfile.BadZipFile,
+    ]
+    try:
+        from azure.core.exceptions import AzureError
+    except ImportError:
+        pass
+    else:
+        errors.append(AzureError)
+    return tuple(errors)
+
+
+def _reject_internal_host(hostname: str) -> None:
+    """Raise when *hostname* resolves to an address we must not fetch from.
+
+    HTTPS proves nothing about the destination: a caller-supplied URL can
+    still point at loopback, RFC1918, or the cloud metadata endpoint. Every
+    resolved address has to be public, because DNS may return several.
+    """
+    try:
+        infos = socket.getaddrinfo(hostname, None)
+    except socket.gaierror as exc:
+        raise ValueError(f"Could not resolve host '{hostname}': {exc}") from exc
+
+    for info in infos:
+        address = ipaddress.ip_address(info[4][0])
+        if (
+            address.is_private
+            or address.is_loopback
+            or address.is_link_local
+            or address.is_reserved
+            or address.is_multicast
+            or address.is_unspecified
+        ):
+            raise ValueError(
+                f"Refusing to download from '{hostname}' — it resolves to the "
+                f"non-public address {address}. Only internet-reachable log "
+                "storage is allowed."
+            )
+
+
 def _download_url_to_dir(  # noqa: C901
     url: str,
     auth_token: Optional[str],
@@ -1305,6 +1376,7 @@ def _download_url_to_dir(  # noqa: C901
         raise ValueError("Only HTTPS URLs are supported")
     if not parsed.hostname:
         raise ValueError("Could not parse hostname from URL")
+    _reject_internal_host(parsed.hostname)
 
     is_azure_blob = parsed.hostname.endswith(".blob.core.windows.net")
     has_sas = "sig=" in (parsed.query or "")
@@ -1416,6 +1488,23 @@ def _download_azure_blob_prefix(
     if not blobs:
         raise FileNotFoundError(f"No blobs found under '{container}/{prefix}'.")
 
+    # A prefix can address an entire container, so apply the same disk budget
+    # the single-file path uses. Sizes come from the listing, so this is
+    # checked before anything is written.
+    total_bytes = sum(getattr(b, "size", 0) or 0 for b in blobs)
+    if total_bytes > _MAX_DOWNLOAD_BYTES:
+        raise ValueError(
+            f"'{container}/{prefix}' holds {len(blobs)} blobs totalling "
+            f"{total_bytes:,} bytes, over the {_MAX_DOWNLOAD_BYTES:,}-byte "
+            "download limit. Point at a narrower prefix."
+        )
+    if len(blobs) > _MAX_DOWNLOAD_BLOBS:
+        raise ValueError(
+            f"'{container}/{prefix}' holds {len(blobs)} blobs, over the "
+            f"{_MAX_DOWNLOAD_BLOBS:,}-file download limit. Point at a "
+            "narrower prefix."
+        )
+
     # Use the leaf folder name as the local root
     normalized = prefix.strip("/")
     prefix_with_sep = f"{normalized}/" if normalized else ""
@@ -1462,13 +1551,16 @@ def _extract_archive(download_path: str, download_dir: str) -> str:
         with tarfile.open(download_path) as tf:
             safe_members = []
             for m in tf.getmembers():
+                # Only plain files and directories. Symlinks, hardlinks, and
+                # device nodes can redirect a write outside extract_dir even
+                # when their own name looks contained, and filter="data" is
+                # unavailable before Python 3.12.
+                if not (m.isreg() or m.isdir()):
+                    continue
                 target = os.path.abspath(os.path.join(abs_extract, m.name))
                 if os.path.commonpath([abs_extract, target]) != abs_extract:
                     continue
                 safe_members.append(m)
-            # filter="data" (PEP 706) blocks unsafe members (links, abs paths,
-            # device files) on Python 3.12+; older versions ignore the kwarg
-            # via the try/except.
             try:
                 tf.extractall(extract_dir, members=safe_members, filter="data")
             except TypeError:

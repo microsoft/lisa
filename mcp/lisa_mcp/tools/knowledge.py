@@ -490,7 +490,7 @@ def register_knowledge_tools(mcp: MCPServer) -> None:  # noqa: C901
                 f"{_search_error_patterns(error_text, error_patterns)}"
             )
 
-        troubleshoot_docs = load_docs_for_tool("explain_error")
+        troubleshoot_docs = load_docs_for_tool("lisa_explain_error")
         if troubleshoot_docs:
             explanations.append(
                 "### Official Troubleshooting Documentation\n\n"
