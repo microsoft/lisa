@@ -511,6 +511,17 @@ class Ip(Tool):
             ),
         )
 
+    def add_neighbor(self, address: str, mac_address: str, dev: str) -> None:
+        self.run(
+            f"neigh replace {address} lladdr {mac_address} nud permanent dev {dev}",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not add neighbor {address} ({mac_address}) through dev {dev}"
+            ),
+        )
+
     def remove_all_routes_for_device(self, device: str) -> None:
         # get any routes going through a specific nic and remove them.
         all_routes = self.run(
