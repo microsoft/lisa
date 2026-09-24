@@ -11,12 +11,12 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from lisa_mcp.tools._repo import find_repo_root, load_test_writer_prompt
 
 
-def register_test_writer_tools(mcp: FastMCP) -> None:  # noqa: C901
+def register_test_writer_tools(mcp: MCPServer) -> None:  # noqa: C901
     @mcp.tool()
     def lisa_get_test_writer_guidelines() -> str:
         """Return the full LISA test writer guidelines prompt. This is the
@@ -655,11 +655,218 @@ class {class_name}(TestSuite):
 
         return "\n\n".join(sections)
 
+    @mcp.tool()
+    def lisa_save_test(file_path: str, code: str, overwrite: bool = False) -> str:
+        """Write a generated test file into the LISA repository.
+
+        The mechanical follow-up to `lisa_write_test` — the calling LLM
+        generates the code, this tool puts it on disk at the right path.
+
+        Args:
+            file_path: Repo-relative destination, e.g.
+                "lisa/microsoft/testsuites/network/sriov.py"
+            code: Full Python source of the test file
+            overwrite: Replace the file when it already exists. Defaults to
+                False so an existing suite is never clobbered by accident.
+        """
+        repo_root = find_repo_root()
+        if not repo_root:
+            return "Could not locate LISA repository root."
+
+        if not code.strip():
+            return "Refusing to save an empty file — `code` has no content."
+
+        candidate = Path(file_path.strip())
+        if candidate.is_absolute():
+            return (
+                f"`file_path` must be relative to the repo root, got "
+                f"`{file_path}`. Example: "
+                "`lisa/microsoft/testsuites/network/sriov.py`."
+            )
+
+        target = (repo_root / candidate).resolve()
+        # Block path traversal — the destination has to stay inside the repo.
+        if not target.is_relative_to(repo_root.resolve()):
+            return (
+                f"`{file_path}` resolves outside the LISA repository. "
+                "Tests must be saved under the repo root."
+            )
+        if target.suffix != ".py":
+            return f"Test files must end in .py, got `{target.name}`."
+        if target.exists() and not overwrite:
+            return (
+                f"`{candidate.as_posix()}` already exists. LISA convention is "
+                "one test class per file — add your test method to the existing "
+                "class instead, or call again with overwrite=True if replacing "
+                "the file is intended."
+            )
+
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(code, encoding="utf-8")
+        except OSError as e:
+            return (
+                f"Failed to write `{candidate.as_posix()}`: {e}. Check that the "
+                "path is writable and not locked by another process."
+            )
+
+        line_count = len(code.splitlines())
+        return (
+            f"Saved {line_count} lines to `{candidate.as_posix()}`.\n\n"
+            "Next: generate a runbook with `lisa_generate_runbook`, then "
+            "execute it with `lisa_run`."
+        )
+
+    @mcp.tool()
+    def lisa_list_tests(
+        area: Optional[str] = None,
+        tier: Optional[int] = None,
+        feature: Optional[str] = None,
+        max_results: int = 50,
+    ) -> str:
+        """List LISA test cases matching the given criteria.
+
+        Scans the test suites in the repo and returns each matching test case
+        with its suite class, file location, priority, and description.
+
+        Args:
+            area: TestSuiteMetadata area to filter on (e.g. "network",
+                "storage", "provisioning"). Omit to match every area.
+            tier: TestCaseMetadata priority to filter on, 0–4. Omit to match
+                every priority.
+            feature: Feature class name that must appear in the test's
+                requirement (e.g. "Sriov", "Nvme"). Omit to match any.
+            max_results: Maximum number of test cases to return.
+        """
+        repo_root = find_repo_root()
+        if not repo_root:
+            return "Could not locate LISA repository root."
+
+        search_dirs = [
+            repo_root / "lisa" / "microsoft" / "testsuites",
+            repo_root / "lisa" / "examples" / "testsuites",
+        ]
+
+        matches: list[str] = []
+        total = 0
+        for search_dir in search_dirs:
+            if not search_dir.is_dir():
+                continue
+            for py_file in sorted(search_dir.rglob("*.py")):
+                if py_file.name.startswith("_"):
+                    continue
+                try:
+                    content = py_file.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+
+                suite_area = _extract_metadata_value(content, "area")
+                if area and (suite_area or "").lower() != area.lower().strip():
+                    continue
+
+                rel_path = py_file.relative_to(repo_root).as_posix()
+                for case in _extract_test_cases(content):
+                    if tier is not None and case["priority"] != tier:
+                        continue
+                    requirement = str(case["requirement"])
+                    if feature and feature.lower() not in requirement.lower():
+                        continue
+                    total += 1
+                    if len(matches) >= max_results:
+                        continue
+                    priority = (
+                        "?" if case["priority"] is None else str(case["priority"])
+                    )
+                    description = case["description"] or "(no description)"
+                    matches.append(
+                        f"- `{case['name']}` — P{priority} — "
+                        f"{case['suite']} — {rel_path}:{case['line']}\n"
+                        f"  {description}"
+                    )
+
+        if not matches:
+            filters = ", ".join(
+                f"{k}={v}"
+                for k, v in (("area", area), ("tier", tier), ("feature", feature))
+                if v is not None
+            )
+            return (
+                f"No test cases matched ({filters or 'no filters'}). "
+                "Try `lisa_find_examples` for a keyword search instead."
+            )
+
+        header = f"**{total} matching test case(s)**"
+        if total > len(matches):
+            header += f" — showing the first {len(matches)}"
+        return header + "\n\n" + "\n".join(matches)
+
 
 def _to_snake_case(name: str) -> str:
     """Convert PascalCase to snake_case."""
     s1 = re.sub(r"(.)([A-Z][a-z]+)", r"\1_\2", name)
     return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+
+
+def _extract_metadata_value(content: str, key: str) -> Optional[str]:
+    """Read a string field from the first @TestSuiteMetadata block in a file."""
+    block = re.search(r"@TestSuiteMetadata\((.*?)\n\)", content, re.DOTALL)
+    if not block:
+        return None
+    match = re.search(rf'{key}\s*=\s*["\'](.+?)["\']', block.group(1))
+    return match.group(1) if match else None
+
+
+def _extract_test_cases(content: str) -> list[dict[str, object]]:
+    """Extract test cases and their @TestCaseMetadata from a suite file.
+
+    Each entry has: name, line, suite, priority, description, requirement.
+    """
+    lines = content.split("\n")
+    cases: list[dict[str, object]] = []
+    current_class = ""
+
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+        class_match = re.match(r"class\s+(\w+)\s*\(", stripped)
+        if class_match:
+            current_class = class_match.group(1)
+            continue
+
+        method_match = re.match(r"def\s+((?:verify|test)_\w+)\s*\(", stripped)
+        if not method_match:
+            continue
+
+        # The decorator block sits directly above the method definition.
+        start = i
+        while start > 0 and "@TestCaseMetadata" not in lines[start]:
+            start -= 1
+            if start < i - 40:
+                break
+        decorator = (
+            "\n".join(lines[start:i]) if "@TestCaseMetadata" in lines[start] else ""
+        )
+
+        priority_match = re.search(r"priority\s*=\s*(\d+)", decorator)
+        description_match = re.search(
+            r'description\s*=\s*"""(.*?)"""|description\s*=\s*["\'](.+?)["\']',
+            decorator,
+            re.DOTALL,
+        )
+        description = ""
+        if description_match:
+            description = description_match.group(1) or description_match.group(2) or ""
+        cases.append(
+            {
+                "name": method_match.group(1),
+                "line": i + 1,
+                "suite": current_class,
+                "priority": int(priority_match.group(1)) if priority_match else None,
+                "description": " ".join(description.split()),
+                "requirement": decorator,
+            }
+        )
+
+    return cases
 
 
 def _extract_existing_tests(

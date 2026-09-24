@@ -17,7 +17,7 @@ from typing import Optional
 from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from lisa_mcp.tools._repo import find_repo_root, load_context_file, load_docs_for_tool
 
@@ -54,7 +54,7 @@ def _load_ai_prompts() -> str:
     return "\n\n---\n\n".join(sections)
 
 
-def register_log_analysis_tools(mcp: FastMCP) -> None:  # noqa: C901
+def register_log_analysis_tools(mcp: MCPServer) -> None:  # noqa: C901
     @mcp.tool()
     def lisa_analyze_log(
         log_content: Optional[str] = None,

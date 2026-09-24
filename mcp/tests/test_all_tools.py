@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-"""Comprehensive functional tests for all 25 MCP tools.
+"""Comprehensive functional tests for all MCP tools.
 
 Run from the mcp/ directory:
     python -m pytest tests/test_all_tools.py -v
@@ -11,10 +11,14 @@ These tests invoke each tool directly (without MCP protocol overhead)
 and verify correct behavior with realistic inputs.
 """
 
+import os
+import subprocess
 import sys
+import tempfile
 import textwrap
 import unittest
 from pathlib import Path
+from unittest import mock
 
 # Ensure mcp/ is on sys.path so `tools.*` imports work
 _MCP_DIR = Path(__file__).resolve().parent.parent
@@ -22,6 +26,15 @@ if str(_MCP_DIR) not in sys.path:
     sys.path.insert(0, str(_MCP_DIR))
 
 from server import mcp  # noqa: E402 — registers all tools
+
+from lisa_mcp.config import (  # noqa: E402
+    CONFIG_ENV_VAR,
+    missing_azure_settings,
+    save_azure_config,
+)
+from lisa_mcp.tools import execution  # noqa: E402
+from lisa_mcp.tools._repo import find_repo_root  # noqa: E402
+from lisa_mcp.tools.execution import _VARIABLE_NAMES, set_transport  # noqa: E402
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 PASSING_LOG = FIXTURES_DIR / "sample_passing_run.log"
@@ -726,7 +739,348 @@ class TestListFeatures(unittest.TestCase):
 
 
 # ======================================================================
-# Cross-cutting: verify all 25 tools are registered
+# Test persistence and discovery
+# ======================================================================
+
+
+class TestSaveTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self.repo_root = find_repo_root()
+        if not self.repo_root:
+            self.skipTest("LISA repo root not found")
+        self.created: list[Path] = []
+
+    def tearDown(self) -> None:
+        for path in self.created:
+            path.unlink(missing_ok=True)
+
+    def test_rejects_absolute_path(self) -> None:
+        result = _call(
+            "lisa_save_test",
+            file_path=str(Path.home() / "evil.py"),
+            code="x = 1",
+        )
+        self.assertIn("must be relative", result)
+
+    def test_rejects_path_traversal(self) -> None:
+        result = _call(
+            "lisa_save_test",
+            file_path="../../evil.py",
+            code="x = 1",
+        )
+        self.assertIn("outside the LISA repository", result)
+
+    def test_rejects_non_python_file(self) -> None:
+        result = _call("lisa_save_test", file_path="runtime/notes.txt", code="x = 1")
+        self.assertIn("must end in .py", result)
+
+    def test_rejects_empty_code(self) -> None:
+        result = _call("lisa_save_test", file_path="runtime/mcp_tmp.py", code="   ")
+        self.assertIn("empty file", result)
+
+    def test_writes_file(self) -> None:
+        rel = "runtime/mcp_save_test_sample.py"
+        assert self.repo_root is not None
+        target = self.repo_root / rel
+        self.created.append(target)
+
+        result = _call("lisa_save_test", file_path=rel, code="# sample\nx = 1\n")
+        self.assertIn("Saved", result)
+        self.assertTrue(target.is_file())
+
+    def test_refuses_overwrite_by_default(self) -> None:
+        rel = "runtime/mcp_save_test_sample.py"
+        assert self.repo_root is not None
+        target = self.repo_root / rel
+        self.created.append(target)
+
+        _call("lisa_save_test", file_path=rel, code="x = 1\n")
+        result = _call("lisa_save_test", file_path=rel, code="x = 2\n")
+        self.assertIn("already exists", result)
+        self.assertEqual(target.read_text(encoding="utf-8"), "x = 1\n")
+
+        result = _call("lisa_save_test", file_path=rel, code="x = 2\n", overwrite=True)
+        self.assertIn("Saved", result)
+        self.assertEqual(target.read_text(encoding="utf-8"), "x = 2\n")
+
+
+class TestListTests(unittest.TestCase):
+    def test_lists_without_filters(self) -> None:
+        result = _call("lisa_list_tests", max_results=5)
+        self.assertIn("matching test case", result)
+
+    def test_unknown_area_returns_no_match(self) -> None:
+        result = _call("lisa_list_tests", area="definitely_not_an_area")
+        self.assertIn("No test cases matched", result)
+
+    def test_tier_filter_reports_priority(self) -> None:
+        result = _call("lisa_list_tests", tier=0, max_results=5)
+        if "No test cases matched" not in result:
+            self.assertIn("P0", result)
+
+
+# ======================================================================
+# Execution and local configuration
+# ======================================================================
+
+
+class TestExecutionConfig(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        self._previous = os.environ.get(CONFIG_ENV_VAR)
+        os.environ[CONFIG_ENV_VAR] = str(Path(self._tmp_dir.name) / "mcp_config.yaml")
+
+    def tearDown(self) -> None:
+        if self._previous is None:
+            os.environ.pop(CONFIG_ENV_VAR, None)
+        else:
+            os.environ[CONFIG_ENV_VAR] = self._previous
+        self._tmp_dir.cleanup()
+
+    def test_get_config_reports_missing_settings(self) -> None:
+        result = _call("lisa_get_config")
+        self.assertIn("subscription_id", result)
+        self.assertIn("lisa_save_config", result)
+
+    def test_defaults_are_applied(self) -> None:
+        result = _call("lisa_get_config")
+        self.assertIn("eastus", result)
+        self.assertIn("Standard_DS2_v2", result)
+
+    def test_save_config_persists_settings(self) -> None:
+        result = _call(
+            "lisa_save_config",
+            subscription_id="00000000-0000-0000-0000-000000000000",
+            resource_group="lisa-tests-rg",
+        )
+        self.assertIn("Saved", result)
+        self.assertEqual(missing_azure_settings(), [])
+
+    def test_save_config_without_values_is_noop(self) -> None:
+        result = _call("lisa_save_config")
+        self.assertIn("nothing was written", result)
+
+    def test_run_prompts_for_missing_config(self) -> None:
+        result = _call(
+            "lisa_run", runbook_path="lisa/examples/runbook/hello_world_azure.yml"
+        )
+        self.assertIn("not configured", result)
+
+    def test_local_runbook_does_not_require_azure_config(self) -> None:
+        # hello_world.yml targets a local node, so Azure settings are irrelevant.
+        completed = subprocess.CompletedProcess(
+            args=["lisa"], returncode=0, stdout="done", stderr=""
+        )
+        with mock.patch.object(execution.subprocess, "run", return_value=completed):
+            result = _call(
+                "lisa_run", runbook_path="lisa/examples/runbook/hello_world.yml"
+            )
+        self.assertNotIn("not configured", result)
+        self.assertIn("succeeded", result)
+
+    def test_run_reports_unknown_runbook(self) -> None:
+        result = _call("lisa_run", runbook_path="does/not/exist.yml")
+        self.assertIn("Runbook not found", result)
+
+    def test_resource_group_maps_to_lisa_variable_name(self) -> None:
+        # LISA runbooks declare resource_group_name, the config key is
+        # resource_group.
+        self.assertEqual(_VARIABLE_NAMES["resource_group"], "resource_group_name")
+
+
+class TestRunVariableValidation(unittest.TestCase):
+    """Malformed variables must be rejected before a subprocess is spawned."""
+
+    def setUp(self) -> None:
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        self._previous = os.environ.get(CONFIG_ENV_VAR)
+        config = Path(self._tmp_dir.name) / "mcp_config.yaml"
+        os.environ[CONFIG_ENV_VAR] = str(config)
+        save_azure_config(
+            {
+                "subscription_id": "00000000-0000-0000-0000-000000000000",
+                "resource_group": "unit-test-rg",
+            }
+        )
+        # Any spawn attempt is a bug: these inputs must never get that far.
+        self._spawn_patch = mock.patch.object(
+            execution.subprocess,
+            "run",
+            side_effect=AssertionError("subprocess must not be spawned"),
+        )
+        self._spawn_patch.start()
+
+    def tearDown(self) -> None:
+        self._spawn_patch.stop()
+        if self._previous is None:
+            os.environ.pop(CONFIG_ENV_VAR, None)
+        else:
+            os.environ[CONFIG_ENV_VAR] = self._previous
+        self._tmp_dir.cleanup()
+
+    def test_rejects_malformed_variables(self) -> None:
+        for value in ("admin_username", "9bad:value", "name:", "; rm -rf /"):
+            with self.subTest(value=value):
+                result = _call(
+                    "lisa_run",
+                    runbook_path="lisa/examples/runbook/hello_world.yml",
+                    variables=value,
+                )
+                self.assertIn("Invalid variable", result)
+
+    def test_accepts_secret_variable_form(self) -> None:
+        args, error = execution._parse_variables("s:token:abc name:value")
+        self.assertIsNone(error)
+        self.assertEqual(args, ["-v", "s:token:abc", "-v", "name:value"])
+
+
+class TestRunOutputRedaction(unittest.TestCase):
+    """The run report must not echo the variables handed to LISA."""
+
+    CANARY = "11111111-canary-dead-beef-222222222222"
+
+    def setUp(self) -> None:
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        self._previous = os.environ.get(CONFIG_ENV_VAR)
+        os.environ[CONFIG_ENV_VAR] = str(Path(self._tmp_dir.name) / "mcp_config.yaml")
+        save_azure_config(
+            {"subscription_id": self.CANARY, "resource_group": "unit-test-rg"}
+        )
+
+    def tearDown(self) -> None:
+        if self._previous is None:
+            os.environ.pop(CONFIG_ENV_VAR, None)
+        else:
+            os.environ[CONFIG_ENV_VAR] = self._previous
+        self._tmp_dir.cleanup()
+
+    def _run_with_fake_subprocess(self, returncode: int, stdout: str) -> str:
+        completed = subprocess.CompletedProcess(
+            args=["lisa"], returncode=returncode, stdout=stdout, stderr=""
+        )
+        with mock.patch.object(
+            execution.subprocess, "run", return_value=completed
+        ) as spawn:
+            result = _call(
+                "lisa_run",
+                runbook_path="lisa/examples/runbook/hello_world.yml",
+                variables="s:token:supersecret",
+            )
+        self._last_command = spawn.call_args[0][0]
+        return result
+
+    def test_secrets_are_not_echoed(self) -> None:
+        result = self._run_with_fake_subprocess(0, "run finished")
+        self.assertNotIn(self.CANARY, result)
+        self.assertNotIn("supersecret", result)
+
+    def test_variables_still_reach_lisa(self) -> None:
+        self._run_with_fake_subprocess(0, "run finished")
+        joined = " ".join(self._last_command)
+        self.assertIn(f"subscription_id:{self.CANARY}", joined)
+        self.assertIn("s:token:supersecret", joined)
+        # Config key resource_group is translated for the runbook.
+        self.assertIn("resource_group_name:unit-test-rg", joined)
+
+    def test_command_is_a_list_never_a_shell_string(self) -> None:
+        self._run_with_fake_subprocess(0, "run finished")
+        self.assertIsInstance(self._last_command, list)
+
+    def test_debug_flag_adds_switch(self) -> None:
+        completed = subprocess.CompletedProcess(
+            args=["lisa"], returncode=0, stdout="ok", stderr=""
+        )
+        with mock.patch.object(
+            execution.subprocess, "run", return_value=completed
+        ) as spawn:
+            _call(
+                "lisa_run",
+                runbook_path="lisa/examples/runbook/hello_world.yml",
+                debug=True,
+            )
+        self.assertIn("-d", spawn.call_args[0][0])
+
+    def test_failure_is_reported_with_exit_code(self) -> None:
+        result = self._run_with_fake_subprocess(1, "boom")
+        self.assertIn("failed", result)
+        self.assertIn("boom", result)
+
+    def test_windows_unsigned_exit_code_is_normalized(self) -> None:
+        # Windows surfaces -1 as 4294967295; the report must show -1.
+        result = self._run_with_fake_subprocess(4294967295, "crashed")
+        self.assertIn("exit code -1", result)
+        self.assertIn("failed", result)
+        self.assertNotIn("4294967295", result)
+
+    def test_timeout_is_reported(self) -> None:
+        with mock.patch.object(
+            execution.subprocess,
+            "run",
+            side_effect=subprocess.TimeoutExpired(cmd="lisa", timeout=1),
+        ):
+            result = _call(
+                "lisa_run", runbook_path="lisa/examples/runbook/hello_world.yml"
+            )
+        self.assertIn("exceeded", result)
+
+
+class TestRunTransportGuard(unittest.TestCase):
+    def tearDown(self) -> None:
+        set_transport("stdio")
+
+    def test_run_is_blocked_on_sse(self) -> None:
+        set_transport("sse")
+        result = _call("lisa_run", runbook_path="lisa/examples/runbook/hello_world.yml")
+        self.assertIn("not available on a remote MCP server", result)
+
+
+class TestRunbookPlatformDetection(unittest.TestCase):
+    """Only Azure runbooks should be gated on Azure settings."""
+
+    def setUp(self) -> None:
+        self._tmp_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self) -> None:
+        self._tmp_dir.cleanup()
+
+    def _types(self, content: str) -> set:
+        path = Path(self._tmp_dir.name) / "runbook.yml"
+        path.write_text(content, encoding="utf-8")
+        return execution._runbook_platform_types(path)
+
+    def test_list_form(self) -> None:
+        self.assertEqual(self._types("platform:\n  - type: azure\n"), {"azure"})
+
+    def test_dict_form(self) -> None:
+        self.assertEqual(self._types("platform:\n  type: ready\n"), {"ready"})
+
+    def test_local_platform(self) -> None:
+        types = self._types("platform:\n  - type: local\n")
+        self.assertNotIn("azure", types)
+
+    def test_case_and_whitespace_insensitive(self) -> None:
+        self.assertEqual(self._types("platform:\n  - type: '  Azure '\n"), {"azure"})
+
+    def test_missing_platform_is_unknown(self) -> None:
+        self.assertEqual(
+            self._types("testcase:\n  - criteria:\n      area: demo\n"), set()
+        )
+
+    def test_unparseable_runbook_is_unknown(self) -> None:
+        self.assertEqual(self._types("platform:\n  - type: azure\n\tbad: tab\n"), set())
+
+    def test_real_runbooks(self) -> None:
+        repo_root = find_repo_root()
+        if not repo_root:
+            self.skipTest("LISA repo root not found")
+        local = repo_root / "lisa/examples/runbook/hello_world.yml"
+        azure = repo_root / "lisa/examples/runbook/hello_world_azure.yml"
+        self.assertNotIn("azure", execution._runbook_platform_types(local))
+        self.assertIn("azure", execution._runbook_platform_types(azure))
+
+
+# ======================================================================
+# Cross-cutting: verify all registered tools
 # ======================================================================
 
 
@@ -738,6 +1092,8 @@ class TestToolRegistration(unittest.TestCase):
         "lisa_scaffold_test_case",
         "lisa_list_test_requirements",
         "lisa_write_test",
+        "lisa_save_test",
+        "lisa_list_tests",
         # runbook
         "lisa_generate_runbook",
         "lisa_validate_runbook",
@@ -755,6 +1111,8 @@ class TestToolRegistration(unittest.TestCase):
         "lisa_diagnose_bug",
         # execution
         "lisa_run",
+        "lisa_get_config",
+        "lisa_save_config",
         # knowledge
         "lisa_explain_concept",
         "lisa_get_api_reference",
@@ -774,7 +1132,7 @@ class TestToolRegistration(unittest.TestCase):
 
     def test_tool_count(self) -> None:
         count = len(mcp._tool_manager.list_tools())
-        self.assertEqual(count, 25, f"Expected 25 tools, got {count}")
+        self.assertEqual(count, 29, f"Expected 29 tools, got {count}")
 
     def test_all_tools_callable(self) -> None:
         """Every registered tool should have a callable function."""

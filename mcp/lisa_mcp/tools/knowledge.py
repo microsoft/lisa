@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from lisa_mcp.tools._repo import (
     find_repo_root,
@@ -18,7 +18,7 @@ from lisa_mcp.tools._repo import (
 )
 
 
-def register_knowledge_tools(mcp: FastMCP) -> None:  # noqa: C901
+def register_knowledge_tools(mcp: MCPServer) -> None:  # noqa: C901
     @mcp.tool()
     def lisa_explain_concept(concept: str) -> str:
         """Explain a LISA framework concept in plain language with usage examples.

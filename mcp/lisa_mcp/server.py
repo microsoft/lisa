@@ -5,10 +5,12 @@
 
 import argparse
 import logging
+from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-from lisa_mcp.tools.execution import register_execution_tools
+from lisa_mcp.auth import ApiKeyMiddleware
+from lisa_mcp.tools.execution import register_execution_tools, set_transport
 from lisa_mcp.tools.knowledge import register_knowledge_tools
 from lisa_mcp.tools.log_analysis import register_log_analysis_tools
 from lisa_mcp.tools.runbook import register_runbook_tools
@@ -17,7 +19,7 @@ from lisa_mcp.tools.test_writer import register_test_writer_tools
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("lisa-mcp")
 
-mcp = FastMCP(
+mcp = MCPServer(
     "lisa-mcp",
     instructions="""
     You are the LISA MCP server — a developer productivity tool for the LISA
@@ -30,7 +32,9 @@ mcp = FastMCP(
     Available capabilities:
     - **Test Authoring**: Write LISA tests following the lisa_test_writer prompt
       workflow (Gather → Research → Design Plan → Code). Start with
-      lisa_write_test or lisa_get_test_writer_guidelines.
+      lisa_write_test or lisa_get_test_writer_guidelines, then persist the
+      generated file with lisa_save_test. Use lisa_list_tests to check what
+      already exists before writing a new case.
     - **Log Analysis**: Parse and explain LISA run logs and failures.
       Start with lisa_start_log_investigation to bootstrap a full
       root-cause analysis — it returns expert prompts, file listings,
@@ -39,7 +43,9 @@ mcp = FastMCP(
       to dig deeper — you (the host AI) act as the reasoning engine.
     - **Runbook**: Generate, validate, and fix LISA YAML runbooks.
     - **Debugging**: Diagnose test failures with source correlation
-    - **Execution**: Run LISA tests locally (stdio mode only)
+    - **Execution**: Run LISA tests locally with lisa_run (stdio mode only).
+      It needs Azure settings — lisa_get_config reports what is missing and
+      lisa_save_config persists the user's answers to ~/.lisa/mcp_config.yaml.
     - **Framework Knowledge**: Explain LISA concepts, find examples, API reference
 
     All tools follow the lisa_{verb}_{noun} naming convention.
@@ -51,6 +57,46 @@ register_runbook_tools(mcp)
 register_log_analysis_tools(mcp)
 register_knowledge_tools(mcp)
 register_execution_tools(mcp)
+
+
+def _build_sse_app() -> Any:
+    """Assemble the Starlette app serving MCP over SSE."""
+    import os
+
+    from starlette.middleware.trustedhost import TrustedHostMiddleware
+    from starlette.requests import Request
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route
+
+    async def health(request: Request) -> JSONResponse:
+        return JSONResponse({"status": "ok", "server": "lisa-mcp"})
+
+    # The SDK factory keeps /sse and /messages/ consistent. Hand-mounting the
+    # two halves separately breaks the session: connect_sse advertises
+    # root_path + message_path to the client, so a Mount("/sse", ...) makes
+    # clients POST to /sse/messages/ and the handshake never completes.
+    app = mcp.sse_app(sse_path="/sse", message_path="/messages/")
+    app.router.routes.insert(0, Route("/health", endpoint=health, methods=["GET"]))
+
+    # Trusted hosts for Host header validation behind a reverse proxy.
+    # Set ALLOWED_HOSTS="host1,host2" in your deployment environment.
+    # Defaults to localhost only (for local development).
+    default_hosts = "localhost,127.0.0.1"
+    allowed_hosts = os.environ.get("ALLOWED_HOSTS", default_hosts).split(",")
+
+    # Optional shared-secret auth. When LISA_MCP_API_KEY is set, every request
+    # except /health must carry a matching X-API-Key header.
+    wrapped: Any = app
+    api_key = os.environ.get("LISA_MCP_API_KEY", "").strip()
+    if api_key:
+        wrapped = ApiKeyMiddleware(wrapped, api_key=api_key)
+    else:
+        log.warning(
+            "LISA_MCP_API_KEY is not set — the SSE endpoint is unauthenticated. "
+            "Set it before exposing this server outside localhost."
+        )
+
+    return TrustedHostMiddleware(wrapped, allowed_hosts=allowed_hosts)
 
 
 def main() -> None:
@@ -83,48 +129,19 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    set_transport(args.transport)
     log.info(f"Starting LISA MCP server (transport={args.transport})")
 
     if args.transport == "sse":
         import os
 
-        import uvicorn
-        from mcp.server.sse import SseServerTransport
-        from starlette.applications import Starlette
-        from starlette.middleware import Middleware
-        from starlette.middleware.trustedhost import TrustedHostMiddleware
-        from starlette.routing import Mount
-
-        sse = SseServerTransport("/messages/")
-
-        # Raw ASGI endpoint — avoids Starlette Request._send (private API
-        # that has changed between versions and silently breaks SSE).
-        async def handle_sse(scope, receive, send):
-            async with sse.connect_sse(scope, receive, send) as streams:
-                await mcp._mcp_server.run(
-                    streams[0],
-                    streams[1],
-                    mcp._mcp_server.create_initialization_options(),
-                )
-
-        # Trusted hosts for Host header validation behind a reverse proxy.
-        # Set ALLOWED_HOSTS="host1,host2" in your deployment environment.
-        # Defaults to localhost only (for local development).
-        default_hosts = "localhost,127.0.0.1"
-        allowed_hosts = os.environ.get("ALLOWED_HOSTS", default_hosts).split(",")
-
-        app = Starlette(
-            routes=[
-                Mount("/sse", app=handle_sse),
-                Mount("/messages/", app=sse.handle_post_message),
-            ],
-            middleware=[
-                Middleware(
-                    TrustedHostMiddleware,
-                    allowed_hosts=allowed_hosts,
-                ),
-            ],
-        )
+        try:
+            import uvicorn
+        except ImportError:
+            raise SystemExit(
+                "SSE transport needs the optional server dependencies. "
+                "Install them with: pip install 'lisa-mcp[sse]'"
+            )
 
         # Restrict which proxy IPs may set X-Forwarded-* headers. Set
         # FORWARDED_ALLOW_IPS to your reverse proxy's IP(s) in deployment.
@@ -133,7 +150,7 @@ def main() -> None:
         forwarded_allow_ips = os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1")
 
         uvicorn.run(
-            app,
+            _build_sse_app(),
             host=args.host,
             port=args.port,
             log_level="info",
