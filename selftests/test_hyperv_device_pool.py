@@ -7,7 +7,11 @@ from typing import Any, Dict, List, Tuple, cast
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from lisa.sut_orchestrator.hyperv.context import DevicePassthroughContext, NodeContext
+from lisa.sut_orchestrator.hyperv.context import (
+    DevicePassthroughContext,
+    NodeContext,
+    NvmeDiskState,
+)
 from lisa.sut_orchestrator.hyperv.hyperv_device_pool import HyperVDevicePool
 from lisa.sut_orchestrator.hyperv.schema import (
     DeviceAddressSchema,
@@ -41,10 +45,13 @@ class HyperVDevicePoolTestCase(TestCase):
             1,
             {
                 "Number": 1,
+                "UniqueId": "disk-unique-id",
+                "SerialNumber": "disk-serial",
                 "FriendlyName": "NVMe data disk",
                 "BusType": "NVMe",
                 "IsBoot": False,
                 "IsSystem": False,
+                "IsOffline": False,
                 "IsMounted": False,
                 "PhysicalDiskCount": 1,
                 "IsStoragePoolMember": False,
@@ -110,10 +117,13 @@ class HyperVDevicePoolTestCase(TestCase):
             1,
             {
                 "Number": 1,
+                "UniqueId": "disk-unique-id",
+                "SerialNumber": "disk-serial",
                 "FriendlyName": "NVMe data disk",
                 "BusType": "NVMe",
                 "IsBoot": False,
                 "IsSystem": False,
+                "IsOffline": False,
                 "IsMounted": False,
                 "PhysicalDiskCount": 1,
                 "IsStoragePoolMember": False,
@@ -196,9 +206,12 @@ class HyperVDevicePoolTestCase(TestCase):
                 1,
                 {
                     "Number": 1,
+                    "UniqueId": "disk-unique-id",
+                    "SerialNumber": "disk-serial",
                     "BusType": "RAID",
                     "IsBoot": False,
                     "IsSystem": False,
+                    "IsOffline": False,
                     "IsMounted": False,
                     "PhysicalDiskCount": 1,
                     "IsStoragePoolMember": False,
@@ -210,9 +223,12 @@ class HyperVDevicePoolTestCase(TestCase):
                 0,
                 {
                     "Number": 0,
+                    "UniqueId": "disk-unique-id",
+                    "SerialNumber": "disk-serial",
                     "BusType": "NVMe",
                     "IsBoot": True,
                     "IsSystem": False,
+                    "IsOffline": False,
                     "IsMounted": False,
                     "PhysicalDiskCount": 1,
                     "IsStoragePoolMember": False,
@@ -224,9 +240,12 @@ class HyperVDevicePoolTestCase(TestCase):
                 0,
                 {
                     "Number": 0,
+                    "UniqueId": "disk-unique-id",
+                    "SerialNumber": "disk-serial",
                     "BusType": "NVMe",
                     "IsBoot": False,
                     "IsSystem": True,
+                    "IsOffline": False,
                     "IsMounted": False,
                     "PhysicalDiskCount": 1,
                     "IsStoragePoolMember": False,
@@ -238,9 +257,12 @@ class HyperVDevicePoolTestCase(TestCase):
                 1,
                 {
                     "Number": 1,
+                    "UniqueId": "disk-unique-id",
+                    "SerialNumber": "disk-serial",
                     "BusType": "NVMe",
                     "IsBoot": False,
                     "IsSystem": False,
+                    "IsOffline": False,
                     "IsMounted": True,
                     "PhysicalDiskCount": 1,
                     "IsStoragePoolMember": False,
@@ -252,9 +274,12 @@ class HyperVDevicePoolTestCase(TestCase):
                 1,
                 {
                     "Number": 1,
+                    "UniqueId": "disk-unique-id",
+                    "SerialNumber": "disk-serial",
                     "BusType": "NVMe",
                     "IsBoot": False,
                     "IsSystem": False,
+                    "IsOffline": False,
                     "IsMounted": False,
                     "PhysicalDiskCount": 0,
                     "IsStoragePoolMember": False,
@@ -266,9 +291,12 @@ class HyperVDevicePoolTestCase(TestCase):
                 1,
                 {
                     "Number": 1,
+                    "UniqueId": "disk-unique-id",
+                    "SerialNumber": "disk-serial",
                     "BusType": "NVMe",
                     "IsBoot": False,
                     "IsSystem": False,
+                    "IsOffline": False,
                     "IsMounted": False,
                     "PhysicalDiskCount": 2,
                     "IsStoragePoolMember": False,
@@ -280,9 +308,12 @@ class HyperVDevicePoolTestCase(TestCase):
                 1,
                 {
                     "Number": 1,
+                    "UniqueId": "disk-unique-id",
+                    "SerialNumber": "disk-serial",
                     "BusType": "NVMe",
                     "IsBoot": False,
                     "IsSystem": False,
+                    "IsOffline": False,
                     "IsMounted": False,
                     "PhysicalDiskCount": 1,
                     "IsStoragePoolMember": True,
@@ -349,6 +380,14 @@ class HyperVDevicePoolTestCase(TestCase):
                     pool_type=HostDevicePoolType.PCI_NVME,
                     device_list=[device],
                     requested_count=1,
+                    nvme_disk_states={
+                        device.instance_id: NvmeDiskState(
+                            number=3,
+                            unique_id="disk-unique-id",
+                            serial_number="disk-serial",
+                            was_offline=False,
+                        )
+                    },
                 )
             ],
         )
@@ -363,11 +402,81 @@ class HyperVDevicePoolTestCase(TestCase):
         self.assertIn("Remove-VMAssignableDevice", commands[0])
         self.assertIn("Mount-VMHostAssignableDevice", commands[1])
         self.assertIn("Enable-PnpDevice", commands[2])
+        self.assertIn("Set-Disk", commands[3])
+        self.assertIn("-IsOffline $false", commands[3])
+        self.assertIn("disk-unique-id", commands[3])
+        self.assertIn("disk-serial", commands[3])
+        self.assertIn("AddSeconds", commands[3])
+        self.assertIn("Start-Sleep", commands[3])
         wait_enabled.assert_called_once_with(device.instance_id, device.location_path)
         self.assertEqual(
             [device], pool.available_host_devices[HostDevicePoolType.PCI_NVME]
         )
         self.assertEqual([], node_context.passthrough_devices)
+
+    def test_pci_nvme_assignment_offlines_disk_before_disable(self) -> None:
+        device = DeviceAddressSchema(
+            instance_id="PCI\\VEN_144D&DEV_A80A",
+            location_path="PCIROOT(1)#PCI(0000)",
+        )
+        powershell = MagicMock()
+        powershell.run_cmdlet.side_effect = [
+            3,
+            {
+                "Number": 3,
+                "UniqueId": "disk-unique-id",
+                "SerialNumber": "disk-serial",
+                "BusType": "NVMe",
+                "IsBoot": False,
+                "IsSystem": False,
+                "IsMounted": False,
+                "IsOffline": False,
+                "PhysicalDiskCount": 1,
+                "IsStoragePoolMember": False,
+                "StoragePoolNames": "",
+            },
+            "",
+            "",
+            "",
+            "",
+        ]
+        node = SimpleNamespace(tools={PowerShell: powershell})
+        pool = HyperVDevicePool(
+            node=cast(Any, node),
+            runbook=HypervPlatformSchema(),
+            log=MagicMock(),
+        )
+
+        disk_states = pool._assign_devices_to_vm(
+            vm_name="vm1",
+            pool_type=HostDevicePoolType.PCI_NVME,
+            devices=[device],
+        )
+
+        commands = [
+            call.kwargs.get("cmdlet", call.args[0] if call.args else "")
+            for call in powershell.run_cmdlet.call_args_list
+        ]
+        offline_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "Set-Disk" in command and "-IsOffline $true" in command
+        )
+        disable_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "Disable-PnpDevice" in command
+        )
+        self.assertLess(offline_index, disable_index)
+        self.assertEqual(
+            NvmeDiskState(
+                number=3,
+                unique_id="disk-unique-id",
+                serial_number="disk-serial",
+                was_offline=False,
+            ),
+            disk_states[device.instance_id],
+        )
 
     def test_revalidates_pci_nvme_before_assignment(self) -> None:
         device = DeviceAddressSchema(
@@ -379,9 +488,12 @@ class HyperVDevicePoolTestCase(TestCase):
             0,
             {
                 "Number": 0,
+                "UniqueId": "disk-unique-id",
+                "SerialNumber": "disk-serial",
                 "BusType": "NVMe",
                 "IsBoot": True,
                 "IsSystem": True,
+                "IsOffline": False,
                 "IsMounted": True,
                 "PhysicalDiskCount": 1,
                 "IsStoragePoolMember": False,
@@ -410,6 +522,186 @@ class HyperVDevicePoolTestCase(TestCase):
         self.assertEqual(
             [device], pool.available_host_devices[HostDevicePoolType.PCI_NVME]
         )
+
+    def test_pci_nvme_assignment_preserves_offline_disk(self) -> None:
+        device = DeviceAddressSchema(
+            instance_id="PCI\\VEN_144D&DEV_A80A",
+            location_path="PCIROOT(1)#PCI(0000)",
+        )
+        powershell = MagicMock()
+        powershell.run_cmdlet.side_effect = [
+            3,
+            {
+                "Number": 3,
+                "UniqueId": "disk-unique-id",
+                "SerialNumber": "disk-serial",
+                "BusType": "NVMe",
+                "IsBoot": False,
+                "IsSystem": False,
+                "IsOffline": True,
+                "IsMounted": False,
+                "PhysicalDiskCount": 1,
+                "IsStoragePoolMember": False,
+                "StoragePoolNames": "",
+            },
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        ]
+        node = SimpleNamespace(tools={PowerShell: powershell})
+        pool = HyperVDevicePool(
+            node=cast(Any, node),
+            runbook=HypervPlatformSchema(),
+            log=MagicMock(),
+        )
+
+        disk_states = pool._assign_devices_to_vm(
+            vm_name="vm1",
+            pool_type=HostDevicePoolType.PCI_NVME,
+            devices=[device],
+        )
+        node_context = NodeContext(
+            vm_name="vm1",
+            passthrough_devices=[
+                DevicePassthroughContext(
+                    pool_type=HostDevicePoolType.PCI_NVME,
+                    device_list=[device],
+                    requested_count=1,
+                    nvme_disk_states=disk_states,
+                )
+            ],
+        )
+
+        with patch.object(pool, "_wait_for_pnp_device_enabled"):
+            pool.release_devices(node_context)
+
+        commands = [
+            call.kwargs.get("cmdlet", call.args[0] if call.args else "")
+            for call in powershell.run_cmdlet.call_args_list
+        ]
+        restore_command = next(
+            command for command in commands if "Returned Windows NVMe disk" in command
+        )
+        self.assertIn("-IsOffline $true", restore_command)
+        self.assertIn("Start-Sleep", restore_command)
+
+    def test_pci_nvme_assignment_rollback_restores_offline_disk(self) -> None:
+        device = DeviceAddressSchema(
+            instance_id="PCI\\VEN_144D&DEV_A80A",
+            location_path="PCIROOT(1)#PCI(0000)",
+        )
+        commands: List[str] = []
+
+        def run_cmdlet(cmdlet: str, **_: Any) -> Any:
+            commands.append(cmdlet)
+            if "DEVPKEY_Device_Children" in cmdlet:
+                return 3
+            if "[PSCustomObject]" in cmdlet:
+                return {
+                    "Number": 3,
+                    "UniqueId": "disk-unique-id",
+                    "SerialNumber": "disk-serial",
+                    "BusType": "NVMe",
+                    "IsBoot": False,
+                    "IsSystem": False,
+                    "IsOffline": True,
+                    "IsMounted": False,
+                    "PhysicalDiskCount": 1,
+                    "IsStoragePoolMember": False,
+                    "StoragePoolNames": "",
+                }
+            if "Dismount-VMHostAssignableDevice" in cmdlet:
+                raise LisaException("pcip failed")
+            return ""
+
+        powershell = SimpleNamespace(run_cmdlet=MagicMock(side_effect=run_cmdlet))
+        node = SimpleNamespace(tools={PowerShell: powershell})
+        pool = HyperVDevicePool(
+            node=cast(Any, node),
+            runbook=HypervPlatformSchema(),
+            log=MagicMock(),
+        )
+
+        with patch.object(pool, "_wait_for_pnp_device_enabled"):
+            with self.assertRaisesRegex(LisaException, "pcip failed"):
+                pool._assign_devices_to_vm(
+                    vm_name="vm1",
+                    pool_type=HostDevicePoolType.PCI_NVME,
+                    devices=[device],
+                )
+
+        enable_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "Enable-PnpDevice" in command
+        )
+        restore_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "Returned Windows NVMe disk" in command and "-IsOffline $true" in command
+        )
+        self.assertLess(enable_index, restore_index)
+
+    def test_pci_nvme_assignment_rollback_restores_online_disk(self) -> None:
+        device = DeviceAddressSchema(
+            instance_id="PCI\\VEN_144D&DEV_A80A",
+            location_path="PCIROOT(1)#PCI(0000)",
+        )
+        commands: List[str] = []
+
+        def run_cmdlet(cmdlet: str, **_: Any) -> Any:
+            commands.append(cmdlet)
+            if "DEVPKEY_Device_Children" in cmdlet:
+                return 3
+            if "[PSCustomObject]" in cmdlet:
+                return {
+                    "Number": 3,
+                    "UniqueId": "disk-unique-id",
+                    "SerialNumber": "disk-serial",
+                    "BusType": "NVMe",
+                    "IsBoot": False,
+                    "IsSystem": False,
+                    "IsOffline": False,
+                    "IsMounted": False,
+                    "PhysicalDiskCount": 1,
+                    "IsStoragePoolMember": False,
+                    "StoragePoolNames": "",
+                }
+            if "Dismount-VMHostAssignableDevice" in cmdlet:
+                raise LisaException("pcip failed")
+            return ""
+
+        powershell = SimpleNamespace(run_cmdlet=MagicMock(side_effect=run_cmdlet))
+        node = SimpleNamespace(tools={PowerShell: powershell})
+        pool = HyperVDevicePool(
+            node=cast(Any, node),
+            runbook=HypervPlatformSchema(),
+            log=MagicMock(),
+        )
+
+        with patch.object(pool, "_wait_for_pnp_device_enabled"):
+            with self.assertRaisesRegex(LisaException, "pcip failed"):
+                pool._assign_devices_to_vm(
+                    vm_name="vm1",
+                    pool_type=HostDevicePoolType.PCI_NVME,
+                    devices=[device],
+                )
+
+        enable_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "Enable-PnpDevice" in command
+        )
+        restore_index = next(
+            index
+            for index, command in enumerate(commands)
+            if "Set-Disk" in command and "-IsOffline $false" in command
+        )
+        self.assertLess(enable_index, restore_index)
 
     def test_assign_devices_rolls_back_on_dismount_failure(self) -> None:
         first_device = DeviceAddressSchema(
@@ -483,6 +775,7 @@ class HyperVDevicePoolTestCase(TestCase):
             [first_device, second_device],
             pool.available_host_devices[HostDevicePoolType.PCI_NIC],
         )
+        self.assertFalse(any("Set-Disk" in command for command in commands))
 
     def test_assignment_rollback_failure_keeps_device_out_of_pool(self) -> None:
         device = DeviceAddressSchema(
