@@ -118,14 +118,11 @@ class GitDownloader(Downloader):
 
 # parent class for tarball source installations
 class TarDownloader(Downloader):
-    def __init__(
-        self,
-        node: Node,
-        tar_url: str,
-    ) -> None:
+    def __init__(self, node: Node, tar_url: str, exclude: str = "") -> None:
         super().__init__(node)
         self._tar_url = tar_url
         self._is_remote_tarball = tar_url.startswith("https://")
+        self.exclude = exclude
 
     # fetch the tarball (or copy it to the node)
     # then extract it
@@ -174,6 +171,7 @@ class TarDownloader(Downloader):
                     dest_dir=str(work_path),
                     gzip=True,
                     skip_existing_files=True,
+                    exclude=self.exclude,
                 )
             except AssertionError:
                 # tar extraction failed,

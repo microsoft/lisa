@@ -158,7 +158,9 @@ def get_rdma_core_installer(
             )
     # handle MANA special case, build a default rdma-core with mana provider
     elif not rdma_source and node.nics.is_mana_device_present():
-        downloader = TarDownloader(node, RDMA_CORE_MANA_DEFAULT_SOURCE)
+        downloader = TarDownloader(
+            node, RDMA_CORE_MANA_DEFAULT_SOURCE, exclude="pandoc*"
+        )
     else:
         # no rdma_source and not mana, just use the package manager
         return RdmaCorePackageManagerInstall(
@@ -174,7 +176,9 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
     # a quick connectivity check before the test.
     # this can help establish routes on some platforms before handing
     # all control of the VF over to Testpmd
-    nodes = environment.nodes.list()
+    # nodes.list() is a generator; materialize it so the ping loops below
+    # aren't left with an exhausted iterator after the firewall loop.
+    nodes = list(environment.nodes.list())
     for node in nodes:
         try:
             firewall = node.tools[Firewall]
@@ -184,20 +188,28 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
                 f"firewall is not enabled on OS {node.os.name} with exception {ex}"
             )
 
-    node_permutations = itertools.permutations(nodes, 2)
-    for node_pair in node_permutations:
-        node_a, node_b = node_pair  # get nodes and nics
-        nic_a, nic_b = [x.nics.get_nic_by_index(1) for x in node_pair]
-        ip_a, ip_b = [x.ip_addr for x in [nic_a, nic_b]]  # get ips
-        ping_a = node_a.tools[Ping].ping(target=ip_b, nic_name=nic_a.name)
-        ping_b = node_b.tools[Ping].ping(target=ip_a, nic_name=nic_b.name)
-        assert_that(ping_a and ping_b).described_as(
-            (
-                "VM ping test failed.\n"
-                f"{node_a.name} {ip_a} -> {node_b.name} {ip_b} : {ping_a}\n"
-                f"{node_b.name} {ip_b} -> {node_a.name} {ip_a} : {ping_b}\n"
-            )
-        ).is_true()
+    subnets = ["10.0.1.0/24", "10.0.2.0/24"]
+    # fetch each node's nic on each subnet once, keyed by subnet so each nic
+    # is only pinged against the other nodes' nics on that same subnet.
+    test_nics = {
+        subnet: {node: node.nics.get_nic_by_subnet(subnet) for node in nodes}
+        for subnet in subnets
+    }
+
+    # permutations yields both (a, b) and (b, a), so pinging a single
+    # direction per pair still covers every direction exactly once.
+    for subnet in subnets:
+        for node_a, node_b in itertools.permutations(nodes, 2):
+            nic_a, nic_b = test_nics[subnet][node_a], test_nics[subnet][node_b]
+            ip_a, ip_b = nic_a.ip_addr, nic_b.ip_addr
+            ping_result = node_a.tools[Ping].ping(target=ip_b, nic_name=nic_a.name)
+            assert_that(ping_result).described_as(
+                (
+                    "VM ping test failed.\n"
+                    f"{node_a.name} {nic_a.name} {ip_a} -> "
+                    f"{node_b.name} {nic_b.name} {ip_b} : {ping_result}\n"
+                )
+            ).is_true()
 
 
 def testpmd_start_process(kit: DpdkTestResources, cmd: str) -> Process:
@@ -1008,10 +1020,10 @@ def ipv4_to_lpm(addr: str) -> str:
 # enable ip forwarding for secondary and tertiary nics in this test.
 # run in parallel to save a bit of time on this net io step.
 def __enable_ip_forwarding(node: Node) -> None:
-    fwd_subnets = [
-        node.nics.get_nic_by_index(nic_index).ip_addr for nic_index in [1, 2]
-    ]
-    for subnet_ip in fwd_subnets:
+    # switch_ip_forwarding matches nics by their exact private ip address,
+    # so resolve each subnet to this node's actual nic ip before calling it.
+    for subnet in ["10.0.1.0/24", "10.0.2.0/24"]:
+        subnet_ip = node.nics.get_nic_by_subnet(subnet).ip_addr
         node.features[NetworkInterface].switch_ip_forwarding(
             enable=True, private_ip_addr=subnet_ip
         )
@@ -1046,16 +1058,27 @@ def reroute_traffic_and_disable_nic(
     new_gateway_nic: NicInfo,
     unused_nic: NicInfo,
 ) -> None:
+    node.log.debug(f"Rerouting traffic and disabling NICs: src: {src_nic} dst: {dst_nic} new_gateway: {new_gateway_nic} unused: {unused_nic}")
     ip_tool = node.tools[Ip]
     forbidden_subnet = ipv4_to_lpm(dst_nic.ip_addr)
 
     # remove any routes through those devices
     ip_tool.remove_all_routes_for_device(unused_nic.name)
 
-    if not ip_tool.route_exists(prefix=forbidden_subnet, dev=new_gateway_nic.name):
+    # check the route on this node's own nic (src_nic); new_gateway_nic
+    # belongs to a different node, so its name only happens to match
+    # src_nic's by Azure's nic-naming convention. Check the device we
+    # actually add the route on to avoid relying on that coincidence.
+    if not ip_tool.route_exists(prefix=forbidden_subnet, dev=src_nic.name):
         ip_tool.add_route_to(
             dest=dst_nic.ip_addr, via=new_gateway_nic.ip_addr, dev=src_nic.name
         )
+
+    ip_tool.add_neighbor(
+        address=new_gateway_nic.ip_addr,
+        mac_address=new_gateway_nic.mac_addr,
+        dev=src_nic.name,
+    )
 
     # finally, set unneeded interfaces to DOWN after setting routes up
     ip_tool.down(unused_nic.name)
@@ -1205,6 +1228,13 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         sender: sender.nics.get_nic_by_subnet("10.0.2.0/24"),
     }
 
+    # Install ntttcp on sender/receiver BEFORE changing any routes.
+    # Installing it pulls packages (gcc/make) which can upgrade libc; needrestart
+    # then restarts systemd-networkd, which re-applies the netplan config and
+    # silently undoes the reroute below: the unused nic comes back up, its subnet
+    # route returns, and our added route and permanent neighbor are flushed.
+    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
+
     # We use ntttcp for snd/rcv which will respect the kernel route table.
     # SO: remove the unused interfaces and routes which could skip the forwarder
     _unused_nics = {
@@ -1271,15 +1301,13 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     # NOTE: we're cheating here and not dynamically picking the port IDs
     # Why? You can't do it with the sdk tools for netvsc without writing your own app.
     # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
-    if fwd_kit.testpmd.is_mana:
-        dpdk_port_a = 1
-        dpdk_port_b = 2
-    else:
-        dpdk_port_a = 2
-        dpdk_port_b = 3
+    devname_info = DpdkDevnameInfo(testpmd=fwd_kit.testpmd)
+    devname_info.get_port_info(
+        [subnet_a_nics[forwarder], subnet_b_nics[forwarder]], expect_ports=2
+    )
+    dpdk_port_a = devname_info.port_ids[subnet_a_nics[forwarder].mac_addr.lower()]
+    dpdk_port_b = devname_info.port_ids[subnet_b_nics[forwarder].mac_addr.lower()]
 
-    # create sender/receiver ntttcp instances
-    ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
     # SETUP FORWADING RULES
     # Set up DPDK forwarding rules:
@@ -1298,11 +1326,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
 
     # generate the dpdk include arguments to add to our commandline
-    include_devices = fwd_kit.testpmd.generate_testpmd_include(
-        [subnet_a_nics[forwarder]], dpdk_port_a, pmd=Pmd.NETVSC
-    ) + fwd_kit.testpmd.generate_testpmd_include(
-        [subnet_b_nics[forwarder]], dpdk_port_b, pmd=Pmd.NETVSC
-    )
+    include_devices = devname_info.nic_args
 
     # Generating port,queue,core mappings for forwarder
     # NOTE: For DPDK 'N queues' means N queues * N PORTS
@@ -1322,8 +1346,12 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         fwd_kit=fwd_kit,
         dpdk_port_a=dpdk_port_a,
         dpdk_port_b=dpdk_port_b,
-        include_devices=include_devices,
+        include_devices=[include_devices],
         queue_count=queue_count,
+        destination_macs={
+            dpdk_port_a: subnet_a_nics[sender].mac_addr,
+            dpdk_port_b: subnet_b_nics[receiver].mac_addr,
+        },
     )
     # START THE TEST
     # finally, start the forwarder
@@ -1339,6 +1367,23 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             "L3fwd did not start. Check command output for incorrect flags, "
             "core dumps, or other setup/init issues."
         )
+
+    # ntttcp binds its sockets to the nic (SO_BINDTODEVICE), so log the route
+    # and neighbor the kernel will actually use from that nic right before
+    # traffic starts. A failed connect can then be traced to a missing route
+    # or unresolved neighbor instead of guessing.
+    for node, src_nic, dst_nic in [
+        (sender, subnet_a_nics[sender], subnet_b_nics[receiver]),
+        (receiver, subnet_b_nics[receiver], subnet_a_nics[sender]),
+    ]:
+        node.execute(
+            f"ip route get {dst_nic.ip_addr} from {src_nic.ip_addr} "
+            f"oif {src_nic.name}; ip neigh show dev {src_nic.name}; "
+            "ip rule show; ip route show",
+            sudo=True,
+            shell=True,
+        )
+
     ntttcp_run_time = 30
     # start ntttcp client and server
     ntttcp_threads_count = 64
@@ -1439,6 +1484,7 @@ def generate_l3fwd_command(
     dpdk_port_b: int,
     queue_count: int,
     include_devices: List[str],
+    destination_macs: Dict[int, str],
 ) -> str:
     config_tups = []
     included_cores = []
@@ -1467,12 +1513,16 @@ def generate_l3fwd_command(
     # join all our options into strings for use in the commmand
     joined_configs = ",".join([f"({p},{q},{c})" for (p, q, c) in config_tups])
     joined_include = " ".join(include_devices)
+    joined_destinations = " ".join(
+        f"--eth-dest={port_id},{destination_macs[port_id]}"
+        for port_id in [dpdk_port_a, dpdk_port_b]
+    )
     # prefer the '-l 1,2,3' arg version over '-l 1-4' form to avoid a dpdk bug
     joined_core_list = ",".join(included_cores)
     fwd_cmd = (
         f"{server_app_path} {joined_include} -l {joined_core_list} -- "
         f" {promiscuous} -p {get_dpdk_portmask([dpdk_port_a,dpdk_port_b])} "
-        f' --lookup=lpm --config="{joined_configs}" '
+        f' --lookup=lpm --config="{joined_configs}" {joined_destinations} '
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
     )
     return fwd_cmd
@@ -1604,7 +1654,8 @@ def annotate_dpdk_test_result(
 
 
 devname_port_regex = re.compile(
-    r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc .*\n"
+    r"dpdk-devname found port=(?P<port_id>[0-9]+) driver=net_netvsc "
+    r".*macaddr=(?P<mac_addr>(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2})"
 )
 
 
@@ -1652,18 +1703,19 @@ class DpdkDevnameInfo:
         ).stdout
 
         # find all the matches for devices bound to net_netvsc PMD
-        matches = devname_port_regex.findall(output)
+        matches = list(devname_port_regex.finditer(output))
         if not matches:
             fail(f"dpdk-devname could not find port ids in: {output}")
 
         # then create the port mask in hex from the port ids
         port_mask = 0
-        self.port_ids = []
+        self.port_ids: Dict[str, int] = {}
         found_ports = 0
         for match in matches:
             found_ports += 1
-            port_id = int(match)
-            self.port_ids += [port_id]
+            port_id = int(match.group("port_id"))
+            mac_addr = match.group("mac_addr").lower()
+            self.port_ids[mac_addr] = port_id
             port_mask ^= 1 << (port_id)
         if found_ports != expect_ports:
             self._node.execute("dmesg", sudo=True)
