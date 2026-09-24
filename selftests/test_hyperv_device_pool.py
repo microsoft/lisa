@@ -88,6 +88,8 @@ class HyperVDevicePoolTestCase(TestCase):
             call.kwargs["cmdlet"] for call in powershell.run_cmdlet.call_args_list
         ]
         self.assertIn("DEVPKEY_Device_Children", cmdlets[0])
+        self.assertIn("$childrenProperty.PSObject.Properties['Data']", cmdlets[0])
+        self.assertNotIn("$childrenProperty.Data", cmdlets[0])
         self.assertIn("Get-StoragePool", cmdlets[1])
         self.assertIn("-PhysicalDisk", cmdlets[1])
         self.assertIn("-not $_.IsPrimordial", cmdlets[1])
