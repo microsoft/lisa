@@ -6,7 +6,8 @@ from typing import Any, Dict, List, Optional, Type
 
 from lisa import feature, schema
 from lisa.environment import Environment
-from lisa.node import Node
+from lisa.features import Nvme
+from lisa.node import Node, RemoteNode
 from lisa.platform_ import Platform
 from lisa.sut_orchestrator import platform_utils
 from lisa.util import LisaException
@@ -18,7 +19,7 @@ from .bootconfig import BootConfig
 from .build import Build
 from .cluster.cluster import Cluster
 from .context import get_build_context, get_node_context
-from .features import SecurityProfile, SerialConsole, StartStop
+from .features import Disk, SecurityProfile, SerialConsole, StartStop
 from .ip_getter import IpGetterChecker
 from .key_loader import KeyLoader
 from .readychecker import ReadyChecker
@@ -57,7 +58,7 @@ class BareMetalPlatform(Platform):
 
     @classmethod
     def supported_features(cls) -> List[Type[feature.Feature]]:
-        return [StartStop, SerialConsole, SecurityProfile]
+        return [StartStop, SerialConsole, SecurityProfile, Disk, Nvme]
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         baremetal_runbook: BareMetalPlatformSchema = self.runbook.get_extended_runbook(
@@ -94,12 +95,41 @@ class BareMetalPlatform(Platform):
                 node.log.exception(f"error on get {key}.", exc_info=e)
         return information
 
+    def refresh_node_address(self, node: Node) -> bool:
+        if not self._cluster_runbook.ip_getter:
+            return False
+
+        node_context = get_node_context(node)
+        assert node_context.client.connection, "connection is required"
+        connection = node_context.client.connection
+        ip_getter = self.ip_getter_factory.create_by_runbook(
+            self._cluster_runbook.ip_getter
+        )
+        new_address = ip_getter.get_ip_from_node(node)
+        if not new_address:
+            return False
+
+        old_address = connection.address
+        remote_node = node
+        assert isinstance(
+            remote_node, RemoteNode
+        ), f"expected RemoteNode, got {type(remote_node).__name__}"
+        remote_node.update_connection_address(
+            address=new_address,
+            public_address=new_address,
+            use_public_address=False,
+        )
+        connection.address = new_address
+        self._log.info(
+            f"refreshed baremetal node IP after reboot: {old_address} -> {new_address}"
+        )
+        return True
+
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
         assert self.cluster.runbook.client, "no client is specified in the runbook"
 
         assert environment.runbook.nodes_requirement, "nodes requirement is required"
-        if len(environment.runbook.nodes_requirement) > 1:
-            # so far only supports one node
+        if len(environment.runbook.nodes_requirement) > len(self.cluster.clients):
             return False
 
         # Convert test requirements to platform-specific feature types
@@ -107,7 +137,7 @@ class BareMetalPlatform(Platform):
             for node_requirement in environment.runbook.nodes_requirement:
                 convert_to_baremetal_node_space(node_requirement)
 
-        return self._check_capability(environment, log, self.cluster.client)
+        return self._check_capability(environment, log, self.cluster.clients)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
         ready_checker: Optional[ReadyChecker] = None
@@ -149,7 +179,23 @@ class BareMetalPlatform(Platform):
                     self._cluster_runbook.ip_getter
                 )
 
-                node_context.client.connection.address = ip_getter.get_ip()
+                node_context.client.connection.address = ip_getter.get_ip_from_node(
+                    node
+                )
+
+            connection = node_context.client.connection
+            remote_node = node
+            assert isinstance(
+                remote_node, RemoteNode
+            ), f"expected RemoteNode, got {type(remote_node).__name__}"
+            remote_node.set_connection_info(
+                address=connection.address,
+                port=connection.port,
+                username=connection.username,
+                password=connection.password,
+                private_key_file=connection.private_key_file,
+                use_public_address=False,
+            )
 
             node.name = f"node_{index}"
             node.initialize()
@@ -250,17 +296,24 @@ class BareMetalPlatform(Platform):
         self,
         environment: Environment,
         log: Logger,
-        client_capability: schema.NodeSpace,
+        client_capabilities: List[schema.Capability],
     ) -> bool:
         if not environment.runbook.nodes_requirement:
             return True
 
+        maximize_capability = self._baremetal_runbook.maximize_capability
+
         nodes_requirement = []
-        for node_space in environment.runbook.nodes_requirement:
-            if not node_space.check(client_capability):
+        for index, node_space in enumerate(environment.runbook.nodes_requirement):
+            client_capability = client_capabilities[index]
+            if not maximize_capability and not node_space.check(client_capability):
                 return False
 
-            node_requirement = node_space.choose_value(client_capability)
+            node_requirement = (
+                client_capability
+                if maximize_capability
+                else node_space.choose_value(client_capability)
+            )
             nodes_requirement.append(node_requirement)
 
         environment.runbook.nodes_requirement = nodes_requirement
