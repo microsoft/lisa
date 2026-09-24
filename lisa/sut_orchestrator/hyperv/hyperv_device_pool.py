@@ -15,7 +15,7 @@ from lisa.tools import HyperV, PowerShell
 from lisa.util import LisaException, ResourceAwaitableException
 from lisa.util.logger import Logger
 
-from .context import DevicePassthroughContext, NodeContext
+from .context import DevicePassthroughContext, NodeContext, NvmeDiskState
 
 
 class HyperVDevicePool(BaseDevicePool):
@@ -36,6 +36,7 @@ class HyperVDevicePool(BaseDevicePool):
         self.supported_pool_type = [
             HostDevicePoolType.PCI_NIC,
             HostDevicePoolType.PCI_GPU,
+            HostDevicePoolType.PCI_NVME,
         ]
         self._server = node
         self._hyperv_runbook = runbook
@@ -55,6 +56,14 @@ class HyperVDevicePool(BaseDevicePool):
             vendor_id=vendor_id,
             device_id=device_id,
         )
+        if pool_type == HostDevicePoolType.PCI_NVME:
+            if len(devices) != 1:
+                raise LisaException(
+                    "Hyper-V PCI NVMe vendor/device selection must resolve "
+                    f"exactly one DDA-assignable device, found {len(devices)}. "
+                    "Use 'location_path' to select a specific device."
+                )
+            self._validate_nvme_devices(devices)
         self._append_devices_to_pool(pool_type=pool_type, devices=devices)
 
     def create_device_pool_from_pci_addresses(
@@ -78,7 +87,215 @@ class HyperVDevicePool(BaseDevicePool):
             log=self.log,
         )
         devices = hv_dev.get_assignable_devices_by_location_paths(location_paths)
+        if pool_type == HostDevicePoolType.PCI_NVME:
+            self._validate_nvme_devices(devices)
         self._append_devices_to_pool(pool_type=pool_type, devices=devices)
+
+    def _validate_nvme_devices(
+        self, devices: List[DeviceAddressSchema]
+    ) -> Dict[str, NvmeDiskState]:
+        powershell = self._server.tools[PowerShell]
+        disk_states: Dict[str, NvmeDiskState] = {}
+        for device in devices:
+            escaped_instance_id = device.instance_id.replace("'", "''")
+            disk_numbers = powershell.run_cmdlet(
+                cmdlet=f"""
+$controllerId = '{escaped_instance_id}'
+$pending = [System.Collections.Generic.Queue[string]]::new()
+$seen = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::OrdinalIgnoreCase
+)
+$pending.Enqueue($controllerId)
+while ($pending.Count -gt 0) {{
+    $currentId = $pending.Dequeue()
+    if (-not $seen.Add($currentId)) {{
+        continue
+    }}
+
+    $childrenProperty = Get-PnpDeviceProperty `
+        -InstanceId $currentId `
+        -KeyName 'DEVPKEY_Device_Children' `
+        -ErrorAction SilentlyContinue
+    $childrenDataProperty = if ($null -ne $childrenProperty) {{
+        $childrenProperty.PSObject.Properties['Data']
+    }} else {{
+        $null
+    }}
+    if ($currentId -eq $controllerId -and
+        $null -eq $childrenDataProperty) {{
+        throw "Could not query PnP children for NVMe controller '$controllerId'"
+    }}
+    if ($null -ne $childrenDataProperty) {{
+        foreach ($childId in @($childrenDataProperty.Value)) {{
+            if ($childId) {{
+                $pending.Enqueue([string]$childId)
+            }}
+        }}
+    }}
+}}
+
+$diskDrives = @(
+    Get-CimInstance Win32_DiskDrive |
+    Where-Object {{ $seen.Contains([string]$_.PNPDeviceID) }}
+)
+$diskDrives | ForEach-Object {{ [int]$_.Index }}
+""",
+                output_json=True,
+                force_run=True,
+            )
+            if disk_numbers is None or disk_numbers == "":
+                normalized_disk_numbers: List[Any] = []
+            elif isinstance(disk_numbers, list):
+                normalized_disk_numbers = disk_numbers
+            else:
+                normalized_disk_numbers = [disk_numbers]
+
+            if len(normalized_disk_numbers) != 1 or not isinstance(
+                normalized_disk_numbers[0], int
+            ):
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' must map "
+                    "to exactly one Windows disk, found "
+                    f"{len(normalized_disk_numbers)}"
+                )
+
+            disk_number = normalized_disk_numbers[0]
+            disk = powershell.run_cmdlet(
+                cmdlet=f"""
+$disk = Get-Disk -Number {disk_number} -ErrorAction Stop
+$mountedPartitions = @(
+    Get-CimInstance `
+        -Namespace ROOT/Microsoft/Windows/Storage `
+        -ClassName MSFT_Partition `
+        -Filter "DiskNumber = $($disk.Number)" `
+        -ErrorAction Stop |
+    Where-Object {{
+        @(
+            $_.AccessPaths |
+            Where-Object {{
+                -not [string]::IsNullOrWhiteSpace([string]$_)
+            }}
+        ).Count -gt 0
+    }}
+)
+$diskUniqueId = ([string]$disk.UniqueId).Trim()
+$diskSerialNumber = ([string]$disk.SerialNumber).Trim()
+$diskNumber = ([string]$disk.Number).Trim()
+$physicalDisks = @(
+    Get-PhysicalDisk -ErrorAction Stop |
+    Where-Object {{
+        $physicalUniqueId = ([string]$_.UniqueId).Trim()
+        $physicalSerialNumber = ([string]$_.SerialNumber).Trim()
+        $physicalDeviceId = ([string]$_.DeviceId).Trim()
+        ($diskUniqueId -and $physicalUniqueId -eq $diskUniqueId) -or
+        ($diskSerialNumber -and $physicalSerialNumber -eq $diskSerialNumber) -or
+        ($physicalDeviceId -eq $diskNumber)
+    }}
+)
+$nonPrimordialPools = @()
+if ($physicalDisks.Count -eq 1) {{
+    $nonPrimordialPools = @(
+        Get-StoragePool `
+            -PhysicalDisk $physicalDisks[0] `
+            -ErrorAction Stop |
+        Where-Object {{ -not $_.IsPrimordial }}
+    )
+}}
+[PSCustomObject]@{{
+    Number = [int]$disk.Number
+    UniqueId = [string]$disk.UniqueId
+    SerialNumber = [string]$disk.SerialNumber
+    FriendlyName = [string]$disk.FriendlyName
+    BusType = [string]$disk.BusType
+    IsBoot = [bool]$disk.IsBoot
+    IsSystem = [bool]$disk.IsSystem
+    IsOffline = [bool]$disk.IsOffline
+    IsMounted = ($mountedPartitions.Count -gt 0)
+    PhysicalDiskCount = [int]$physicalDisks.Count
+    IsStoragePoolMember = ($nonPrimordialPools.Count -gt 0)
+    StoragePoolNames = [string]($nonPrimordialPools.FriendlyName -join ', ')
+}}
+""",
+                output_json=True,
+                force_run=True,
+            )
+            if not isinstance(disk, dict):
+                returned_type = type(disk).__name__
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' returned "
+                    "an invalid Windows disk safety record of type "
+                    f"'{returned_type}'"
+                )
+
+            required_properties = {
+                "Number",
+                "UniqueId",
+                "SerialNumber",
+                "BusType",
+                "IsBoot",
+                "IsSystem",
+                "IsOffline",
+                "IsMounted",
+                "PhysicalDiskCount",
+                "IsStoragePoolMember",
+                "StoragePoolNames",
+            }
+            missing_properties = required_properties.difference(disk)
+            if missing_properties:
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' returned "
+                    "an incomplete Windows disk safety record. Missing: "
+                    f"{', '.join(sorted(missing_properties))}"
+                )
+
+            physical_disk_count = disk["PhysicalDiskCount"]
+            if physical_disk_count != 1:
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' must map "
+                    "to exactly one Windows physical disk, found "
+                    f"{physical_disk_count}"
+                )
+
+            bus_type = str(disk["BusType"]).strip()
+            if bus_type.lower() != "nvme":
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' maps to "
+                    f"Windows disk bus type '{bus_type or 'unknown'}', not NVMe"
+                )
+
+            unsafe_reasons = []
+            if disk.get("IsBoot"):
+                unsafe_reasons.append("boot")
+            if disk.get("IsSystem"):
+                unsafe_reasons.append("system")
+            if disk.get("IsMounted"):
+                unsafe_reasons.append("mounted")
+            if disk.get("IsStoragePoolMember"):
+                pool_names = str(disk["StoragePoolNames"]).strip() or "unknown"
+                unsafe_reasons.append(f"Storage Spaces pool '{pool_names}'")
+            if unsafe_reasons:
+                disk_number = disk.get("Number", "unknown")
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' maps to "
+                    f"unsafe Windows disk {disk_number}: "
+                    f"{', '.join(unsafe_reasons)}"
+                )
+
+            unique_id = str(disk["UniqueId"]).strip()
+            serial_number = str(disk["SerialNumber"]).strip()
+            if not unique_id and not serial_number:
+                raise LisaException(
+                    f"Hyper-V PCI NVMe device '{device.instance_id}' maps to "
+                    "a Windows disk without a stable UniqueId or SerialNumber"
+                )
+            disk_states[device.instance_id] = NvmeDiskState(
+                number=int(disk["Number"]),
+                unique_id=unique_id,
+                serial_number=serial_number,
+                was_offline=bool(disk["IsOffline"]),
+            )
+
+        return disk_states
 
     def _prepare_devices_on_host(self, location_paths: List[str]) -> None:
         normalized_paths = [path.strip() for path in location_paths if path.strip()]
@@ -242,7 +459,11 @@ Get-VM | ForEach-Object {{
         pool_type: HostDevicePoolType,
         devices: List[DeviceAddressSchema],
     ) -> None:
-        primary_nic_id_list = self.get_primary_nic_id()
+        primary_nic_id_list = (
+            []
+            if pool_type == HostDevicePoolType.PCI_NVME
+            else self.get_primary_nic_id()
+        )
         pool = self.available_host_devices.get(pool_type, [])
         known_instance_ids = {device.instance_id for device in pool}
         for dev in devices:
@@ -274,6 +495,17 @@ Get-VM | ForEach-Object {{
         self.available_host_devices[pool_type] = pool
 
         return devices
+
+    def _return_devices_to_pool(
+        self,
+        pool_type: HostDevicePoolType,
+        devices: List[DeviceAddressSchema],
+    ) -> None:
+        pool = self.available_host_devices.get(pool_type, [])
+        for device in devices:
+            if device not in pool:
+                pool.append(device)
+        self.available_host_devices[pool_type] = pool
 
     def release_devices(
         self,
@@ -307,6 +539,18 @@ Get-VM | ForEach-Object {{
                     device.instance_id,
                     device.location_path,
                 )
+                if ctx.pool_type == HostDevicePoolType.PCI_NVME:
+                    disk_state = ctx.nvme_disk_states.get(device.instance_id)
+                    if not disk_state:
+                        raise LisaException(
+                            "Missing original Windows disk state for Hyper-V PCI "
+                            f"NVMe device '{device.instance_id}'"
+                        )
+                    self._restore_nvme_disk_state(disk_state)
+
+        for ctx in devices_ctx:
+            self._return_devices_to_pool(ctx.pool_type, ctx.device_list)
+        node_context.passthrough_devices.clear()
 
     def get_primary_nic_id(self) -> List[str]:
         powershell = self._server.tools[PowerShell]
@@ -404,19 +648,30 @@ Get-VM | ForEach-Object {{
     def _assign_devices_to_vm(
         self,
         vm_name: str,
+        pool_type: HostDevicePoolType,
         devices: List[DeviceAddressSchema],
-    ) -> None:
+    ) -> Dict[str, NvmeDiskState]:
         # Assign the devices to the VM
         escaped_vm_name = vm_name.replace("'", "''")
         disabled_devices: List[DeviceAddressSchema] = []
         dismounted_devices: List[DeviceAddressSchema] = []
         assigned_devices: List[DeviceAddressSchema] = []
+        nvme_devices_to_restore: List[DeviceAddressSchema] = []
+        nvme_disk_states: Dict[str, NvmeDiskState] = {}
         powershell = self._server.tools[PowerShell]
 
         try:
+            if pool_type == HostDevicePoolType.PCI_NVME:
+                nvme_disk_states = self._validate_nvme_devices(devices)
+
             for device in devices:
                 escaped_instance_id = device.instance_id.replace("'", "''")
                 escaped_location_path = device.location_path.replace("'", "''")
+                if pool_type == HostDevicePoolType.PCI_NVME:
+                    disk_state = nvme_disk_states[device.instance_id]
+                    nvme_devices_to_restore.append(device)
+                    if not disk_state.was_offline:
+                        self._set_nvme_disk_offline(disk_state)
                 powershell.run_cmdlet(
                     cmdlet=(
                         f"Disable-PnpDevice -InstanceId '{escaped_instance_id}' "
@@ -444,12 +699,15 @@ Get-VM | ForEach-Object {{
                     force_run=True,
                 )
                 assigned_devices.append(device)
+            return nvme_disk_states
         except LisaException as err:
             rollback_errors = self._rollback_dda_assignment(
                 vm_name=vm_name,
                 disabled_devices=disabled_devices,
                 dismounted_devices=dismounted_devices,
                 assigned_devices=assigned_devices,
+                nvme_devices_to_restore=nvme_devices_to_restore,
+                nvme_disk_states=nvme_disk_states,
             )
             if rollback_errors:
                 raise LisaException(
@@ -457,6 +715,7 @@ Get-VM | ForEach-Object {{
                     f"'{vm_name}': {err}. Rollback also failed: "
                     f"{'; '.join(rollback_errors)}"
                 ) from err
+            self._return_devices_to_pool(pool_type, devices)
             raise
 
     def _rollback_dda_assignment(
@@ -465,10 +724,14 @@ Get-VM | ForEach-Object {{
         disabled_devices: List[DeviceAddressSchema],
         dismounted_devices: List[DeviceAddressSchema],
         assigned_devices: List[DeviceAddressSchema],
+        nvme_devices_to_restore: Optional[List[DeviceAddressSchema]] = None,
+        nvme_disk_states: Optional[Dict[str, NvmeDiskState]] = None,
     ) -> List[str]:
         powershell = self._server.tools[PowerShell]
         escaped_vm_name = vm_name.replace("'", "''")
         rollback_errors: List[str] = []
+        nvme_devices_to_restore = nvme_devices_to_restore or []
+        nvme_disk_states = nvme_disk_states or {}
 
         self.log.info(f"Rolling back Hyper-V DDA assignment for VM '{vm_name}'")
 
@@ -530,10 +793,92 @@ Get-VM | ForEach-Object {{
                     f"{err}"
                 )
 
+        for device in reversed(nvme_devices_to_restore):
+            disk_state = nvme_disk_states.get(device.instance_id)
+            if not disk_state:
+                rollback_errors.append(
+                    "Missing original Windows disk state while rolling back "
+                    f"Hyper-V PCI NVMe device '{device.instance_id}'"
+                )
+                continue
+            try:
+                self._restore_nvme_disk_state(disk_state)
+            except LisaException as err:
+                rollback_errors.append(
+                    f"Failed to restore Windows disk for Hyper-V PCI NVMe "
+                    f"device '{device.instance_id}': {err}"
+                )
+
         for error in rollback_errors:
             self.log.warning(error)
 
         return rollback_errors
+
+    def _set_nvme_disk_offline(self, disk_state: NvmeDiskState) -> None:
+        identity_filter = self._get_nvme_disk_identity_filter(disk_state)
+        self._server.tools[PowerShell].run_cmdlet(
+            cmdlet=f"""
+$disks = @(Get-Disk -ErrorAction Stop | Where-Object {{ {identity_filter} }})
+if ($disks.Count -ne 1) {{
+    throw "Expected one Windows NVMe disk before assignment; found $($disks.Count)"
+}}
+Set-Disk -InputObject $disks[0] -IsOffline $true -ErrorAction Stop
+if (-not (Get-Disk -Number $disks[0].Number -ErrorAction Stop).IsOffline) {{
+    throw "Windows NVMe disk did not enter the offline state"
+}}
+""",
+            force_run=True,
+        )
+
+    def _restore_nvme_disk_state(self, disk_state: NvmeDiskState) -> None:
+        identity_filter = self._get_nvme_disk_identity_filter(disk_state)
+        desired_offline = "$true" if disk_state.was_offline else "$false"
+        desired_state = "offline" if disk_state.was_offline else "online"
+        self._server.tools[PowerShell].run_cmdlet(
+            cmdlet=f"""
+$deadline = (Get-Date).AddSeconds({self.PNP_ENABLE_TIMEOUT_SECONDS})
+do {{
+    $disks = @(Get-Disk -ErrorAction Stop | Where-Object {{ {identity_filter} }})
+    if ($disks.Count -gt 1) {{
+        throw "Returned Windows NVMe disk identity is ambiguous"
+    }}
+    if ($disks.Count -eq 1) {{
+        break
+    }}
+    Start-Sleep -Seconds {self.PNP_ENABLE_POLL_INTERVAL_SECONDS}
+}} while ((Get-Date) -lt $deadline)
+if ($disks.Count -ne 1) {{
+    throw "Returned Windows NVMe disk did not reappear"
+}}
+if ([bool]$disks[0].IsOffline -ne {desired_offline}) {{
+    Set-Disk `
+        -InputObject $disks[0] `
+        -IsOffline {desired_offline} `
+        -ErrorAction Stop
+}}
+if ([bool](Get-Disk -Number $disks[0].Number -ErrorAction Stop).IsOffline `
+    -ne {desired_offline}) {{
+    throw "Windows NVMe disk did not return to the {desired_state} state"
+}}
+""",
+            force_run=True,
+        )
+
+    def _get_nvme_disk_identity_filter(self, disk_state: NvmeDiskState) -> str:
+        identity_checks = []
+        if disk_state.unique_id:
+            escaped_unique_id = disk_state.unique_id.replace("'", "''")
+            identity_checks.append(
+                f"([string]$_.UniqueId).Trim() -eq '{escaped_unique_id}'"
+            )
+        if disk_state.serial_number:
+            escaped_serial_number = disk_state.serial_number.replace("'", "''")
+            identity_checks.append(
+                f"([string]$_.SerialNumber).Trim() -eq '{escaped_serial_number}'"
+            )
+        if not identity_checks:
+            raise LisaException("Windows NVMe disk has no stable identity")
+        return " -and ".join(identity_checks)
 
     def _run_dda_rollback_cmdlet(
         self,
@@ -576,12 +921,14 @@ Get-VM | ForEach-Object {{
                 pool_type=config.pool_type,
                 count=config.count,
             )
-            self._assign_devices_to_vm(
+            nvme_disk_states = self._assign_devices_to_vm(
                 vm_name=vm_name,
+                pool_type=config.pool_type,
                 devices=devices,
             )
             device_context = DevicePassthroughContext()
             device_context.pool_type = config.pool_type
             device_context.requested_count = config.count
             device_context.device_list = devices
+            device_context.nvme_disk_states = nvme_disk_states
             node_context.passthrough_devices.append(device_context)
