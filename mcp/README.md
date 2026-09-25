@@ -204,17 +204,18 @@ need no `env` block.
 
 ### Environment Variables
 
-| Variable                        | Description                                                                                      |
-| ------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `LISA_REPO_ROOT`                | Override auto-detected LISA repo root path. Takes precedence over the install location           |
-| `LISA_MCP_CONFIG`               | Override the `~/.lisa/mcp_config.yaml` location                                                  |
-| `LISA_MCP_API_KEY`              | SSE mode: shared secret required in the `X-API-Key` header. **Mandatory for non-loopback binds** |
-| `LISA_LOG_ROOT`                 | Confines the log tools to this directory. **Mandatory in SSE mode**; optional for stdio          |
-| `LISA_ALLOWED_STORAGE_ACCOUNTS` | Comma-separated Azure storage accounts the server may authenticate to. **Mandatory in SSE mode** |
-| `LISA_LOG_RETENTION_DAYS`       | How long a downloaded log directory is kept (default `7`)                                        |
-| `LISA_LOG_MAX_DOWNLOADS`        | How many downloaded log directories to keep (default `20`)                                       |
-| `ALLOWED_HOSTS`                 | SSE mode: comma-separated `Host` header allowlist (default `localhost,127.0.0.1`)                |
-| `FORWARDED_ALLOW_IPS`           | SSE mode: proxy IPs permitted to set `X-Forwarded-*` (default `127.0.0.1`)                       |
+| Variable                        | Description                                                                                                                            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `LISA_REPO_ROOT`                | Override auto-detected LISA repo root path. Takes precedence over the install location                                                 |
+| `LISA_MCP_CONFIG`               | Override the `~/.lisa/mcp_config.yaml` location                                                                                        |
+| `LISA_MCP_API_KEY`              | SSE mode: shared secret required in the `X-API-Key` header. **Mandatory for non-loopback binds**                                       |
+| `LISA_LOG_ROOT`                 | Confines the log tools to this directory. **Mandatory in SSE mode**; optional for stdio                                                |
+| `LISA_ALLOWED_STORAGE_ACCOUNTS` | Comma-separated Azure storage accounts the server may authenticate to. **Mandatory in SSE mode**                                       |
+| `AZURE_STORAGE_TOKEN`           | Pre-fetched storage bearer token for `lisa_download_logs`. When unset, `DefaultAzureCredential` is used (managed identity, `az login`) |
+| `LISA_LOG_RETENTION_DAYS`       | How long a downloaded log directory is kept (default `7`)                                                                              |
+| `LISA_LOG_MAX_DOWNLOADS`        | How many downloaded log directories to keep (default `20`)                                                                             |
+| `ALLOWED_HOSTS`                 | SSE mode: comma-separated `Host` header allowlist (default `localhost,127.0.0.1`)                                                      |
+| `FORWARDED_ALLOW_IPS`           | SSE mode: proxy IPs permitted to set `X-Forwarded-*` (default `127.0.0.1`)                                                             |
 
 `lisa_download_logs` derives the Azure storage account from the URL it is
 given, and the SDK then sends a bearer token valid for *all* of

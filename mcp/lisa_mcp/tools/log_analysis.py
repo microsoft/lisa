@@ -1692,8 +1692,8 @@ def _download_azure_blob_prefix(
 
     account_url = f"https://{account}.blob.core.windows.net"
 
-    # Use pre-fetched token (run-local.sh injects this for Docker)
-    # or fall back to DefaultAzureCredential (managed identity, az login)
+    # Use a pre-fetched token when the deployment injects one, otherwise fall
+    # back to DefaultAzureCredential (managed identity, az login).
     storage_token = os.environ.get("AZURE_STORAGE_TOKEN")
     if storage_token:
         from azure.core.credentials import AccessToken, TokenCredential
