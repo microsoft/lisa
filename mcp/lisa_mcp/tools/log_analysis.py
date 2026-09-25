@@ -15,9 +15,9 @@ import tempfile
 import time
 import zipfile
 from pathlib import Path
-from typing import BinaryIO, Optional
-from urllib.parse import unquote, urlparse
-from urllib.request import Request, urlopen
+from typing import Any, BinaryIO, Optional
+from urllib.parse import ParseResult, unquote, urlparse
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from mcp.server.mcpserver import MCPServer
 
@@ -1035,24 +1035,26 @@ def _get_log_text(
 def _extract_test_results(text: str) -> list[dict[str, str]]:
     """Extract test result entries from LISA log output."""
     results = []
-    # Patterns are anchored at line boundaries with explicit word edges to
-    # avoid spurious matches (e.g., the substring "test" inside an
-    # identifier like "smoke_test" used to drag pattern 3 into matching the
-    # adjacent pipe character as a "test name").
+    # Every pattern names its groups, so the meaning of a capture never
+    # depends on the order it happens to appear in. Patterns are anchored at
+    # line boundaries with explicit word edges to avoid spurious matches
+    # (e.g. the substring "test" inside an identifier like "smoke_test" used
+    # to drag pattern 3 into matching the adjacent pipe as a "test name").
+    name = r"(?P<name>[A-Za-z_]\w*(?:\.\w+)*)"
+    status = r"(?P<status>PASSED|FAILED|SKIPPED|ATTEMPTED)"
     patterns = [
         re.compile(
-            r"^\s*(\w+)\s*\|\s*(PASSED|FAILED|SKIPPED|ATTEMPTED)\b"
-            r"\s*(?:\|\s*(.*))?$",
+            rf"^\s*{name}\s*\|\s*{status}\b\s*(?:\|\s*(?P<message>.*))?$",
             re.IGNORECASE | re.MULTILINE,
         ),
         re.compile(
-            r"^\s*\[?(PASSED|FAILED|SKIPPED|ATTEMPTED)\]?\s+(?:test\s+)?"
-            r"(\w+)(?:\s*[:\-]\s*(.*))?$",
+            rf"^\s*\[?{status}\]?\s+(?:test\s+)?{name}"
+            r"(?:\s*[:\-]\s*(?P<message>.*))?$",
             re.IGNORECASE | re.MULTILINE,
         ),
         re.compile(
-            r"\b(?:test|case)\s+(\w+)\b.*?\b(PASSED|FAILED|SKIPPED|ATTEMPTED)\b"
-            r"(?:\s*[:\-]\s*(.*))?",
+            rf"\b(?:test|case)\s+{name}\b.*?\b{status}\b"
+            r"(?:\s*[:\-]\s*(?P<message>.*))?",
             re.IGNORECASE,
         ),
     ]
@@ -1060,23 +1062,17 @@ def _extract_test_results(text: str) -> list[dict[str, str]]:
     seen = set()
     for pattern in patterns:
         for m in pattern.finditer(text):
-            groups = m.groups()
-            if groups[0].upper() in ("PASSED", "FAILED", "SKIPPED", "ATTEMPTED"):
-                status, name = groups[0].upper(), groups[1]
-                message = groups[2] if len(groups) > 2 else ""
-            else:
-                name, status = groups[0], groups[1].upper()
-                message = groups[2] if len(groups) > 2 else ""
-
-            if name not in seen:
-                seen.add(name)
-                results.append(
-                    {
-                        "name": name,
-                        "status": status,
-                        "message": (message or "").strip(),
-                    }
-                )
+            test_name = m.group("name")
+            if test_name in seen:
+                continue
+            seen.add(test_name)
+            results.append(
+                {
+                    "name": test_name,
+                    "status": m.group("status").upper(),
+                    "message": (m.group("message") or "").strip(),
+                }
+            )
 
     return results
 
@@ -1372,6 +1368,44 @@ def _reject_internal_host(hostname: str) -> None:
             )
 
 
+def _check_download_target(url: str) -> ParseResult:
+    """Reject a download URL that is not a public HTTPS destination."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise ValueError(f"Only HTTPS URLs are supported, got '{parsed.scheme}'")
+    if not parsed.hostname:
+        raise ValueError("Could not parse hostname from URL")
+    _reject_internal_host(parsed.hostname)
+    return parsed
+
+
+class _GuardedRedirectHandler(HTTPRedirectHandler):
+    """Re-applies the SSRF check to every redirect target.
+
+    Validating only the URL the caller passed is not enough: a public host
+    can answer with a 302 to `http://169.254.169.254/...` and urllib will
+    follow it without asking again.
+    """
+
+    def redirect_request(  # type: ignore[override]
+        self,
+        req: Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> Optional[Request]:
+        _check_download_target(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _open_download(req: Request) -> Any:
+    """Open *req* with redirects held to the same host policy."""
+    opener = build_opener(_GuardedRedirectHandler())
+    return opener.open(req, timeout=120)
+
+
 def _make_download_dir() -> str:
     """Create a scratch directory for a download.
 
@@ -1380,11 +1414,22 @@ def _make_download_dir() -> str:
     rejected by every follow-up tool this one tells the caller to use.
     """
     log_root = os.environ.get("LISA_LOG_ROOT")
-    if log_root:
-        root = Path(log_root)
-        root.mkdir(parents=True, exist_ok=True)
-        return tempfile.mkdtemp(prefix="lisa_logs_", dir=str(root))
-    return tempfile.mkdtemp(prefix="lisa_logs_")
+    if not log_root:
+        if is_remote():
+            # Successful downloads are kept for later investigation, so an
+            # unbounded temp fallback lets a remote caller fill the host disk
+            # 2 GB at a time — and hands back paths the file tools reject.
+            raise ValueError(
+                "LISA_LOG_ROOT is not configured. A remote server must be "
+                "given a directory to store downloaded logs in before it "
+                "will fetch them. Set LISA_LOG_ROOT=/path/to/logs and "
+                "restart."
+            )
+        return tempfile.mkdtemp(prefix="lisa_logs_")
+
+    root = Path(log_root)
+    root.mkdir(parents=True, exist_ok=True)
+    return tempfile.mkdtemp(prefix="lisa_logs_", dir=str(root))
 
 
 def _download_url_to_dir(  # noqa: C901
@@ -1413,14 +1458,10 @@ def _download_url_to_dir(  # noqa: C901
             shutil.rmtree(download_dir, ignore_errors=True)
             raise
 
-    parsed = urlparse(url)
-    if parsed.scheme != "https":
-        raise ValueError("Only HTTPS URLs are supported")
-    if not parsed.hostname:
-        raise ValueError("Could not parse hostname from URL")
-    _reject_internal_host(parsed.hostname)
+    parsed = _check_download_target(url)
+    hostname = parsed.hostname or ""
 
-    is_azure_blob = parsed.hostname.endswith(".blob.core.windows.net")
+    is_azure_blob = hostname.endswith(".blob.core.windows.net")
     has_sas = "sig=" in (parsed.query or "")
 
     if is_azure_blob and not auth_token and not has_sas:
@@ -1428,7 +1469,7 @@ def _download_url_to_dir(  # noqa: C901
         if len(path_parts) >= 2:
             container = path_parts[0]
             prefix = "/".join(path_parts[1:])
-            account = parsed.hostname.split(".")[0]
+            account = hostname.split(".")[0]
             download_dir = _make_download_dir()
             try:
                 result_dir, count = _download_azure_blob_prefix(
@@ -1449,7 +1490,7 @@ def _download_url_to_dir(  # noqa: C901
         if auth_token:
             headers["Authorization"] = f"Bearer {auth_token}"
         req = Request(url, headers=headers)
-        with urlopen(req, timeout=120) as resp:  # noqa: S310
+        with _open_download(req) as resp:  # noqa: S310
             content_length = resp.headers.get("Content-Length")
             if content_length and int(content_length) > _MAX_DOWNLOAD_BYTES:
                 raise ValueError(
@@ -1624,6 +1665,24 @@ def _copy_within_budget(source: BinaryIO, target: str, budget: _Budget) -> None:
             out.write(chunk)
 
 
+def _safe_extract_target(abs_extract: str, member_name: str) -> Optional[str]:
+    """Absolute destination for *member_name*, or None when it escapes.
+
+    Member names are attacker-controlled and may be absolute, contain
+    `..`, or use the other platform's separator — `..\\evil` is a single
+    legal filename on POSIX, so it slips past a containment check that
+    only normalises native separators.
+    """
+    target = os.path.abspath(os.path.join(abs_extract, member_name.replace("\\", "/")))
+    try:
+        if os.path.commonpath([abs_extract, target]) != abs_extract:
+            return None
+    except ValueError:
+        # Raised for different Windows drives, which is as outside as it gets.
+        return None
+    return target
+
+
 def _extract_archive(download_path: str, download_dir: str) -> str:
     """Extract tar.gz/zip archives, return the result directory path.
 
@@ -1645,8 +1704,8 @@ def _extract_archive(download_path: str, download_dir: str) -> str:
                     # extract_dir even when their own name looks contained.
                     if not (m.isreg() or m.isdir()):
                         continue
-                    target = os.path.abspath(os.path.join(abs_extract, m.name))
-                    if os.path.commonpath([abs_extract, target]) != abs_extract:
+                    target = _safe_extract_target(abs_extract, m.name)
+                    if target is None:
                         continue
                     if m.isdir():
                         os.makedirs(target, exist_ok=True)
@@ -1670,8 +1729,8 @@ def _extract_archive(download_path: str, download_dir: str) -> str:
         try:
             with zipfile.ZipFile(download_path) as zf:
                 for info in zf.infolist():
-                    target = os.path.abspath(os.path.join(abs_extract, info.filename))
-                    if os.path.commonpath([abs_extract, target]) != abs_extract:
+                    target = _safe_extract_target(abs_extract, info.filename)
+                    if target is None:
                         continue
                     if info.is_dir():
                         os.makedirs(target, exist_ok=True)

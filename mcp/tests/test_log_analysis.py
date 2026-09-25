@@ -26,6 +26,32 @@ class TestAnalyzeLog(unittest.TestCase):
         self.assertEqual(statuses.get("verify_sriov"), "FAILED")
         self.assertEqual(statuses.get("verify_gpu"), "SKIPPED")
 
+    def test_extract_dotted_test_names(self) -> None:
+        """Qualified names used to be truncated by a bare `\\w+` capture."""
+        from lisa_mcp.tools.log_analysis import _extract_test_results
+
+        log = (
+            "storage.StorageTest.verify_disk | FAILED | mount error\n"
+            "[PASSED] core.provisioning.smoke_test : ok\n"
+        )
+        statuses = {r["name"]: r["status"] for r in _extract_test_results(log)}
+        self.assertEqual(statuses.get("storage.StorageTest.verify_disk"), "FAILED")
+        self.assertEqual(statuses.get("core.provisioning.smoke_test"), "PASSED")
+
+    def test_message_is_captured_for_every_pattern(self) -> None:
+        """Named groups keep name/status/message straight across patterns."""
+        from lisa_mcp.tools.log_analysis import _extract_test_results
+
+        by_name = {
+            r["name"]: r
+            for r in _extract_test_results(
+                "alpha | FAILED | pipe form\n[FAILED] beta : bracket form\n"
+            )
+        }
+        self.assertEqual(by_name["alpha"]["message"], "pipe form")
+        self.assertEqual(by_name["beta"]["status"], "FAILED")
+        self.assertEqual(by_name["beta"]["message"], "bracket form")
+
     def test_extract_errors(self) -> None:
         from lisa_mcp.tools.log_analysis import _extract_errors
 

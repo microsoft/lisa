@@ -1,3 +1,15 @@
+# LISA MCP server. Serves SSE on 0.0.0.0:8080, so it is reachable by anyone
+# who can reach the port — LISA_MCP_API_KEY is mandatory and the server exits
+# at startup without it. LISA_LOG_ROOT confines the log tools and is required
+# before they will touch disk in SSE mode.
+#
+#   docker run -p 8080:8080 \
+#     -e LISA_MCP_API_KEY=<shared secret> \
+#     -e LISA_LOG_ROOT=/app/logs \
+#     -e ALLOWED_HOSTS=<your-host>,localhost \
+#     -v /var/log/lisa:/app/logs lisa-mcp
+#
+# Build context must be mcp/, not the repo root (see COPY below).
 FROM python:3.12-slim
 
 WORKDIR /app

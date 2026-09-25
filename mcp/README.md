@@ -116,7 +116,13 @@ you genuinely want an unauthenticated local-only server.
 
 Over SSE, the log tools additionally require `LISA_LOG_ROOT` and refuse any
 path outside it — without that confinement `lisa_read_log_file` and friends
-would be an arbitrary file reader for authenticated clients.
+would be an arbitrary file reader for authenticated clients. `lisa_download_logs`
+also refuses to run until it is set, since retained downloads would otherwise
+accumulate in the system temp directory at up to 2 GB apiece.
+
+Downloads are restricted to public HTTPS hosts. Addresses that resolve to
+private, loopback, or link-local ranges are rejected, and redirects are
+re-checked against the same policy rather than followed blindly.
 
 ### Test execution settings
 

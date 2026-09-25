@@ -18,6 +18,7 @@ import tarfile
 import tempfile
 import textwrap
 import unittest
+import urllib.request
 import zipfile
 from pathlib import Path
 from unittest import mock
@@ -1227,6 +1228,45 @@ class TestArchiveExtraction(unittest.TestCase):
             self.assertIn("real.log", extracted)
             self.assertNotIn("escape.log", extracted)
 
+    def test_traversal_member_names_are_rejected(self) -> None:
+        """Absolute, dot-dot, and backslash names must all stay contained."""
+        with tempfile.TemporaryDirectory() as tmp:
+            abs_extract = os.path.abspath(os.path.join(tmp, "extracted"))
+            for hostile in (
+                "../escape.log",
+                "nested/../../escape.log",
+                "/etc/passwd",
+                "..\\escape.log",
+                "nested\\..\\..\\escape.log",
+            ):
+                self.assertIsNone(
+                    log_analysis._safe_extract_target(abs_extract, hostile),
+                    f"{hostile!r} should be rejected",
+                )
+
+            for benign in ("real.log", "nested/real.log", "a/b/c.log"):
+                target = log_analysis._safe_extract_target(abs_extract, benign)
+                self.assertIsNotNone(target, f"{benign!r} should be allowed")
+                self.assertTrue(str(target).startswith(abs_extract))
+
+    def test_zip_traversal_member_is_not_written(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "evil.zip"
+            with zipfile.ZipFile(archive, "w") as zf:
+                zf.writestr("good.log", b"ok")
+                zf.writestr("../escape.log", b"pwned")
+                zf.writestr("..\\escape2.log", b"pwned")
+
+            extract_root = Path(tmp) / "out"
+            extract_root.mkdir()
+            result = log_analysis._extract_archive(str(archive), str(extract_root))
+
+            names = {p.name for p in Path(result).rglob("*")}
+            self.assertIn("good.log", names)
+            self.assertNotIn("escape.log", names)
+            self.assertNotIn("escape2.log", names)
+            self.assertFalse((Path(tmp) / "escape.log").exists())
+
     def test_expansion_beyond_budget_is_refused(self) -> None:
         """A download well under the size cap can still be a zip bomb."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -1263,8 +1303,10 @@ class TestDownloadDirPlacement(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp_dir = tempfile.TemporaryDirectory()
         self._prev_root = os.environ.get("LISA_LOG_ROOT")
+        self._prev_transport = runtime.get_transport()
 
     def tearDown(self) -> None:
+        runtime.set_transport(self._prev_transport)
         if self._prev_root is None:
             os.environ.pop("LISA_LOG_ROOT", None)
         else:
@@ -1282,11 +1324,58 @@ class TestDownloadDirPlacement(unittest.TestCase):
 
     def test_falls_back_to_temp_without_log_root(self) -> None:
         os.environ.pop("LISA_LOG_ROOT", None)
+        runtime.set_transport("stdio")
         created = Path(log_analysis._make_download_dir())
         try:
             self.assertTrue(created.is_dir())
         finally:
             created.rmdir()
+
+    def test_remote_without_log_root_refuses_to_download(self) -> None:
+        """Retained 2 GB downloads into temp would let a client fill the disk."""
+        os.environ.pop("LISA_LOG_ROOT", None)
+        runtime.set_transport("sse")
+        with self.assertRaises(ValueError) as ctx:
+            log_analysis._make_download_dir()
+        self.assertIn("LISA_LOG_ROOT", str(ctx.exception))
+
+
+class TestDownloadRedirectGuard(unittest.TestCase):
+    """The SSRF check has to survive a redirect, not just the first URL."""
+
+    def test_redirect_to_internal_address_is_rejected(self) -> None:
+        handler = log_analysis._GuardedRedirectHandler()
+        with self.assertRaises(ValueError) as ctx:
+            handler.redirect_request(
+                urllib.request.Request("https://example.com/logs.tar.gz"),
+                None,
+                302,
+                "Found",
+                {},
+                "https://169.254.169.254/latest/meta-data/",
+            )
+        self.assertIn("non-public", str(ctx.exception))
+
+    def test_redirect_to_plain_http_is_rejected(self) -> None:
+        handler = log_analysis._GuardedRedirectHandler()
+        with self.assertRaises(ValueError) as ctx:
+            handler.redirect_request(
+                urllib.request.Request("https://example.com/logs.tar.gz"),
+                None,
+                302,
+                "Found",
+                {},
+                "http://example.com/logs.tar.gz",
+            )
+        self.assertIn("HTTPS", str(ctx.exception))
+
+    def test_opener_installs_the_guard(self) -> None:
+        """A plain urlopen would follow redirects without re-checking."""
+        import inspect
+
+        source = inspect.getsource(log_analysis._download_url_to_dir)
+        self.assertIn("_open_download(req)", source)
+        self.assertNotIn("urlopen(", source)
 
 
 class TestSymlinkEscape(unittest.TestCase):
