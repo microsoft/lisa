@@ -48,7 +48,7 @@ _STATE_LOCK = Lock()
     or preview releases in packages.microsoft.com.  The needed URLs will be
     added to the system and the package installed via apt or tdnf.
     """,
-    owner="Microsoft",
+    maturity="preview",
     requirement=simple_requirement(
         supported_os=[CBLMariner, Ubuntu],
     ),
@@ -319,8 +319,7 @@ class AziHsm(TestSuite):
         4. rpm -V reports no discrepancies.
         5. depmod registered the module in modules.dep.
             """,
-        priority=0,
-        requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
+        priority=1,
     )
     def verify_package_installation(self, node: Node, log: Logger) -> None:
         # Make sure we've added the AZIHSM repo
@@ -387,7 +386,6 @@ class AziHsm(TestSuite):
         6. modinfo reports information for the azihsm module.
             """,
         priority=1,
-        requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def verify_azihsm_modinfo(self, node: Node, log: Logger) -> None:
         # Make sure the driver package is installed
@@ -423,7 +421,6 @@ class AziHsm(TestSuite):
         12. Module gone from lsmod.
             """,
         priority=1,
-        requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def verify_azihsm_module_load_unload(self, node: Node, log: Logger) -> None:
         # Make sure the driver package is installed
@@ -504,7 +501,6 @@ class AziHsm(TestSuite):
         13. 3 consecutive modprobe / modprobe -r cycles succeed.
             """,
         priority=1,
-        requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def verify_azihsm_module_reload_cycles(self, node: Node, log: Logger) -> None:
         # Make sure the driver package is installed
@@ -574,7 +570,6 @@ class AziHsm(TestSuite):
         18. No leftover files in module directory.
             """,
         priority=1,
-        requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def verify_azihsm_package_uninstallation(self, node: Node, log: Logger) -> None:
         # Make sure the driver package is installed
@@ -633,7 +628,6 @@ class AziHsm(TestSuite):
             Run the driver tests
             """,
         priority=1,
-        requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def verify_azihsm_driver_tests(self, node: Node, log: Logger) -> None:
         # Make sure the driver package is installed
@@ -675,7 +669,6 @@ class AziHsm(TestSuite):
         # is up to 9000s. Set the case timeout above that aggregate so LISA
         # doesn't abort the case before later SDK tests finish.
         timeout=9600,
-        requirement=simple_requirement(supported_os=[CBLMariner, Ubuntu]),
     )
     def verify_azihsm_sdk_tests(self, node: Node, log: Logger) -> None:
         # Make sure the driver package is installed
