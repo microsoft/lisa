@@ -12,7 +12,9 @@ and verify correct behavior with realistic inputs.
 """
 
 import ipaddress
+import json
 import os
+import re
 import subprocess
 import sys
 import tarfile
@@ -20,7 +22,8 @@ import tempfile
 import unittest
 import urllib.request
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import Optional
 from unittest import mock
 
 import yaml
@@ -140,7 +143,7 @@ class TestScaffoldTestSuite(unittest.TestCase):
             class_name="Demo): pass\nimport os",
             description="ok",
         )
-        self.assertIn("valid Python class name", result)
+        self.assertIn("valid Python identifier", result)
 
 
 class TestScaffoldTestCase(unittest.TestCase):
@@ -1633,6 +1636,141 @@ class TestSymlinkEscape(unittest.TestCase):
             "lisa_search_log_files", path=str(root), search_string="topsecret"
         )
         self.assertNotIn("topsecret", result)
+
+
+class TestGeneratedArtifactSafety(unittest.TestCase):
+    """Hostile input must never corrupt a generated artifact.
+
+    The tools interpolate caller text into Python source, YAML, and file
+    paths. Each of those has been a real defect, so this asserts the
+    invariant across every payload rather than one case at a time.
+    """
+
+    PAYLOADS = {
+        "docstring_breakout": 'ok"""\nimport os\nos.system("id")\nx = """',
+        "trailing_backslash": "ends with backslash \\",
+        "newline_code": "ok\nimport os\nos.system('id')",
+        "yaml_break": "demo: injected",
+        "yaml_block": "demo\nplatform:\n  - type: azure",
+        "traversal": "../../../mcp/lisa_mcp",
+        "abs_path": "/etc",
+        "format_braces": "{0} {x} {{y}}",
+        "quotes": "he said \"hi\" and 'bye'",
+        "nul": "ok\x00evil",
+        "long": "A" * 3000,
+        "empty": "",
+        "only_space": "   ",
+        "punct_only": "!!! ??? ---",
+    }
+    SUITE_ROOTS = ("lisa/microsoft/testsuites", "lisa/examples/testsuites")
+
+    @staticmethod
+    def _block(text: str, lang: str) -> Optional[str]:
+        marker = f"```{lang}"
+        return text.split(marker)[1].split("```")[0] if marker in text else None
+
+    def _assert_contained(self, path: str) -> None:
+        norm = PurePosixPath(str(path).replace("\\", "/")).as_posix()
+        self.assertNotIn("..", norm.split("/"), f"escapes: {path!r}")
+        self.assertTrue(
+            any(norm.startswith(root) for root in self.SUITE_ROOTS),
+            f"outside test-suite roots: {path!r}",
+        )
+
+    def test_scaffolded_suite_always_compiles(self) -> None:
+        for name, payload in self.PAYLOADS.items():
+            for field in ("area", "class_name", "description", "category"):
+                kwargs = {
+                    "area": "demo",
+                    "class_name": "Demo",
+                    "description": "ok",
+                    "category": "functional",
+                }
+                kwargs[field] = payload
+                with self.subTest(payload=name, field=field):
+                    result = _call("lisa_scaffold_test_suite", **kwargs)
+                    code = self._block(result, "python")
+                    if code is None:
+                        continue  # rejected with a validation message
+                    compile(code, "<generated>", "exec")
+                    for match in re.finditer(r"Suggested file path: (\S+)", result):
+                        self._assert_contained(match.group(1))
+
+    def test_scaffolded_case_always_compiles(self) -> None:
+        for name, payload in self.PAYLOADS.items():
+            for field in ("area", "method_name", "description", "supported_os"):
+                kwargs = {
+                    "area": "demo",
+                    "method_name": "verify_x",
+                    "description": "ok",
+                    "supported_os": "Posix",
+                }
+                kwargs[field] = payload
+                with self.subTest(payload=name, field=field):
+                    result = _call("lisa_scaffold_test_case", **kwargs)
+                    code = self._block(result, "python")
+                    if code is None:
+                        continue
+                    body = "\n".join(f"    {line}" for line in code.splitlines())
+                    compile(f"class _T:\n{body}", "<generated>", "exec")
+
+    def test_write_test_metadata_is_directly_usable(self) -> None:
+        """Callers paste class_name/method_name straight into source."""
+        # A narrower matrix than the other cases: every call scans the repo,
+        # and only these payloads stress name and path derivation.
+        payloads = {
+            key: self.PAYLOADS[key]
+            for key in (
+                "docstring_breakout",
+                "traversal",
+                "punct_only",
+                "only_space",
+                "nul",
+            )
+        }
+        for name, payload in payloads.items():
+            for field in ("description", "area", "class_name"):
+                kwargs = {"description": "verify something", "area": "demo"}
+                kwargs[field] = payload
+                with self.subTest(payload=name, field=field):
+                    result = _call("lisa_write_test", **kwargs)
+                    for raw in re.findall(r"```json\n(.*?)```", result, re.S):
+                        meta = json.loads(raw)
+                        for key in ("class_name", "method_name"):
+                            value = meta.get(key)
+                            if value is not None:
+                                self.assertTrue(
+                                    str(value).isidentifier(),
+                                    f"{key}={value!r} is not an identifier",
+                                )
+                        if meta.get("file_path"):
+                            self._assert_contained(meta["file_path"])
+
+    def test_generated_runbook_structure_survives(self) -> None:
+        for name, payload in self.PAYLOADS.items():
+            for field in ("area", "tags", "test_names", "location", "vm_size"):
+                kwargs = {"platform": "ready", "area": "demo"}
+                kwargs[field] = payload
+                with self.subTest(payload=name, field=field):
+                    result = _call("lisa_generate_runbook", **kwargs)
+                    text = self._block(result, "yaml")
+                    if text is None:
+                        continue
+                    doc = yaml.safe_load(text)
+                    self.assertEqual(
+                        [p["type"] for p in doc.get("platform", [])], ["ready"]
+                    )
+
+    def test_parsers_never_raise_on_hostile_input(self) -> None:
+        """An escaping exception becomes an MCP transport error, not a reply."""
+        for name, payload in self.PAYLOADS.items():
+            for tool in ("lisa_validate_runbook", "lisa_fix_runbook"):
+                with self.subTest(payload=name, tool=tool):
+                    self.assertIsInstance(_call(tool, runbook_content=payload), str)
+            with self.subTest(payload=name, tool="lisa_save_test"):
+                result = _call("lisa_save_test", file_path=payload, code="x = 1")
+                self.assertIsInstance(result, str)
+                self.assertNotIn("Saved", result)
 
 
 class TestToolRegistration(unittest.TestCase):

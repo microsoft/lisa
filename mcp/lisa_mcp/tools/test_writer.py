@@ -28,10 +28,34 @@ def _docstring(text: str) -> str:
 
     Backslashes go first, otherwise the escaping added for `\"\"\"` would
     itself be re-escaped. A trailing backslash would swallow the closing
-    delimiter, so it is padded.
+    delimiter, so it is padded. Control characters are dropped because a NUL
+    makes the generated source uncompilable.
     """
-    escaped = text.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+    cleaned = "".join(
+        ch for ch in text if ch in "\n\t" or (ch.isprintable() and ch != "\x00")
+    )
+    escaped = cleaned.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
     return escaped + " " if escaped.endswith("\\") else escaped
+
+
+def _area_segment(area: str) -> tuple[str, Optional[str]]:
+    """Validate *area* for use as a directory name under the test-suite root."""
+    cleaned = area.strip()
+    if not cleaned:
+        return "", "`area` is empty — give the LISA test area, e.g. `network`."
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", cleaned):
+        return "", (
+            f"`area` must be a single directory name made of letters, digits, "
+            f"`_` or `-`, got `{area}`. Examples: `network`, `storage`, `core`."
+        )
+    return cleaned, None
+
+
+def _identifier(value: str, label: str) -> Optional[str]:
+    """Error message when *value* is unusable as a Python name."""
+    if not value.isidentifier():
+        return f"`{label}` must be a valid Python identifier, got `{value}`."
+    return None
 
 
 def _symbol_list(raw: str, label: str) -> tuple[list[str], Optional[str]]:
@@ -101,11 +125,12 @@ def register_test_writer_tools(mcp: MCPServer) -> None:  # noqa: C901
             category: Test category — "functional", "stress", or "performance"
         """
         snake_name = _to_snake_case(class_name)
-        if not class_name.isidentifier():
-            return (
-                f"`class_name` must be a valid Python class name, got "
-                f"`{class_name}`."
-            )
+        error = _identifier(class_name, "class_name")
+        if error:
+            return error
+        safe_area, error = _area_segment(area)
+        if error:
+            return error
         safe_description = _docstring(description)
 
         code = f'''\
@@ -167,7 +192,7 @@ class {class_name}(TestSuite):
         # kernel params, drivers, network config, or need a reboot.
         pass
 '''
-        file_path = f"lisa/microsoft/testsuites/{area}/{snake_name}.py"
+        file_path = f"lisa/microsoft/testsuites/{safe_area}/{snake_name}.py"
         return (
             f"Generated test suite skeleton for `{class_name}` in area `{area}`.\n"
             f"Suggested file path: {file_path}\n\n"
@@ -214,11 +239,9 @@ class {class_name}(TestSuite):
         """
         if not method_name.startswith(("verify_", "test_")):
             method_name = f"verify_{method_name}"
-        if not method_name.isidentifier():
-            return (
-                f"`method_name` must be a valid Python identifier, got "
-                f"`{method_name}`."
-            )
+        error = _identifier(method_name, "method_name")
+        if error:
+            return error
         if not 0 <= priority <= 3:
             return f"`priority` must be between 0 and 3, got {priority}."
 
@@ -408,6 +431,21 @@ class {class_name}(TestSuite):
         what_to_validate = description
         feature_area = area
 
+        # These names are echoed into the returned metadata and downstream
+        # agents paste them straight into generated source.
+        safe_area, error = _area_segment(area)
+        if error:
+            return error
+        feature_area = safe_area
+        if class_name:
+            error = _identifier(class_name, "class_name")
+            if error:
+                return error
+        if method_name:
+            error = _identifier(method_name, "method_name")
+            if error:
+                return error
+
         repo_root = find_repo_root()
 
         # --- Stage 1: GATHER ---
@@ -584,6 +622,8 @@ class {class_name}(TestSuite):
             if not class_name:
                 words = re.split(r"[\s_-]+", feature_area)
                 class_name = "".join(w.capitalize() for w in words) + "Validation"
+            if not class_name.isidentifier():
+                class_name = "GeneratedValidation"
             snake_name = _to_snake_case(class_name)
             file_path = f"lisa/microsoft/testsuites/{feature_area}/{snake_name}.py"
 
@@ -594,6 +634,11 @@ class {class_name}(TestSuite):
             if words and words[0] in ("verify", "test"):
                 words = words[1:]
             method_name = "verify_" + "_".join(words)
+        # A description of only punctuation leaves a trailing underscore, and
+        # a leading digit is not a legal name either.
+        method_name = re.sub(r"_+", "_", method_name).rstrip("_")
+        if not method_name.isidentifier():
+            method_name = "verify_generated_case"
 
         dirty_keywords = [
             "kernel",
@@ -744,7 +789,12 @@ class {class_name}(TestSuite):
                 "`lisa/microsoft/testsuites/network/sriov.py`."
             )
 
-        target = (repo_root / candidate).resolve()
+        try:
+            target = (repo_root / candidate).resolve()
+        except (OSError, ValueError) as exc:
+            # A NUL byte makes resolve() raise; that must not escape as an
+            # MCP transport error instead of the documented validation reply.
+            return f"`file_path` is not a usable path: {exc}"
         # Confine writes to the test-suite trees. A `.py` suffix plus repo
         # containment would still let a remote caller overwrite the framework
         # or this server's own code with overwrite=True.
