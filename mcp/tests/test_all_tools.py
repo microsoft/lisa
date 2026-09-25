@@ -1800,7 +1800,7 @@ class TestGeneratedArtifactSafety(unittest.TestCase):
     def test_generated_runbook_structure_survives(self) -> None:
         for name, payload in self.PAYLOADS.items():
             for field in ("area", "tags", "test_names", "location", "vm_size"):
-                kwargs = {"platform": "ready", "area": "demo"}
+                kwargs = {"platform": "local", "area": "demo"}
                 kwargs[field] = payload
                 with self.subTest(payload=name, field=field):
                     result = _call("lisa_generate_runbook", **kwargs)

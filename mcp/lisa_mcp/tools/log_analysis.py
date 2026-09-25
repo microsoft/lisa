@@ -1034,8 +1034,11 @@ def _get_log_text(
 
 
 def _extract_test_results(text: str) -> list[dict[str, str]]:
-    """Extract test result entries from LISA log output."""
-    results = []
+    """Extract test result entries from LISA log output.
+
+    One entry per execution: a test repeated by `times` or `retry` appears
+    once per attempt.
+    """
     # Every pattern names its groups, so the meaning of a capture never
     # depends on the order it happens to appear in. Patterns are anchored at
     # line boundaries with explicit word edges to avoid spurious matches
@@ -1060,22 +1063,34 @@ def _extract_test_results(text: str) -> list[dict[str, str]]:
         ),
     ]
 
-    seen = set()
+    # Deduplicate by the stretch of log a match covers, not by test name:
+    # the patterns overlap each other, but a runbook's `times`/`retry` makes
+    # the same test legitimately appear more than once, and collapsing those
+    # would hide a retry that failed after an earlier attempt passed.
+    claimed: list[tuple[int, int]] = []
+    found: list[tuple[int, dict[str, str]]] = []
     for pattern in patterns:
         for m in pattern.finditer(text):
-            test_name = m.group("name")
-            if test_name in seen:
+            start, end = m.span()
+            if any(
+                start < taken_end and taken_start < end
+                for taken_start, taken_end in claimed
+            ):
                 continue
-            seen.add(test_name)
-            results.append(
-                {
-                    "name": test_name,
-                    "status": m.group("status").upper(),
-                    "message": (m.group("message") or "").strip(),
-                }
+            claimed.append((start, end))
+            found.append(
+                (
+                    start,
+                    {
+                        "name": m.group("name"),
+                        "status": m.group("status").upper(),
+                        "message": (m.group("message") or "").strip(),
+                    },
+                )
             )
 
-    return results
+    # Report in log order; the patterns are applied in priority order.
+    return [entry for _, entry in sorted(found, key=lambda item: item[0])]
 
 
 def _extract_errors(text: str) -> list[str]:

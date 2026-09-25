@@ -114,6 +114,18 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         node_type = platform if platform in _NODE_TYPE_PLATFORMS else ""
         platform_type = "ready" if node_type else platform
 
+        if platform_type == "ready" and not node_type:
+            # ReadyPlatform._prepare_environment only succeeds when the
+            # environment already has nodes, so a bare `ready` runbook cannot
+            # run. Which machine to use is the caller's to state.
+            return (
+                "**Error:** the `ready` platform provisions nothing, so the "
+                "runbook has to name the machines it runs on. Ask for "
+                "`local` (this machine) or `remote` (a host reached over "
+                "SSH) \u2014 both generate a `ready` platform with the matching "
+                "`environment.environments[].nodes[]` entry."
+            )
+
         # Header
         sections.append("name: generated-runbook")
         sections.append(f"concurrency: {int(concurrency)}")
@@ -323,6 +335,14 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         elif isinstance(doc.get("testcase"), list):
             for i, entry in enumerate(doc["testcase"]):
                 if not isinstance(entry, dict):
+                    errors.append(
+                        f"testcase[{i}] must be a mapping, got "
+                        f"{type(entry).__name__} ({entry!r}). A bare test name "
+                        "selects nothing; write it as:\n"
+                        "  testcase:\n"
+                        "    - criteria:\n"
+                        "        name: smoke_test"
+                    )
                     continue
                 criteria = entry.get("criteria")
                 # LISA runs all([]) over the predicates built from criteria,
@@ -336,6 +356,10 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
                     )
                     continue
                 if not isinstance(criteria, dict):
+                    errors.append(
+                        f"testcase[{i}].criteria must be a mapping, got "
+                        f"{type(criteria).__name__}."
+                    )
                     continue
                 priority = criteria.get("priority")
                 levels = priority if isinstance(priority, list) else [priority]

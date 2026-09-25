@@ -134,7 +134,7 @@ class TestGenerateRunbook(unittest.TestCase):
         ]
         for payload in payloads:
             with self.subTest(payload=payload):
-                output = _call("lisa_generate_runbook", platform="ready", area=payload)
+                output = _call("lisa_generate_runbook", platform="local", area=payload)
                 doc = yaml.safe_load(_extract_yaml(output))
                 self.assertEqual([p["type"] for p in doc["platform"]], ["ready"])
                 self.assertEqual(doc["testcase"][0]["criteria"]["area"], payload)
@@ -142,7 +142,7 @@ class TestGenerateRunbook(unittest.TestCase):
     def test_hostile_tags_and_names_are_quoted(self) -> None:
         output = _call(
             "lisa_generate_runbook",
-            platform="ready",
+            platform="local",
             tags="good, bad: value",
             test_names="verify_ok, evil: name",
         )
@@ -154,11 +154,11 @@ class TestGenerateRunbook(unittest.TestCase):
     def test_invalid_enum_and_numeric_inputs_are_rejected(self) -> None:
         cases = [
             {"platform": "not-a-platform"},
-            {"platform": "ready", "keep_environment": "maybe"},
-            {"platform": "ready", "concurrency": 0},
-            {"platform": "ready", "max_priority": -1},
-            {"platform": "ready", "max_priority": 5},
-            {"platform": "ready", "image": "too few fields"},
+            {"platform": "local", "keep_environment": "maybe"},
+            {"platform": "local", "concurrency": 0},
+            {"platform": "local", "max_priority": -1},
+            {"platform": "local", "max_priority": 5},
+            {"platform": "local", "image": "too few fields"},
         ]
         for kwargs in cases:
             with self.subTest(**kwargs):
@@ -166,12 +166,19 @@ class TestGenerateRunbook(unittest.TestCase):
                 self.assertIn("**Error:**", result)
                 self.assertNotIn("```yaml", result)
 
+    def test_bare_ready_platform_is_rejected(self) -> None:
+        """ReadyPlatform only succeeds when the environment already has nodes."""
+        result = _call("lisa_generate_runbook", platform="ready", area="demo")
+        self.assertIn("**Error:**", result)
+        self.assertIn("local", result)
+        self.assertNotIn("```yaml", result)
+
     def test_stress_priorities_are_selectable(self) -> None:
         """LISA caps Criteria.priority at 4; the generator must reach it."""
         for level in (3, 4):
             with self.subTest(level=level):
                 output = _call(
-                    "lisa_generate_runbook", platform="ready", max_priority=level
+                    "lisa_generate_runbook", platform="local", max_priority=level
                 )
                 doc = yaml.safe_load(_extract_yaml(output))
                 self.assertEqual(doc["testcase"][0]["criteria"]["priority"], [0, level])
@@ -213,6 +220,23 @@ class TestValidateRunbook(unittest.TestCase):
         result = _call("lisa_validate_runbook", runbook_content=doc)
         self.assertIn("**Errors:**", result)
         self.assertIn("list", result.lower())
+
+    def test_non_mapping_testcase_entries_are_rejected(self) -> None:
+        """`testcase: ["smoke_test"]` selects nothing but used to pass."""
+        for entries in (["smoke_test"], [123], [None], [["nested"]]):
+            with self.subTest(entries=entries):
+                doc = yaml.dump({"platform": [{"type": "azure"}], "testcase": entries})
+                result = _call("lisa_validate_runbook", runbook_content=doc)
+                self.assertIn("**Errors:**", result)
+                self.assertIn("must be a mapping", result)
+
+    def test_non_mapping_criteria_is_rejected(self) -> None:
+        doc = yaml.dump(
+            {"platform": [{"type": "azure"}], "testcase": [{"criteria": "demo"}]}
+        )
+        result = _call("lisa_validate_runbook", runbook_content=doc)
+        self.assertIn("**Errors:**", result)
+        self.assertIn("criteria must be a mapping", result)
 
     def test_node_type_used_as_platform_is_rejected(self) -> None:
         """`platform: local` produces a runbook the factory cannot load."""

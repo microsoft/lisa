@@ -38,6 +38,28 @@ class TestAnalyzeLog(unittest.TestCase):
         self.assertEqual(statuses.get("storage.StorageTest.verify_disk"), "FAILED")
         self.assertEqual(statuses.get("core.provisioning.smoke_test"), "PASSED")
 
+    def test_retries_are_kept_as_separate_executions(self) -> None:
+        """`times`/`retry` repeat a name; collapsing them hides a late failure."""
+        from lisa_mcp.tools.log_analysis import _extract_test_results
+
+        log = (
+            "smoke_test | PASSED | attempt 1\n"
+            "smoke_test | FAILED | attempt 2 crashed\n"
+            "smoke_test | PASSED | attempt 3\n"
+        )
+        results = _extract_test_results(log)
+        self.assertEqual(len(results), 3)
+        self.assertEqual([r["status"] for r in results], ["PASSED", "FAILED", "PASSED"])
+        # Log order, so the messages still line up with their attempts.
+        self.assertEqual(results[1]["message"], "attempt 2 crashed")
+
+    def test_one_line_is_not_counted_twice(self) -> None:
+        """The patterns overlap, so a single line must claim its own span."""
+        from lisa_mcp.tools.log_analysis import _extract_test_results
+
+        results = _extract_test_results("test verify_x FAILED: boom\n")
+        self.assertEqual(len(results), 1)
+
     def test_message_is_captured_for_every_pattern(self) -> None:
         """Named groups keep name/status/message straight across patterns."""
         from lisa_mcp.tools.log_analysis import _extract_test_results
