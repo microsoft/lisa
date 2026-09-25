@@ -1418,8 +1418,16 @@ class _GuardedRedirectHandler(HTTPRedirectHandler):
         headers: Any,
         newurl: str,
     ) -> Optional[Request]:
-        _check_download_target(newurl)
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is not None:
+            old = urlparse(req.full_url)
+            new = urlparse(newurl)
+            if (old.scheme, old.netloc.lower()) != (
+                new.scheme,
+                new.netloc.lower(),
+            ):
+                redirected.remove_header("Authorization")
+        return redirected
 
 
 class _PinnedHTTPSConnection(HTTPSConnection):
