@@ -1,10 +1,23 @@
+import ipaddress
 import itertools
 import re
+import threading
 from decimal import Decimal
 from enum import Enum
 from functools import partial
 from pathlib import PurePath
-from typing import Any, Dict, List, Mapping, Optional, Pattern, Sequence, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Pattern,
+    Sequence,
+    Tuple,
+    Union,
+)
 
 from assertpy import assert_that, fail
 from microsoft.testsuites.dpdk.common import (
@@ -115,7 +128,12 @@ class UnsupportedPackageVersionException(LisaException):
 # container class for test resources to be passed to run_testpmd_concurrent
 class DpdkTestResources:
     def __init__(
-        self, _node: Node, _testpmd: DpdkTestpmd, _rdma_core: Installer
+        self,
+        _node: Node,
+        _testpmd: DpdkTestpmd,
+        _rdma_core: Installer,
+        test_nics: List[NicInfo],
+        pmd: Pmd,
     ) -> None:
         self.testpmd = _testpmd
         self.node = _node
@@ -124,6 +142,65 @@ class DpdkTestResources:
         self._last_dmesg = ""
         self.switch_sriov = True
         self.rdma_core = _rdma_core
+        self.test_nics = test_nics
+        self.pmd = pmd
+
+
+class DpdkCleanupManager:
+    def __init__(self) -> None:
+        self._callbacks: Dict[Node, List[Callable[[], None]]] = {}
+        self._lock = threading.Lock()
+
+    def register(self, node: Node, callback: Callable[[], None]) -> None:
+        with self._lock:
+            self._callbacks.setdefault(node, []).append(callback)
+
+    def register_test_resources(self, test_resources: DpdkTestResources) -> None:
+        self.register(
+            test_resources.node,
+            partial(
+                undo_pmd_driver_setup,
+                test_resources,
+                test_resources.pmd,
+            ),
+        )
+
+    def cleanup(self, environment: Environment) -> None:
+        with self._lock:
+            callbacks = self._callbacks
+            self._callbacks = {}
+
+        def _cleanup_node(node: Node) -> None:
+            cleanup_failed = False
+            for callback in reversed(callbacks.get(node, [])):
+                try:
+                    callback()
+                except Exception as err:
+                    cleanup_failed = True
+                    node.log.error(f"DPDK cleanup callback failed: {err}")
+
+            try:
+                interface = node.features[NetworkInterface]
+                if not interface.is_enabled_sriov():
+                    interface.switch_sriov(
+                        enable=True, wait=False, reset_connections=True
+                    )
+            except Exception as err:
+                cleanup_failed = True
+                node.log.error(f"Failed to restore SR-IOV during DPDK cleanup: {err}")
+
+            try:
+                node.reboot()
+            except Exception as err:
+                cleanup_failed = True
+                node.log.error(f"Failed to reboot during DPDK cleanup: {err}")
+
+            if cleanup_failed:
+                node.mark_dirty()
+
+        run_in_parallel(
+            [partial(_cleanup_node, node) for node in environment.nodes.list()]
+        )
 
 
 def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
@@ -188,17 +265,50 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
                 f"firewall is not enabled on OS {node.os.name} with exception {ex}"
             )
 
-    subnets = ["10.0.1.0/24", "10.0.2.0/24"]
-    # fetch each node's nic on each subnet once, keyed by subnet so each nic
-    # is only pinged against the other nodes' nics on that same subnet.
-    test_nics = {
-        subnet: {node: node.nics.get_nic_by_subnet(subnet) for node in nodes}
-        for subnet in subnets
-    }
+    expected_nic_count = len(nodes[0].nics)
+    for node in nodes:
+        nic_count = len(node.nics)
+        if nic_count != expected_nic_count:
+            raise LisaException(
+                "DPDK nodes must have the same number of NICs. "
+                f"Expected {expected_nic_count}, but node {node.name} has {nic_count}."
+            )
+
+    test_nics: Dict[str, Dict[Node, NicInfo]] = {}
+    expected_subnets: Optional[set[str]] = None
+    for node in nodes:
+        node_nics_by_subnet: Dict[str, NicInfo] = {}
+        ip_tool = node.tools[Ip]
+        for nic in node.nics.nics.values():
+            subnet = str(
+                ipaddress.ip_network(ip_tool.get_subnet_address(nic.name), strict=False)
+            )
+            if subnet in node_nics_by_subnet:
+                raise LisaException(
+                    f"Node {node.name} has multiple NICs on subnet {subnet}."
+                )
+            node_nics_by_subnet[subnet] = nic
+
+        node_subnets = set(node_nics_by_subnet)
+        if len(node_subnets) != expected_nic_count:
+            raise LisaException(
+                f"Node {node.name} has {expected_nic_count} NICs but only "
+                f"{len(node_subnets)} unique subnets."
+            )
+        if expected_subnets is None:
+            expected_subnets = node_subnets
+        elif node_subnets != expected_subnets:
+            raise LisaException(
+                f"Node {node.name} has subnets {sorted(node_subnets)}, expected "
+                f"{sorted(expected_subnets)}."
+            )
+
+        for subnet, nic in node_nics_by_subnet.items():
+            test_nics.setdefault(subnet, {})[node] = nic
 
     # permutations yields both (a, b) and (b, a), so pinging a single
     # direction per pair still covers every direction exactly once.
-    for subnet in subnets:
+    for subnet in sorted(test_nics):
         for node_a, node_b in itertools.permutations(nodes, 2):
             nic_a, nic_b = test_nics[subnet][node_a], test_nics[subnet][node_b]
             ip_a, ip_b = nic_a.ip_addr, nic_b.ip_addr
@@ -604,12 +714,42 @@ def do_pmd_driver_setup(
                 ip.down(test_nic.lower)
 
 
+def undo_pmd_driver_setup(
+    test_resources: DpdkTestResources, pmd: Pmd = Pmd.FAILSAFE
+) -> None:
+    node = test_resources.node
+    test_nics = test_resources.test_nics
+    testpmd = test_resources.testpmd
+    ip = node.tools[Ip]
+
+    if pmd == Pmd.MANA:
+        for nic in test_nics:
+            ip.up(nic.name)
+        return
+    elif pmd == Pmd.NETVSC:
+        rebound: List[str] = []
+        for nic in test_nics:
+            if nic.dev_uuid not in rebound:
+                node.nics.unbind(nic)
+                node.nics.bind(nic, HV_NETVSC_SYSFS_PATH)
+                rebound.append(nic.dev_uuid)
+
+        for nic in test_nics:
+            ip.up(nic.name)
+
+    if testpmd.is_mana:
+        for nic in test_nics:
+            if nic.lower and not ip.is_device_up(nic.lower):
+                ip.up(nic.lower)
+
+
 def initialize_node_resources(
     node: Node,
     log: Logger,
     variables: Dict[str, Any],
     pmd: Pmd,
     hugepage_size: HugePageSize,
+    cleanup_manager: DpdkCleanupManager,
     sample_apps: Union[List[str], None] = None,
     test_nics: Union[List[NicInfo], None] = None,
 ) -> DpdkTestResources:
@@ -702,12 +842,21 @@ def initialize_node_resources(
     if test_nics is None:
         test_nics = [node.nics.get_secondary_nic()]
 
+    test_resources = DpdkTestResources(
+        _node=node,
+        _testpmd=testpmd,
+        _rdma_core=rdma_core,
+        test_nics=test_nics,
+        pmd=pmd,
+    )
+    cleanup_manager.register_test_resources(test_resources)
+
     # perform any pmd-specific setup before returning the kit.
     # - mana NIC needs to be set 'down'
-    # - netvsc pmd requires uio_hv_generic to be loaded before use
+    # - netvsc pmd requires uio_hv_generic to be loaded before use.
     do_pmd_driver_setup(node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd)
 
-    return DpdkTestResources(_node=node, _testpmd=testpmd, _rdma_core=rdma_core)
+    return test_resources
 
 
 def check_pmd_support(node: Node, pmd: Pmd) -> None:
@@ -740,6 +889,7 @@ def init_nodes_concurrent(
     variables: Dict[str, Any],
     pmd: Pmd,
     hugepage_size: HugePageSize,
+    cleanup_manager: DpdkCleanupManager,
     sample_apps: Union[List[str], None] = None,
     test_nic_count: int = 1,
     specific_pairings: Optional[Dict[Node, List[NicInfo]]] = None,
@@ -761,6 +911,7 @@ def init_nodes_concurrent(
                     variables,
                     pmd,
                     hugepage_size=hugepage_size,
+                    cleanup_manager=cleanup_manager,
                     sample_apps=sample_apps,
                     test_nics=(
                         specific_pairings[node]
@@ -786,13 +937,19 @@ def verify_dpdk_build(
     variables: Dict[str, Any],
     pmd: Pmd,
     hugepage_size: HugePageSize,
+    cleanup_manager: DpdkCleanupManager,
     queues: int = 1,
     result: Optional[TestResult] = None,
 ) -> DpdkTestResources:
     # setup and unwrap the resources for this test
     try:
         test_kit = initialize_node_resources(
-            node, log, variables, pmd, hugepage_size=hugepage_size
+            node,
+            log,
+            variables,
+            pmd,
+            hugepage_size=hugepage_size,
+            cleanup_manager=cleanup_manager,
         )
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
@@ -825,6 +982,7 @@ def verify_dpdk_send_receive(
     variables: Dict[str, Any],
     pmd: Pmd,
     hugepage_size: HugePageSize,
+    cleanup_manager: DpdkCleanupManager,
     use_service_cores: int = 1,
     queues: int = 1,
     result: Optional[TestResult] = None,
@@ -851,8 +1009,17 @@ def verify_dpdk_send_receive(
     test_duration: int = variables.get("dpdk_test_duration", 15)
     kill_timeout = test_duration + 5
     test_kits = init_nodes_concurrent(
-        environment, log, variables, pmd, hugepage_size=hugepage_size
+        environment,
+        log,
+        variables,
+        pmd,
+        hugepage_size=hugepage_size,
+        cleanup_manager=cleanup_manager,
     )
+    for test_kit in test_kits:
+        cleanup_manager.register(
+            test_kit.node, test_kit.testpmd.kill_previous_testpmd_command
+        )
 
     check_send_receive_compatibility(test_kits)
     sender, receiver = test_kits
@@ -973,6 +1140,7 @@ def verify_dpdk_send_receive_multi_txrx_queue(
     variables: Dict[str, Any],
     pmd: Pmd,
     queues: int,
+    cleanup_manager: DpdkCleanupManager,
     result: Optional[TestResult] = None,
     set_mtu: int = 0,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
@@ -985,30 +1153,12 @@ def verify_dpdk_send_receive_multi_txrx_queue(
         variables,
         pmd,
         HugePageSize.HUGE_2MB,
+        cleanup_manager,
         use_service_cores=1,
         queues=queues,
         result=result,
         set_mtu=set_mtu,
         grading_metric=grading_metric,
-    )
-
-
-def do_parallel_cleanup(environment: Environment) -> None:
-    def _parallel_cleanup(node: Node) -> None:
-        interface = node.features[NetworkInterface]
-        if not interface.is_enabled_sriov():
-            interface.switch_sriov(enable=True, wait=False, reset_connections=True)
-            # cleanup temporary hugepage and driver changes
-        try:
-            node.reboot()
-        except LisaException as e:
-            node.log.debug(
-                f"Cleanup reboot failed. Marking node for deletion. {str(e)}"
-            )
-            node.mark_dirty()
-
-    run_in_parallel(
-        [partial(_parallel_cleanup, node) for node in environment.nodes.list()]
     )
 
 
@@ -1057,10 +1207,25 @@ def reroute_traffic_and_disable_nic(
     dst_nic: NicInfo,
     new_gateway_nic: NicInfo,
     unused_nic: NicInfo,
+    cleanup_manager: DpdkCleanupManager,
 ) -> None:
-    node.log.debug(f"Rerouting traffic and disabling NICs: src: {src_nic} dst: {dst_nic} new_gateway: {new_gateway_nic} unused: {unused_nic}")
+    node.log.debug(
+        f"Rerouting traffic and disabling NICs: src: {src_nic} dst: {dst_nic} new_gateway: {new_gateway_nic} unused: {unused_nic}"
+    )
     ip_tool = node.tools[Ip]
-    forbidden_subnet = ipv4_to_lpm(dst_nic.ip_addr)
+    route_was_present = ip_tool.route_exists(prefix=dst_nic.ip_addr, dev=src_nic.name)
+    cleanup_manager.register(
+        node,
+        partial(
+            undo_reroute_traffic_and_enable_nic,
+            node=node,
+            src_nic=src_nic,
+            dst_nic=dst_nic,
+            new_gateway_nic=new_gateway_nic,
+            unused_nic=unused_nic,
+            remove_added_route=not route_was_present,
+        ),
+    )
 
     # remove any routes through those devices
     ip_tool.remove_all_routes_for_device(unused_nic.name)
@@ -1069,7 +1234,7 @@ def reroute_traffic_and_disable_nic(
     # belongs to a different node, so its name only happens to match
     # src_nic's by Azure's nic-naming convention. Check the device we
     # actually add the route on to avoid relying on that coincidence.
-    if not ip_tool.route_exists(prefix=forbidden_subnet, dev=src_nic.name):
+    if not route_was_present:
         ip_tool.add_route_to(
             dest=dst_nic.ip_addr, via=new_gateway_nic.ip_addr, dev=src_nic.name
         )
@@ -1082,6 +1247,32 @@ def reroute_traffic_and_disable_nic(
 
     # finally, set unneeded interfaces to DOWN after setting routes up
     ip_tool.down(unused_nic.name)
+
+
+def undo_reroute_traffic_and_enable_nic(
+    node: Node,
+    src_nic: NicInfo,
+    dst_nic: NicInfo,
+    new_gateway_nic: NicInfo,
+    unused_nic: NicInfo,
+    remove_added_route: bool,
+) -> None:
+    ip_tool = node.tools[Ip]
+    if remove_added_route and ip_tool.route_exists(
+        prefix=dst_nic.ip_addr, dev=src_nic.name
+    ):
+        ip_tool.remove_route_to(
+            dest=dst_nic.ip_addr,
+            via=new_gateway_nic.ip_addr,
+            dev=src_nic.name,
+        )
+    ip_tool.remove_neighbor(address=new_gateway_nic.ip_addr, dev=src_nic.name)
+    ip_tool.up(unused_nic.name)
+    ip_tool.replace_route_for_device(
+        dest=ipv4_to_lpm(unused_nic.ip_addr),
+        src=unused_nic.ip_addr,
+        dev=unused_nic.name,
+    )
 
 
 # calculate amount of tx/rx queues to use for the l3fwd test
@@ -1119,6 +1310,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     log: Logger,
     variables: Dict[str, Any],
     hugepage_size: HugePageSize,
+    cleanup_manager: DpdkCleanupManager,
     pmd: Pmd = Pmd.NETVSC,
     force_single_queue: bool = False,
     is_perf_test: bool = False,
@@ -1243,6 +1435,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         dst_nic=subnet_b_nics[receiver],
         new_gateway_nic=subnet_a_nics[forwarder],
         unused_nic=_unused_nics[sender],
+        cleanup_manager=cleanup_manager,
     )
     reroute_traffic_and_disable_nic(
         node=receiver,
@@ -1250,6 +1443,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         dst_nic=subnet_a_nics[sender],
         new_gateway_nic=subnet_b_nics[forwarder],
         unused_nic=_unused_nics[receiver],
+        cleanup_manager=cleanup_manager,
     )
 
     # AZ ROUTING TABLES
@@ -1286,6 +1480,7 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             variables,
             pmd,
             hugepage_size,
+            cleanup_manager,
             sample_apps=["l3fwd"],
             test_nics=[subnet_a_nics[forwarder], subnet_b_nics[forwarder]],
         )
@@ -1303,7 +1498,6 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
     dpdk_port_a = devname_info.port_ids[subnet_a_nics[forwarder].mac_addr.lower()]
     dpdk_port_b = devname_info.port_ids[subnet_b_nics[forwarder].mac_addr.lower()]
-
 
     # SETUP FORWADING RULES
     # Set up DPDK forwarding rules:
@@ -1351,6 +1545,15 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     )
     # START THE TEST
     # finally, start the forwarder
+    cleanup_manager.register(
+        forwarder,
+        partial(
+            forwarder.tools[Kill].by_name,
+            l3fwd_app_name,
+            signum=SIGINT,
+            ignore_not_exist=True,
+        ),
+    )
     fwd_proc = forwarder.execute_async(
         fwd_cmd,
         sudo=True,
@@ -1991,6 +2194,7 @@ def run_dpdk_symmetric_mp(
     node: Node,
     log: Logger,
     variables: Dict[str, Any],
+    cleanup_manager: DpdkCleanupManager,
     trigger_hotplug: bool = False,
     hotplug_times: int = 1,
 ) -> None:
@@ -2038,6 +2242,7 @@ def run_dpdk_symmetric_mp(
             variables,
             Pmd.NETVSC,
             HugePageSize.HUGE_2MB,
+            cleanup_manager,
             test_nics=test_nics,
         )
     except (
@@ -2046,6 +2251,7 @@ def run_dpdk_symmetric_mp(
         UnsupportedDistroException,
     ) as err:
         raise SkippedException(err)
+
     testpmd = test_kit.testpmd
     testpmd.set_instance_id("symmetric_mp")
     if isinstance(testpmd.installer, PackageManagerInstall):
@@ -2061,6 +2267,18 @@ def run_dpdk_symmetric_mp(
     _apply_workaround_for_symmetric_mp_main(node)
 
     symmetric_mp_path = testpmd.get_example_app_path("multi_process/symmetric_mp")
+    process_name = (
+        symmetric_mp_path.name if symmetric_mp_path.name else str(symmetric_mp_path)
+    )
+    cleanup_manager.register(
+        node,
+        partial(
+            node.tools[Kill].by_name,
+            process_name,
+            signum=SIGINT,
+            ignore_not_exist=True,
+        ),
+    )
 
     # setup the DPDK EAL arguments for netvsc
     devname_info = DpdkDevnameInfo(testpmd=testpmd)
@@ -2172,10 +2390,7 @@ def run_dpdk_symmetric_mp(
     test_kit.dmesg.check_kernel_errors(force_run=True)
 
     # kill the processes with SIGINT, there's a timeout if this fails
-    process_name = (
-        symmetric_mp_path.name if symmetric_mp_path.name else str(symmetric_mp_path)
-    )
-    node.tools[Kill].by_name(f"{process_name}", signum=SIGINT, ignore_not_exist=True)
+    node.tools[Kill].by_name(process_name, signum=SIGINT, ignore_not_exist=True)
 
     # check the exit codes
     primary_result = primary.wait_result()
