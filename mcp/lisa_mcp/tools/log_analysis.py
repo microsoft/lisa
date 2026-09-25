@@ -15,7 +15,7 @@ import tempfile
 import time
 import zipfile
 from pathlib import Path
-from typing import Optional
+from typing import BinaryIO, Optional
 from urllib.parse import unquote, urlparse
 from urllib.request import Request, urlopen
 
@@ -668,6 +668,8 @@ def register_log_analysis_tools(mcp: MCPServer) -> None:  # noqa: C901
                 fpath = os.path.join(root, fname)
                 if os.path.relpath(fpath, resolved).startswith("."):
                     continue
+                if not _within_log_root(fpath):
+                    continue
                 _, ext = os.path.splitext(fpath.lower())
                 if ext not in extensions:
                     continue
@@ -809,6 +811,8 @@ def register_log_analysis_tools(mcp: MCPServer) -> None:  # noqa: C901
                     fpath = os.path.join(root, fname)
                     if os.path.relpath(fpath, resolved).startswith("."):
                         continue
+                    if not _within_log_root(fpath):
+                        continue
                     _, ext = os.path.splitext(fpath.lower())
                     if ext in extensions:
                         found.append(os.path.abspath(fpath))
@@ -818,7 +822,7 @@ def register_log_analysis_tools(mcp: MCPServer) -> None:  # noqa: C901
                     break
         else:
             for item in sorted(p.iterdir()):
-                if item.is_file():
+                if item.is_file() and _within_log_root(str(item)):
                     _, ext = os.path.splitext(item.name.lower())
                     if ext in extensions:
                         found.append(str(item.resolve()))
@@ -910,6 +914,10 @@ _MAX_READ_CHARS = 30000
 # Cap remote downloads to defend against disk exhaustion in hosted SSE mode.
 _MAX_DOWNLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
 _MAX_DOWNLOAD_BLOBS = 20000
+# Separate budget for extraction: compression ratios mean a download well
+# under the cap above can still fill the disk once unpacked.
+_MAX_EXTRACT_BYTES = 4 * 1024 * 1024 * 1024  # 4 GB
+_MAX_EXTRACT_FILES = 50000
 
 
 def _resolve_under_log_root(path: str) -> tuple[Optional[Path], Optional[str]]:
@@ -947,6 +955,23 @@ def _resolve_under_log_root(path: str) -> tuple[Optional[Path], Optional[str]]:
     return resolved, None
 
 
+def _within_log_root(path: str) -> bool:
+    """Whether *path*, with symlinks resolved, sits inside ``LISA_LOG_ROOT``.
+
+    ``os.walk`` reports symlinked files as ordinary files, so a link planted
+    inside the root would otherwise read straight through to anywhere on
+    disk. Checking only the directory handed to the tool is not enough.
+    """
+    log_root = os.environ.get("LISA_LOG_ROOT")
+    if not log_root:
+        return True
+    try:
+        Path(path).resolve().relative_to(Path(log_root).resolve())
+    except (OSError, RuntimeError, ValueError):
+        return False
+    return True
+
+
 def _search_in_files(
     search_string: str,
     root_path: Path,
@@ -959,6 +984,8 @@ def _search_in_files(
     for root, _, files in os.walk(root_path):
         for fname in files:
             fpath = os.path.join(root, fname)
+            if not _within_log_root(fpath):
+                continue
             _, ext = os.path.splitext(fpath.lower())
             if ext not in extensions:
                 continue
@@ -1345,6 +1372,21 @@ def _reject_internal_host(hostname: str) -> None:
             )
 
 
+def _make_download_dir() -> str:
+    """Create a scratch directory for a download.
+
+    Hosted mode confines the log tools to ``LISA_LOG_ROOT``, so downloads
+    have to land inside it — a path under the system temp dir would be
+    rejected by every follow-up tool this one tells the caller to use.
+    """
+    log_root = os.environ.get("LISA_LOG_ROOT")
+    if log_root:
+        root = Path(log_root)
+        root.mkdir(parents=True, exist_ok=True)
+        return tempfile.mkdtemp(prefix="lisa_logs_", dir=str(root))
+    return tempfile.mkdtemp(prefix="lisa_logs_")
+
+
 def _download_url_to_dir(  # noqa: C901
     url: str,
     auth_token: Optional[str],
@@ -1358,7 +1400,7 @@ def _download_url_to_dir(  # noqa: C901
     """
     portal_info = _parse_portal_storage_url(url)
     if portal_info:
-        download_dir = tempfile.mkdtemp(prefix="lisa_logs_")
+        download_dir = _make_download_dir()
         try:
             result_dir, count = _download_azure_blob_prefix(
                 portal_info["account"],
@@ -1387,7 +1429,7 @@ def _download_url_to_dir(  # noqa: C901
             container = path_parts[0]
             prefix = "/".join(path_parts[1:])
             account = parsed.hostname.split(".")[0]
-            download_dir = tempfile.mkdtemp(prefix="lisa_logs_")
+            download_dir = _make_download_dir()
             try:
                 result_dir, count = _download_azure_blob_prefix(
                     account, container, prefix, download_dir
@@ -1397,7 +1439,7 @@ def _download_url_to_dir(  # noqa: C901
                 shutil.rmtree(download_dir, ignore_errors=True)
                 raise
 
-    download_dir = tempfile.mkdtemp(prefix="lisa_logs_")
+    download_dir = _make_download_dir()
     filename = os.path.basename(parsed.path) or "logs"
     filename = re.sub(r"[^\w.\-]", "_", filename) or "logs"
     download_path = os.path.join(download_dir, filename)
@@ -1541,42 +1583,106 @@ def _download_azure_blob_prefix(
     return result_dir, downloaded
 
 
+class _Budget:
+    """Running cap on uncompressed bytes and file count during extraction."""
+
+    def __init__(self, max_bytes: int, max_files: int) -> None:
+        self._max_bytes = max_bytes
+        self._max_files = max_files
+        self.bytes = 0
+        self.files = 0
+
+    def add_file(self) -> None:
+        self.files += 1
+        if self.files > self._max_files:
+            raise ValueError(
+                f"Archive expands to more than {self._max_files:,} files; "
+                "refusing to extract it."
+            )
+
+    def spend(self, count: int) -> None:
+        self.bytes += count
+        if self.bytes > self._max_bytes:
+            raise ValueError(
+                f"Archive expands beyond the {self._max_bytes:,}-byte "
+                "uncompressed limit; refusing to extract it."
+            )
+
+
+def _copy_within_budget(source: BinaryIO, target: str, budget: _Budget) -> None:
+    """Stream *source* to *target*, aborting once the budget is spent.
+
+    The byte count comes from what is actually written, not from the
+    archive header, because a compression bomb declares whatever it likes.
+    """
+    with open(target, "wb") as out:
+        while True:
+            chunk = source.read(1024 * 1024)
+            if not chunk:
+                break
+            budget.spend(len(chunk))
+            out.write(chunk)
+
+
 def _extract_archive(download_path: str, download_dir: str) -> str:
-    """Extract tar.gz/zip archives, return the result directory path."""
+    """Extract tar.gz/zip archives, return the result directory path.
+
+    Members are written one at a time against a running budget. `extractall`
+    cannot do that: the 2 GB cap on the *download* says nothing about how far
+    a highly compressed archive expands on disk.
+    """
     extract_dir = os.path.join(download_dir, "extracted")
+    budget = _Budget(_MAX_EXTRACT_BYTES, _MAX_EXTRACT_FILES)
 
     if tarfile.is_tarfile(download_path):
         os.makedirs(extract_dir, exist_ok=True)
         abs_extract = os.path.abspath(extract_dir)
-        with tarfile.open(download_path) as tf:
-            safe_members = []
-            for m in tf.getmembers():
-                # Only plain files and directories. Symlinks, hardlinks, and
-                # device nodes can redirect a write outside extract_dir even
-                # when their own name looks contained, and filter="data" is
-                # unavailable before Python 3.12.
-                if not (m.isreg() or m.isdir()):
-                    continue
-                target = os.path.abspath(os.path.join(abs_extract, m.name))
-                if os.path.commonpath([abs_extract, target]) != abs_extract:
-                    continue
-                safe_members.append(m)
-            try:
-                tf.extractall(extract_dir, members=safe_members, filter="data")
-            except TypeError:
-                tf.extractall(extract_dir, members=safe_members)
+        try:
+            with tarfile.open(download_path) as tf:
+                for m in tf:
+                    # Only plain files and directories. Symlinks, hardlinks,
+                    # and device nodes can redirect a write outside
+                    # extract_dir even when their own name looks contained.
+                    if not (m.isreg() or m.isdir()):
+                        continue
+                    target = os.path.abspath(os.path.join(abs_extract, m.name))
+                    if os.path.commonpath([abs_extract, target]) != abs_extract:
+                        continue
+                    if m.isdir():
+                        os.makedirs(target, exist_ok=True)
+                        continue
+                    extracted = tf.extractfile(m)
+                    if extracted is None:
+                        continue
+                    budget.add_file()
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    with extracted:
+                        _copy_within_budget(extracted, target, budget)
+        except ValueError:
+            shutil.rmtree(extract_dir, ignore_errors=True)
+            raise
         os.remove(download_path)
         return extract_dir
 
     if zipfile.is_zipfile(download_path):
         os.makedirs(extract_dir, exist_ok=True)
         abs_extract = os.path.abspath(extract_dir)
-        with zipfile.ZipFile(download_path) as zf:
-            for name in zf.namelist():
-                target = os.path.abspath(os.path.join(abs_extract, name))
-                if os.path.commonpath([abs_extract, target]) != abs_extract:
-                    continue
-                zf.extract(name, extract_dir)
+        try:
+            with zipfile.ZipFile(download_path) as zf:
+                for info in zf.infolist():
+                    target = os.path.abspath(os.path.join(abs_extract, info.filename))
+                    if os.path.commonpath([abs_extract, target]) != abs_extract:
+                        continue
+                    if info.is_dir():
+                        os.makedirs(target, exist_ok=True)
+                        continue
+                    budget.add_file()
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    with zf.open(info) as source:
+                        _copy_within_budget(source, target, budget)
+        except ValueError:
+            shutil.rmtree(extract_dir, ignore_errors=True)
+            raise
         os.remove(download_path)
         return extract_dir
 

@@ -18,6 +18,7 @@ import tarfile
 import tempfile
 import textwrap
 import unittest
+import zipfile
 from pathlib import Path
 from unittest import mock
 
@@ -1225,6 +1226,101 @@ class TestArchiveExtraction(unittest.TestCase):
             extracted = {p.name for p in Path(result).rglob("*")}
             self.assertIn("real.log", extracted)
             self.assertNotIn("escape.log", extracted)
+
+    def test_expansion_beyond_budget_is_refused(self) -> None:
+        """A download well under the size cap can still be a zip bomb."""
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "bomb.zip"
+            with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr("big.log", b"\0" * (4 * 1024 * 1024))
+
+            extract_root = Path(tmp) / "out"
+            extract_root.mkdir()
+            with mock.patch.object(log_analysis, "_MAX_EXTRACT_BYTES", 1024):
+                with self.assertRaises(ValueError) as ctx:
+                    log_analysis._extract_archive(str(archive), str(extract_root))
+            self.assertIn("uncompressed limit", str(ctx.exception))
+            self.assertFalse((extract_root / "extracted").exists())
+
+    def test_file_count_budget_is_enforced(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "many.zip"
+            with zipfile.ZipFile(archive, "w") as zf:
+                for i in range(20):
+                    zf.writestr(f"log{i}.log", b"x")
+
+            extract_root = Path(tmp) / "out"
+            extract_root.mkdir()
+            with mock.patch.object(log_analysis, "_MAX_EXTRACT_FILES", 5):
+                with self.assertRaises(ValueError) as ctx:
+                    log_analysis._extract_archive(str(archive), str(extract_root))
+            self.assertIn("files", str(ctx.exception))
+
+
+class TestDownloadDirPlacement(unittest.TestCase):
+    """Downloads must land somewhere the other log tools are allowed to read."""
+
+    def setUp(self) -> None:
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        self._prev_root = os.environ.get("LISA_LOG_ROOT")
+
+    def tearDown(self) -> None:
+        if self._prev_root is None:
+            os.environ.pop("LISA_LOG_ROOT", None)
+        else:
+            os.environ["LISA_LOG_ROOT"] = self._prev_root
+        self._tmp_dir.cleanup()
+
+    def test_download_dir_is_inside_log_root(self) -> None:
+        root = Path(self._tmp_dir.name) / "logs"
+        os.environ["LISA_LOG_ROOT"] = str(root)
+        created = Path(log_analysis._make_download_dir()).resolve()
+        self.assertEqual(created.parent, root.resolve())
+        resolved, err = log_analysis._resolve_under_log_root(str(created))
+        self.assertIsNone(err)
+        self.assertIsNotNone(resolved)
+
+    def test_falls_back_to_temp_without_log_root(self) -> None:
+        os.environ.pop("LISA_LOG_ROOT", None)
+        created = Path(log_analysis._make_download_dir())
+        try:
+            self.assertTrue(created.is_dir())
+        finally:
+            created.rmdir()
+
+
+class TestSymlinkEscape(unittest.TestCase):
+    """A symlink planted inside the root must not read through it."""
+
+    def setUp(self) -> None:
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        self._prev_root = os.environ.get("LISA_LOG_ROOT")
+
+    def tearDown(self) -> None:
+        if self._prev_root is None:
+            os.environ.pop("LISA_LOG_ROOT", None)
+        else:
+            os.environ["LISA_LOG_ROOT"] = self._prev_root
+        self._tmp_dir.cleanup()
+
+    def test_symlinked_file_is_rejected(self) -> None:
+        base = Path(self._tmp_dir.name)
+        root = base / "logs"
+        root.mkdir()
+        secret = base / "secret.log"
+        secret.write_text("topsecret", encoding="utf-8")
+        link = root / "innocent.log"
+        try:
+            link.symlink_to(secret)
+        except (OSError, NotImplementedError):
+            self.skipTest("symlink creation not permitted on this host")
+
+        os.environ["LISA_LOG_ROOT"] = str(root)
+        self.assertFalse(log_analysis._within_log_root(str(link)))
+        result = _call(
+            "lisa_search_log_files", path=str(root), search_string="topsecret"
+        )
+        self.assertNotIn("topsecret", result)
 
 
 class TestToolRegistration(unittest.TestCase):

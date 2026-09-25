@@ -362,7 +362,7 @@ mcp/
 │       ├── _repo.py       # Repo root detection, doc/context loading
 │       ├── test_writer.py # Test authoring tools (7 tools)
 │       ├── runbook.py     # Runbook generate/validate/fix (3 tools)
-│       ├── log_analysis.py# Log parsing, failure analysis, diagnosis (9 tools)
+│       ├── log_analysis.py# Log parsing, failure analysis, diagnosis (10 tools)
 │       ├── knowledge.py   # Concept/API/example/error lookup (6 tools)
 │       └── execution.py   # Local test execution and config (3 tools)
 └── tests/                 # Self-tests for the MCP server
