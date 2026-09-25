@@ -20,6 +20,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 import unittest
 import urllib.request
 import zipfile
@@ -346,6 +347,24 @@ class TestWriteTest(unittest.TestCase):
         )
         self.assertIn("DiskHotplug", result)
         self.assertIn("verify_disk_hotplug", result)
+
+    def test_generated_method_name_is_discoverable(self) -> None:
+        """A bare `verify` is a legal name but matches no discovery pattern."""
+        for description in ("!!! ??? ---", "   ", "verify", "test"):
+            with self.subTest(description=description):
+                result = _call("lisa_write_test", description=description, area="demo")
+                meta = json.loads(re.findall(r"```json\n(.*?)```", result, re.S)[0])
+                self.assertRegex(meta["method_name"], r"^(verify|test)_\w+$")
+
+    def test_custom_method_name_must_follow_the_convention(self) -> None:
+        """Silently rewriting the caller's name would be worse than refusing."""
+        result = _call(
+            "lisa_write_test",
+            description="disk hotplug works",
+            area="storage",
+            method_name="hotplug",
+        )
+        self.assertIn("must start with `verify_` or `test_`", result)
 
     def test_mark_dirty_detection(self) -> None:
         result = _call(
@@ -1576,6 +1595,43 @@ class TestDownloadDirPlacement(unittest.TestCase):
                 log_analysis._make_download_dir()
         self.assertIn("writable", str(ctx.exception))
         self.assertIn("read-only", str(ctx.exception))
+
+    def test_old_downloads_are_pruned(self) -> None:
+        """Nothing else deletes them, so the volume would grow forever."""
+        root = Path(self._tmp_dir.name) / "logs"
+        root.mkdir()
+        os.environ["LISA_LOG_ROOT"] = str(root)
+
+        stale = root / "lisa_logs_old"
+        stale.mkdir()
+        (stale / "run.log").write_text("x", encoding="utf-8")
+        ancient = time.time() - (log_analysis._DOWNLOAD_RETENTION_DAYS + 1) * 86400
+        os.utime(stale, (ancient, ancient))
+
+        keep = root / "lisa_logs_recent"
+        keep.mkdir()
+        unrelated = root / "someone_elses_data"
+        unrelated.mkdir()
+
+        log_analysis._make_download_dir()
+
+        self.assertFalse(stale.exists(), "expired download was not pruned")
+        self.assertTrue(keep.exists(), "recent download must survive")
+        self.assertTrue(unrelated.exists(), "only lisa_logs_* dirs are ours")
+
+    def test_download_count_is_capped(self) -> None:
+        root = Path(self._tmp_dir.name) / "logs"
+        root.mkdir()
+        os.environ["LISA_LOG_ROOT"] = str(root)
+        for i in range(log_analysis._MAX_RETAINED_DOWNLOADS + 5):
+            entry = root / f"lisa_logs_{i:03d}"
+            entry.mkdir()
+            os.utime(entry, (time.time() - i, time.time() - i))
+
+        log_analysis._make_download_dir()
+
+        remaining = [p for p in root.iterdir() if p.name.startswith("lisa_logs_")]
+        self.assertLessEqual(len(remaining), log_analysis._MAX_RETAINED_DOWNLOADS + 1)
 
 
 class TestDownloadRedirectGuard(unittest.TestCase):

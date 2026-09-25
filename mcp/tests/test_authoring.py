@@ -173,6 +173,16 @@ class TestGenerateRunbook(unittest.TestCase):
         self.assertIn("local", result)
         self.assertNotIn("```yaml", result)
 
+    def test_builtin_suites_load_regardless_of_save_location(self) -> None:
+        """A relative `extension` path depends on where the caller saves this."""
+        output = _call("lisa_generate_runbook", platform="local", area="demo")
+        body = _extract_yaml(output)
+        doc = yaml.safe_load(body)
+        self.assertIs(doc.get("import_builtin_tests"), True)
+        # No active relative path that could resolve outside the checkout.
+        self.assertNotIn("../../lisa", body)
+        self.assertIsNone(doc.get("extension"))
+
     def test_stress_priorities_are_selectable(self) -> None:
         """LISA caps Criteria.priority at 4; the generator must reach it."""
         for level in (3, 4):

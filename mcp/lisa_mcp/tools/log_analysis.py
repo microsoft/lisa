@@ -1465,6 +1465,46 @@ def _open_download(req: Request) -> Any:
     return opener.open(req, timeout=120)
 
 
+_DOWNLOAD_PREFIX = "lisa_logs_"
+# Downloads are kept so the other log tools can read them, so something has
+# to retire them. Tunable for operators with a bigger or smaller volume.
+_DOWNLOAD_RETENTION_DAYS = float(os.environ.get("LISA_LOG_RETENTION_DAYS", "7"))
+_MAX_RETAINED_DOWNLOADS = int(os.environ.get("LISA_LOG_MAX_DOWNLOADS", "20"))
+
+
+def _prune_downloads(root: Path) -> None:
+    """Retire old download directories under *root*.
+
+    Nothing else deletes them: `_download_url_to_dir` only cleans up when a
+    download fails, and on success the directory is handed to the caller. A
+    remote client can otherwise fill the volume 2 GB at a time.
+    """
+    try:
+        existing = [
+            entry
+            for entry in root.iterdir()
+            if entry.is_dir() and entry.name.startswith(_DOWNLOAD_PREFIX)
+        ]
+    except OSError:
+        return
+
+    cutoff = time.time() - _DOWNLOAD_RETENTION_DAYS * 86400
+    dated: list[tuple[float, Path]] = []
+    for entry in existing:
+        try:
+            dated.append((entry.stat().st_mtime, entry))
+        except OSError:
+            continue
+
+    dated.sort(reverse=True)
+    # Keep the newest _MAX_RETAINED_DOWNLOADS, and within those drop anything
+    # past the retention window.
+    stale = [path for _, path in dated[_MAX_RETAINED_DOWNLOADS:]]
+    stale += [path for mtime, path in dated[:_MAX_RETAINED_DOWNLOADS] if mtime < cutoff]
+    for path in stale:
+        shutil.rmtree(path, ignore_errors=True)
+
+
 def _make_download_dir() -> str:
     """Create a scratch directory for a download.
 
@@ -1484,12 +1524,13 @@ def _make_download_dir() -> str:
                 "will fetch them. Set LISA_LOG_ROOT=/path/to/logs and "
                 "restart."
             )
-        return tempfile.mkdtemp(prefix="lisa_logs_")
+        return tempfile.mkdtemp(prefix=_DOWNLOAD_PREFIX)
 
     root = Path(log_root)
     try:
         root.mkdir(parents=True, exist_ok=True)
-        return tempfile.mkdtemp(prefix="lisa_logs_", dir=str(root))
+        _prune_downloads(root)
+        return tempfile.mkdtemp(prefix=_DOWNLOAD_PREFIX, dir=str(root))
     except OSError as exc:
         raise ValueError(
             f"Cannot create a download directory under LISA_LOG_ROOT "

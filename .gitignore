@@ -42,4 +42,6 @@ selftests/test_runbook.yml
 mcp/tmp/
 mcp/.env
 mcp/**/*.log
+# ...but the log-analysis tests ship sample runs as fixtures.
+!mcp/tests/fixtures/*.log
 mcp/test-results/

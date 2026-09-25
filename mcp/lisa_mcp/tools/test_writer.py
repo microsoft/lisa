@@ -455,6 +455,12 @@ class {class_name}(TestSuite):
             error = _identifier(method_name, "method_name")
             if error:
                 return error
+            if not re.fullmatch(r"(?:verify|test)_\w+", method_name):
+                return (
+                    f"`method_name` must start with `verify_` or `test_` so "
+                    f"LISA discovery and `lisa_list_tests` find it, got "
+                    f"`{method_name}`."
+                )
 
         repo_root = find_repo_root()
 
@@ -644,11 +650,14 @@ class {class_name}(TestSuite):
             if words and words[0] in ("verify", "test"):
                 words = words[1:]
             method_name = "verify_" + "_".join(words)
-        # A description of only punctuation leaves a trailing underscore, and
-        # a leading digit is not a legal name either.
-        method_name = re.sub(r"_+", "_", method_name).rstrip("_")
-        if not _is_usable_name(method_name):
-            method_name = "verify_generated_case"
+            # A description of only punctuation leaves "verify_", and a bare
+            # "verify" after the strip is a legal identifier but does not
+            # match the verify_*/test_* shape discovery looks for.
+            method_name = re.sub(r"_+", "_", method_name).rstrip("_")
+            if not _is_usable_name(method_name) or not re.fullmatch(
+                r"(?:verify|test)_\w+", method_name
+            ):
+                method_name = "verify_generated_case"
 
         dirty_keywords = [
             "kernel",

@@ -130,10 +130,14 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         sections.append("name: generated-runbook")
         sections.append(f"concurrency: {int(concurrency)}")
 
-        # Extension — point to test suites
+        # Load the built-in suites by flag rather than by relative path: an
+        # `extension:` entry resolves against wherever the caller saves this
+        # file, and the tool does not control that.
+        sections.append("import_builtin_tests: true")
         sections.append("")
-        sections.append("extension:")
-        sections.append('  - "../../lisa/microsoft/testsuites"')
+        sections.append("# For your own suites, add paths relative to this file:")
+        sections.append("# extension:")
+        sections.append('#   - "path/to/your/testsuites"')
 
         if node_type:
             sections.append("")
