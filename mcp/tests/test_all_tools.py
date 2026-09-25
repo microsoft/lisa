@@ -692,6 +692,25 @@ class TestExplainConcept(unittest.TestCase):
         result = _call("lisa_explain_concept", concept="xyzzy_nonexistent_thing")
         self.assertIn("not found", result.lower())
 
+    def test_platform_concept_does_not_teach_node_types_as_platforms(self) -> None:
+        """`platform: local` is rejected by the validator, so never list it."""
+        import re
+
+        result = _call("lisa_explain_concept", concept="platform")
+        listed = re.findall(r"^- `([\w-]+)`", result, re.M)
+        self.assertIn("ready", listed)
+        self.assertNotIn("local", listed)
+        self.assertNotIn("remote", listed)
+
+    def test_builtin_concept_fallbacks_use_the_right_platform_model(self) -> None:
+        """These are served when the curated context files are unavailable."""
+        from lisa_mcp.tools.knowledge import _BUILTIN_CONCEPTS
+
+        platform = _BUILTIN_CONCEPTS["platform"]
+        self.assertIn("ready", platform)
+        self.assertIn("node", platform.lower())
+        self.assertNotIn("local, remote", _BUILTIN_CONCEPTS["runbook"])
+
 
 class TestGetApiReference(unittest.TestCase):
     def test_find_testsuite(self) -> None:

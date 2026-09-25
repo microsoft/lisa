@@ -179,11 +179,24 @@ managing test environments.
 ### Supported Platforms
 - `azure` — Azure VMs via ARM templates
 - `hyperv` — Hyper-V VMs
-- `libvirt` — KVM/QEMU via libvirt
+- `qemu` / `cloud-hypervisor` — KVM guests via libvirt
 - `baremetal` — physical machines via IPMI/Redfish
-- `remote` — pre-existing machines (SSH only, no provisioning)
-- `local` — local machine
 - `aws` — AWS EC2 instances
+- `ready` — machines that already exist; LISA provisions nothing
+- `mock` — test double, used by LISA's own unit tests
+
+`local` and `remote` are **node** types, not platforms. They are declared
+under `environment.environments[].nodes[]` and paired with the `ready`
+platform:
+
+```yaml
+environment:
+  environments:
+    - nodes:
+        - type: local        # the machine LISA itself runs on
+platform:
+  - type: ready
+```
 
 ---
 

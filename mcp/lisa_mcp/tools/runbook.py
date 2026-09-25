@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from typing import Optional
 
 from mcp.server.mcpserver import MCPServer
@@ -24,6 +25,18 @@ _KNOWN_PLATFORMS = {
     "ready",
 }
 _NODE_TYPE_PLATFORMS = {"local", "remote"}
+_KEEP_ENVIRONMENT_VALUES = {"no", "always", "failed"}
+_MAX_PRIORITY = 3
+
+
+def _q(value: object) -> str:
+    """Render *value* as a YAML double-quoted scalar.
+
+    JSON string syntax is a valid YAML double-quoted scalar, so this keeps a
+    caller-supplied `area` or tag containing `:` or a newline from rewriting
+    the surrounding document structure.
+    """
+    return json.dumps(str(value))
 
 
 def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
@@ -59,6 +72,34 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         """
         sections = []
 
+        # Reject bad enum/numeric input rather than emitting a runbook that
+        # only fails once LISA tries to load it.
+        if platform not in _KNOWN_PLATFORMS | _NODE_TYPE_PLATFORMS:
+            return (
+                f"**Error:** Unknown platform `{platform}`. Choose one of "
+                f"{', '.join(sorted(_KNOWN_PLATFORMS))}, or the node-type "
+                f"shorthands {', '.join(sorted(_NODE_TYPE_PLATFORMS))}."
+            )
+        if keep_environment not in _KEEP_ENVIRONMENT_VALUES:
+            return (
+                f"**Error:** `keep_environment` must be one of "
+                f"{', '.join(sorted(_KEEP_ENVIRONMENT_VALUES))}, "
+                f"got `{keep_environment}`."
+            )
+        if concurrency < 1:
+            return f"**Error:** `concurrency` must be at least 1, got {concurrency}."
+        if max_priority is not None and not 0 <= max_priority <= _MAX_PRIORITY:
+            return (
+                f"**Error:** `max_priority` must be between 0 and "
+                f"{_MAX_PRIORITY}, got {max_priority}."
+            )
+        if image and len(image.split()) != 4:
+            return (
+                "**Error:** `image` must be four space-separated fields "
+                '(publisher offer sku version), e.g. "canonical '
+                'ubuntu-24_04-lts server latest".'
+            )
+
         # "local" and "remote" are node types, not platforms — LISA runs them
         # on the `ready` platform with the nodes declared up front.
         node_type = platform if platform in _NODE_TYPE_PLATFORMS else ""
@@ -66,7 +107,7 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
 
         # Header
         sections.append("name: generated-runbook")
-        sections.append(f"concurrency: {concurrency}")
+        sections.append(f"concurrency: {int(concurrency)}")
 
         # Extension — point to test suites
         sections.append("")
@@ -93,7 +134,7 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         sections.append(f"  - type: {platform_type}")
         sections.append('    admin_username: "$(admin_username)"')
         sections.append('    admin_private_key_file: "$(admin_private_key_file)"')
-        sections.append(f'    keep_environment: "{keep_environment}"')
+        sections.append(f"    keep_environment: {_q(keep_environment)}")
 
         if platform_type == "azure":
             sections.append("    azure:")
@@ -104,17 +145,16 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
             # settings — see lisa/microsoft/runbook/azure.yml.
             requirement_lines = []
             if location:
-                requirement_lines.append(f'        location: "{location}"')
+                requirement_lines.append(f"        location: {_q(location)}")
             if vm_size:
-                requirement_lines.append(f'        vm_size: "{vm_size}"')
+                requirement_lines.append(f"        vm_size: {_q(vm_size)}")
             if image:
                 parts = image.split()
-                if len(parts) == 4:
-                    requirement_lines.append("        marketplace:")
-                    requirement_lines.append(f'          publisher: "{parts[0]}"')
-                    requirement_lines.append(f'          offer: "{parts[1]}"')
-                    requirement_lines.append(f'          sku: "{parts[2]}"')
-                    requirement_lines.append(f'          version: "{parts[3]}"')
+                requirement_lines.append("        marketplace:")
+                requirement_lines.append(f"          publisher: {_q(parts[0])}")
+                requirement_lines.append(f"          offer: {_q(parts[1])}")
+                requirement_lines.append(f"          sku: {_q(parts[2])}")
+                requirement_lines.append(f"          version: {_q(parts[3])}")
             if requirement_lines:
                 sections.append("    requirement:")
                 sections.append("      azure:")
@@ -152,22 +192,23 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         # Emit the block only when there is something to filter on.
         criteria_lines = []
         if area:
-            criteria_lines.append(f"      area: {area}")
+            criteria_lines.append(f"      area: {_q(area)}")
         if max_priority is not None:
-            criteria_lines.append(f"      priority: [0, {max_priority}]")
+            criteria_lines.append(f"      priority: [0, {int(max_priority)}]")
         if tags:
-            tag_list = [t.strip() for t in tags.split(",")]
-            criteria_lines.append(f"      tags: [{', '.join(tag_list)}]")
+            tag_list = [_q(t.strip()) for t in tags.split(",") if t.strip()]
+            if tag_list:
+                criteria_lines.append(f"      tags: [{', '.join(tag_list)}]")
 
         if criteria_lines:
             sections.append("  - criteria:")
             sections.extend(criteria_lines)
 
         if test_names:
-            names = [n.strip() for n in test_names.split(",")]
+            names = [n.strip() for n in test_names.split(",") if n.strip()]
             for name in names:
                 sections.append("  - criteria:")
-                sections.append(f"      name: {name}")
+                sections.append(f"      name: {_q(name)}")
 
         if not criteria_lines and not test_names:
             sections.append("  # No filters were given, so every test would run.")
@@ -359,7 +400,15 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
                 "cloud platform here could provision billable resources. "
                 "Add the platform you actually intend to run on, e.g.:\n"
                 "  platform:\n"
-                "    - type: local     # or azure, hyperv, ready, ..."
+                "    - type: azure     # or hyperv, aws, baremetal, ready\n"
+                "To run on a machine you already have, use the `ready` "
+                "platform and declare the node instead:\n"
+                "  environment:\n"
+                "    environments:\n"
+                "      - nodes:\n"
+                "          - type: local   # or remote\n"
+                "  platform:\n"
+                "    - type: ready"
             )
 
         # Fix: platform as dict instead of list

@@ -6,16 +6,16 @@ Complete field reference for LISA runbook YAML files.
 
 ## Top-Level Fields
 
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `name` | string | `"not_named"` | Run name for identification |
-| `concurrency` | int | `1` | Number of parallel test environments |
-| `exit_with_failed_count` | bool | `true` | Exit code reflects failure count |
-| `exit_on_first_failure` | bool | `false` | Stop on first test failure |
-| `test_project` | string | `""` | Project identifier for reporting |
-| `test_pass` | string | `""` | Test pass identifier |
-| `tags` | list[string] | null | Global tags |
-| `wait_resource_timeout` | float | `5` | Minutes to wait for resource allocation |
+| Field                    | Type         | Default       | Description                             |
+| ------------------------ | ------------ | ------------- | --------------------------------------- |
+| `name`                   | string       | `"not_named"` | Run name for identification             |
+| `concurrency`            | int          | `1`           | Number of parallel test environments    |
+| `exit_with_failed_count` | bool         | `true`        | Exit code reflects failure count        |
+| `exit_on_first_failure`  | bool         | `false`       | Stop on first test failure              |
+| `test_project`           | string       | `""`          | Project identifier for reporting        |
+| `test_pass`              | string       | `""`          | Test pass identifier                    |
+| `tags`                   | list[string] | null          | Global tags                             |
+| `wait_resource_timeout`  | float        | `5`           | Minutes to wait for resource allocation |
 
 ---
 
@@ -57,32 +57,46 @@ platform:
     keep_environment: "no"             # "no", "always", "failed"
     guest_enabled: false               # Enable guest/nested VM testing
 
-    # Azure-specific fields
+    # Connection settings for the Azure platform itself
     azure:
       subscription_id: "$(subscription_id)"
-      deploy_location: "westus2"
       resource_group_name: ""          # Custom RG name
 
-      marketplace:                     # Image specification
-        publisher: "canonical"
-        offer: "0001-com-ubuntu-server-jammy"
-        sku: "22_04-lts-gen2"
-        version: "latest"
-
-      requirement:
-        azure:
-          vm_size: "Standard_DS2_v2"
+    # What the *nodes* must look like. location, vm_size and the image all
+    # live here — not under `azure:` above.
+    requirement:
+      core_count:
+        min: 2
+      azure:
+        location: "westus2"
+        vm_size: "Standard_DS2_v2"
+        marketplace:                   # Image specification
+          publisher: "canonical"
+          offer: "0001-com-ubuntu-server-jammy"
+          sku: "22_04-lts-gen2"
+          version: "latest"
 ```
 
 ### Platform Types
 - `azure` — Azure Resource Manager
 - `hyperv` — Hyper-V on Windows
-- `libvirt` — KVM/QEMU via libvirt
+- `qemu` / `cloud-hypervisor` — KVM guests via libvirt
 - `baremetal` — Physical machines via IPMI/Redfish
-- `remote` — Pre-existing machines (no provisioning)
-- `local` — Local machine
 - `aws` — AWS EC2
-- `ready` — Pre-provisioned environment
+- `ready` — Machines that already exist; no provisioning
+- `mock` — Test double, used by LISA's own unit tests
+
+`local` and `remote` are **node** types, not platforms. To run against a
+machine you already have, use the `ready` platform and declare the node:
+
+```yaml
+environment:
+  environments:
+    - nodes:
+        - type: local        # or: remote, with address/username/port
+platform:
+  - type: ready
+```
 
 ### `keep_environment` Values
 - `"no"` — Always clean up after tests (default)
@@ -179,13 +193,13 @@ testcase:
 ```
 
 ### Criteria Fields
-| Field | Type | Description |
-|-------|------|-------------|
-| `area` | string | TestSuiteMetadata area |
-| `category` | string | TestSuiteMetadata category |
-| `priority` | int or list | Priority level or range `[min, max]` |
-| `tags` | list[string] | Match any tag |
-| `name` | string | Test method name (exact or regex) |
+| Field      | Type         | Description                          |
+| ---------- | ------------ | ------------------------------------ |
+| `area`     | string       | TestSuiteMetadata area               |
+| `category` | string       | TestSuiteMetadata category           |
+| `priority` | int or list  | Priority level or range `[min, max]` |
+| `tags`     | list[string] | Match any tag                        |
+| `name`     | string       | Test method name (exact or regex)    |
 
 ---
 

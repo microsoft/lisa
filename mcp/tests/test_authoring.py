@@ -122,6 +122,49 @@ class TestGenerateRunbook(unittest.TestCase):
                 "empty `criteria:` matches all tests — omit it instead",
             )
 
+    def test_hostile_values_cannot_restructure_the_yaml(self) -> None:
+        """Interpolated scalars must not be able to inject YAML nodes."""
+        payloads = [
+            "demo: injected",
+            "demo\nplatform:\n  - type: azure",
+            'demo"quote',
+            "demo\\back",
+            "*anchor",
+            "!!python/object/apply:os.system",
+        ]
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                output = _call("lisa_generate_runbook", platform="ready", area=payload)
+                doc = yaml.safe_load(_extract_yaml(output))
+                self.assertEqual([p["type"] for p in doc["platform"]], ["ready"])
+                self.assertEqual(doc["testcase"][0]["criteria"]["area"], payload)
+
+    def test_hostile_tags_and_names_are_quoted(self) -> None:
+        output = _call(
+            "lisa_generate_runbook",
+            platform="ready",
+            tags="good, bad: value",
+            test_names="verify_ok, evil: name",
+        )
+        doc = yaml.safe_load(_extract_yaml(output))
+        criteria = doc["testcase"]
+        self.assertIn("bad: value", criteria[0]["criteria"]["tags"])
+        self.assertEqual(criteria[-1]["criteria"]["name"], "evil: name")
+
+    def test_invalid_enum_and_numeric_inputs_are_rejected(self) -> None:
+        cases = [
+            {"platform": "not-a-platform"},
+            {"platform": "ready", "keep_environment": "maybe"},
+            {"platform": "ready", "concurrency": 0},
+            {"platform": "ready", "max_priority": 9},
+            {"platform": "ready", "image": "too few fields"},
+        ]
+        for kwargs in cases:
+            with self.subTest(**kwargs):
+                result = _call("lisa_generate_runbook", **kwargs)
+                self.assertIn("**Error:**", result)
+                self.assertNotIn("```yaml", result)
+
 
 class TestValidateRunbook(unittest.TestCase):
     """Validate lisa_validate_runbook catches common issues."""
