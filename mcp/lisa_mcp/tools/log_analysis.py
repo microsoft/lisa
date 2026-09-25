@@ -1476,8 +1476,16 @@ def _make_download_dir() -> str:
         return tempfile.mkdtemp(prefix="lisa_logs_")
 
     root = Path(log_root)
-    root.mkdir(parents=True, exist_ok=True)
-    return tempfile.mkdtemp(prefix="lisa_logs_", dir=str(root))
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+        return tempfile.mkdtemp(prefix="lisa_logs_", dir=str(root))
+    except OSError as exc:
+        raise ValueError(
+            f"Cannot create a download directory under LISA_LOG_ROOT "
+            f"('{root}'): {exc}. Downloads are retained there so the other "
+            "log tools can read them, so the log root must be writable \u2014 do "
+            "not mount it read-only."
+        ) from exc
 
 
 def _download_url_to_dir(  # noqa: C901

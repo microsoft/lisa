@@ -416,8 +416,10 @@ class {class_name}(TestSuite):
                     matching_methods = []
                     for m in methods:
                         desc_part = f" — {m['description']}" if m["description"] else ""
-                        method_lower = str(m["name"]).lower()
-                        has_match = any(kw in method_lower for kw in flag_kws)
+                        # Match the description too: `verify_smb_linux` is
+                        # about CIFS but says so only in its description.
+                        haystack = f"{m['name']} {m['description']}".lower()
+                        has_match = any(kw in haystack for kw in flag_kws)
                         prefix = "  - **→**" if has_match else "  -"
                         method_lines.append(
                             f"{prefix} `{m['name']}` (L{m['line']}){desc_part}"

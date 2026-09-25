@@ -127,14 +127,22 @@ def _normalize_exit_code(code: int) -> int:
 
 def _parse_variables(variables: str) -> tuple[list[str], Optional[str]]:
     """Split a space-separated ``name:value`` string into ``-v`` arguments."""
+    guidance = (
+        "Variables must be `name:value` pairs, e.g. "
+        "`admin_username:azureuser location:eastus`. Use `s:name:value` "
+        "for secrets."
+    )
+    try:
+        tokens = shlex.split(variables)
+    except ValueError as exc:
+        # An unmatched quote would otherwise surface as an MCP transport
+        # error instead of the documented validation response.
+        return [], f"Could not parse variables ({exc}). {guidance}"
+
     args: list[str] = []
-    for token in shlex.split(variables):
+    for token in tokens:
         if not _VARIABLE_RE.match(token):
-            return [], (
-                f"Invalid variable `{token}`. Variables must be `name:value` "
-                "pairs, e.g. `admin_username:azureuser location:eastus`. Use "
-                "`s:name:value` for secrets."
-            )
+            return [], f"Invalid variable `{token}`. {guidance}"
         args.extend(["-v", token])
     return args, None
 

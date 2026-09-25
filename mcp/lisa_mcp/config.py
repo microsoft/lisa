@@ -40,9 +40,12 @@ def load_config() -> dict[str, Any]:
     if not path.is_file():
         return {}
     try:
-        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError):
         return {}
+    # A hand-edited file can parse into a list or scalar; callers only ever
+    # call .get on this, so anything else has to read as empty.
+    return data if isinstance(data, dict) else {}
 
 
 def save_azure_config(settings: dict[str, str]) -> Path:

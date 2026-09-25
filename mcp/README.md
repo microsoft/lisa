@@ -230,7 +230,7 @@ docker run -d --name lisa-mcp -p 8080:8080 \
   -e LISA_MCP_API_KEY="<shared secret>" \
   -e LISA_LOG_ROOT="/app/logs" \
   -e ALLOWED_HOSTS="your-server,localhost" \
-  -v /var/log/lisa:/app/logs:ro \
+  -v /var/log/lisa:/app/logs \
   lisa-mcp
 ```
 
@@ -238,6 +238,21 @@ docker run -d --name lisa-mcp -p 8080:8080 \
 because the container binds `0.0.0.0`. `LISA_LOG_ROOT` is required before the
 log tools will read from disk in SSE mode; mount the directory holding the
 runs you want analysed.
+
+The log root must be **writable**, not mounted `:ro`. `lisa_download_logs`
+creates its retained download directories under it, precisely so the paths it
+returns are readable by the other log tools. To keep existing runs read-only,
+mount them separately and point `LISA_LOG_ROOT` at a writable parent:
+
+```bash
+docker run -d --name lisa-mcp -p 8080:8080 \
+  -e LISA_MCP_API_KEY="<shared secret>" \
+  -e LISA_LOG_ROOT="/app/logs" \
+  -e ALLOWED_HOSTS="your-server,localhost" \
+  -v lisa-downloads:/app/logs \
+  -v /var/log/lisa:/app/logs/runs:ro \
+  lisa-mcp
+```
 
 Keep `localhost` in `ALLOWED_HOSTS`. The container's `HEALTHCHECK` curls
 `http://localhost:8080/health` from inside, so dropping it makes host

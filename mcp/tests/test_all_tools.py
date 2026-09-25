@@ -586,31 +586,27 @@ class TestFixRunbook(unittest.TestCase):
     def test_fix_boolean_keep_environment(self) -> None:
         result = _call(
             "lisa_fix_runbook",
-            runbook_content=textwrap.dedent(
-                """\
+            runbook_content=textwrap.dedent("""\
                 platform:
                   - type: azure
                     keep_environment: true
                 testcase:
                   - criteria:
                       area: demo
-            """
-            ),
+            """),
         )
         self.assertIn("always", result)
 
     def test_fix_platform_as_dict(self) -> None:
         result = _call(
             "lisa_fix_runbook",
-            runbook_content=textwrap.dedent(
-                """\
+            runbook_content=textwrap.dedent("""\
                 platform:
                   type: azure
                 testcase:
                   - criteria:
                       area: demo
-            """
-            ),
+            """),
         )
         self.assertIn("list", result.lower())
 
@@ -895,6 +891,17 @@ class TestExecutionConfig(unittest.TestCase):
         # resource_group.
         self.assertEqual(_VARIABLE_NAMES["resource_group"], "resource_group_name")
 
+    def test_malformed_config_file_reads_as_empty(self) -> None:
+        """A YAML list or scalar must not reach callers that expect a dict."""
+        from lisa_mcp.config import load_config
+
+        config = Path(os.environ[CONFIG_ENV_VAR])
+        for content in ("- just\n- a\n- list\n", "just a string\n", "42\n"):
+            config.write_text(content, encoding="utf-8")
+            self.assertEqual(load_config(), {})
+            # The tools call .get on it, so this must not raise.
+            self.assertIn("not configured", _call("lisa_get_config"))
+
 
 class TestRunVariableValidation(unittest.TestCase):
     """Malformed variables must be rejected before a subprocess is spawned."""
@@ -940,6 +947,20 @@ class TestRunVariableValidation(unittest.TestCase):
         args, error = execution._parse_variables("s:token:abc name:value")
         self.assertIsNone(error)
         self.assertEqual(args, ["-v", "s:token:abc", "-v", "name:value"])
+
+    def test_unmatched_quote_returns_guidance(self) -> None:
+        """shlex raises on this; it must not escape as an MCP transport error."""
+        args, error = execution._parse_variables('name:"unterminated')
+        self.assertEqual(args, [])
+        self.assertIsNotNone(error)
+        self.assertIn("name:value", str(error))
+
+        result = _call(
+            "lisa_run",
+            runbook_path="lisa/examples/runbook/hello_world.yml",
+            variables='name:"unterminated',
+        )
+        self.assertIn("name:value", result)
 
 
 class TestRunOutputRedaction(unittest.TestCase):
@@ -1339,6 +1360,17 @@ class TestDownloadDirPlacement(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             log_analysis._make_download_dir()
         self.assertIn("LISA_LOG_ROOT", str(ctx.exception))
+
+    def test_unwritable_log_root_explains_itself(self) -> None:
+        """A `:ro` mount must not surface as a bare PermissionError."""
+        os.environ["LISA_LOG_ROOT"] = str(Path(self._tmp_dir.name) / "logs")
+        with mock.patch.object(
+            log_analysis.tempfile, "mkdtemp", side_effect=PermissionError(13, "denied")
+        ):
+            with self.assertRaises(ValueError) as ctx:
+                log_analysis._make_download_dir()
+        self.assertIn("writable", str(ctx.exception))
+        self.assertIn("read-only", str(ctx.exception))
 
 
 class TestDownloadRedirectGuard(unittest.TestCase):
