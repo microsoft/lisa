@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import socket
+import stat
 import tarfile
 import tempfile
 import time
@@ -1401,6 +1402,16 @@ def _check_download_target(url: str) -> ParseResult:
     return parsed
 
 
+def _same_origin(url: str, other: str) -> bool:
+    """Whether two HTTPS URLs share scheme, host, and port."""
+    a, b = urlparse(url), urlparse(other)
+    return (
+        a.scheme == b.scheme
+        and (a.hostname or "").lower() == (b.hostname or "").lower()
+        and (a.port or 443) == (b.port or 443)
+    )
+
+
 class _GuardedRedirectHandler(HTTPRedirectHandler):
     """Re-applies the SSRF check to every redirect target.
 
@@ -1418,15 +1429,13 @@ class _GuardedRedirectHandler(HTTPRedirectHandler):
         headers: Any,
         newurl: str,
     ) -> Optional[Request]:
+        _check_download_target(newurl)
         redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
-        if redirected is not None:
-            old = urlparse(req.full_url)
-            new = urlparse(newurl)
-            if (old.scheme, old.netloc.lower()) != (
-                new.scheme,
-                new.netloc.lower(),
-            ):
-                redirected.remove_header("Authorization")
+        if redirected is not None and not _same_origin(req.full_url, newurl):
+            # urllib carries Authorization across hosts; browsers and
+            # requests strip it, otherwise any public redirect target
+            # harvests the caller's bearer token.
+            redirected.remove_header("Authorization")
         return redirected
 
 
@@ -1847,6 +1856,89 @@ def _safe_extract_target(abs_extract: str, member_name: str) -> Optional[str]:
     return target
 
 
+def _zip_member_is_regular(info: zipfile.ZipInfo) -> bool:
+    """Whether a zip entry is a plain file rather than a symlink or device.
+
+    Only an explicitly non-regular type is rejected. Plenty of writers store
+    permission bits with no type bits at all (``writestr`` uses ``0o600``,
+    DOS-created entries use ``0``), and those are ordinary files.
+    """
+    file_type = stat.S_IFMT(info.external_attr >> 16)
+    return file_type in (0, stat.S_IFREG)
+
+
+def _make_member_dir(abs_extract: str, path: str, verified: set[str]) -> bool:
+    """Create *path* as a directory and confirm it still resolves inside.
+
+    `_safe_extract_target` is purely lexical, so it cannot see a parent that
+    is a symlink out of the tree. Resolving each directory once keeps that
+    assumption checked rather than assumed.
+    """
+    if path in verified:
+        return True
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError:
+        # A malformed archive storing both `a` and `a/b` must not abort the
+        # rest of the extraction.
+        return False
+    real_root = os.path.realpath(abs_extract)
+    real_path = os.path.realpath(path)
+    if real_path != real_root and not real_path.startswith(real_root + os.sep):
+        return False
+    verified.add(path)
+    return True
+
+
+def _extract_tar_members(
+    download_path: str, abs_extract: str, budget: _Budget, verified: set[str]
+) -> None:
+    with tarfile.open(download_path) as tf:
+        for m in tf:
+            # Only plain files and directories. Symlinks, hardlinks, and
+            # device nodes can redirect a write outside the extract dir even
+            # when their own name looks contained.
+            if not (m.isreg() or m.isdir()):
+                continue
+            target = _safe_extract_target(abs_extract, m.name)
+            if target is None:
+                continue
+            if m.isdir():
+                _make_member_dir(abs_extract, target, verified)
+                continue
+            extracted = tf.extractfile(m)
+            if extracted is None:
+                continue
+            if not _make_member_dir(abs_extract, os.path.dirname(target), verified):
+                continue
+            budget.add_file()
+            with extracted:
+                _copy_within_budget(extracted, target, budget)
+
+
+def _extract_zip_members(
+    download_path: str, abs_extract: str, budget: _Budget, verified: set[str]
+) -> None:
+    with zipfile.ZipFile(download_path) as zf:
+        for info in zf.infolist():
+            target = _safe_extract_target(abs_extract, info.filename)
+            if target is None:
+                continue
+            if info.is_dir():
+                _make_member_dir(abs_extract, target, verified)
+                continue
+            # Without this, a stored symlink lands as a regular file holding
+            # its target path, and collides with any member written through
+            # it.
+            if not _zip_member_is_regular(info):
+                continue
+            if not _make_member_dir(abs_extract, os.path.dirname(target), verified):
+                continue
+            budget.add_file()
+            with zf.open(info) as source:
+                _copy_within_budget(source, target, budget)
+
+
 def _extract_archive(download_path: str, download_dir: str) -> str:
     """Extract tar.gz/zip archives, return the result directory path.
 
@@ -1854,59 +1946,21 @@ def _extract_archive(download_path: str, download_dir: str) -> str:
     cannot do that: the 2 GB cap on the *download* says nothing about how far
     a highly compressed archive expands on disk.
     """
-    extract_dir = os.path.join(download_dir, "extracted")
-    budget = _Budget(_MAX_EXTRACT_BYTES, _MAX_EXTRACT_FILES)
-
     if tarfile.is_tarfile(download_path):
-        os.makedirs(extract_dir, exist_ok=True)
-        abs_extract = os.path.abspath(extract_dir)
-        try:
-            with tarfile.open(download_path) as tf:
-                for m in tf:
-                    # Only plain files and directories. Symlinks, hardlinks,
-                    # and device nodes can redirect a write outside
-                    # extract_dir even when their own name looks contained.
-                    if not (m.isreg() or m.isdir()):
-                        continue
-                    target = _safe_extract_target(abs_extract, m.name)
-                    if target is None:
-                        continue
-                    if m.isdir():
-                        os.makedirs(target, exist_ok=True)
-                        continue
-                    extracted = tf.extractfile(m)
-                    if extracted is None:
-                        continue
-                    budget.add_file()
-                    os.makedirs(os.path.dirname(target), exist_ok=True)
-                    with extracted:
-                        _copy_within_budget(extracted, target, budget)
-        except ValueError:
-            shutil.rmtree(extract_dir, ignore_errors=True)
-            raise
-        os.remove(download_path)
-        return extract_dir
+        extract_members = _extract_tar_members
+    elif zipfile.is_zipfile(download_path):
+        extract_members = _extract_zip_members
+    else:
+        return download_dir
 
-    if zipfile.is_zipfile(download_path):
-        os.makedirs(extract_dir, exist_ok=True)
-        abs_extract = os.path.abspath(extract_dir)
-        try:
-            with zipfile.ZipFile(download_path) as zf:
-                for info in zf.infolist():
-                    target = _safe_extract_target(abs_extract, info.filename)
-                    if target is None:
-                        continue
-                    if info.is_dir():
-                        os.makedirs(target, exist_ok=True)
-                        continue
-                    budget.add_file()
-                    os.makedirs(os.path.dirname(target), exist_ok=True)
-                    with zf.open(info) as source:
-                        _copy_within_budget(source, target, budget)
-        except ValueError:
-            shutil.rmtree(extract_dir, ignore_errors=True)
-            raise
-        os.remove(download_path)
-        return extract_dir
-
-    return download_dir
+    extract_dir = os.path.join(download_dir, "extracted")
+    os.makedirs(extract_dir, exist_ok=True)
+    abs_extract = os.path.abspath(extract_dir)
+    budget = _Budget(_MAX_EXTRACT_BYTES, _MAX_EXTRACT_FILES)
+    try:
+        extract_members(download_path, abs_extract, budget, set())
+    except ValueError:
+        shutil.rmtree(extract_dir, ignore_errors=True)
+        raise
+    os.remove(download_path)
+    return extract_dir

@@ -11,11 +11,13 @@ These tests invoke each tool directly (without MCP protocol overhead)
 and verify correct behavior with realistic inputs.
 """
 
+import io
 import ipaddress
 import json
 import keyword
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -1549,6 +1551,90 @@ class TestArchiveExtraction(unittest.TestCase):
             self.assertIn("real.log", extracted)
             self.assertNotIn("escape.log", extracted)
 
+    def _pivot_escape(self, kind: str) -> tuple[str, str]:
+        """Build an archive that writes through a symlinked directory.
+
+        Returns ``(canary_text, extract_dir)``. A lexical containment check
+        passes every member here, so only the runtime behaviour proves it.
+        """
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        outside = Path(tmp) / "outside"
+        outside.mkdir()
+        canary = outside / "canary.txt"
+        canary.write_text("ORIGINAL", encoding="utf-8")
+
+        work = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, str(work), True)
+
+        if kind == "tar":
+            archive = work / "logs.tar"
+            with tarfile.open(archive, "w") as tf:
+                link = tarfile.TarInfo("pivot")
+                link.type = tarfile.SYMTYPE
+                link.linkname = str(outside)
+                tf.addfile(link)
+                payload = b"PWNED"
+                member = tarfile.TarInfo("pivot/canary.txt")
+                member.size = len(payload)
+                tf.addfile(member, io.BytesIO(payload))
+        else:
+            archive = work / "logs.zip"
+            with zipfile.ZipFile(archive, "w") as zf:
+                info = zipfile.ZipInfo("pivot")
+                info.external_attr = 0xA1FF << 16  # S_IFLNK | 0777
+                zf.writestr(info, str(outside))
+                zf.writestr("pivot/canary.txt", "PWNED")
+                zf.writestr("real.log", "hello")
+
+        result = log_analysis._extract_archive(str(archive), str(work))
+        return canary.read_text(encoding="utf-8"), result
+
+    def test_tar_cannot_pivot_through_a_symlinked_directory(self) -> None:
+        canary, result = self._pivot_escape("tar")
+        self.assertEqual(canary, "ORIGINAL")
+        self.assertFalse((Path(result) / "pivot").is_symlink())
+
+    def test_zip_cannot_pivot_through_a_symlinked_directory(self) -> None:
+        """A collision here used to abort the whole archive with OSError."""
+        canary, result = self._pivot_escape("zip")
+        self.assertEqual(canary, "ORIGINAL")
+        self.assertFalse((Path(result) / "pivot").is_symlink())
+        # The rest of the archive must still come out.
+        self.assertTrue((Path(result) / "real.log").is_file())
+
+    def test_zip_symlink_members_are_dropped(self) -> None:
+        """Otherwise they land as regular files holding a filesystem path."""
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / "logs.zip"
+            with zipfile.ZipFile(archive, "w") as zf:
+                info = zipfile.ZipInfo("link")
+                info.external_attr = 0xA1FF << 16
+                zf.writestr(info, "/etc/passwd")
+                zf.writestr("real.log", "hello")
+                # Windows-created entries leave the mode unset; those are
+                # ordinary files and must survive.
+                plain = zipfile.ZipInfo("dos.log")
+                plain.external_attr = 0
+                zf.writestr(plain, "hello")
+                # writestr stores 0o600 — permission bits with no type bits.
+                perms_only = zipfile.ZipInfo("perms.log")
+                perms_only.external_attr = 0o600 << 16
+                zf.writestr(perms_only, "hello")
+                # A genuine regular file from a unix zip writer.
+                unix = zipfile.ZipInfo("unix.log")
+                unix.external_attr = 0o100644 << 16
+                zf.writestr(unix, "hello")
+
+            out = Path(tmp) / "out"
+            out.mkdir()
+            result = Path(log_analysis._extract_archive(str(archive), str(out)))
+
+            self.assertFalse((result / "link").exists())
+            for name in ("real.log", "dos.log", "perms.log", "unix.log"):
+                with self.subTest(name=name):
+                    self.assertTrue((result / name).is_file())
+
     def test_traversal_member_names_are_rejected(self) -> None:
         """Absolute, dot-dot, and backslash names must all stay contained."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -1745,6 +1831,53 @@ class TestDownloadRedirectGuard(unittest.TestCase):
         source = inspect.getsource(log_analysis._download_url_to_dir)
         self.assertIn("_open_download(req)", source)
         self.assertNotIn("urlopen(", source)
+
+    def _redirect(self, newurl: str) -> urllib.request.Request:
+        req = urllib.request.Request(
+            "https://example.com/logs.tar.gz",
+            headers={"Authorization": "Bearer SECRET-TOKEN"},
+        )
+        new = log_analysis._GuardedRedirectHandler().redirect_request(
+            req, None, 302, "Found", {}, newurl
+        )
+        assert new is not None
+        return new
+
+    def test_cross_host_redirect_drops_the_bearer_token(self) -> None:
+        """urllib keeps Authorization across hosts; that leaks the token."""
+        new = self._redirect("https://example.org/collect")
+        self.assertNotIn("SECRET-TOKEN", " ".join(str(v) for v in new.headers.values()))
+        self.assertNotIn(
+            "SECRET-TOKEN", " ".join(str(v) for v in new.unredirected_hdrs.values())
+        )
+
+    def test_same_origin_redirect_keeps_the_bearer_token(self) -> None:
+        """Dropping it unconditionally would break ordinary path redirects."""
+        new = self._redirect("https://example.com/logs/real.tar.gz")
+        self.assertIn("SECRET-TOKEN", " ".join(str(v) for v in new.headers.values()))
+
+    def test_origin_comparison_covers_host_and_port(self) -> None:
+        same = log_analysis._same_origin
+        self.assertTrue(same("https://a.example/x", "https://A.EXAMPLE/y"))
+        # Comparing raw netloc would call this cross-origin and needlessly
+        # drop the token.
+        self.assertTrue(same("https://a.example/x", "https://a.example:443/y"))
+        self.assertFalse(same("https://a.example/x", "https://b.example/y"))
+        self.assertFalse(same("https://a.example/x", "https://a.example:8443/y"))
+        # A subdomain is a different origin — evil.a.example is not a.example.
+        self.assertFalse(same("https://a.example/x", "https://evil.a.example/y"))
+
+    def test_ssrf_check_runs_before_the_token_is_stripped(self) -> None:
+        """Stripping the header is no substitute for rejecting the target."""
+        import inspect
+
+        source = inspect.getsource(
+            log_analysis._GuardedRedirectHandler.redirect_request
+        )
+        self.assertLess(
+            source.index("_check_download_target"),
+            source.index("remove_header"),
+        )
 
 
 class TestDnsRebindingGuard(unittest.TestCase):
