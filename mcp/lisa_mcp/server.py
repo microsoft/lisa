@@ -61,12 +61,16 @@ register_knowledge_tools(mcp)
 register_execution_tools(mcp)
 
 
+# socket.bind(("", port)) is INADDR_ANY, so an empty host is the wildcard.
+_WILDCARD_HOST = "0.0.0.0"
+
+
 def _is_loopback(host: str) -> bool:
     """Whether binding to *host* keeps the listener off the network."""
     try:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
-        return host.lower() in ("localhost", "")
+        return host.lower() == "localhost"
 
 
 def _build_sse_app(host: str = "127.0.0.1") -> Any:
@@ -83,6 +87,8 @@ def _build_sse_app(host: str = "127.0.0.1") -> Any:
     from starlette.requests import Request
     from starlette.responses import JSONResponse
     from starlette.routing import Route
+
+    host = host or _WILDCARD_HOST
 
     async def health(request: Request) -> JSONResponse:
         return JSONResponse({"status": "ok", "server": "lisa-mcp"})
@@ -181,9 +187,10 @@ def main() -> None:
         # forwarded client IP.
         forwarded_allow_ips = os.environ.get("FORWARDED_ALLOW_IPS", "127.0.0.1")
 
+        host = args.host or _WILDCARD_HOST
         uvicorn.run(
-            _build_sse_app(args.host),
-            host=args.host,
+            _build_sse_app(host),
+            host=host,
             port=args.port,
             log_level="info",
             forwarded_allow_ips=forwarded_allow_ips,

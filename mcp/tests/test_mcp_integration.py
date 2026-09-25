@@ -353,6 +353,24 @@ class TestSSETransport(unittest.TestCase):
         finally:
             _restore_env("LISA_MCP_API_KEY", previous_key)
 
+    def test_wildcard_spellings_without_api_key_are_refused(self) -> None:
+        """`--host ""` binds INADDR_ANY, so it cannot count as loopback."""
+        from lisa_mcp import runtime
+        from lisa_mcp.server import _build_sse_app
+
+        runtime.set_transport("stdio")
+        previous_key = os.environ.get("LISA_MCP_API_KEY")
+        os.environ.pop("LISA_MCP_API_KEY", None)
+        try:
+            for host in ("", "0.0.0.0", "::", "192.168.1.5"):
+                with self.subTest(host=host):
+                    with self.assertRaises(SystemExit) as ctx:
+                        _build_sse_app(host)
+                    self.assertIn("LISA_MCP_API_KEY", str(ctx.exception))
+                    self.assertEqual(runtime.get_transport(), "stdio")
+        finally:
+            _restore_env("LISA_MCP_API_KEY", previous_key)
+
 
 class TestRealExecution(unittest.TestCase):
     """Actually spawn LISA through lisa_run.
