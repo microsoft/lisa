@@ -620,12 +620,18 @@ _BUILTIN_CONCEPTS = {
     ),
     "tier": (
         "## Tiers / Priority Levels\n\n"
-        "LISA test cases have a `priority` field (0–3) that maps to test tiers:\n\n"
+        "LISA test cases have a `priority` field that maps to test tiers. "
+        "`@TestCaseMetadata` accepts any integer:\n\n"
         "- **Priority 0 (T0)**: Critical smoke tests — must pass for any image\n"
         "- **Priority 1 (T1)**: High-priority functional tests\n"
         "- **Priority 2 (T2)**: Normal functional tests (default)\n"
-        "- **Priority 3 (T3)**: Stress tests, long-running, niche scenarios\n\n"
-        "Filter in runbook: `testcase: [{criteria: {priority: [0, 1]}}]`"
+        "- **Priority 3 (T3)**: Stress tests, long-running, niche scenarios\n"
+        "- **Priority 4–5**: Very long-running suites (xfstests, dpdk)\n\n"
+        "Filter in runbook: `testcase: [{criteria: {priority: [0, 1]}}]`\n\n"
+        "**Runbook criteria stop at 4.** `Criteria.priority` is validated "
+        "with `Range(min=0, max=4)`, so `priority: [0, 5]` makes LISA refuse "
+        "to load the runbook. Select priority-5 suites by `name`, `area`, or "
+        "`tags` instead."
     ),
     "priority": None,  # alias — handled by tier
     "test suite": (

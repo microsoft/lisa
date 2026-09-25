@@ -26,6 +26,10 @@ _KNOWN_PLATFORMS = {
 }
 _NODE_TYPE_PLATFORMS = {"local", "remote"}
 _KEEP_ENVIRONMENT_VALUES = {"no", "always", "failed"}
+# lisa/schema.py validates Criteria.priority with Range(min=0, max=4). A test
+# may *declare* any int — suites here use 5 — but a runbook cannot filter on
+# anything above 4, so those have to be selected by name, area, or tags.
+_MAX_CRITERIA_PRIORITY = 4
 
 
 def _q(value: object) -> str:
@@ -60,9 +64,9 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
                 which emit a `ready` platform with a matching node entry
             area: Test area filter (e.g. "provisioning", "network")
             max_priority: Highest priority level to include; emits the
-                inclusive range `priority: [0, max_priority]`. LISA suites
-                use 0–3 for functional tests and 4–5 for stress and
-                long-running ones.
+                inclusive range `priority: [0, max_priority]`. LISA caps
+                runbook criteria at 4. Suites declared with priority 5 exist
+                but can only be selected by name, area, or tags.
             tags: Comma-separated test tags to filter on
             vm_size: Azure VM size (e.g. "Standard_DS2_v2")
             location: Azure region (e.g. "westus2")
@@ -89,10 +93,15 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
             )
         if concurrency < 1:
             return f"**Error:** `concurrency` must be at least 1, got {concurrency}."
-        if max_priority is not None and max_priority < 0:
-            # No upper bound: TestCaseMetadata takes any int, and suites in
-            # this repo already use 4 and 5 for stress and long-running runs.
-            return f"**Error:** `max_priority` cannot be negative, got {max_priority}."
+        if max_priority is not None and not 0 <= max_priority <= _MAX_CRITERIA_PRIORITY:
+            return (
+                f"**Error:** `max_priority` must be between 0 and "
+                f"{_MAX_CRITERIA_PRIORITY}, got {max_priority}. LISA validates "
+                "`testcase[].criteria.priority` with that range, so a higher "
+                "value produces a runbook it refuses to load. Suites declared "
+                "with priority 5 have to be selected by `name`, `area`, or "
+                "`tags` instead."
+            )
         if image and len(image.split()) != 4:
             return (
                 "**Error:** `image` must be four space-separated fields "
@@ -313,15 +322,36 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
             )
         elif isinstance(doc.get("testcase"), list):
             for i, entry in enumerate(doc["testcase"]):
+                if not isinstance(entry, dict):
+                    continue
+                criteria = entry.get("criteria")
                 # LISA runs all([]) over the predicates built from criteria,
                 # so an absent or empty block matches every test.
-                if isinstance(entry, dict) and not entry.get("criteria"):
+                if not criteria:
                     warnings.append(
                         f"testcase[{i}] has no criteria — this selects *every* "
                         "test in the repo and provisions an environment for "
                         "each. Add `area`, `name`, `priority`, or `tags` "
                         "unless you really mean to run everything."
                     )
+                    continue
+                if not isinstance(criteria, dict):
+                    continue
+                priority = criteria.get("priority")
+                levels = priority if isinstance(priority, list) else [priority]
+                for level in levels:
+                    if (
+                        isinstance(level, int)
+                        and not isinstance(level, bool)
+                        and not 0 <= level <= _MAX_CRITERIA_PRIORITY
+                    ):
+                        errors.append(
+                            f"testcase[{i}].criteria.priority contains {level}; "
+                            f"LISA validates this field with the range 0–"
+                            f"{_MAX_CRITERIA_PRIORITY} and will refuse to load "
+                            "the runbook. Select higher-priority suites by "
+                            "`name`, `area`, or `tags`."
+                        )
 
         # Check extension
         if "extension" not in doc:

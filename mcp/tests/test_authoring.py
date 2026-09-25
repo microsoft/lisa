@@ -157,6 +157,7 @@ class TestGenerateRunbook(unittest.TestCase):
             {"platform": "ready", "keep_environment": "maybe"},
             {"platform": "ready", "concurrency": 0},
             {"platform": "ready", "max_priority": -1},
+            {"platform": "ready", "max_priority": 5},
             {"platform": "ready", "image": "too few fields"},
         ]
         for kwargs in cases:
@@ -166,8 +167,8 @@ class TestGenerateRunbook(unittest.TestCase):
                 self.assertNotIn("```yaml", result)
 
     def test_stress_priorities_are_selectable(self) -> None:
-        """LISA suites use priority 4 and 5; the generator must reach them."""
-        for level in (3, 4, 5):
+        """LISA caps Criteria.priority at 4; the generator must reach it."""
+        for level in (3, 4):
             with self.subTest(level=level):
                 output = _call(
                     "lisa_generate_runbook", platform="ready", max_priority=level
@@ -251,6 +252,32 @@ class TestValidateRunbook(unittest.TestCase):
             )
             result = _call("lisa_validate_runbook", runbook_content=doc)
             self.assertIn("every", result.lower(), f"not flagged: {testcase}")
+
+    def test_out_of_range_criteria_priority_is_rejected(self) -> None:
+        """LISA refuses to load a runbook whose criteria priority exceeds 4."""
+        for priority in (5, [0, 5], -1):
+            with self.subTest(priority=priority):
+                doc = yaml.dump(
+                    {
+                        "platform": [{"type": "azure"}],
+                        "testcase": [{"criteria": {"priority": priority}}],
+                    }
+                )
+                result = _call("lisa_validate_runbook", runbook_content=doc)
+                self.assertIn("**Errors:**", result)
+                self.assertIn("0–4", result)
+
+    def test_in_range_criteria_priority_passes(self) -> None:
+        doc = yaml.dump(
+            {
+                "platform": [{"type": "azure"}],
+                "testcase": [{"criteria": {"priority": [0, 4]}}],
+                "notifier": [{"type": "console"}],
+                "extension": ["../../lisa/microsoft/testsuites"],
+            }
+        )
+        result = _call("lisa_validate_runbook", runbook_content=doc)
+        self.assertNotIn("**Errors:**", result)
 
 
 class TestFixRunbook(unittest.TestCase):

@@ -271,6 +271,9 @@ simple_requirement(
 - **Priority 1 (T1)**: High-priority functional — core features
 - **Priority 2 (T2)**: Normal functional — standard validation
 - **Priority 3 (T3)**: Stress, long-running, edge cases
+- **Priority 4–5**: Very long-running suites (e.g. `xfstests`, `dpdk`)
+
+`@TestCaseMetadata(priority=...)` accepts any integer.
 
 Filter in runbook:
 ```yaml
@@ -278,3 +281,7 @@ testcase:
   - criteria:
       priority: [0, 1]   # run T0 and T1 only
 ```
+
+**Runbook criteria stop at 4.** `Criteria.priority` is validated with
+`Range(min=0, max=4)`, so `priority: [0, 5]` makes LISA refuse to load the
+runbook. Select priority-5 suites by `name`, `area`, or `tags` instead.

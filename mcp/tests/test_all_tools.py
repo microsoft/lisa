@@ -1667,7 +1667,7 @@ class TestSymlinkEscape(unittest.TestCase):
         root = base / "logs"
         root.mkdir()
         secret = base / "secret.log"
-        secret.write_text("topsecret", encoding="utf-8")
+        secret.write_text("SENTINEL-LEAKED-CONTENT", encoding="utf-8")
         link = root / "innocent.log"
         try:
             link.symlink_to(secret)
@@ -1676,10 +1676,14 @@ class TestSymlinkEscape(unittest.TestCase):
 
         os.environ["LISA_LOG_ROOT"] = str(root)
         self.assertFalse(log_analysis._within_log_root(str(link)))
+        # The search term cannot double as the leak canary: the "no matches"
+        # reply echoes the term back, so a naive assertion always trips.
         result = _call(
-            "lisa_search_log_files", path=str(root), search_string="topsecret"
+            "lisa_search_log_files", path=str(root), search_string="SENTINEL"
         )
-        self.assertNotIn("topsecret", result)
+        self.assertIn("No matches", result)
+        self.assertNotIn("SENTINEL-LEAKED-CONTENT", result)
+        self.assertNotIn("innocent.log", result)
 
 
 class TestGeneratedArtifactSafety(unittest.TestCase):
