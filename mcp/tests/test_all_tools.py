@@ -13,6 +13,7 @@ and verify correct behavior with realistic inputs.
 
 import ipaddress
 import json
+import keyword
 import os
 import re
 import subprocess
@@ -145,6 +146,19 @@ class TestScaffoldTestSuite(unittest.TestCase):
         )
         self.assertIn("valid Python identifier", result)
 
+    def test_python_keywords_are_rejected(self) -> None:
+        """str.isidentifier() returns True for keywords; the compiler disagrees."""
+        for name in ("class", "None", "lambda", "import"):
+            with self.subTest(name=name):
+                result = _call(
+                    "lisa_scaffold_test_suite",
+                    area="demo",
+                    class_name=name,
+                    description="ok",
+                )
+                self.assertIn("valid Python identifier", result)
+                self.assertNotIn("```python", result)
+
 
 class TestScaffoldTestCase(unittest.TestCase):
     def test_hostile_description_cannot_break_the_docstring(self) -> None:
@@ -171,6 +185,8 @@ class TestScaffoldTestCase(unittest.TestCase):
             {"supported_os": "Posix], evil_expression"},
             {"supported_os": "Posix", "supported_features": "Gpu], another_evil"},
             {"supported_os": "__import__('os').system('id')"},
+            {"supported_os": "class"},
+            {"supported_os": "Posix", "supported_features": "lambda"},
         ]
         for extra in cases:
             with self.subTest(**extra):
@@ -1151,6 +1167,34 @@ class TestRunOutputRedaction(unittest.TestCase):
         self.assertNotIn(self.CANARY, result)
         self.assertNotIn(self.CANARY[:20], result)
 
+    def test_short_declared_secrets_are_always_redacted(self) -> None:
+        """`s:` is the caller saying it is a secret; length is irrelevant."""
+        completed = subprocess.CompletedProcess(
+            args=["lisa"], returncode=0, stdout="pin=123 tok=ab ok", stderr=""
+        )
+        with mock.patch.object(execution.subprocess, "run", return_value=completed):
+            result = _call(
+                "lisa_run",
+                runbook_path="lisa/examples/runbook/hello_world.yml",
+                variables="s:pin:123 s:tok:ab",
+            )
+        self.assertNotIn("123", result)
+        self.assertNotIn("tok=ab", result)
+        self.assertIn("[redacted]", result)
+
+    def test_short_unmarked_values_are_left_alone(self) -> None:
+        """Blanking every short token would shred the log it sits in."""
+        completed = subprocess.CompletedProcess(
+            args=["lisa"], returncode=0, stdout="mode=ab finished ok", stderr=""
+        )
+        with mock.patch.object(execution.subprocess, "run", return_value=completed):
+            result = _call(
+                "lisa_run",
+                runbook_path="lisa/examples/runbook/hello_world.yml",
+                variables="mode:ab",
+            )
+        self.assertIn("mode=ab", result)
+
     def test_variables_still_reach_lisa(self) -> None:
         self._run_with_fake_subprocess(0, "run finished")
         joined = " ".join(self._last_command)
@@ -1657,6 +1701,8 @@ class TestGeneratedArtifactSafety(unittest.TestCase):
         "format_braces": "{0} {x} {{y}}",
         "quotes": "he said \"hi\" and 'bye'",
         "nul": "ok\x00evil",
+        "keyword": "class",
+        "keyword_soft": "None",
         "long": "A" * 3000,
         "empty": "",
         "only_space": "   ",
@@ -1740,8 +1786,9 @@ class TestGeneratedArtifactSafety(unittest.TestCase):
                             value = meta.get(key)
                             if value is not None:
                                 self.assertTrue(
-                                    str(value).isidentifier(),
-                                    f"{key}={value!r} is not an identifier",
+                                    str(value).isidentifier()
+                                    and not keyword.iskeyword(str(value)),
+                                    f"{key}={value!r} is not usable as a name",
                                 )
                         if meta.get("file_path"):
                             self._assert_contained(meta["file_path"])

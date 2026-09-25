@@ -26,7 +26,6 @@ _KNOWN_PLATFORMS = {
 }
 _NODE_TYPE_PLATFORMS = {"local", "remote"}
 _KEEP_ENVIRONMENT_VALUES = {"no", "always", "failed"}
-_MAX_PRIORITY = 3
 
 
 def _q(value: object) -> str:
@@ -61,7 +60,9 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
                 which emit a `ready` platform with a matching node entry
             area: Test area filter (e.g. "provisioning", "network")
             max_priority: Highest priority level to include; emits the
-                inclusive range `priority: [0, max_priority]`
+                inclusive range `priority: [0, max_priority]`. LISA suites
+                use 0–3 for functional tests and 4–5 for stress and
+                long-running ones.
             tags: Comma-separated test tags to filter on
             vm_size: Azure VM size (e.g. "Standard_DS2_v2")
             location: Azure region (e.g. "westus2")
@@ -88,11 +89,10 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
             )
         if concurrency < 1:
             return f"**Error:** `concurrency` must be at least 1, got {concurrency}."
-        if max_priority is not None and not 0 <= max_priority <= _MAX_PRIORITY:
-            return (
-                f"**Error:** `max_priority` must be between 0 and "
-                f"{_MAX_PRIORITY}, got {max_priority}."
-            )
+        if max_priority is not None and max_priority < 0:
+            # No upper bound: TestCaseMetadata takes any int, and suites in
+            # this repo already use 4 and 5 for stress and long-running runs.
+            return f"**Error:** `max_priority` cannot be negative, got {max_priority}."
         if image and len(image.split()) != 4:
             return (
                 "**Error:** `image` must be four space-separated fields "

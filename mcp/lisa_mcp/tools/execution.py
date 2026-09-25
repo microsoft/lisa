@@ -126,34 +126,43 @@ def _normalize_exit_code(code: int) -> int:
 
 
 _REDACTION = "[redacted]"
-# Below this length a value is more likely to be a common word than a secret,
-# and blanking it would shred the log it is embedded in.
+# Unmarked values are best-effort: below this length they are more likely to
+# be a common word than a secret, and blanking them would shred the log. An
+# `s:`-marked value carries no such doubt and is always redacted.
 _MIN_REDACTABLE_LEN = 4
 
 
-def _variable_values(args: list[str]) -> list[str]:
-    """The values carried by a list of alternating ``-v name:value`` tokens."""
-    values: list[str] = []
+def _variable_values(args: list[str]) -> tuple[list[str], list[str]]:
+    """Split ``-v`` tokens into ``(declared_secrets, other_values)``.
+
+    The `s:` marker has to survive parsing: it is the caller telling us the
+    value is a secret regardless of how short it is.
+    """
+    secrets: list[str] = []
+    others: list[str] = []
     for token in args[1::2]:
-        body = token[2:] if token.startswith("s:") else token
+        is_secret = token.startswith("s:")
+        body = token[2:] if is_secret else token
         _, _, value = body.partition(":")
         if value:
-            values.append(value)
-    return values
+            (secrets if is_secret else others).append(value)
+    return secrets, others
 
 
-def _redact(text: str, values: list[str]) -> str:
-    """Blank out *values* wherever LISA echoed them back.
+def _redact(text: str, secrets: list[str], others: list[str]) -> str:
+    """Blank out variable values wherever LISA echoed them back.
 
     Keeping them off the command line is not enough: LISA's own debug
     logging and the tests it runs print variables into stdout, and that
     stdout is handed straight to the MCP client.
     """
+    candidates = {v for v in secrets if v} | {
+        v for v in others if v and len(v) >= _MIN_REDACTABLE_LEN
+    }
     # Longest first, so a short value nested inside a longer one does not
     # break up the longer match.
-    for value in sorted({v for v in values if v}, key=len, reverse=True):
-        if len(value) >= _MIN_REDACTABLE_LEN:
-            text = text.replace(value, _REDACTION)
+    for value in sorted(candidates, key=len, reverse=True):
+        text = text.replace(value, _REDACTION)
     return text
 
 
@@ -322,12 +331,14 @@ def register_execution_tools(mcp: MCPServer) -> None:  # noqa: C901
         command = [*base_command, "-r", str(runbook.resolve())]
         if debug:
             command.append("-d")
-        sensitive: list[str] = []
+        # Configured Azure values are identifiers, not caller-marked secrets,
+        # so they follow the length rule; `s:` values never do.
+        config_values: list[str] = []
         for name, value in get_azure_config().items():
             command.extend(["-v", f"{_VARIABLE_NAMES.get(name, name)}:{value}"])
-            sensitive.append(str(value))
+            config_values.append(str(value))
         command.extend(variable_args)
-        sensitive.extend(_variable_values(variable_args))
+        declared_secrets, plain_values = _variable_values(variable_args)
 
         try:
             completed = subprocess.run(
@@ -352,7 +363,7 @@ def register_execution_tools(mcp: MCPServer) -> None:  # noqa: C901
         # Redact before truncating: truncation could otherwise cut a secret
         # in half and leave the first part in the report.
         raw = (completed.stdout or "") + (completed.stderr or "")
-        output = _truncate(_redact(raw, sensitive))
+        output = _truncate(_redact(raw, declared_secrets, config_values + plain_values))
         exit_code = _normalize_exit_code(completed.returncode)
         status = "succeeded" if exit_code == 0 else "failed"
         return (

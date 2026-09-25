@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import keyword
 import os
 import re
 from pathlib import Path
@@ -51,9 +52,18 @@ def _area_segment(area: str) -> tuple[str, Optional[str]]:
     return cleaned, None
 
 
+def _is_usable_name(value: str) -> bool:
+    """Whether *value* can be interpolated into generated source as a name.
+
+    `str.isidentifier()` alone is not enough: it returns True for keywords,
+    so `class_name="class"` would pass and emit uncompilable code.
+    """
+    return value.isidentifier() and not keyword.iskeyword(value)
+
+
 def _identifier(value: str, label: str) -> Optional[str]:
     """Error message when *value* is unusable as a Python name."""
-    if not value.isidentifier():
+    if not _is_usable_name(value):
         return f"`{label}` must be a valid Python identifier, got `{value}`."
     return None
 
@@ -67,7 +77,7 @@ def _symbol_list(raw: str, label: str) -> tuple[list[str], Optional[str]]:
     names = [item.strip() for item in raw.split(",") if item.strip()]
     if not names:
         return [], f"`{label}` is empty — give at least one name, e.g. `Posix`."
-    bad = [n for n in names if not n.isidentifier()]
+    bad = [n for n in names if not _is_usable_name(n)]
     if bad:
         return [], (
             f"`{label}` must be Python symbol names, got "
@@ -242,8 +252,8 @@ class {class_name}(TestSuite):
         error = _identifier(method_name, "method_name")
         if error:
             return error
-        if not 0 <= priority <= 3:
-            return f"`priority` must be between 0 and 3, got {priority}."
+        if priority < 0:
+            return f"`priority` cannot be negative, got {priority}."
 
         # Build requirement kwargs
         req_parts = []
@@ -622,7 +632,7 @@ class {class_name}(TestSuite):
             if not class_name:
                 words = re.split(r"[\s_-]+", feature_area)
                 class_name = "".join(w.capitalize() for w in words) + "Validation"
-            if not class_name.isidentifier():
+            if not _is_usable_name(class_name):
                 class_name = "GeneratedValidation"
             snake_name = _to_snake_case(class_name)
             file_path = f"lisa/microsoft/testsuites/{feature_area}/{snake_name}.py"
@@ -637,7 +647,7 @@ class {class_name}(TestSuite):
         # A description of only punctuation leaves a trailing underscore, and
         # a leading digit is not a legal name either.
         method_name = re.sub(r"_+", "_", method_name).rstrip("_")
-        if not method_name.isidentifier():
+        if not _is_usable_name(method_name):
             method_name = "verify_generated_case"
 
         dirty_keywords = [

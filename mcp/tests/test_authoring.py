@@ -156,7 +156,7 @@ class TestGenerateRunbook(unittest.TestCase):
             {"platform": "not-a-platform"},
             {"platform": "ready", "keep_environment": "maybe"},
             {"platform": "ready", "concurrency": 0},
-            {"platform": "ready", "max_priority": 9},
+            {"platform": "ready", "max_priority": -1},
             {"platform": "ready", "image": "too few fields"},
         ]
         for kwargs in cases:
@@ -164,6 +164,16 @@ class TestGenerateRunbook(unittest.TestCase):
                 result = _call("lisa_generate_runbook", **kwargs)
                 self.assertIn("**Error:**", result)
                 self.assertNotIn("```yaml", result)
+
+    def test_stress_priorities_are_selectable(self) -> None:
+        """LISA suites use priority 4 and 5; the generator must reach them."""
+        for level in (3, 4, 5):
+            with self.subTest(level=level):
+                output = _call(
+                    "lisa_generate_runbook", platform="ready", max_priority=level
+                )
+                doc = yaml.safe_load(_extract_yaml(output))
+                self.assertEqual(doc["testcase"][0]["criteria"]["priority"], [0, level])
 
 
 class TestValidateRunbook(unittest.TestCase):
