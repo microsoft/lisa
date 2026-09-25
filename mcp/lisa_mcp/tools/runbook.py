@@ -220,6 +220,17 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
                 "Missing `testcase` section — no tests will be selected. "
                 "Add at least one testcase criteria block."
             )
+        elif isinstance(doc.get("testcase"), list):
+            for i, entry in enumerate(doc["testcase"]):
+                # LISA runs all([]) over the predicates built from criteria,
+                # so an absent or empty block matches every test.
+                if isinstance(entry, dict) and not entry.get("criteria"):
+                    warnings.append(
+                        f"testcase[{i}] has no criteria — this selects *every* "
+                        "test in the repo and provisions an environment for "
+                        "each. Add `area`, `name`, `priority`, or `tags` "
+                        "unless you really mean to run everything."
+                    )
 
         # Check extension
         if "extension" not in doc:
@@ -313,12 +324,18 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
             modified["notifier"] = [{"type": "console"}, {"type": "html"}]
             fixes.append("Added `notifier` section with console and html output.")
 
-        # Fix: missing testcase
+        # Deliberately not auto-adding `testcase` either: an empty criteria
+        # mapping contributes no predicates, and _match_cases does all([])
+        # over them — every test in the repo matches and runs.
         if "testcase" not in modified and "testcase_raw" not in modified:
-            modified["testcase"] = [{"criteria": {}}]
-            fixes.append(
-                "Added empty `testcase` criteria block. "
-                "Specify `area`, `priority`, or `name` to filter tests."
+            unfixable.append(
+                "Missing `testcase` — not auto-filled, because an empty "
+                "criteria block selects *every* test in the repo and would "
+                "provision an environment for each. Add the selection you "
+                "actually want, e.g.:\n"
+                "  testcase:\n"
+                "    - criteria:\n"
+                "        area: provisioning   # or name / priority / tags"
             )
 
         # Fix: testcase as dict instead of list

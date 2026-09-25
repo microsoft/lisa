@@ -11,6 +11,7 @@ These tests invoke each tool directly (without MCP protocol overhead)
 and verify correct behavior with realistic inputs.
 """
 
+import ipaddress
 import os
 import subprocess
 import sys
@@ -1376,6 +1377,38 @@ class TestDownloadRedirectGuard(unittest.TestCase):
         source = inspect.getsource(log_analysis._download_url_to_dir)
         self.assertIn("_open_download(req)", source)
         self.assertNotIn("urlopen(", source)
+
+
+class TestDnsRebindingGuard(unittest.TestCase):
+    """The address that passed the check must be the address connected to."""
+
+    def test_resolve_returns_the_checked_address(self) -> None:
+        address = log_analysis._resolve_public_address("example.com")
+        parsed = ipaddress.ip_address(address)
+        self.assertFalse(parsed.is_private)
+        self.assertFalse(parsed.is_loopback)
+
+    def test_resolve_rejects_internal_targets(self) -> None:
+        for hostname in ("localhost", "127.0.0.1", "169.254.169.254", "10.0.0.5"):
+            with self.assertRaises(ValueError, msg=hostname):
+                log_analysis._resolve_public_address(hostname)
+
+    def test_connection_revalidates_at_connect_time(self) -> None:
+        """Re-resolving inside connect() is what removes the TOCTOU window."""
+        conn = log_analysis._PinnedHTTPSConnection("localhost", 443)
+        self.assertEqual(
+            conn._create_connection,
+            conn._connect_to_validated_address,
+        )
+        with self.assertRaises(ValueError) as ctx:
+            conn._create_connection(("localhost", 443), 5, None)
+        self.assertIn("non-public", str(ctx.exception))
+
+    def test_pinned_handler_is_installed_in_the_opener(self) -> None:
+        import inspect
+
+        source = inspect.getsource(log_analysis._open_download)
+        self.assertIn("_PinnedHTTPSHandler()", source)
 
 
 class TestSymlinkEscape(unittest.TestCase):

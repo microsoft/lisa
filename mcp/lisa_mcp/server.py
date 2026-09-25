@@ -122,6 +122,12 @@ def _build_sse_app(host: str = "127.0.0.1") -> Any:
             "local-only use."
         )
 
+    # Building this app is what makes the process network-reachable, so the
+    # remote marker belongs here rather than in main() — an ASGI embedding
+    # that imports the factory directly would otherwise leave the log tools
+    # unconfined. Set after validation so a refused start changes nothing.
+    set_transport("sse")
+
     return TrustedHostMiddleware(wrapped, allowed_hosts=allowed_hosts)
 
 

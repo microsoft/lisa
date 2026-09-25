@@ -219,6 +219,27 @@ class TestSSETransport(unittest.TestCase):
         except ImportError:
             self.skipTest("SSE extras not installed")
 
+        # Building an SSE app flips the process into remote mode; leaving it
+        # flipped would change how the log and execution tools behave in
+        # every test that runs afterwards.
+        from lisa_mcp import runtime
+
+        self.addCleanup(runtime.set_transport, runtime.get_transport())
+
+    def test_building_the_app_marks_the_runtime_remote(self) -> None:
+        """Security checks must not depend on the CLI being the entrypoint."""
+        from lisa_mcp import runtime
+        from lisa_mcp.server import _build_sse_app
+
+        runtime.set_transport("stdio")
+        previous_key = os.environ.get("LISA_MCP_API_KEY")
+        os.environ["LISA_MCP_API_KEY"] = "test-key"
+        try:
+            _build_sse_app("127.0.0.1")
+            self.assertTrue(runtime.is_remote())
+        finally:
+            _restore_env("LISA_MCP_API_KEY", previous_key)
+
     async def _serve_and_connect(self, api_key: str) -> list:
         import uvicorn
         from mcp.client.sse import sse_client
@@ -314,14 +335,18 @@ class TestSSETransport(unittest.TestCase):
 
     def test_public_bind_without_api_key_is_refused(self) -> None:
         """A network-reachable listener must not come up unauthenticated."""
+        from lisa_mcp import runtime
         from lisa_mcp.server import _build_sse_app
 
+        runtime.set_transport("stdio")
         previous_key = os.environ.get("LISA_MCP_API_KEY")
         os.environ.pop("LISA_MCP_API_KEY", None)
         try:
             with self.assertRaises(SystemExit) as ctx:
                 _build_sse_app("0.0.0.0")
             self.assertIn("LISA_MCP_API_KEY", str(ctx.exception))
+            # A refused start must not leave the process marked remote.
+            self.assertEqual(runtime.get_transport(), "stdio")
 
             # Loopback stays usable without a key for local development.
             _build_sse_app("127.0.0.1")

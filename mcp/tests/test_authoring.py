@@ -122,6 +122,20 @@ class TestValidateRunbook(unittest.TestCase):
         result = _call("lisa_validate_runbook", runbook_content=doc)
         self.assertIn("valid", result.lower())
 
+    def test_empty_criteria_is_flagged(self) -> None:
+        """`all([])` is True, so no predicates means the whole suite runs."""
+        for testcase in ([{"criteria": {}}], [{"criteria": None}], [{}]):
+            doc = yaml.dump(
+                {
+                    "platform": [{"type": "azure"}],
+                    "testcase": testcase,
+                    "notifier": [{"type": "console"}],
+                    "extension": ["../../lisa/microsoft/testsuites"],
+                }
+            )
+            result = _call("lisa_validate_runbook", runbook_content=doc)
+            self.assertIn("every", result.lower(), f"not flagged: {testcase}")
+
 
 class TestFixRunbook(unittest.TestCase):
     """Validate lisa_fix_runbook repairs safely."""
@@ -132,6 +146,14 @@ class TestFixRunbook(unittest.TestCase):
         result = _call("lisa_fix_runbook", runbook_content=doc)
         fixed = yaml.safe_load(_extract_yaml(result))
         self.assertNotIn("platform", fixed)
+        self.assertIn("Needs your input", result)
+
+    def test_missing_testcase_is_not_auto_filled(self) -> None:
+        """An empty criteria block selects every test in the repo."""
+        doc = yaml.dump({"platform": [{"type": "local"}]})
+        result = _call("lisa_fix_runbook", runbook_content=doc)
+        fixed = yaml.safe_load(_extract_yaml(result))
+        self.assertNotIn("testcase", fixed)
         self.assertIn("Needs your input", result)
 
     def test_input_document_is_not_mutated(self) -> None:

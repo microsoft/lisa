@@ -14,10 +14,11 @@ import tarfile
 import tempfile
 import time
 import zipfile
+from http.client import HTTPSConnection
 from pathlib import Path
 from typing import Any, BinaryIO, Optional
 from urllib.parse import ParseResult, unquote, urlparse
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+from urllib.request import HTTPRedirectHandler, HTTPSHandler, Request, build_opener
 
 from mcp.server.mcpserver import MCPServer
 
@@ -1339,12 +1340,12 @@ def _download_error_types() -> tuple[type[BaseException], ...]:
     return tuple(errors)
 
 
-def _reject_internal_host(hostname: str) -> None:
-    """Raise when *hostname* resolves to an address we must not fetch from.
+def _resolve_public_address(hostname: str) -> str:
+    """Resolve *hostname*, reject non-public results, return one address.
 
-    HTTPS proves nothing about the destination: a caller-supplied URL can
-    still point at loopback, RFC1918, or the cloud metadata endpoint. Every
-    resolved address has to be public, because DNS may return several.
+    Handing the address back is what closes the DNS-rebinding window: the
+    caller connects to exactly what was checked instead of doing a second
+    lookup that a hostile TTL-0 zone can answer differently.
     """
     try:
         infos = socket.getaddrinfo(hostname, None)
@@ -1366,6 +1367,16 @@ def _reject_internal_host(hostname: str) -> None:
                 f"non-public address {address}. Only internet-reachable log "
                 "storage is allowed."
             )
+    return infos[0][4][0]
+
+
+def _reject_internal_host(hostname: str) -> None:
+    """Raise when *hostname* resolves to an address we must not fetch from.
+
+    HTTPS proves nothing about the destination: a caller-supplied URL can
+    still point at loopback, RFC1918, or the cloud metadata endpoint.
+    """
+    _resolve_public_address(hostname)
 
 
 def _check_download_target(url: str) -> ParseResult:
@@ -1400,9 +1411,46 @@ class _GuardedRedirectHandler(HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
+class _PinnedHTTPSConnection(HTTPSConnection):
+    """Connects only to an address that passed the SSRF check.
+
+    TLS is untouched — the stdlib still verifies the certificate against
+    ``self.host``, so pinning the address cannot be used to strip identity
+    checking.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        # HTTPConnection assigns this as an instance attribute, so a plain
+        # method override on the subclass would be shadowed.
+        self._create_connection = self._connect_to_validated_address
+
+    def _connect_to_validated_address(
+        self,
+        address: tuple[str, int],
+        timeout: Any,
+        source_address: Any,
+    ) -> socket.socket:
+        host, port = address
+        if self._tunnel_host:
+            # An explicitly configured proxy is the egress policy; its own
+            # address is often private and proves nothing about the target.
+            return socket.create_connection((host, port), timeout, source_address)
+        return socket.create_connection(
+            (_resolve_public_address(host), port), timeout, source_address
+        )
+
+
+class _PinnedHTTPSHandler(HTTPSHandler):
+    """Routes urllib's HTTPS requests through the address-pinning connection."""
+
+    def https_open(self, req: Request) -> Any:
+        return self.do_open(_PinnedHTTPSConnection, req, context=self._context)
+
+
 def _open_download(req: Request) -> Any:
-    """Open *req* with redirects held to the same host policy."""
-    opener = build_opener(_GuardedRedirectHandler())
+    """Open *req* with redirects and peer addresses held to the host policy."""
+    opener = build_opener(_GuardedRedirectHandler(), _PinnedHTTPSHandler())
     return opener.open(req, timeout=120)
 
 
