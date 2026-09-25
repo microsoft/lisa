@@ -188,9 +188,9 @@ class StartStop(AzureFeatureMixin, features.StartStop):
         node_info = self._node.connection_info
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_PUBLIC_ADDRESS] = public_ip
         node_info[constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS] = private_ip
-        node_info[
-            constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS
-        ] = platform._azure_runbook.use_public_address
+        node_info[constants.ENVIRONMENTS_NODES_REMOTE_USE_PUBLIC_ADDRESS] = (
+            platform._azure_runbook.use_public_address
+        )
         self._node.set_connection_info(**node_info)
         self._node._is_initialized = False
         self._node.initialize()
@@ -565,8 +565,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         ]
     }
     """  # noqa: E501
-    _gpu_extension_nvidia_properties = json.loads(
-        """
+    _gpu_extension_nvidia_properties = json.loads("""
         {
             "publisher": "Microsoft.HpcCompute",
             "type": "NvidiaGpuDriverLinux",
@@ -575,8 +574,7 @@ class Gpu(AzureFeatureMixin, features.Gpu):
             "settings": {
             }
         }
-    """
-    )
+    """)
 
     def is_supported(self) -> bool:
         # TODO: The GPU Feature is supposed to handle cloud related
@@ -940,6 +938,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 f"Fail to add route {route_name} to route table {route_table_name}, {e}"
             )
 
+    @retry(HttpResponseError, tries=10, delay=20)  # type: ignore
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
@@ -977,9 +976,13 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"now set its status into [{enable}]."
                 )
                 updated_nic.enable_ip_forwarding = enable
+                # wait for the ARM operation to fully complete (not just be
+                # accepted) before re-reading the nic, since the l3fwd test
+                # depends on forwarding actually being enabled before it
+                # starts sending traffic through this VM.
                 network_client.network_interfaces.begin_create_or_update(
                     self._resource_group_name, updated_nic.name, updated_nic
-                )
+                ).result()
                 updated_nic = network_client.network_interfaces.get(
                     self._resource_group_name, nic_name
                 )
@@ -2037,9 +2040,9 @@ class Disk(AzureFeatureMixin, features.Disk):
             cmd_result = self._node.execute(
                 f"readlink -f {disk}", shell=True, sudo=True
             )
-            disk_array[
-                int(disk.split("/")[-1].replace("lun", ""))
-            ] = cmd_result.stdout.strip()
+            disk_array[int(disk.split("/")[-1].replace("lun", ""))] = (
+                cmd_result.stdout.strip()
+            )
         return disk_array
 
     def get_all_disks(self) -> List[str]:
@@ -2970,9 +2973,9 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                     )
 
             # Disk Encryption Set ID
-            node_parameters.security_profile[
-                "disk_encryption_set_id"
-            ] = settings.disk_encryption_set_id
+            node_parameters.security_profile["disk_encryption_set_id"] = (
+                settings.disk_encryption_set_id
+            )
 
             # Return Skipped Exception if security profile is set on Gen 1 VM
             if node_parameters.security_profile["security_type"] == "":
