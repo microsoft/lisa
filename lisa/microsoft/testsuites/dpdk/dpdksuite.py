@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+from functools import partial
 from typing import Any, Dict, Tuple
 
 from assertpy import assert_that, fail
@@ -16,10 +17,10 @@ from microsoft.testsuites.dpdk.common import (
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
+    DpdkCleanupManager,
     UIO_HV_GENERIC_SYSFS_PATH,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
-    do_parallel_cleanup,
     enable_uio_hv_generic,
     generate_send_receive_run_info,
     init_nodes_concurrent,
@@ -76,6 +77,7 @@ class Dpdk(TestSuite):
     _ring_ping_percentile_regex = re.compile(r"percentile 99.990 = ([0-9]+)")
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
+        self._dpdk_cleanup = DpdkCleanupManager()
         node: Node = kwargs["node"]
         if isinstance(node.os, BSD) or isinstance(node.os, Windows):
             raise SkippedException(f"{node.os} is not supported.")
@@ -106,7 +108,13 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_2MB, result=result
+            node,
+            log,
+            variables,
+            Pmd.NETVSC,
+            HugePageSize.HUGE_2MB,
+            self._dpdk_cleanup,
+            result=result,
         )
 
     @TestCaseMetadata(
@@ -136,7 +144,13 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, Pmd.MANA, HugePageSize.HUGE_2MB, result=result
+            node,
+            log,
+            variables,
+            Pmd.MANA,
+            HugePageSize.HUGE_2MB,
+            self._dpdk_cleanup,
+            result=result,
         )
 
     @TestCaseMetadata(
@@ -164,7 +178,7 @@ class Dpdk(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        run_dpdk_symmetric_mp(node, log, variables)
+        run_dpdk_symmetric_mp(node, log, variables, self._dpdk_cleanup)
 
     @TestCaseMetadata(
         description="""
@@ -192,7 +206,13 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_1GB, result=result
+            node,
+            log,
+            variables,
+            Pmd.NETVSC,
+            HugePageSize.HUGE_1GB,
+            self._dpdk_cleanup,
+            result=result,
         )
 
     @TestCaseMetadata(
@@ -221,7 +241,13 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_2MB, result=result
+            node,
+            log,
+            variables,
+            Pmd.FAILSAFE,
+            HugePageSize.HUGE_2MB,
+            self._dpdk_cleanup,
+            result=result,
         )
 
     @TestCaseMetadata(
@@ -250,7 +276,13 @@ class Dpdk(TestSuite):
         result: TestResult,
     ) -> None:
         verify_dpdk_build(
-            node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_1GB, result=result
+            node,
+            log,
+            variables,
+            Pmd.FAILSAFE,
+            HugePageSize.HUGE_1GB,
+            self._dpdk_cleanup,
+            result=result,
         )
 
     @TestCaseMetadata(
@@ -275,7 +307,7 @@ class Dpdk(TestSuite):
     ) -> None:
         # initialize DPDK first, OVS requires it built from source before configuring.
         force_dpdk_default_source(variables)
-        run_ovs_test(node, log, variables, Pmd.NETVSC)
+        run_ovs_test(node, log, variables, Pmd.NETVSC, self._dpdk_cleanup)
 
     @TestCaseMetadata(
         description="""
@@ -340,6 +372,7 @@ class Dpdk(TestSuite):
                 variables,
                 pmd,
                 HugePageSize.HUGE_2MB,
+                self._dpdk_cleanup,
                 sample_apps=[
                     server_app_name,
                     client_app_name,
@@ -356,6 +389,15 @@ class Dpdk(TestSuite):
         # setup and run mp_server application
         server_app_path = test_kit.testpmd.get_example_app_path(server_app_name)
         client_app_path = test_kit.testpmd.get_example_app_path(client_app_name)
+        self._dpdk_cleanup.register(
+            node,
+            partial(
+                kill.by_name,
+                str(server_app_path.name),
+                signum=SIGINT,
+                ignore_not_exist=True,
+            ),
+        )
 
         # EAL -l: start server on cores 1-2,
         # EAL -n: use 4 memory channels
@@ -507,6 +549,7 @@ class Dpdk(TestSuite):
             variables,
             pmd,
             HugePageSize.HUGE_2MB,
+            self._dpdk_cleanup,
         )
 
         try:
@@ -540,7 +583,12 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             test_kit = initialize_node_resources(
-                node, log, variables, pmd, HugePageSize.HUGE_2MB
+                node,
+                log,
+                variables,
+                pmd,
+                HugePageSize.HUGE_2MB,
+                self._dpdk_cleanup,
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -625,7 +673,12 @@ class Dpdk(TestSuite):
             )
         try:
             initialize_node_resources(
-                node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_2MB
+                node,
+                log,
+                variables,
+                Pmd.FAILSAFE,
+                HugePageSize.HUGE_2MB,
+                self._dpdk_cleanup,
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -676,7 +729,12 @@ class Dpdk(TestSuite):
         # setup and unwrap the resources for this test
         try:
             test_kit = initialize_node_resources(
-                node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_2MB
+                node,
+                log,
+                variables,
+                Pmd.FAILSAFE,
+                HugePageSize.HUGE_2MB,
+                self._dpdk_cleanup,
             )
         except (NotEnoughMemoryException, UnsupportedOperationException) as err:
             raise SkippedException(err)
@@ -748,7 +806,13 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             verify_dpdk_send_receive_multi_txrx_queue(
-                environment, log, variables, pmd, queues=queues, result=result
+                environment,
+                log,
+                variables,
+                pmd,
+                queues=queues,
+                cleanup_manager=self._dpdk_cleanup,
+                result=result,
             )
         except UnsupportedPackageVersionException as err:
             raise SkippedException(err)
@@ -927,6 +991,7 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.NETVSC,
                 queues=4,
+                cleanup_manager=self._dpdk_cleanup,
                 result=result,
                 set_mtu=mtu_size,
                 grading_metric=DpdkGradeMetric.BPS,
@@ -968,6 +1033,7 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.NETVSC,
                 queues=4,
+                cleanup_manager=self._dpdk_cleanup,
                 result=result,
                 set_mtu=mtu_size,
                 grading_metric=DpdkGradeMetric.BPS,
@@ -1009,6 +1075,7 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.NETVSC,
                 queues=4,
+                cleanup_manager=self._dpdk_cleanup,
                 result=result,
                 set_mtu=mtu_size,
                 grading_metric=DpdkGradeMetric.BPS,
@@ -1050,6 +1117,7 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.NETVSC,
                 queues=4,
+                cleanup_manager=self._dpdk_cleanup,
                 result=result,
                 set_mtu=mtu_size,
                 grading_metric=DpdkGradeMetric.BPS,
@@ -1234,6 +1302,7 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.FAILSAFE,
                 HugePageSize.HUGE_2MB,
+                self._dpdk_cleanup,
                 result=result,
             )
         except UnsupportedPackageVersionException as err:
@@ -1271,6 +1340,7 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.FAILSAFE,
                 HugePageSize.HUGE_1GB,
+                self._dpdk_cleanup,
                 result=result,
             )
         except UnsupportedPackageVersionException as err:
@@ -1307,6 +1377,7 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.NETVSC,
                 HugePageSize.HUGE_2MB,
+                self._dpdk_cleanup,
                 result=result,
             )
         except UnsupportedPackageVersionException as err:
@@ -1344,6 +1415,7 @@ class Dpdk(TestSuite):
                 variables,
                 Pmd.NETVSC,
                 HugePageSize.HUGE_1GB,
+                self._dpdk_cleanup,
                 result=result,
             )
         except UnsupportedPackageVersionException as err:
@@ -1382,7 +1454,13 @@ class Dpdk(TestSuite):
         force_dpdk_default_source(variables)
         pmd = Pmd.NETVSC
         verify_dpdk_l3fwd_ntttcp_tcp(
-            environment, log, variables, HugePageSize.HUGE_2MB, pmd=pmd, result=result
+            environment,
+            log,
+            variables,
+            HugePageSize.HUGE_2MB,
+            self._dpdk_cleanup,
+            pmd=pmd,
+            result=result,
         )
 
     @TestCaseMetadata(
@@ -1422,6 +1500,7 @@ class Dpdk(TestSuite):
             log,
             variables,
             HugePageSize.HUGE_2MB,
+            self._dpdk_cleanup,
             pmd=pmd,
             result=result,
             hotplug_sriov=True,
@@ -1462,6 +1541,7 @@ class Dpdk(TestSuite):
             log,
             variables,
             hugepage_size=HugePageSize.HUGE_1GB,
+            cleanup_manager=self._dpdk_cleanup,
             pmd=pmd,
             result=result,
         )
@@ -1536,10 +1616,16 @@ class Dpdk(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        do_parallel_cleanup(environment)
+        self._dpdk_cleanup.cleanup(environment)
 
 
-def run_ovs_test(node: Node, log: Logger, variables: Dict[str, Any], pmd: Pmd) -> None:
+def run_ovs_test(
+    node: Node,
+    log: Logger,
+    variables: Dict[str, Any],
+    pmd: Pmd,
+    cleanup_manager: DpdkCleanupManager,
+) -> None:
     if node.tools[Lscpu].get_architecture() == CpuArchitecture.ARM64:
         raise SkippedException("OVS test not supported on ARM64")
 
@@ -1551,6 +1637,7 @@ def run_ovs_test(node: Node, log: Logger, variables: Dict[str, Any], pmd: Pmd) -
             variables,
             pmd,
             HugePageSize.HUGE_2MB,
+            cleanup_manager,
             test_nics=test_nics,
         )
     except (
@@ -1559,7 +1646,6 @@ def run_ovs_test(node: Node, log: Logger, variables: Dict[str, Any], pmd: Pmd) -
         UnsupportedDistroException,
     ) as err:
         raise SkippedException(err)
-
     # checkout OpenVirtualSwitch
     ovs: DpdkOvs = node.tools.create(DpdkOvs)
 
@@ -1574,18 +1660,16 @@ def run_ovs_test(node: Node, log: Logger, variables: Dict[str, Any], pmd: Pmd) -
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
 
-    try:
-        # run OVS tests, providing OVS with the NIC info needed for DPDK init
-        ovs.setup_ovs(test_nics, test_kit.testpmd)
+    # run OVS tests, providing OVS with the NIC info needed for DPDK init
+    cleanup_manager.register(node, ovs.stop_ovs)
+    ovs.setup_ovs(test_nics, test_kit.testpmd)
 
-        # validate if OVS was able to initialize DPDK
-        node.execute(
-            "ovs-vsctl get Open_vSwitch . dpdk_initialized",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "OVS reported that DPDK EAL failed to initialize."
-            ),
-        )
-    finally:
-        ovs.stop_ovs()
+    # validate if OVS was able to initialize DPDK
+    node.execute(
+        "ovs-vsctl get Open_vSwitch . dpdk_initialized",
+        sudo=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message=(
+            "OVS reported that DPDK EAL failed to initialize."
+        ),
+    )
