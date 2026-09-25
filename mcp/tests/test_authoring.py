@@ -73,6 +73,44 @@ class TestGenerateRunbook(unittest.TestCase):
         variables = doc.get("variable", [])
         names = [v["name"] for v in variables if isinstance(v, dict)]
         self.assertIn("subscription_id", names)
+        self.assertIn("resource_group_name", names)
+
+    def test_local_becomes_a_ready_platform_with_a_node(self) -> None:
+        """`local` is a node type; the platform factory cannot load it."""
+        output = _call("lisa_generate_runbook", platform="local", area="demo")
+        doc = yaml.safe_load(_extract_yaml(output))
+        self.assertEqual([p["type"] for p in doc["platform"]], ["ready"])
+        nodes = doc["environment"]["environments"][0]["nodes"]
+        self.assertEqual([n["type"] for n in nodes], ["local"])
+
+    def test_remote_becomes_a_ready_platform_with_a_node(self) -> None:
+        output = _call("lisa_generate_runbook", platform="remote", area="demo")
+        doc = yaml.safe_load(_extract_yaml(output))
+        self.assertEqual([p["type"] for p in doc["platform"]], ["ready"])
+        node = doc["environment"]["environments"][0]["nodes"][0]
+        self.assertEqual(node["type"], "remote")
+        self.assertIn("address", node)
+
+    def test_azure_options_sit_under_platform_requirement(self) -> None:
+        """location/vm_size/marketplace are node requirements, not platform
+        settings — see lisa/microsoft/runbook/azure.yml."""
+        output = _call(
+            "lisa_generate_runbook",
+            platform="azure",
+            area="demo",
+            location="westus2",
+            vm_size="Standard_DS2_v2",
+            image="canonical ubuntu-24_04-lts server latest",
+        )
+        doc = yaml.safe_load(_extract_yaml(output))
+        entry = doc["platform"][0]
+        requirement = entry["requirement"]["azure"]
+        self.assertEqual(requirement["location"], "westus2")
+        self.assertEqual(requirement["vm_size"], "Standard_DS2_v2")
+        self.assertEqual(requirement["marketplace"]["publisher"], "canonical")
+        # The platform node itself only carries connection settings.
+        self.assertNotIn("requirement", entry["azure"])
+        self.assertNotIn("deploy_location", entry["azure"])
 
     def test_no_filters_omits_empty_criteria(self) -> None:
         """A criteria block with no filters would select every test."""
@@ -109,6 +147,31 @@ class TestValidateRunbook(unittest.TestCase):
         doc = yaml.dump({"platform": [], "testcase": [{"criteria": {"area": "demo"}}]})
         result = _call("lisa_validate_runbook", runbook_content=doc)
         self.assertIn("**Errors:**", result)
+
+    def test_testcase_as_mapping_is_rejected(self) -> None:
+        """LISA expects a list; a mapping used to pass validation silently."""
+        doc = yaml.dump(
+            {
+                "platform": [{"type": "azure"}],
+                "testcase": {"criteria": {"area": "demo"}},
+            }
+        )
+        result = _call("lisa_validate_runbook", runbook_content=doc)
+        self.assertIn("**Errors:**", result)
+        self.assertIn("list", result.lower())
+
+    def test_node_type_used_as_platform_is_rejected(self) -> None:
+        """`platform: local` produces a runbook the factory cannot load."""
+        for node_type in ("local", "remote"):
+            doc = yaml.dump(
+                {
+                    "platform": [{"type": node_type}],
+                    "testcase": [{"criteria": {"area": "demo"}}],
+                }
+            )
+            result = _call("lisa_validate_runbook", runbook_content=doc)
+            self.assertIn("**Errors:**", result, node_type)
+            self.assertIn("ready", result, node_type)
 
     def test_valid_runbook_passes(self) -> None:
         doc = yaml.dump(

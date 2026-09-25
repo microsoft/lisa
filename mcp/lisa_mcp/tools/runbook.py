@@ -10,6 +10,21 @@ from typing import Optional
 
 from mcp.server.mcpserver import MCPServer
 
+# Platform types LISA actually registers. `local` and `remote` are node types
+# under environment.environments[].nodes[], not platforms — those runbooks use
+# the `ready` platform (lisa/microsoft/runbook/local.yml).
+_KNOWN_PLATFORMS = {
+    "aws",
+    "azure",
+    "baremetal",
+    "cloud-hypervisor",
+    "hyperv",
+    "mock",
+    "qemu",
+    "ready",
+}
+_NODE_TYPE_PLATFORMS = {"local", "remote"}
+
 
 def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
     @mcp.tool()
@@ -28,7 +43,9 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         """Generate a valid LISA YAML runbook from parameters.
 
         Args:
-            platform: Target platform — "azure", "hyperv", "local", "remote"
+            platform: Where to run — "azure", "hyperv", "aws", "baremetal",
+                "ready", or the node-type shorthands "local" / "remote",
+                which emit a `ready` platform with a matching node entry
             area: Test area filter (e.g. "provisioning", "network")
             max_priority: Highest priority level to include; emits the
                 inclusive range `priority: [0, max_priority]`
@@ -42,6 +59,11 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         """
         sections = []
 
+        # "local" and "remote" are node types, not platforms — LISA runs them
+        # on the `ready` platform with the nodes declared up front.
+        node_type = platform if platform in _NODE_TYPE_PLATFORMS else ""
+        platform_type = "ready" if node_type else platform
+
         # Header
         sections.append("name: generated-runbook")
         sections.append(f"concurrency: {concurrency}")
@@ -51,38 +73,52 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         sections.append("extension:")
         sections.append('  - "../../lisa/microsoft/testsuites"')
 
+        if node_type:
+            sections.append("")
+            sections.append("environment:")
+            sections.append("  environments:")
+            sections.append("    - nodes:")
+            sections.append(f"        - type: {node_type}")
+            if node_type == "remote":
+                sections.append('          address: "$(remote_address)"')
+                sections.append("          port: 22")
+                sections.append('          username: "$(admin_username)"')
+                sections.append(
+                    '          private_key_file: "$(admin_private_key_file)"'
+                )
+
         # Platform
         sections.append("")
         sections.append("platform:")
-        sections.append(f"  - type: {platform}")
+        sections.append(f"  - type: {platform_type}")
         sections.append('    admin_username: "$(admin_username)"')
         sections.append('    admin_private_key_file: "$(admin_private_key_file)"')
         sections.append(f'    keep_environment: "{keep_environment}"')
 
-        if platform == "azure":
+        if platform_type == "azure":
             sections.append("    azure:")
             sections.append('      subscription_id: "$(subscription_id)"')
+            sections.append('      resource_group_name: "$(resource_group_name)"')
+
+            # location/vm_size/marketplace are node requirements, not platform
+            # settings — see lisa/microsoft/runbook/azure.yml.
+            requirement_lines = []
             if location:
-                sections.append(f'      deploy_location: "{location}"')
+                requirement_lines.append(f'        location: "{location}"')
             if vm_size:
-                sections.append("      requirement:")
-                sections.append("        azure:")
-                sections.append(f'          vm_size: "{vm_size}"')
+                requirement_lines.append(f'        vm_size: "{vm_size}"')
             if image:
                 parts = image.split()
                 if len(parts) == 4:
-                    sections.append("      marketplace:")
-                    sections.append(f'        publisher: "{parts[0]}"')
-                    sections.append(f'        offer: "{parts[1]}"')
-                    sections.append(f'        sku: "{parts[2]}"')
-                    sections.append(f'        version: "{parts[3]}"')
-
-        elif platform == "remote":
-            sections.append("    # Configure remote node connection")
-            sections.append("    # nodes:")
-            sections.append("    #   - type: remote")
-            sections.append('    #     address: "$(remote_address)"')
-            sections.append("    #     port: 22")
+                    requirement_lines.append("        marketplace:")
+                    requirement_lines.append(f'          publisher: "{parts[0]}"')
+                    requirement_lines.append(f'          offer: "{parts[1]}"')
+                    requirement_lines.append(f'          sku: "{parts[2]}"')
+                    requirement_lines.append(f'          version: "{parts[3]}"')
+            if requirement_lines:
+                sections.append("    requirement:")
+                sections.append("      azure:")
+                sections.extend(requirement_lines)
 
         # Notifier
         sections.append("")
@@ -97,10 +133,15 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         sections.append('    value: ""')
         sections.append("  - name: admin_private_key_file")
         sections.append('    value: ""')
-        if platform == "azure":
+        if node_type == "remote":
+            sections.append("  - name: remote_address")
+            sections.append('    value: ""')
+        if platform_type == "azure":
             sections.append("  - name: subscription_id")
             sections.append('    value: ""')
             sections.append("    is_secret: true")
+            sections.append("  - name: resource_group_name")
+            sections.append('    value: ""')
 
         # Test cases
         sections.append("")
@@ -195,30 +236,39 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
                     continue
                 if "type" not in p:
                     errors.append(f"platform[{i}] missing `type` field.")
-                else:
-                    known = {
-                        "azure",
-                        "hyperv",
-                        "local",
-                        "remote",
-                        "mock",
-                        "libvirt",
-                        "baremetal",
-                        "aws",
-                        "ready",
-                    }
-                    if p["type"] not in known:
-                        warnings.append(
-                            f"platform[{i}].type = '{p['type']}' — "
-                            f"not a known built-in type ({', '.join(sorted(known))}). "
-                            "This is fine if you have a custom platform extension."
-                        )
+                elif p["type"] in _NODE_TYPE_PLATFORMS:
+                    errors.append(
+                        f"platform[{i}].type = '{p['type']}' is a *node* type, "
+                        "not a platform. Use the `ready` platform and declare "
+                        "the node under `environment`:\n"
+                        "  environment:\n"
+                        "    environments:\n"
+                        "      - nodes:\n"
+                        f"          - type: {p['type']}\n"
+                        "  platform:\n"
+                        "    - type: ready"
+                    )
+                elif p["type"] not in _KNOWN_PLATFORMS:
+                    warnings.append(
+                        f"platform[{i}].type = '{p['type']}' — "
+                        f"not a known built-in type "
+                        f"({', '.join(sorted(_KNOWN_PLATFORMS))}). "
+                        "This is fine if you have a custom platform extension."
+                    )
 
         # Check testcase
         if "testcase" not in doc and "testcase_raw" not in doc:
             errors.append(
                 "Missing `testcase` section — no tests will be selected. "
                 "Add at least one testcase criteria block."
+            )
+        elif "testcase" in doc and not isinstance(doc["testcase"], list):
+            errors.append(
+                f"`testcase` must be a list of selection blocks, got "
+                f"{type(doc['testcase']).__name__}. Write it as:\n"
+                "  testcase:\n"
+                "    - criteria:\n"
+                "        area: provisioning"
             )
         elif isinstance(doc.get("testcase"), list):
             for i, entry in enumerate(doc["testcase"]):

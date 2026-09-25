@@ -1002,6 +1002,29 @@ class TestRunOutputRedaction(unittest.TestCase):
         self.assertNotIn(self.CANARY, result)
         self.assertNotIn("supersecret", result)
 
+    def test_secrets_echoed_by_lisa_are_redacted(self) -> None:
+        """LISA's own debug logging prints the variables it was handed."""
+        stdout = (
+            "INFO variable: subscription_id = " + self.CANARY + "\n"
+            "INFO variable: resource_group_name = unit-test-rg\n"
+            "DEBUG token=supersecret used for auth\n"
+            "INFO run finished\n"
+        )
+        result = self._run_with_fake_subprocess(0, stdout)
+        self.assertNotIn(self.CANARY, result)
+        self.assertNotIn("supersecret", result)
+        self.assertNotIn("unit-test-rg", result)
+        # Surrounding log context must survive so the report stays useful.
+        self.assertIn("run finished", result)
+        self.assertIn("[redacted]", result)
+
+    def test_redaction_survives_truncation(self) -> None:
+        """Truncating first could cut a secret in half and leak the front."""
+        filler = "x" * (execution._MAX_LOG_CHARS + 5000)
+        result = self._run_with_fake_subprocess(0, self.CANARY + filler + self.CANARY)
+        self.assertNotIn(self.CANARY, result)
+        self.assertNotIn(self.CANARY[:20], result)
+
     def test_variables_still_reach_lisa(self) -> None:
         self._run_with_fake_subprocess(0, "run finished")
         joined = " ".join(self._last_command)

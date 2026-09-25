@@ -125,6 +125,38 @@ def _normalize_exit_code(code: int) -> int:
     return code - 0x100000000 if code > 0x7FFFFFFF else code
 
 
+_REDACTION = "[redacted]"
+# Below this length a value is more likely to be a common word than a secret,
+# and blanking it would shred the log it is embedded in.
+_MIN_REDACTABLE_LEN = 4
+
+
+def _variable_values(args: list[str]) -> list[str]:
+    """The values carried by a list of alternating ``-v name:value`` tokens."""
+    values: list[str] = []
+    for token in args[1::2]:
+        body = token[2:] if token.startswith("s:") else token
+        _, _, value = body.partition(":")
+        if value:
+            values.append(value)
+    return values
+
+
+def _redact(text: str, values: list[str]) -> str:
+    """Blank out *values* wherever LISA echoed them back.
+
+    Keeping them off the command line is not enough: LISA's own debug
+    logging and the tests it runs print variables into stdout, and that
+    stdout is handed straight to the MCP client.
+    """
+    # Longest first, so a short value nested inside a longer one does not
+    # break up the longer match.
+    for value in sorted({v for v in values if v}, key=len, reverse=True):
+        if len(value) >= _MIN_REDACTABLE_LEN:
+            text = text.replace(value, _REDACTION)
+    return text
+
+
 def _parse_variables(variables: str) -> tuple[list[str], Optional[str]]:
     """Split a space-separated ``name:value`` string into ``-v`` arguments."""
     guidance = (
@@ -290,9 +322,12 @@ def register_execution_tools(mcp: MCPServer) -> None:  # noqa: C901
         command = [*base_command, "-r", str(runbook.resolve())]
         if debug:
             command.append("-d")
+        sensitive: list[str] = []
         for name, value in get_azure_config().items():
             command.extend(["-v", f"{_VARIABLE_NAMES.get(name, name)}:{value}"])
+            sensitive.append(str(value))
         command.extend(variable_args)
+        sensitive.extend(_variable_values(variable_args))
 
         try:
             completed = subprocess.run(
@@ -314,10 +349,12 @@ def register_execution_tools(mcp: MCPServer) -> None:  # noqa: C901
                 "finished deploying, or split the run into fewer test cases."
             )
 
-        output = _truncate((completed.stdout or "") + (completed.stderr or ""))
+        # Redact before truncating: truncation could otherwise cut a secret
+        # in half and leave the first part in the report.
+        raw = (completed.stdout or "") + (completed.stderr or "")
+        output = _truncate(_redact(raw, sensitive))
         exit_code = _normalize_exit_code(completed.returncode)
         status = "succeeded" if exit_code == 0 else "failed"
-        # Variable values are omitted — they carry subscription IDs and secrets.
         return (
             f"**LISA run {status}** (exit code {exit_code})\n\n"
             f"Runbook: `{runbook}`\n\n"
