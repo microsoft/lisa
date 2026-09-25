@@ -23,6 +23,8 @@ import zipfile
 from pathlib import Path
 from unittest import mock
 
+import yaml
+
 # Ensure mcp/ is on sys.path so `tools.*` imports work
 _MCP_DIR = Path(__file__).resolve().parent.parent
 if str(_MCP_DIR) not in sys.path:
@@ -113,8 +115,72 @@ class TestScaffoldTestSuite(unittest.TestCase):
         )
         self.assertIn("verify_gpu_driver_check", result)
 
+    def test_hostile_description_cannot_break_the_docstring(self) -> None:
+        """A `\"\"\"` in the description used to terminate the literal."""
+        payloads = [
+            'ok"""\nimport os\nos.system("id")\nx = """',
+            "trailing backslash \\",
+            'nested """ quotes """ everywhere',
+        ]
+        for payload in payloads:
+            with self.subTest(payload=payload):
+                result = _call(
+                    "lisa_scaffold_test_suite",
+                    area="demo",
+                    class_name="Demo",
+                    description=payload,
+                )
+                code = result.split("```python")[1].split("```")[0]
+                compile(code, "<generated>", "exec")
+
+    def test_hostile_class_name_is_rejected(self) -> None:
+        result = _call(
+            "lisa_scaffold_test_suite",
+            area="demo",
+            class_name="Demo): pass\nimport os",
+            description="ok",
+        )
+        self.assertIn("valid Python class name", result)
+
 
 class TestScaffoldTestCase(unittest.TestCase):
+    def test_hostile_description_cannot_break_the_docstring(self) -> None:
+        for payload in ('ok"""\nimport os\n"""', "trailing backslash \\"):
+            with self.subTest(payload=payload):
+                result = _call(
+                    "lisa_scaffold_test_case",
+                    area="demo",
+                    method_name="verify_x",
+                    description=payload,
+                )
+                code = result.split("```python")[1].split("```")[0]
+                # The snippet is a class member, so compile it inside a class.
+                compile(
+                    "class _T:\n"
+                    + "\n".join(f"    {line}" for line in code.splitlines()),
+                    "<generated>",
+                    "exec",
+                )
+
+    def test_requirement_symbols_must_be_identifiers(self) -> None:
+        """These land in generated source as bare names."""
+        cases = [
+            {"supported_os": "Posix], evil_expression"},
+            {"supported_os": "Posix", "supported_features": "Gpu], another_evil"},
+            {"supported_os": "__import__('os').system('id')"},
+        ]
+        for extra in cases:
+            with self.subTest(**extra):
+                result = _call(
+                    "lisa_scaffold_test_case",
+                    area="demo",
+                    method_name="verify_x",
+                    description="ok",
+                    **extra,
+                )
+                self.assertIn("must be Python symbol names", result)
+                self.assertNotIn("```python", result)
+
     def test_basic_case(self) -> None:
         result = _call(
             "lisa_scaffold_test_case",
@@ -166,8 +232,12 @@ class TestGenerateRunbook(unittest.TestCase):
         self.assertIn("[0, 1]", result)
 
     def test_local_runbook(self) -> None:
+        """`local` is a node type: the platform must come out as `ready`."""
         result = _call("lisa_generate_runbook", platform="local")
-        self.assertIn("type: local", result)
+        doc = yaml.safe_load(result.split("```yaml")[1].split("```")[0])
+        self.assertEqual([p["type"] for p in doc["platform"]], ["ready"])
+        nodes = doc["environment"]["environments"][0]["nodes"]
+        self.assertEqual([n["type"] for n in nodes], ["local"])
         self.assertNotIn("subscription_id", result)
 
     def test_with_image(self) -> None:
@@ -766,6 +836,8 @@ class TestListFeatures(unittest.TestCase):
 
 
 class TestSaveTest(unittest.TestCase):
+    SUITE_DIR = "lisa/microsoft/testsuites"
+
     def setUp(self) -> None:
         self.repo_root = find_repo_root()
         if not self.repo_root:
@@ -775,6 +847,9 @@ class TestSaveTest(unittest.TestCase):
     def tearDown(self) -> None:
         for path in self.created:
             path.unlink(missing_ok=True)
+
+    def _rel(self, name: str) -> str:
+        return f"{self.SUITE_DIR}/{name}"
 
     def test_rejects_absolute_path(self) -> None:
         result = _call(
@@ -790,18 +865,47 @@ class TestSaveTest(unittest.TestCase):
             file_path="../../evil.py",
             code="x = 1",
         )
-        self.assertIn("outside the LISA repository", result)
+        self.assertIn("outside the test-suite directories", result)
+
+    def test_rejects_framework_and_server_paths(self) -> None:
+        """overwrite=True must not let a caller replace executable code."""
+        for hostile in (
+            "lisa/platform_.py",
+            "mcp/lisa_mcp/server.py",
+            "selftests/test_platform.py",
+            "noxfile.py",
+        ):
+            with self.subTest(path=hostile):
+                result = _call(
+                    "lisa_save_test",
+                    file_path=hostile,
+                    code="x = 1",
+                    overwrite=True,
+                )
+                self.assertIn("outside the test-suite directories", result)
+
+    def test_server_source_is_untouched_after_attempt(self) -> None:
+        assert self.repo_root is not None
+        server_py = self.repo_root / "mcp/lisa_mcp/server.py"
+        before = server_py.read_bytes()
+        _call(
+            "lisa_save_test",
+            file_path="mcp/lisa_mcp/server.py",
+            code="# pwned\n",
+            overwrite=True,
+        )
+        self.assertEqual(server_py.read_bytes(), before)
 
     def test_rejects_non_python_file(self) -> None:
-        result = _call("lisa_save_test", file_path="runtime/notes.txt", code="x = 1")
+        result = _call("lisa_save_test", file_path=self._rel("notes.txt"), code="x = 1")
         self.assertIn("must end in .py", result)
 
     def test_rejects_empty_code(self) -> None:
-        result = _call("lisa_save_test", file_path="runtime/mcp_tmp.py", code="   ")
+        result = _call("lisa_save_test", file_path=self._rel("mcp_tmp.py"), code="   ")
         self.assertIn("empty file", result)
 
     def test_writes_file(self) -> None:
-        rel = "runtime/mcp_save_test_sample.py"
+        rel = self._rel("mcp_save_test_sample.py")
         assert self.repo_root is not None
         target = self.repo_root / rel
         self.created.append(target)
@@ -811,7 +915,7 @@ class TestSaveTest(unittest.TestCase):
         self.assertTrue(target.is_file())
 
     def test_refuses_overwrite_by_default(self) -> None:
-        rel = "runtime/mcp_save_test_sample.py"
+        rel = self._rel("mcp_save_test_sample.py")
         assert self.repo_root is not None
         target = self.repo_root / rel
         self.created.append(target)
@@ -1261,6 +1365,19 @@ class TestDownloadHostGuard(unittest.TestCase):
         """169.254.169.254 is the cloud instance metadata endpoint."""
         with self.assertRaises(ValueError):
             log_analysis._reject_internal_host("169.254.169.254")
+
+    def test_non_global_special_ranges_are_rejected(self) -> None:
+        """An explicit blocklist missed shared address space and TEST-NETs."""
+        for address in (
+            "100.64.1.1",  # RFC 6598 carrier-grade NAT
+            "198.18.0.1",  # RFC 2544 benchmarking
+            "203.0.113.5",  # TEST-NET-3
+            "240.0.0.1",  # reserved for future use
+            "192.0.0.170",  # IETF protocol assignments
+        ):
+            with self.subTest(address=address):
+                with self.assertRaises(ValueError):
+                    log_analysis._reject_internal_host(address)
 
     def test_unresolvable_host_is_rejected(self) -> None:
         with self.assertRaises(ValueError):

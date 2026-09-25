@@ -1354,14 +1354,10 @@ def _resolve_public_address(hostname: str) -> str:
 
     for info in infos:
         address = ipaddress.ip_address(info[4][0])
-        if (
-            address.is_private
-            or address.is_loopback
-            or address.is_link_local
-            or address.is_reserved
-            or address.is_multicast
-            or address.is_unspecified
-        ):
+        # `is_global` is the whole special-purpose registry in one predicate:
+        # an explicit blocklist missed shared address space (100.64.0.0/10)
+        # and the benchmark/TEST-NET ranges.
+        if not address.is_global:
             raise ValueError(
                 f"Refusing to download from '{hostname}' — it resolves to the "
                 f"non-public address {address}. Only internet-reachable log "

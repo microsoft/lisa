@@ -15,6 +15,43 @@ from mcp.server.mcpserver import MCPServer
 
 from lisa_mcp.tools._repo import find_repo_root, load_test_writer_prompt
 
+# Where generated test files may be written. Anything else in the repo is
+# framework or server code, and this tool is reachable from a remote client.
+_TEST_SUITE_ROOTS = (
+    "lisa/microsoft/testsuites",
+    "lisa/examples/testsuites",
+)
+
+
+def _docstring(text: str) -> str:
+    """Escape *text* so it cannot terminate the triple-quoted docstring.
+
+    Backslashes go first, otherwise the escaping added for `\"\"\"` would
+    itself be re-escaped. A trailing backslash would swallow the closing
+    delimiter, so it is padded.
+    """
+    escaped = text.replace("\\", "\\\\").replace('"""', '\\"\\"\\"')
+    return escaped + " " if escaped.endswith("\\") else escaped
+
+
+def _symbol_list(raw: str, label: str) -> tuple[list[str], Optional[str]]:
+    """Split a comma-separated list of Python symbol names.
+
+    These land in generated source as bare identifiers, so anything that is
+    not one has to be rejected rather than interpolated.
+    """
+    names = [item.strip() for item in raw.split(",") if item.strip()]
+    if not names:
+        return [], f"`{label}` is empty — give at least one name, e.g. `Posix`."
+    bad = [n for n in names if not n.isidentifier()]
+    if bad:
+        return [], (
+            f"`{label}` must be Python symbol names, got "
+            f"{', '.join(repr(b) for b in bad)}. Use names like `Posix`, "
+            "`Windows`, `Gpu` — no expressions or punctuation."
+        )
+    return names, None
+
 
 def register_test_writer_tools(mcp: MCPServer) -> None:  # noqa: C901
     @mcp.tool()
@@ -64,6 +101,12 @@ def register_test_writer_tools(mcp: MCPServer) -> None:  # noqa: C901
             category: Test category — "functional", "stress", or "performance"
         """
         snake_name = _to_snake_case(class_name)
+        if not class_name.isidentifier():
+            return (
+                f"`class_name` must be a valid Python class name, got "
+                f"`{class_name}`."
+            )
+        safe_description = _docstring(description)
 
         code = f'''\
 # Copyright (c) Microsoft Corporation.
@@ -85,10 +128,10 @@ from lisa.operating_system import Posix
 
 
 @TestSuiteMetadata(
-    area="{area}",
-    category="{category}",
+    area={json.dumps(area)},
+    category={json.dumps(category)},
     description="""
-    {description}
+    {safe_description}
     """,
     requirement=simple_requirement(supported_os=[Posix]),
 )
@@ -171,42 +214,55 @@ class {class_name}(TestSuite):
         """
         if not method_name.startswith(("verify_", "test_")):
             method_name = f"verify_{method_name}"
+        if not method_name.isidentifier():
+            return (
+                f"`method_name` must be a valid Python identifier, got "
+                f"`{method_name}`."
+            )
+        if not 0 <= priority <= 3:
+            return f"`priority` must be between 0 and 3, got {priority}."
 
         # Build requirement kwargs
         req_parts = []
-        os_list = [o.strip() for o in supported_os.split(",")]
+        os_list, error = _symbol_list(supported_os, "supported_os")
+        if error:
+            return error
         req_parts.append(f"supported_os=[{', '.join(os_list)}]")
 
+        features: list[str] = []
         if supported_features:
-            features = [f.strip() for f in supported_features.split(",")]
+            features, error = _symbol_list(supported_features, "supported_features")
+            if error:
+                return error
             req_parts.append(f"supported_features=[{', '.join(features)}]")
         # `is not None`, not truthiness: 0 is a legitimate requirement value
         # and must not be silently dropped from the generated requirement.
         if min_core_count is not None:
-            req_parts.append(f"min_core_count={min_core_count}")
+            req_parts.append(f"min_core_count={int(min_core_count)}")
         if min_nic_count is not None:
-            req_parts.append(f"min_nic_count={min_nic_count}")
+            req_parts.append(f"min_nic_count={int(min_nic_count)}")
         if min_data_disk_count is not None:
-            req_parts.append(f"min_data_disk_count={min_data_disk_count}")
+            req_parts.append(f"min_data_disk_count={int(min_data_disk_count)}")
 
         req_str = ",\n            ".join(req_parts)
 
         # Build feature imports
         feature_imports = ""
-        if supported_features:
-            features = [f.strip() for f in supported_features.split(",")]
+        if features:
             feature_imports = (
                 f"\n# Add to imports:\n"
                 f"# from lisa.features import {', '.join(features)}\n"
             )
 
+        safe_description = _docstring(description)
+
         code = f'''\
 {feature_imports}
     @TestCaseMetadata(
         description="""
-        {description}
+        {safe_description}
         """,
-        priority={priority},
+        priority={int(priority)},
         requirement=simple_requirement(
             {req_str},
         ),
@@ -689,11 +745,16 @@ class {class_name}(TestSuite):
             )
 
         target = (repo_root / candidate).resolve()
-        # Block path traversal — the destination has to stay inside the repo.
-        if not target.is_relative_to(repo_root.resolve()):
+        # Confine writes to the test-suite trees. A `.py` suffix plus repo
+        # containment would still let a remote caller overwrite the framework
+        # or this server's own code with overwrite=True.
+        allowed = [(repo_root / root).resolve() for root in _TEST_SUITE_ROOTS]
+        if not any(target.is_relative_to(root) for root in allowed):
             return (
-                f"`{file_path}` resolves outside the LISA repository. "
-                "Tests must be saved under the repo root."
+                f"`{file_path}` is outside the test-suite directories. "
+                f"Tests must be saved under one of: "
+                f"{', '.join(_TEST_SUITE_ROOTS)}. Example: "
+                "`lisa/microsoft/testsuites/network/sriov.py`."
             )
         if target.suffix != ".py":
             return f"Test files must end in .py, got `{target.name}`."
