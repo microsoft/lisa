@@ -1415,6 +1415,81 @@ class TestLogRootSandbox(unittest.TestCase):
         self.assertIn("LISA_LOG_ROOT", result)
 
 
+class TestStorageAccountAllowlist(unittest.TestCase):
+    """The Azure credential must not follow a caller-supplied account.
+
+    `BlobServiceClient` sends a bearer token scoped to all of
+    storage.azure.com, so authenticating to an attacker's account hands
+    them a replayable credential.
+    """
+
+    def setUp(self) -> None:
+        self._prev_allow = os.environ.get("LISA_ALLOWED_STORAGE_ACCOUNTS")
+        self._prev_transport = runtime.get_transport()
+        self.addCleanup(runtime.set_transport, self._prev_transport)
+        self.addCleanup(self._restore)
+
+    def _restore(self) -> None:
+        if self._prev_allow is None:
+            os.environ.pop("LISA_ALLOWED_STORAGE_ACCOUNTS", None)
+        else:
+            os.environ["LISA_ALLOWED_STORAGE_ACCOUNTS"] = self._prev_allow
+
+    def test_remote_without_allowlist_refuses(self) -> None:
+        os.environ.pop("LISA_ALLOWED_STORAGE_ACCOUNTS", None)
+        runtime.set_transport("sse")
+        with self.assertRaises(ValueError) as ctx:
+            log_analysis._check_storage_account("attackeracct")
+        self.assertIn("LISA_ALLOWED_STORAGE_ACCOUNTS", str(ctx.exception))
+
+    def test_local_without_allowlist_is_permitted(self) -> None:
+        """Locally the operator is deliberately using their own credential."""
+        os.environ.pop("LISA_ALLOWED_STORAGE_ACCOUNTS", None)
+        runtime.set_transport("stdio")
+        log_analysis._check_storage_account("myownacct")
+
+    def test_account_outside_the_allowlist_is_refused(self) -> None:
+        os.environ["LISA_ALLOWED_STORAGE_ACCOUNTS"] = "teamlogs, otherlogs"
+        runtime.set_transport("sse")
+        log_analysis._check_storage_account("teamlogs")
+        log_analysis._check_storage_account("OTHERLOGS")
+        with self.assertRaises(ValueError) as ctx:
+            log_analysis._check_storage_account("attackeracct")
+        self.assertIn("not in LISA_ALLOWED_STORAGE_ACCOUNTS", str(ctx.exception))
+
+    def test_malformed_account_names_are_refused(self) -> None:
+        """The name is interpolated into the account URL."""
+        os.environ["LISA_ALLOWED_STORAGE_ACCOUNTS"] = "teamlogs"
+        for bad in ("evil.com/#", "a", "x" * 25, "has-dash", "UPPER!", ""):
+            with self.subTest(account=bad):
+                with self.assertRaises(ValueError):
+                    log_analysis._check_storage_account(bad)
+
+    def test_portal_url_cannot_reach_the_sdk_unchecked(self) -> None:
+        """The portal branch runs before the generic host check."""
+        os.environ.pop("LISA_ALLOWED_STORAGE_ACCOUNTS", None)
+        runtime.set_transport("sse")
+        evil = (
+            "https://portal.azure.com/#blade/Microsoft_Azure_Storage/"
+            "ContainerMenuBlade/storageAccountId/%2Fsubscriptions%2Fx"
+            "%2FresourceGroups%2Fy%2Fproviders%2FMicrosoft.Storage"
+            "%2FstorageAccounts%2Fattackeracct/path/loot%2Fp"
+        )
+        # Confirms the parser really does yield the attacker's account, so
+        # the guard below is what stops it rather than a parse failure.
+        parsed = log_analysis._parse_portal_storage_url(evil)
+        self.assertEqual(parsed["account"], "attackeracct")
+
+        with mock.patch.object(
+            log_analysis, "_get_azure_imports", side_effect=AssertionError("SDK used")
+        ):
+            with self.assertRaises(ValueError) as ctx:
+                log_analysis._download_azure_blob_prefix(
+                    parsed["account"], parsed["container"], parsed["prefix"], "/tmp"
+                )
+        self.assertIn("LISA_ALLOWED_STORAGE_ACCOUNTS", str(ctx.exception))
+
+
 class TestDownloadHostGuard(unittest.TestCase):
     """HTTPS alone does not make a download destination safe."""
 

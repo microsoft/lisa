@@ -1627,6 +1627,50 @@ def _download_url_to_dir(  # noqa: C901
         raise
 
 
+def _allowed_storage_accounts() -> set[str]:
+    """Storage accounts this server may authenticate to."""
+    raw = os.environ.get("LISA_ALLOWED_STORAGE_ACCOUNTS", "")
+    return {name.strip().lower() for name in raw.split(",") if name.strip()}
+
+
+def _check_storage_account(account: str) -> None:
+    """Refuse to send our Azure credential to an unapproved account.
+
+    Both the portal-URL and the direct-blob paths derive the account from
+    caller input, and the SDK then sends a bearer token scoped to *all* of
+    storage.azure.com. Pointing that at an attacker's account hands them a
+    replayable credential, so a remote server needs an explicit allowlist.
+    """
+    name = account.strip().lower()
+    # The name is interpolated into the account URL, so a value like
+    # "evil.com/#" would redirect the whole request. Azure allows 3-24
+    # lowercase alphanumerics and nothing else.
+    if not re.fullmatch(r"[a-z0-9]{3,24}", name):
+        raise ValueError(
+            f"'{account}' is not a valid Azure storage account name "
+            "(3-24 lowercase letters and digits)."
+        )
+    allowed = _allowed_storage_accounts()
+    if allowed:
+        if name not in allowed:
+            raise ValueError(
+                f"Storage account '{account}' is not in "
+                "LISA_ALLOWED_STORAGE_ACCOUNTS "
+                f"({', '.join(sorted(allowed))}). Refusing to authenticate to "
+                "it — the request would send this server's Azure credential "
+                "to that account."
+            )
+        return
+    if is_remote():
+        raise ValueError(
+            "LISA_ALLOWED_STORAGE_ACCOUNTS is not configured. A remote server "
+            "will not authenticate to a caller-supplied storage account, "
+            "because that sends its Azure credential wherever the caller "
+            "points. Set LISA_ALLOWED_STORAGE_ACCOUNTS=acct1,acct2 and "
+            "restart, or pass a SAS URL instead."
+        )
+
+
 def _download_azure_blob_prefix(
     account: str,
     container: str,
@@ -1640,6 +1684,10 @@ def _download_azure_blob_prefix(
 
     Returns ``(result_dir, file_count)``.
     """
+    # Both callers derive `account` from the caller's URL, so this is the
+    # one place that reliably gates every credentialed request.
+    _check_storage_account(account)
+
     DefaultAzureCredential, BlobServiceClient = _get_azure_imports()  # noqa: N806
 
     account_url = f"https://{account}.blob.core.windows.net"
