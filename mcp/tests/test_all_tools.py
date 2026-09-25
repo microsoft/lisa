@@ -17,7 +17,6 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-import textwrap
 import unittest
 import urllib.request
 import zipfile
@@ -584,30 +583,30 @@ class TestFixRunbook(unittest.TestCase):
         self.assertIn("fix", result.lower())
 
     def test_fix_boolean_keep_environment(self) -> None:
-        result = _call(
-            "lisa_fix_runbook",
-            runbook_content=textwrap.dedent("""\
-                platform:
-                  - type: azure
-                    keep_environment: true
-                testcase:
-                  - criteria:
-                      area: demo
-            """),
+        # Implicit concatenation rather than textwrap.dedent("""..."""): the
+        # repo pins black 23, newer black hugs a multiline string argument
+        # against its parentheses, and the two rewrite each other on every
+        # save — which is what kept breaking flake8-black in CI.
+        runbook = (
+            "platform:\n"
+            "  - type: azure\n"
+            "    keep_environment: true\n"
+            "testcase:\n"
+            "  - criteria:\n"
+            "      area: demo\n"
         )
+        result = _call("lisa_fix_runbook", runbook_content=runbook)
         self.assertIn("always", result)
 
     def test_fix_platform_as_dict(self) -> None:
-        result = _call(
-            "lisa_fix_runbook",
-            runbook_content=textwrap.dedent("""\
-                platform:
-                  type: azure
-                testcase:
-                  - criteria:
-                      area: demo
-            """),
+        runbook = (
+            "platform:\n"
+            "  type: azure\n"
+            "testcase:\n"
+            "  - criteria:\n"
+            "      area: demo\n"
         )
+        result = _call("lisa_fix_runbook", runbook_content=runbook)
         self.assertIn("list", result.lower())
 
     def test_valid_runbook_no_fixes(self) -> None:
