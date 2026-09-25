@@ -581,6 +581,7 @@ class Ip(Tool):
         details = self.run(
             f"-d link show {interface}",
             shell=True,
+            force_run=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "Could not fetch interface details with 'ip -d link show'"
