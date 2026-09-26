@@ -285,6 +285,9 @@ class Power(TestSuite):
             9. Uninstall the extension.
         """,
         priority=2,
+        # Extension install can take ~30 min on a 256 GB VM (hibernation file is
+        # ~1.25x RAM), plus the hibernate/resume cycle and its retry.
+        timeout=5400,
         requirement=simple_requirement(
             min_os_disk_size=500,
             supported_features=[

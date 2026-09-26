@@ -2,9 +2,10 @@
 # Licensed under the MIT license.
 from decimal import Decimal
 from time import sleep
-from typing import Any, List, cast
+from typing import Any, Dict, List, Optional, cast
 
 from assertpy import assert_that
+from retry import retry
 
 from lisa import Environment, Logger, Node, RemoteNode, features
 from lisa.features import StartStop
@@ -30,41 +31,15 @@ from lisa.tools import (
 from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 
-# Some Azure guest/kernel combinations, including certified FIPS kernels,
-# do not support hibernation at all. In those cases the platform returns
-# VMHibernateFailed on every attempt, so we treat it as an unmet precondition
-# rather than a transient failure that can be recovered with retry delay.
-_HIBERNATE_FAILED_MARKER = "VMHibernateFailed"
-# Azure may also return VMHibernateFailed as a transient internal error when the
-# guest is not yet ready shortly after boot. Azure guidance is to retry after
-# ~5 minutes before treating it as a real failure.
+# Azure returns VMHibernateFailed when a hibernate request is rejected, e.g. when
+# the guest is not yet ready shortly after boot (slow FIPS kernels can still be
+# completing crypto init). Azure guidance is to retry after ~5 minutes.
 # https://learn.microsoft.com/azure/virtual-machines/hibernate-resume-troubleshooting
+_HIBERNATE_FAILED_MARKER = "VMHibernateFailed"
 _HIBERNATE_RETRY_INTERVAL_SECONDS = 300
 
 
-def _is_fips_kernel(node: Node) -> bool:
-    # Azure hibernation is unsupported on the certified FIPS kernel (e.g. Ubuntu
-    # Pro *-azure-fips): it returns VMHibernateFailed on every attempt, so this
-    # is an unmet precondition rather than a test failure.
-    fips_enabled = "0"
-    if node.tools[Ls].path_exists("/proc/sys/crypto/fips_enabled"):
-        fips_enabled = (
-            node.tools[Cat]
-            .read("/proc/sys/crypto/fips_enabled", force_run=True)
-            .strip()
-        )
-    kernel_version = node.execute("uname -r", shell=True).stdout.strip()
-    return fips_enabled == "1" or "fips" in kernel_version.lower()
-
-
 def is_distro_supported(node: Node) -> None:
-    if _is_fips_kernel(node):
-        raise SkippedException(
-            "Azure hibernation is not supported on FIPS-enabled kernels; "
-            f"the platform returns {_HIBERNATE_FAILED_MARKER} on every attempt. "
-            f"Kernel: {node.execute('uname -r', shell=True).stdout.strip()}"
-        )
-
     if not node.tools[KernelConfig].is_enabled("CONFIG_HIBERNATION"):
         raise SkippedException(
             f"CONFIG_HIBERNATION is not enabled in current distro {node.os.name}, "
@@ -162,16 +137,41 @@ def hibernation_before_case(node: Node, log: Logger) -> None:
     check_hibernation_disk_requirements(node)
 
 
+def _snapshot_hibernation_markers(
+    hibernation_setup_tool: HibernationSetup,
+) -> Dict[str, int]:
+    """
+    Snapshot the current syslog counts for the hibernation markers the
+    hibernation-setup tool emits. Used as the "before" baseline so that a
+    rejected-and-retried hibernate attempt does not inflate the deltas.
+    """
+    return {
+        "entry": hibernation_setup_tool.check_entry(),
+        "exit": hibernation_setup_tool.check_exit(),
+        "received": hibernation_setup_tool.check_received(),
+        "uevent": hibernation_setup_tool.check_uevent(),
+    }
+
+
 def _perform_hibernation_cycle(
-    node: Node, log: Logger, throw_error: bool = True
-) -> tuple[Any, Any]:
+    node: Node,
+    log: Logger,
+    throw_error: bool = True,
+    hibernation_setup_tool: Optional[HibernationSetup] = None,
+) -> tuple[Any, Any, Optional[Dict[str, int]]]:
     """
     Common hibernation cycle logic shared by both hibernation methods.
-    Returns (boot_time_before, boot_time_after) for verification.
+    Returns (boot_time_before, boot_time_after, marker_baseline).
+
+    ``marker_baseline`` holds the hibernation-marker counts captured
+    immediately before the successful hibernate attempt (``None`` when no
+    ``hibernation_setup_tool`` is provided). It is re-sampled on every retry
+    so a rejected ``VMHibernateFailed`` attempt, which can still emit a local
+    "hibernation entry" line before Azure aborts it, is not double counted.
     """
 
     # The hibernation-setup tool writes resume=/resume_offset= to the
-    # bootloader, which only takes effect after a reboot; without it the VM
+    # bootloader, which only take effect after a reboot; without it the VM
     # accepts the hibernate uevent but never suspends (seen on Debian and
     # Ubuntu). A sleep(100) also works, but we are unsure of the exact time
     # required. So it is safer to reboot the VM.
@@ -189,7 +189,12 @@ def _perform_hibernation_cycle(
     # reachable for diagnostics and the request can be re-issued. Any other
     # failure is raised immediately.
     max_attempts = 2
+    marker_baseline: Optional[Dict[str, int]] = None
     for attempt in range(1, max_attempts + 1):
+        # Re-sample the baseline right before each attempt so that markers
+        # written by a previous, rejected attempt are already accounted for.
+        if hibernation_setup_tool is not None:
+            marker_baseline = _snapshot_hibernation_markers(hibernation_setup_tool)
         try:
             startstop.stop(state=features.StopState.Hibernate)
             break
@@ -215,6 +220,9 @@ def _perform_hibernation_cycle(
         if startstop.get_status() == VMStatus.Deallocated:
             is_ready = False
             break
+        # Poll on an interval instead of a tight loop; hammering the Azure
+        # status API adds no value and risks throttling.
+        sleep(10)
     if is_ready:
         raise LisaException("VM is not in deallocated status after hibernation")
 
@@ -226,7 +234,7 @@ def _perform_hibernation_cycle(
         f"Last Boot time after hibernation: {boot_time_after_hibernation}"
     )
 
-    return boot_time_before_hibernation, boot_time_after_hibernation
+    return boot_time_before_hibernation, boot_time_after_hibernation, marker_baseline
 
 
 def _verify_common_hibernation_requirements(
@@ -253,16 +261,27 @@ def _verify_common_hibernation_requirements(
         raise
 
     node_nic = node.nics
-    node_nic.initialize()
-    lower_nics_after_hibernation = node_nic.get_pci_nics()
-    upper_nics_after_hibernation = node_nic.get_nic_names()
 
-    assert_that(len(lower_nics_after_hibernation)).described_as(
-        "sriov nics count changes after hibernation."
-    ).is_equal_to(len(lower_nics_before))
-    assert_that(len(upper_nics_after_hibernation)).described_as(
-        "synthetic nics count changes after hibernation."
-    ).is_equal_to(len(upper_nics_before))
+    # After resume, the accelerated-networking VF (SR-IOV) is re-attached and
+    # re-enumerated asynchronously by the guest kernel, so the PCI NIC can be
+    # briefly absent immediately after the VM is reachable again. Reload and
+    # re-check on a bounded interval until the counts converge to the
+    # pre-hibernation values, matching the retry pattern used elsewhere for
+    # PCI/VF enumeration. A genuine NIC loss still fails after the retries.
+    @retry(tries=15, delay=3, backoff=1.15)  # type: ignore
+    def _assert_nic_counts_restored() -> None:
+        node_nic.reload()
+        lower_nics_after_hibernation = node_nic.get_pci_nics()
+        upper_nics_after_hibernation = node_nic.get_nic_names()
+
+        assert_that(len(lower_nics_after_hibernation)).described_as(
+            "sriov nics count changes after hibernation."
+        ).is_equal_to(len(lower_nics_before))
+        assert_that(len(upper_nics_after_hibernation)).described_as(
+            "synthetic nics count changes after hibernation."
+        ).is_equal_to(len(upper_nics_before))
+
+    _assert_nic_counts_restored()
 
     dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
 
@@ -282,21 +301,19 @@ def verify_hibernation_by_tool(
 
     hibernation_setup_tool = node.tools[HibernationSetup]
 
-    # Get initial counts before hibernation
-    entry_before_hibernation = hibernation_setup_tool.check_entry()
-    exit_before_hibernation = hibernation_setup_tool.check_exit()
-    received_before_hibernation = hibernation_setup_tool.check_received()
-    uevent_before_hibernation = hibernation_setup_tool.check_uevent()
-
     # only set up hibernation setup tool for the first time
     hibernation_setup_tool.start()
 
     hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
 
-    # Perform hibernation cycle
-    boot_time_before, boot_time_after = _perform_hibernation_cycle(
-        node, log, throw_error
+    # Perform hibernation cycle. The cycle owns the VMHibernateFailed retry, so
+    # it also owns the "before" marker baseline: it is captured just ahead of
+    # the successful hibernate attempt and re-sampled on retry, ensuring a
+    # rejected attempt does not inflate the deltas below.
+    boot_time_before, boot_time_after, marker_baseline = _perform_hibernation_cycle(
+        node, log, throw_error, hibernation_setup_tool
     )
+    assert marker_baseline is not None
 
     # Verify hibernation-specific logs and metrics
     entry_after_hibernation = hibernation_setup_tool.check_entry()
@@ -317,16 +334,16 @@ def verify_hibernation_by_tool(
 
     # Verify hibernation logs if requested
     if verify_using_logs:
-        assert_that(entry_after_hibernation - entry_before_hibernation).described_as(
+        assert_that(entry_after_hibernation - marker_baseline["entry"]).described_as(
             "not find 'hibernation entry'."
         ).is_equal_to(1)
-        assert_that(exit_after_hibernation - exit_before_hibernation).described_as(
+        assert_that(exit_after_hibernation - marker_baseline["exit"]).described_as(
             "not find 'hibernation exit'."
         ).is_equal_to(1)
         assert_that(
-            received_after_hibernation - received_before_hibernation
+            received_after_hibernation - marker_baseline["received"]
         ).described_as("not find 'Hibernation request received'.").is_equal_to(1)
-        assert_that(uevent_after_hibernation - uevent_before_hibernation).described_as(
+        assert_that(uevent_after_hibernation - marker_baseline["uevent"]).described_as(
             "not find 'Sent hibernation uevent'."
         ).is_equal_to(1)
 
@@ -384,8 +401,9 @@ def verify_hibernation_by_vm_extension(
     lower_nics_before_hibernation = node_nic.get_pci_nics()
     upper_nics_before_hibernation = node_nic.get_nic_names()
 
-    # Perform hibernation cycle
-    boot_time_before, boot_time_after = _perform_hibernation_cycle(
+    # Perform hibernation cycle. The extension path does not verify
+    # syslog markers, so the marker baseline is ignored here.
+    boot_time_before, boot_time_after, _ = _perform_hibernation_cycle(
         node, log, throw_error
     )
 
