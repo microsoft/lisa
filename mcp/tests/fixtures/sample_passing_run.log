@@ -1,0 +1,24 @@
+2024-06-15 10:00:01 INFO  lisa_runner: Starting LISA test run
+2024-06-15 10:00:02 INFO  lisa_runner: Platform: azure
+2024-06-15 10:00:03 INFO  lisa_runner: Runbook: test_runbook.yml
+2024-06-15 10:00:10 INFO  environment[0]: Provisioning environment
+2024-06-15 10:00:45 INFO  environment[0]: Environment deployed successfully
+2024-06-15 10:00:46 INFO  node[0]: Connected to 10.0.0.5:22
+2024-06-15 10:00:47 INFO  node[0]: OS: Ubuntu 22.04 LTS
+2024-06-15 10:01:00 INFO  test_runner: Running test case: smoke_test
+2024-06-15 10:01:01 INFO  smoke_test: SSH port 22 is opened, connecting and rebooting 'node-0'
+2024-06-15 10:01:30 INFO  smoke_test: Node rebooted successfully
+2024-06-15 10:01:31 INFO  smoke_test: Reboot completed in 29.5s
+smoke_test | PASSED | completed in 31s
+2024-06-15 10:01:35 INFO  test_runner: Running test case: verify_deployment_provision_synthetic_nic
+2024-06-15 10:01:36 INFO  verify_deployment_provision_synthetic_nic: SSH port 22 is opened
+2024-06-15 10:02:00 INFO  verify_deployment_provision_synthetic_nic: Reboot completed
+verify_deployment_provision_synthetic_nic | PASSED | completed in 25s
+2024-06-15 10:02:05 INFO  test_runner: Running test case: verify_stop_start_in_platform
+2024-06-15 10:02:06 INFO  verify_stop_start_in_platform: Stopping VM via platform
+2024-06-15 10:02:30 INFO  verify_stop_start_in_platform: VM stopped, starting
+2024-06-15 10:03:00 INFO  verify_stop_start_in_platform: VM started, verifying connectivity
+verify_stop_start_in_platform | PASSED | completed in 55s
+2024-06-15 10:03:05 INFO  test_runner: Test run completed
+2024-06-15 10:03:05 INFO  lisa_runner: Results: 3 passed, 0 failed, 0 skipped
+2024-06-15 10:03:06 INFO  lisa_runner: Total elapsed: 185 seconds
