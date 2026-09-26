@@ -11,18 +11,34 @@ from typing import Optional
 
 from mcp.server.mcpserver import MCPServer
 
-# Platform types LISA actually registers. `local` and `remote` are node types
-# under environment.environments[].nodes[], not platforms — those runbooks use
-# the `ready` platform (lisa/microsoft/runbook/local.yml).
+# Platform types LISA actually registers — see lisa/sut_orchestrator/__init__.py.
+# `local` and `remote` are node types under environment.environments[].nodes[],
+# not platforms; those runbooks use the `ready` platform
+# (lisa/microsoft/runbook/local.yml).
 _KNOWN_PLATFORMS = {
     "aws",
     "azure",
     "baremetal",
     "cloud-hypervisor",
     "hyperv",
-    "mock",
+    "openvmm",
     "qemu",
     "ready",
+}
+# Backends this tool can actually configure. Every field emitted below is
+# copied from the runbooks shipped in lisa/microsoft/runbook/; the rest are
+# refused rather than returned half-configured.
+_CONFIGURABLE_PLATFORMS = {"aws", "azure", "hyperv", "qemu", "ready"}
+# `image` means something different on each backend, so it cannot share one
+# validation rule.
+_IMAGE_KIND = {
+    "azure": (
+        "four space-separated fields (publisher offer sku version), e.g. "
+        '"canonical ubuntu-24_04-lts server latest"'
+    ),
+    "aws": 'an AMI id, e.g. "ami-0340a222114f27094"',
+    "qemu": "a path to a qcow2 disk image",
+    "hyperv": "a path to a VHD",
 }
 _NODE_TYPE_PLATFORMS = {"local", "remote"}
 _KEEP_ENVIRONMENT_VALUES = {"no", "always", "failed"}
@@ -42,6 +58,137 @@ def _q(value: object) -> str:
     return json.dumps(str(value))
 
 
+def _var(name: str, secret: bool = False) -> list[str]:
+    """A `variable:` entry with an empty value for the user to fill in."""
+    lines = [f"  - name: {name}", '    value: ""']
+    if secret:
+        lines.append("    is_secret: true")
+    return lines
+
+
+def _backend_azure(
+    location: Optional[str], vm_size: Optional[str], image: Optional[str]
+) -> tuple[list[str], list[str]]:
+    """Fields from lisa/microsoft/runbook/azure.yml."""
+    platform = [
+        "    azure:",
+        '      subscription_id: "$(subscription_id)"',
+        '      resource_group_name: "$(resource_group_name)"',
+    ]
+    # location/vm_size/marketplace are node requirements, not platform settings.
+    requirement = []
+    if location:
+        requirement.append(f"        location: {_q(location)}")
+    if vm_size:
+        requirement.append(f"        vm_size: {_q(vm_size)}")
+    if image:
+        publisher, offer, sku, version = image.split()
+        requirement += [
+            "        marketplace:",
+            f"          publisher: {_q(publisher)}",
+            f"          offer: {_q(offer)}",
+            f"          sku: {_q(sku)}",
+            f"          version: {_q(version)}",
+        ]
+    if requirement:
+        platform += ["    requirement:", "      azure:"] + requirement
+    variables = _var("subscription_id", secret=True) + _var("resource_group_name")
+    return platform, variables
+
+
+def _backend_aws(
+    location: Optional[str], vm_size: Optional[str], image: Optional[str]
+) -> tuple[list[str], list[str]]:
+    """Fields from lisa/microsoft/runbook/aws.yml."""
+    region = _q(location) if location else '"$(aws_default_region)"'
+    platform = [
+        "    aws:",
+        '      aws_access_key_id: "$(aws_access_key_id)"',
+        '      aws_secret_access_key: "$(aws_secret_access_key)"',
+        f"      aws_default_region: {region}",
+        '      security_group_name: "$(security_group_name)"',
+        '      key_pair_name: "$(key_pair_name)"',
+    ]
+    requirement = []
+    if location:
+        requirement.append(f"        location: {_q(location)}")
+    if vm_size:
+        requirement.append(f"        vm_size: {_q(vm_size)}")
+    if image:
+        # A single AMI id, not Azure's four-part marketplace reference.
+        requirement.append(f"        marketplace: {_q(image)}")
+    if requirement:
+        platform += ["    requirement:", "      aws:"] + requirement
+    variables = (
+        _var("aws_access_key_id", secret=True)
+        + _var("aws_secret_access_key", secret=True)
+        + _var("security_group_name")
+        + _var("key_pair_name")
+    )
+    if not location:
+        variables += _var("aws_default_region")
+    return platform, variables
+
+
+def _backend_qemu(
+    location: Optional[str], vm_size: Optional[str], image: Optional[str]
+) -> tuple[list[str], list[str]]:
+    """Fields from lisa/microsoft/runbook/qemu/qemu.yml."""
+    qcow2 = _q(image) if image else '"$(qcow2)"'
+    platform = [
+        "    requirement:",
+        "      qemu:",
+        f"        qcow2: {qcow2}",
+    ]
+    variables = [] if image else _var("qcow2")
+    return platform, variables
+
+
+def _backend_hyperv(
+    location: Optional[str], vm_size: Optional[str], image: Optional[str]
+) -> tuple[list[str], list[str]]:
+    """Fields from lisa/microsoft/runbook/hyperv/host_vhd.yml."""
+    vhd_path = _q(image) if image else '"$(guest_vhd_path)"'
+    platform = [
+        "    hyperv:",
+        '      switch_name: "$(switch_name)"',
+        "      servers:",
+        '        - address: "$(hyperv_host_address)"',
+        '          username: "$(hyperv_host_username)"',
+        '          password: "$(hyperv_host_password)"',
+        "    requirement:",
+        "      hyperv:",
+        '        switch_name: "$(switch_name)"',
+        "        vhd:",
+        f"          vhd_path: {vhd_path}",
+    ]
+    variables = (
+        _var("hyperv_host_address")
+        + _var("hyperv_host_username")
+        + _var("hyperv_host_password", secret=True)
+        + _var("switch_name")
+    )
+    if not image:
+        variables += _var("guest_vhd_path")
+    return platform, variables
+
+
+def _backend_ready(
+    location: Optional[str], vm_size: Optional[str], image: Optional[str]
+) -> tuple[list[str], list[str]]:
+    """ReadyPlatform provisions nothing — the nodes carry the configuration."""
+    return [], []
+
+
+_BACKENDS = {
+    "azure": _backend_azure,
+    "aws": _backend_aws,
+    "qemu": _backend_qemu,
+    "hyperv": _backend_hyperv,
+    "ready": _backend_ready,
+}
+
+
 def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
     @mcp.tool()
     def lisa_generate_runbook(
@@ -59,9 +206,11 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         """Generate a valid LISA YAML runbook from parameters.
 
         Args:
-            platform: Where to run — "azure", "hyperv", "aws", "baremetal",
-                "ready", or the node-type shorthands "local" / "remote",
-                which emit a `ready` platform with a matching node entry
+            platform: Where to run — "azure", "aws", "qemu", "hyperv", or the
+                node-type shorthands "local" / "remote", which emit a `ready`
+                platform with a matching node entry. Other LISA platforms
+                (baremetal, cloud-hypervisor, openvmm) need site-specific
+                settings this tool cannot supply, and are refused
             area: Test area filter (e.g. "provisioning", "network")
             max_priority: Highest priority level to include; emits the
                 inclusive range `priority: [0, max_priority]`. LISA caps
@@ -69,8 +218,10 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
                 but can only be selected by name, area, or tags.
             tags: Comma-separated test tags to filter on
             vm_size: Azure VM size (e.g. "Standard_DS2_v2")
-            location: Azure region (e.g. "westus2")
-            image: Marketplace image string (e.g. "canonical 0001-com-ubuntu-server-jammy 22_04-lts-gen2 latest")  # noqa: E501
+            location: Azure region / AWS region (e.g. "westus2", "us-west-2")
+            image: Platform-specific image reference — Azure marketplace
+                "publisher offer sku version", an AWS AMI id, a QEMU qcow2
+                path, or a Hyper-V VHD path
             concurrency: Number of parallel test environments
             keep_environment: "no", "always", or "failed"
             test_names: Comma-separated test method names to run
@@ -102,17 +253,24 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
                 "with priority 5 have to be selected by `name`, `area`, or "
                 "`tags` instead."
             )
-        if image and len(image.split()) != 4:
-            return (
-                "**Error:** `image` must be four space-separated fields "
-                '(publisher offer sku version), e.g. "canonical '
-                'ubuntu-24_04-lts server latest".'
-            )
 
         # "local" and "remote" are node types, not platforms — LISA runs them
         # on the `ready` platform with the nodes declared up front.
         node_type = platform if platform in _NODE_TYPE_PLATFORMS else ""
         platform_type = "ready" if node_type else platform
+
+        if platform_type not in _CONFIGURABLE_PLATFORMS:
+            return (
+                f"**Error:** `{platform_type}` is a real LISA platform, but "
+                "this tool cannot produce a runbook you could actually run on "
+                "it — the backend needs settings that depend on your own "
+                "hardware or cluster. Emitting a skeleton without them would "
+                "only fail later at load time. Start from the reference "
+                "runbooks under `lisa/microsoft/runbook/` and the platform "
+                "docs instead. This tool covers "
+                f"{', '.join(sorted(_CONFIGURABLE_PLATFORMS - {'ready'}))}, "
+                "plus `local` / `remote`."
+            )
 
         if platform_type == "ready" and not node_type:
             # ReadyPlatform._prepare_environment only succeeds when the
@@ -125,6 +283,16 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
                 "SSH) \u2014 both generate a `ready` platform with the matching "
                 "`environment.environments[].nodes[]` entry."
             )
+
+        if image:
+            expected = _IMAGE_KIND.get(platform_type)
+            if not expected:
+                return (
+                    f"**Error:** `{platform}` takes its machines as they are, "
+                    "so `image` does not apply."
+                )
+            if platform_type == "azure" and len(image.split()) != 4:
+                return f"**Error:** for `azure`, `image` must be {expected}."
 
         # Header
         sections.append("name: generated-runbook")
@@ -154,36 +322,22 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
                 )
 
         # Platform
+        backend_lines, backend_variables = _BACKENDS[platform_type](
+            location, vm_size, image
+        )
+        # Hyper-V creates its guests with a password; the rest take a key.
+        credential = (
+            '    admin_password: "$(admin_password)"'
+            if platform_type == "hyperv"
+            else '    admin_private_key_file: "$(admin_private_key_file)"'
+        )
         sections.append("")
         sections.append("platform:")
         sections.append(f"  - type: {platform_type}")
         sections.append('    admin_username: "$(admin_username)"')
-        sections.append('    admin_private_key_file: "$(admin_private_key_file)"')
+        sections.append(credential)
         sections.append(f"    keep_environment: {_q(keep_environment)}")
-
-        if platform_type == "azure":
-            sections.append("    azure:")
-            sections.append('      subscription_id: "$(subscription_id)"')
-            sections.append('      resource_group_name: "$(resource_group_name)"')
-
-            # location/vm_size/marketplace are node requirements, not platform
-            # settings — see lisa/microsoft/runbook/azure.yml.
-            requirement_lines = []
-            if location:
-                requirement_lines.append(f"        location: {_q(location)}")
-            if vm_size:
-                requirement_lines.append(f"        vm_size: {_q(vm_size)}")
-            if image:
-                parts = image.split()
-                requirement_lines.append("        marketplace:")
-                requirement_lines.append(f"          publisher: {_q(parts[0])}")
-                requirement_lines.append(f"          offer: {_q(parts[1])}")
-                requirement_lines.append(f"          sku: {_q(parts[2])}")
-                requirement_lines.append(f"          version: {_q(parts[3])}")
-            if requirement_lines:
-                sections.append("    requirement:")
-                sections.append("      azure:")
-                sections.extend(requirement_lines)
+        sections.extend(backend_lines)
 
         # Notifier
         sections.append("")
@@ -194,19 +348,14 @@ def register_runbook_tools(mcp: MCPServer) -> None:  # noqa: C901
         # Variable section
         sections.append("")
         sections.append("variable:")
-        sections.append("  - name: admin_username")
-        sections.append('    value: ""')
-        sections.append("  - name: admin_private_key_file")
-        sections.append('    value: ""')
+        sections.extend(_var("admin_username"))
+        if platform_type == "hyperv":
+            sections.extend(_var("admin_password", secret=True))
+        else:
+            sections.extend(_var("admin_private_key_file"))
         if node_type == "remote":
-            sections.append("  - name: remote_address")
-            sections.append('    value: ""')
-        if platform_type == "azure":
-            sections.append("  - name: subscription_id")
-            sections.append('    value: ""')
-            sections.append("    is_secret: true")
-            sections.append("  - name: resource_group_name")
-            sections.append('    value: ""')
+            sections.extend(_var("remote_address"))
+        sections.extend(backend_variables)
 
         # Test cases
         sections.append("")

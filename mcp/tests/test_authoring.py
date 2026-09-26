@@ -112,6 +112,86 @@ class TestGenerateRunbook(unittest.TestCase):
         self.assertNotIn("requirement", entry["azure"])
         self.assertNotIn("deploy_location", entry["azure"])
 
+    def test_aws_runbook_carries_its_backend_settings(self) -> None:
+        """Fields mirror lisa/microsoft/runbook/aws.yml."""
+        output = _call(
+            "lisa_generate_runbook",
+            platform="aws",
+            area="demo",
+            location="us-west-2",
+            vm_size="t2.micro",
+            image="ami-0340a222114f27094",
+        )
+        doc = yaml.safe_load(_extract_yaml(output))
+        entry = doc["platform"][0]
+        self.assertEqual(entry["type"], "aws")
+        self.assertIn("aws_access_key_id", entry["aws"])
+        self.assertEqual(entry["aws"]["aws_default_region"], "us-west-2")
+        requirement = entry["requirement"]["aws"]
+        self.assertEqual(requirement["location"], "us-west-2")
+        # An AMI id, not Azure's four-part marketplace reference.
+        self.assertEqual(requirement["marketplace"], "ami-0340a222114f27094")
+        names = [v["name"] for v in doc["variable"]]
+        self.assertIn("aws_secret_access_key", names)
+
+    def test_qemu_runbook_names_a_disk_image(self) -> None:
+        """Without qcow2 there is nothing for QEMU to boot."""
+        output = _call(
+            "lisa_generate_runbook",
+            platform="qemu",
+            area="demo",
+            image="/images/mariner.qcow2",
+        )
+        doc = yaml.safe_load(_extract_yaml(output))
+        requirement = doc["platform"][0]["requirement"]["qemu"]
+        self.assertEqual(requirement["qcow2"], "/images/mariner.qcow2")
+
+    def test_qemu_without_an_image_leaves_a_variable(self) -> None:
+        output = _call("lisa_generate_runbook", platform="qemu", area="demo")
+        doc = yaml.safe_load(_extract_yaml(output))
+        self.assertEqual(doc["platform"][0]["requirement"]["qemu"]["qcow2"], "$(qcow2)")
+        self.assertIn("qcow2", [v["name"] for v in doc["variable"]])
+
+    def test_hyperv_runbook_names_a_host_and_uses_a_password(self) -> None:
+        """Hyper-V guests are created with a password, not a key."""
+        output = _call(
+            "lisa_generate_runbook",
+            platform="hyperv",
+            area="demo",
+            image="C:/vhds/guest.vhd",
+        )
+        doc = yaml.safe_load(_extract_yaml(output))
+        entry = doc["platform"][0]
+        self.assertIn("admin_password", entry)
+        self.assertNotIn("admin_private_key_file", entry)
+        self.assertIn("address", entry["hyperv"]["servers"][0])
+        vhd = entry["requirement"]["hyperv"]["vhd"]["vhd_path"]
+        self.assertEqual(vhd, "C:/vhds/guest.vhd")
+
+    def test_unconfigurable_backends_are_refused(self) -> None:
+        """A skeleton with no backend settings is not a usable runbook."""
+        for platform in ("baremetal", "cloud-hypervisor", "openvmm"):
+            with self.subTest(platform=platform):
+                output = _call("lisa_generate_runbook", platform=platform, area="demo")
+                self.assertTrue(output.startswith("**Error:**"), output[:80])
+                self.assertIn("lisa/microsoft/runbook/", output)
+
+    def test_mock_is_not_a_platform(self) -> None:
+        """`mock` is a runner in examples/, not a registered platform."""
+        output = _call("lisa_generate_runbook", platform="mock", area="demo")
+        self.assertIn("Unknown platform", output)
+
+    def test_image_is_validated_per_platform(self) -> None:
+        """Only Azure takes a four-part marketplace reference."""
+        azure = _call("lisa_generate_runbook", platform="azure", image="a b")
+        self.assertIn("four space-separated", azure)
+        # The same string is a legitimate AMI id / path elsewhere.
+        aws = _call("lisa_generate_runbook", platform="aws", image="ami-1", area="d")
+        self.assertNotIn("**Error:**", aws)
+        # `ready` machines exist already, so an image is meaningless.
+        local = _call("lisa_generate_runbook", platform="local", image="x", area="d")
+        self.assertIn("does not apply", local)
+
     def test_no_filters_omits_empty_criteria(self) -> None:
         """A criteria block with no filters would select every test."""
         output = _call("lisa_generate_runbook", platform="local")

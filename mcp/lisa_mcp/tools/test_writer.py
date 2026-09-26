@@ -267,7 +267,12 @@ class {class_name}(TestSuite):
             features, error = _symbol_list(supported_features, "supported_features")
             if error:
                 return error
-            req_parts.append(f"supported_features=[{', '.join(features)}]")
+            # Quoted on purpose: simple_requirement resolves a feature *name*
+            # to the same FeatureSettings as the class, so the snippet stays
+            # valid wherever it is pasted. An OS cannot be quoted the same
+            # way — a string lands in the set verbatim and matches nothing.
+            quoted = ", ".join(json.dumps(name) for name in features)
+            req_parts.append(f"supported_features=[{quoted}]")
         # `is not None`, not truthiness: 0 is a legitimate requirement value
         # and must not be silently dropped from the generated requirement.
         if min_core_count is not None:
@@ -279,18 +284,16 @@ class {class_name}(TestSuite):
 
         req_str = ",\n            ".join(req_parts)
 
-        # Build feature imports
-        feature_imports = ""
-        if features:
-            feature_imports = (
-                f"\n# Add to imports:\n"
-                f"# from lisa.features import {', '.join(features)}\n"
-            )
+        # The OS names are the only bare symbols left in the snippet.
+        import_hint = (
+            "\n# Add to imports:\n"
+            f"# from lisa.operating_system import {', '.join(os_list)}\n"
+        )
 
         safe_description = _docstring(description)
 
         code = f'''\
-{feature_imports}
+{import_hint}
     @TestCaseMetadata(
         description="""
         {safe_description}

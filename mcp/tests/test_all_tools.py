@@ -11,6 +11,7 @@ These tests invoke each tool directly (without MCP protocol overhead)
 and verify correct behavior with realistic inputs.
 """
 
+import ast
 import io
 import ipaddress
 import json
@@ -164,6 +165,54 @@ class TestScaffoldTestSuite(unittest.TestCase):
 
 
 class TestScaffoldTestCase(unittest.TestCase):
+    def test_feature_names_are_quoted_so_the_snippet_needs_no_import(self) -> None:
+        """Bare `Gpu` raises NameError wherever the snippet is pasted.
+
+        simple_requirement resolves a feature *name* to the same
+        FeatureSettings as the class, so quoting costs nothing.
+        """
+        result = _call(
+            "lisa_scaffold_test_case",
+            area="demo",
+            method_name="verify_x",
+            description="ok",
+            supported_features="Gpu,Sriov",
+        )
+        code = result.split("```python")[1].split("```")[0]
+        self.assertIn('supported_features=["Gpu", "Sriov"]', code)
+        self.assertNotIn("supported_features=[Gpu", code)
+
+    def test_os_names_stay_symbols_and_get_an_import_hint(self) -> None:
+        """A quoted OS lands in the set verbatim and matches no node."""
+        result = _call(
+            "lisa_scaffold_test_case",
+            area="demo",
+            method_name="verify_x",
+            description="ok",
+            supported_os="Posix",
+        )
+        self.assertIn("supported_os=[Posix]", result)
+        self.assertIn("from lisa.operating_system import Posix", result)
+
+    def test_only_the_os_symbols_remain_undefined(self) -> None:
+        """Everything else in the requirement must be self-contained."""
+        result = _call(
+            "lisa_scaffold_test_case",
+            area="demo",
+            method_name="verify_x",
+            description="ok",
+            supported_os="Posix",
+            supported_features="Gpu",
+        )
+        code = result.split("```python")[1].split("```")[0]
+        tree = ast.parse(
+            "class _T:\n" + "\n".join(f"    {line}" for line in code.splitlines())
+        )
+        undefined = {
+            node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
+        } - {"simple_requirement", "TestCaseMetadata", "Node", "Logger", "assert_that"}
+        self.assertEqual(undefined, {"Posix"})
+
     def test_hostile_description_cannot_break_the_docstring(self) -> None:
         for payload in ('ok"""\nimport os\n"""', "trailing backslash \\"):
             with self.subTest(payload=payload):
