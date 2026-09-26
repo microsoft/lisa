@@ -27,7 +27,7 @@ import unittest
 import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
-from typing import Optional
+from typing import Any, Optional
 from unittest import mock
 
 import yaml
@@ -1490,6 +1490,75 @@ class TestStorageAccountAllowlist(unittest.TestCase):
                     parsed["account"], parsed["container"], parsed["prefix"], "/tmp"
                 )
         self.assertIn("LISA_ALLOWED_STORAGE_ACCOUNTS", str(ctx.exception))
+
+
+class TestBlobEnumerationBudget(unittest.TestCase):
+    """The blob caps must stop enumeration, not merely reject afterwards."""
+
+    def setUp(self) -> None:
+        previous = os.environ.get("LISA_ALLOWED_STORAGE_ACCOUNTS")
+        os.environ["LISA_ALLOWED_STORAGE_ACCOUNTS"] = "teamlogs"
+
+        def restore() -> None:
+            if previous is None:
+                os.environ.pop("LISA_ALLOWED_STORAGE_ACCOUNTS", None)
+            else:
+                os.environ["LISA_ALLOWED_STORAGE_ACCOUNTS"] = previous
+
+        self.addCleanup(restore)
+
+    def _enumerate(self, count: int, blob_size: int) -> tuple[int, str]:
+        """Return (blobs actually pulled, error message).
+
+        The generator is finite so that a regression fails an assertion
+        instead of hanging the suite.
+        """
+        pulled = 0
+
+        class _Blob:
+            def __init__(self, name: str, size: int) -> None:
+                self.name = name
+                self.size = size
+
+        class _Container:
+            def list_blobs(self, name_starts_with: Optional[str] = None) -> Any:
+                nonlocal pulled
+                for i in range(count):
+                    pulled += 1
+                    yield _Blob(f"p/{i}.log", blob_size)
+
+        class _Service:
+            def __init__(self, **kwargs: Any) -> None:
+                pass
+
+            def get_container_client(self, _container: str) -> "_Container":
+                return _Container()
+
+        with mock.patch.object(
+            log_analysis,
+            "_get_azure_imports",
+            return_value=(lambda: None, _Service),
+        ):
+            with tempfile.TemporaryDirectory() as tmp:
+                with self.assertRaises(ValueError) as ctx:
+                    log_analysis._download_azure_blob_prefix(
+                        "teamlogs", "container", "p", tmp
+                    )
+        return pulled, str(ctx.exception)
+
+    def test_blob_count_limit_aborts_enumeration_early(self) -> None:
+        oversize = log_analysis._MAX_DOWNLOAD_BLOBS * 3
+        pulled, message = self._enumerate(oversize, blob_size=0)
+        self.assertIn("blobs", message)
+        # A `list()` of the pager would have pulled every one of them.
+        self.assertLessEqual(pulled, log_analysis._MAX_DOWNLOAD_BLOBS + 1)
+
+    def test_byte_limit_aborts_enumeration_early(self) -> None:
+        gib = 1024 * 1024 * 1024
+        pulled, message = self._enumerate(10_000, blob_size=gib)
+        self.assertIn("byte", message)
+        # 2 GB cap — the third blob must already be too much.
+        self.assertLessEqual(pulled, 3)
 
 
 class TestDownloadHostGuard(unittest.TestCase):

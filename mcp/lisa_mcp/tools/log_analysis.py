@@ -1688,6 +1688,30 @@ def _check_storage_account(account: str) -> None:
         )
 
 
+def _list_blobs_within_budget(container_client: Any, starts_with: str, label: str):
+    """Enumerate blobs under a prefix, stopping the moment a cap is blown.
+
+    A prefix can address an entire container, so `list()` would materialise
+    millions of entries before either limit could reject them.
+    """
+    blobs = []
+    total_bytes = 0
+    for blob in container_client.list_blobs(name_starts_with=starts_with):
+        blobs.append(blob)
+        total_bytes += getattr(blob, "size", 0) or 0
+        if len(blobs) > _MAX_DOWNLOAD_BLOBS:
+            raise ValueError(
+                f"'{label}' holds more than {_MAX_DOWNLOAD_BLOBS:,} blobs, "
+                "over the download limit. Point at a narrower prefix."
+            )
+        if total_bytes > _MAX_DOWNLOAD_BYTES:
+            raise ValueError(
+                f"'{label}' exceeds the {_MAX_DOWNLOAD_BYTES:,}-byte download "
+                f"limit after {len(blobs):,} blobs. Point at a narrower prefix."
+            )
+    return blobs
+
+
 def _download_azure_blob_prefix(
     account: str,
     container: str,
@@ -1735,31 +1759,15 @@ def _download_azure_blob_prefix(
     if starts_with and not starts_with.endswith("/"):
         starts_with = f"{starts_with}/"
 
-    blobs = list(container_client.list_blobs(name_starts_with=starts_with))
+    label = f"{container}/{prefix}"
+    blobs = _list_blobs_within_budget(container_client, starts_with, label)
 
     # If no blobs with trailing slash, try the exact prefix (single blob)
     if not blobs and prefix:
-        blobs = list(container_client.list_blobs(name_starts_with=prefix))
+        blobs = _list_blobs_within_budget(container_client, prefix, label)
 
     if not blobs:
-        raise FileNotFoundError(f"No blobs found under '{container}/{prefix}'.")
-
-    # A prefix can address an entire container, so apply the same disk budget
-    # the single-file path uses. Sizes come from the listing, so this is
-    # checked before anything is written.
-    total_bytes = sum(getattr(b, "size", 0) or 0 for b in blobs)
-    if total_bytes > _MAX_DOWNLOAD_BYTES:
-        raise ValueError(
-            f"'{container}/{prefix}' holds {len(blobs)} blobs totalling "
-            f"{total_bytes:,} bytes, over the {_MAX_DOWNLOAD_BYTES:,}-byte "
-            "download limit. Point at a narrower prefix."
-        )
-    if len(blobs) > _MAX_DOWNLOAD_BLOBS:
-        raise ValueError(
-            f"'{container}/{prefix}' holds {len(blobs)} blobs, over the "
-            f"{_MAX_DOWNLOAD_BLOBS:,}-file download limit. Point at a "
-            "narrower prefix."
-        )
+        raise FileNotFoundError(f"No blobs found under '{label}'.")
 
     # Use the leaf folder name as the local root
     normalized = prefix.strip("/")
