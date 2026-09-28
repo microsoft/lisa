@@ -917,7 +917,7 @@ def init_nodes_concurrent(
                         specific_pairings[node]
                         if specific_pairings
                         else [
-                            node.nics.get_nic_by_subnet(f"10.0.{i+1}.0/24")
+                            node.nics.get_nic_by_subnet(f"10.0.{i + 1}.0/24")
                             for i in range(test_nic_count)
                         ]
                     ),
@@ -1210,7 +1210,9 @@ def reroute_traffic_and_disable_nic(
     cleanup_manager: DpdkCleanupManager,
 ) -> None:
     node.log.debug(
-        f"Rerouting traffic and disabling NICs: src: {src_nic} dst: {dst_nic} new_gateway: {new_gateway_nic} unused: {unused_nic}"
+        f"Rerouting traffic and disabling NICs: src: "
+        f"{src_nic} dst: {dst_nic} "
+        f"new_gateway: {new_gateway_nic} unused: {unused_nic}"
     )
     ip_tool = node.tools[Ip]
     route_was_present = ip_tool.route_exists(prefix=dst_nic.ip_addr, dev=src_nic.name)

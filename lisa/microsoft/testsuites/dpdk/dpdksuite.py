@@ -17,8 +17,8 @@ from microsoft.testsuites.dpdk.common import (
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
 from microsoft.testsuites.dpdk.dpdkovs import DpdkOvs
 from microsoft.testsuites.dpdk.dpdkutil import (
-    DpdkCleanupManager,
     UIO_HV_GENERIC_SYSFS_PATH,
+    DpdkCleanupManager,
     UnsupportedPackageVersionException,
     check_send_receive_compatibility,
     enable_uio_hv_generic,
