@@ -677,7 +677,17 @@ class Iperf3(Tool):
         git.clone(self._repo, tool_path, ref=self._branch)
         code_path = tool_path.joinpath("iperf")
         make = self.node.tools[Make]
-        self.node.execute("./configure", cwd=code_path).assert_exit_code()
+        # Statically link libiperf into the iperf3 binary (``--disable-shared``)
+        # so it never loads a mismatched distro ``libiperf.so``. Distros such as
+        # Ubuntu 24.04 ship libiperf 3.16 in the multiarch directory
+        # (``/usr/lib/<triplet>``), which the loader resolves ahead of the
+        # ``/usr/local/lib`` copy built here. A newer binary loading the older
+        # library misreads option flags (e.g. ``-D``/daemon is ignored), so the
+        # server silently runs in the foreground and dies when its session
+        # closes. A self-contained binary avoids this ABI conflict.
+        self.node.execute(
+            "./configure --disable-shared --enable-static", cwd=code_path
+        ).assert_exit_code()
         make.make_install(code_path)
         self.node.execute(
             "ldconfig", sudo=True, cwd=code_path, shell=True
