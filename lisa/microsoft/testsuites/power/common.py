@@ -308,11 +308,28 @@ def verify_hibernation_by_tool(
         f"Resume offset from /sys/power/resume_offset: {offset_from_sys_power}"
     )
 
+    # Perform common hibernation verification first. The boot-time equality
+    # check here is the authoritative proof that the VM resumed from
+    # hibernation rather than fresh-booting; running it before the marker
+    # checks means a genuine hibernation failure (fresh boot) is reported as
+    # such instead of as a misleading "not find 'hibernation entry'".
+    _verify_common_hibernation_requirements(
+        node,
+        log,
+        boot_time_before,
+        boot_time_after,
+        lower_nics_before_hibernation,
+        upper_nics_before_hibernation,
+        throw_error,
+    )
+
     # Verify hibernation logs if requested. Assert the markers increased by at
-    # least one during the cycle rather than exactly one: a VMHibernateFailed
-    # attempt that is retried can legitimately log the markers more than once,
-    # and the boot-time equality check below already proves the VM resumed from
-    # hibernation rather than fresh-booting.
+    # least one during the cycle rather than exactly one: the marker count is a
+    # cumulative grep over a log that survives the in-cycle reboot, and a
+    # retried VMHibernateFailed attempt (or a distro that logs the marker more
+    # than once per cycle, e.g. SLES) can legitimately produce a delta above
+    # one. The authoritative boot-time equality check above already proved the
+    # VM resumed from hibernation.
     if verify_using_logs:
         assert_that(entry_after_hibernation - entry_before_hibernation).described_as(
             "not find 'hibernation entry'."
@@ -330,17 +347,6 @@ def verify_hibernation_by_tool(
         assert_that(uevent_after_hibernation - uevent_before_hibernation).described_as(
             "not find 'Sent hibernation uevent'."
         ).is_greater_than_or_equal_to(1)
-
-    # Perform common hibernation verification
-    _verify_common_hibernation_requirements(
-        node,
-        log,
-        boot_time_before,
-        boot_time_after,
-        lower_nics_before_hibernation,
-        upper_nics_before_hibernation,
-        throw_error,
-    )
 
 
 def verify_hibernation_by_vm_extension(
