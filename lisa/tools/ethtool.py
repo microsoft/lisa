@@ -1,19 +1,43 @@
 import re
+import shlex
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set, Type, cast
 
+from lisa.base_tools import Wget
 from lisa.executable import Tool
-from lisa.operating_system import Posix
+from lisa.operating_system import (
+    CBLMariner,
+    Debian,
+    Fedora,
+    Oracle,
+    Posix,
+    RPMDistro,
+    Suse,
+)
 from lisa.util import (
     LisaException,
+    UnsupportedDistroException,
     UnsupportedOperationException,
     find_group_in_lines,
     find_groups_in_lines,
 )
+from lisa.util.process import ExecutableResult
 
 from .find import Find
 from .ip import Ip
 from .lscpu import Lscpu
+from .make import Make
+from .tar import Tar
+
+
+def _is_unsupported(result: ExecutableResult, *patterns: str) -> bool:
+    # ethtool writes a refused operation to stderr, which lisa keeps separate
+    # from stdout, so both streams have to be searched.
+    output = f"{result.stdout}\n{result.stderr}"
+    return any(
+        pattern in output for pattern in patterns or ("Operation not supported",)
+    )
+
 
 # Few ethtool device settings follow similar pattern like -
 #   ethtool device channel info from "ethtool -l eth0"
@@ -393,6 +417,96 @@ class DeviceRssHashKey:
         self.rss_hash_key = hash_key_pattern.group("value")
 
 
+class DeviceRssIndirectionTable:
+    # The indirection table shares the "ethtool -x" output with the hash key:
+    #   RX flow hash indirection table for eth0 with 4 RX ring(s):
+    #       0:      0     1     2     3     0     1     2     3
+    #       8:      0     1     2     3     0     1     2     3
+    #   RSS hash key:
+    #   6d:5a:56:da:25:5b:0e:c2:...
+    #
+    # The RX ring count in the header and the number of table entries are two
+    # different numbers, for example a 64 entry table spread over 4 rings. Both
+    # are exposed separately so callers do not compare one against the other.
+    _rx_ring_count_pattern = re.compile(
+        r"indirection table for \S+ with (?P<count>\d+) RX ring", re.MULTILINE
+    )
+    # Table rows are "<offset>: <queue> <queue> ...". The RSS hash key line also
+    # contains colons, but its bytes are colon separated, so it can never match
+    # a pattern that allows only digits and blanks up to the end of the line.
+    _table_row_pattern = re.compile(
+        r"^[ \t]*(?P<offset>\d+):(?P<entries>[ \t0-9]+?)[ \t]*\r?$", re.MULTILINE
+    )
+
+    def __init__(self, interface: str, device_rss_info_raw: str) -> None:
+        self._parse_indirection_table(interface, device_rss_info_raw)
+
+    def _parse_indirection_table(self, interface: str, raw_str: str) -> None:
+        ring_count = self._rx_ring_count_pattern.search(raw_str)
+        if not ring_count:
+            raise LisaException(
+                f"Cannot get {interface} RX flow hash indirection table header."
+                " Verify the driver exposes an RSS indirection table through"
+                " 'ethtool -x'."
+            )
+
+        table: List[int] = []
+        for row in self._table_row_pattern.finditer(raw_str):
+            row_offset = int(row.group("offset"))
+            if row_offset != len(table):
+                raise LisaException(
+                    f"Cannot parse {interface} RSS indirection table: expected "
+                    f"row offset {len(table)}, found {row_offset}. Verify the "
+                    "output format of 'ethtool -x'."
+                )
+            entries = [int(entry) for entry in row.group("entries").split()]
+            table.extend(entries)
+
+        if not table:
+            raise LisaException(
+                f"Cannot get {interface} RSS indirection table entries."
+                " Verify the output format of 'ethtool -x'."
+            )
+
+        self.interface = interface
+        self.rx_ring_count = int(ring_count.group("count"))
+        self.table = table
+        self.indirection_size = len(table)
+
+
+class DeviceCoalesceSettings:
+    # ethtool -c reports integer tunables one per line. Unsupported parameters
+    # are printed as n/a, while the Adaptive RX/TX line contains two values and
+    # is intentionally excluded from this integer setting model.
+    _coalesce_param_pattern = re.compile(
+        r"^(?P<name>[\w-]+):[ \t]*(?P<value>\d+|n/a)[ \t]*\r?$", re.MULTILINE
+    )
+
+    def __init__(self, interface: str, device_coalesce_raw: str) -> None:
+        self._parse_coalesce_settings(interface, device_coalesce_raw)
+
+    def _parse_coalesce_settings(self, interface: str, raw_str: str) -> None:
+        settings: Dict[str, int] = {}
+        not_applicable: List[str] = []
+        for item in self._coalesce_param_pattern.finditer(raw_str):
+            name = item.group("name")
+            value = item.group("value")
+            if value == "n/a":
+                not_applicable.append(name)
+            else:
+                settings[name] = int(value)
+
+        if not settings and not not_applicable:
+            raise LisaException(
+                f"Cannot get {interface} interrupt coalescing parameters."
+                " Verify the output format of 'ethtool -c'."
+            )
+
+        self.interface = interface
+        self.settings = settings
+        self.not_applicable = not_applicable
+
+
 class DeviceRxHashLevel:
     # ethtool device rx hash level is in the below format
     # ethtool -n eth0 rx-flow-hash tcp4
@@ -445,6 +559,7 @@ class DeviceStatistics:
     def __init__(
         self, interface: str, device_statistics_raw: str, bsd: bool = False
     ) -> None:
+        self.raw_output = device_statistics_raw
         self._parse_statistics_info(interface, device_statistics_raw, bsd)
 
     def _parse_statistics_info(self, interface: str, raw_str: str, bsd: bool) -> None:
@@ -469,6 +584,8 @@ class DeviceSettings:
     device_ringbuffer_settings: Optional[DeviceRingBufferSettings] = None
     device_gro_lro_settings: Optional[DeviceGroLroSettings] = None
     device_rss_hash_key: Optional[DeviceRssHashKey] = None
+    device_rss_indirection_table: Optional[DeviceRssIndirectionTable] = None
+    device_coalesce_settings: Optional[DeviceCoalesceSettings] = None
     device_rx_hash_level: Optional[DeviceRxHashLevel] = None
     device_sg_settings: Optional[DeviceSgSettings] = None
     device_firmware_version: Optional[str] = None
@@ -476,6 +593,16 @@ class DeviceSettings:
 
 
 class Ethtool(Tool):
+    # RX CQE coalescing was added to the ethtool CLI in v7.1. Build the pinned
+    # release only when a distribution package does not expose that argument.
+    _rx_cqe_ethtool_version = "7.1"
+    _rx_cqe_ethtool_archive_sha256 = (
+        "21cc520ae5d881f01b0dcd6d26de4d52a64b24840bc2150daf778a235442e61d"
+    )
+    _rx_cqe_ethtool_url = (
+        "https://mirrors.edge.kernel.org/pub/software/network/ethtool/"
+        f"ethtool-{_rx_cqe_ethtool_version}.tar.gz"
+    )
     # ethtool -i eth0
     #   driver: hv_netvsc
     #   version:
@@ -490,7 +617,7 @@ class Ethtool(Tool):
 
     @property
     def command(self) -> str:
-        return "ethtool"
+        return self._command
 
     @property
     def can_install(self) -> bool:
@@ -498,6 +625,7 @@ class Ethtool(Tool):
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._command = "ethtool"
+        self._supports_rx_cqe_frames: Optional[bool] = None
         self._device_set: Set[str] = set()
         self._device_settings_map: Dict[str, DeviceSettings] = {}
 
@@ -505,6 +633,133 @@ class Ethtool(Tool):
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages("ethtool")
         return self._check_exists()
+
+    def supports_rx_cqe_frames(self) -> bool:
+        if self._supports_rx_cqe_frames is None:
+            result = self.run("--help", force_run=True, shell=True)
+            output = f"{result.stdout}\n{result.stderr}"
+            self._supports_rx_cqe_frames = "rx-cqe-frames" in output
+        return self._supports_rx_cqe_frames
+
+    def ensure_rx_cqe_frames_support(self) -> None:
+        if self.supports_rx_cqe_frames():
+            return
+
+        self._install_rx_cqe_frames_ethtool()
+        self._supports_rx_cqe_frames = None
+        if not self.supports_rx_cqe_frames():
+            raise LisaException(
+                f"The ethtool {self._rx_cqe_ethtool_version} build does not "
+                "expose rx-cqe-frames. Inspect its build output and netlink "
+                "dependencies."
+            )
+
+    def _install_rx_cqe_frames_ethtool(self) -> None:
+        posix_os = cast(Posix, self.node.os)
+        if isinstance(posix_os, Debian):
+            libmnl_package = "libmnl-dev"
+        elif isinstance(posix_os, (RPMDistro, Suse)):
+            libmnl_package = "libmnl-devel"
+        else:
+            raise UnsupportedDistroException(
+                posix_os,
+                f"building ethtool {self._rx_cqe_ethtool_version} is supported "
+                "only on Debian-family, RPM-family, and SUSE systems",
+            )
+        mnl_cflags = (
+            "-I/usr/include/libmnl" if isinstance(posix_os, Suse) else "-I/usr/include"
+        )
+        # Install the compiler and build tool in the same transaction as the
+        # development headers. This avoids a second package operation against
+        # fast-moving mirrors after repository metadata has been refreshed.
+        build_packages = ["gcc", "make", libmnl_package]
+        if isinstance(posix_os, (CBLMariner, Fedora, Suse)):
+            # Some minimal RPM images do not pull the linker and C runtime
+            # headers in with gcc.
+            build_packages.extend(["binutils", "glibc-devel"])
+        if isinstance(posix_os, CBLMariner):
+            # Azure Linux does not pull the userspace Linux API headers in
+            # with glibc-devel.
+            build_packages.append("kernel-headers")
+
+        package_extra_args: Optional[List[str]] = None
+        if isinstance(posix_os, Oracle):
+            # Oracle Linux publishes libmnl-devel in CodeReady Builder, which
+            # marketplace images keep disabled by default. Enable it only for
+            # this dependency query and install transaction.
+            codeready_repo = f"ol{posix_os.information.version.major}_codeready_builder"
+            package_extra_args = [f"--enablerepo={codeready_repo}"]
+
+        for package in build_packages:
+            if package_extra_args:
+                package_query = self.node.execute(
+                    f"dnf {' '.join(package_extra_args)} list {package} -y",
+                    sudo=True,
+                    shell=True,
+                )
+                package_available = package_query.exit_code == 0
+            else:
+                package_available = posix_os.is_package_in_repo(package)
+            if not package_available:
+                raise LisaException(
+                    f"Cannot build ethtool {self._rx_cqe_ethtool_version}: package "
+                    f"{package} is unavailable. Enable a repository containing "
+                    "the required development package."
+                )
+
+        posix_os.install_packages(build_packages, extra_args=package_extra_args)
+        make = self.node.tools[Make]
+        tar = self.node.tools[Tar]
+        wget = self.node.tools[Wget]
+
+        tool_path = self.get_tool_path()
+        archive_name = f"ethtool-{self._rx_cqe_ethtool_version}.tar.gz"
+        archive_path = wget.get(
+            self._rx_cqe_ethtool_url,
+            file_path=str(tool_path),
+            filename=archive_name,
+        )
+        checksum_result = self.node.execute(
+            "printf '%s  %s\\n' "
+            f"{shlex.quote(self._rx_cqe_ethtool_archive_sha256)} "
+            f"{shlex.quote(archive_path)} | sha256sum --check --status",
+            shell=True,
+        )
+        checksum_result.assert_exit_code(
+            message=f"The downloaded {archive_name} checksum is invalid. "
+            "Verify the archive on mirrors.edge.kernel.org."
+        )
+
+        source_path = tool_path.joinpath(f"ethtool-{self._rx_cqe_ethtool_version}")
+        binary_path = source_path.joinpath("ethtool")
+        if not self.node.shell.exists(binary_path):
+            if self.node.shell.exists(source_path):
+                self.node.shell.remove(source_path, recursive=True)
+            tar.extract(archive_path, str(tool_path), gzip=True)
+            configure_result = self.node.execute(
+                "./configure --with-bash-completion-dir=no",
+                cwd=source_path,
+                shell=True,
+                update_envs={"MNL_CFLAGS": mnl_cflags, "MNL_LIBS": "-lmnl"},
+            )
+            configure_result.assert_exit_code(
+                message=f"Failed to configure ethtool "
+                f"{self._rx_cqe_ethtool_version}. Inspect configure output and "
+                "verify that the compiler and libmnl development files are installed.",
+                include_output=True,
+            )
+            make_result = self.node.execute(
+                f"{make.command} -j{self.node.tools[Lscpu].get_thread_count()}",
+                cwd=source_path,
+                shell=True,
+            )
+            make_result.assert_exit_code(
+                message=f"Failed to build ethtool {self._rx_cqe_ethtool_version}. "
+                "Inspect compiler and library errors.",
+                include_output=True,
+            )
+
+        self._command = shlex.quote(str(binary_path))
 
     def get_device_driver(self, interface: str) -> str:
         _device_driver_pattern = re.compile(
@@ -556,9 +811,9 @@ class Ethtool(Tool):
             return device.device_channel
 
         result = self.run(f"-l {interface}", force_run=force_run, shell=True)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
-                "ethtool -l {interface} operation not supported."
+                f"ethtool -l {interface} operation not supported."
             )
         result.assert_exit_code(
             message=f"Couldn't get device {interface} channels info."
@@ -673,7 +928,7 @@ class Ethtool(Tool):
             return device.device_msg_level
 
         result = self.run(interface, force_run=force_run, shell=True)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool {interface} operation not supported."
             )
@@ -743,7 +998,7 @@ class Ethtool(Tool):
             return device.device_ringbuffer_settings
 
         result = self.run(f"-g {interface}", force_run=force_run, shell=True)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool -g {interface} operation not supported."
             )
@@ -779,7 +1034,7 @@ class Ethtool(Tool):
             return device.device_rss_hash_key
 
         result = self.run(f"-x {interface}", force_run=force_run, shell=True)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool -x {interface} operation not supported."
             )
@@ -799,7 +1054,7 @@ class Ethtool(Tool):
             force_run=True,
             shell=True,
         )
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"Changing RSS hash key with 'ethtool -X {interface}' not supported."
             )
@@ -808,6 +1063,129 @@ class Ethtool(Tool):
         )
 
         return self.get_device_rss_hash_key(interface, force_run=True)
+
+    def get_device_rss_indirection_table(
+        self, interface: str, force_run: bool = False
+    ) -> DeviceRssIndirectionTable:
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_rss_indirection_table:
+            return device.device_rss_indirection_table
+
+        result = self.run(
+            f"-x {shlex.quote(interface)}", force_run=force_run, shell=True
+        )
+        if (result.exit_code != 0) and _is_unsupported(result):
+            raise UnsupportedOperationException(
+                f"ethtool -x {interface} operation not supported."
+            )
+        result.assert_exit_code(
+            message=f"Couldn't get device {interface} RSS indirection table."
+        )
+        device.device_rss_indirection_table = DeviceRssIndirectionTable(
+            interface, result.stdout
+        )
+
+        return device.device_rss_indirection_table
+
+    def set_device_rss_indirection_table(
+        self, interface: str, spec: str
+    ) -> ExecutableResult:
+        """
+        Apply an RSS indirection table specification, for example
+        "equal 4" or "default". The raw result is returned so callers can
+        assert on rejection of invalid specifications.
+        """
+        try:
+            spec_tokens = shlex.split(spec)
+        except ValueError as identifier:
+            raise LisaException(
+                f"Cannot parse RSS indirection table specification '{spec}': "
+                f"{identifier}. Use 'default', 'equal N', or 'weight W0 W1 ...'."
+            ) from identifier
+
+        is_default = spec_tokens == ["default"]
+        is_equal = (
+            len(spec_tokens) == 2
+            and spec_tokens[0] == "equal"
+            and spec_tokens[1].isdecimal()
+            and int(spec_tokens[1]) > 0
+        )
+        is_weight = (
+            len(spec_tokens) > 1
+            and spec_tokens[0] == "weight"
+            and all(token.isdecimal() for token in spec_tokens[1:])
+            and any(int(token) > 0 for token in spec_tokens[1:])
+        )
+        if not (is_default or is_equal or is_weight):
+            raise LisaException(
+                f"Unsupported RSS indirection table specification '{spec}'. "
+                "Use 'default', 'equal N', or 'weight W0 W1 ...' with "
+                "non-negative integer values."
+            )
+
+        quoted_spec = " ".join(shlex.quote(token) for token in spec_tokens)
+        result = self.run(
+            f"-X {shlex.quote(interface)} {quoted_spec}",
+            sudo=True,
+            force_run=True,
+            shell=True,
+        )
+        if result.exit_code == 0:
+            device = self._get_or_create_device_setting(interface)
+            device.device_rss_indirection_table = None
+        return result
+
+    def change_device_rss_indirection_table(
+        self, interface: str, spec: str
+    ) -> DeviceRssIndirectionTable:
+        result = self.set_device_rss_indirection_table(interface, spec)
+        if (result.exit_code != 0) and _is_unsupported(result):
+            raise UnsupportedOperationException(
+                f"ethtool -X {interface} {spec} operation not supported."
+            )
+        result.assert_exit_code(
+            message=f"Couldn't apply RSS indirection table '{spec}' on {interface}."
+        )
+
+        return self.get_device_rss_indirection_table(interface, force_run=True)
+
+    def get_device_coalesce_settings(
+        self, interface: str, force_run: bool = False
+    ) -> DeviceCoalesceSettings:
+        device = self._get_or_create_device_setting(interface)
+        if not force_run and device.device_coalesce_settings:
+            return device.device_coalesce_settings
+
+        quoted_interface = shlex.quote(interface)
+        result = self.run(f"-c {quoted_interface}", force_run=force_run, shell=True)
+        if (result.exit_code != 0) and _is_unsupported(result):
+            raise UnsupportedOperationException(
+                f"ethtool -c {interface} operation not supported."
+            )
+        result.assert_exit_code(
+            message=f"Couldn't get device {interface} coalescing settings."
+        )
+        device.device_coalesce_settings = DeviceCoalesceSettings(
+            interface, result.stdout
+        )
+
+        return device.device_coalesce_settings
+
+    def set_device_coalesce_setting(
+        self, interface: str, parameter: str, value: int
+    ) -> ExecutableResult:
+        """Set one coalescing parameter and return the raw command result."""
+        result = self.run(
+            f"-C {shlex.quote(interface)} {shlex.quote(parameter)} "
+            f"{shlex.quote(str(value))}",
+            sudo=True,
+            force_run=True,
+            shell=True,
+        )
+        if result.exit_code == 0:
+            device = self._get_or_create_device_setting(interface)
+            device.device_coalesce_settings = None
+        return result
 
     def get_device_rx_hash_level(
         self, interface: str, protocol: str, force_run: bool = False
@@ -823,7 +1201,7 @@ class Ethtool(Tool):
         result = self.run(
             f"-n {interface} rx-flow-hash {protocol}", force_run=force_run, shell=True
         )
-        if "Operation not supported" in result.stdout:
+        if _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool -n {interface} operation not supported."
             )
@@ -856,7 +1234,7 @@ class Ethtool(Tool):
             shell=True,
             force_run=True,
         )
-        if "Operation not supported" in result.stdout:
+        if _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool -N {interface} rx-flow-hash {protocol} {param}"
                 " operation not supported."
@@ -904,9 +1282,8 @@ class Ethtool(Tool):
             return device.device_statistics
 
         result = self.run(f"-S {interface}", force_run=True, shell=True)
-        if (result.exit_code != 0) and (
-            "Operation not supported" in result.stdout
-            or "no stats available" in result.stdout
+        if (result.exit_code != 0) and _is_unsupported(
+            result, "Operation not supported", "no stats available"
         ):
             raise UnsupportedOperationException(
                 f"ethtool -S {interface} operation not supported."
@@ -922,9 +1299,9 @@ class Ethtool(Tool):
         """
         use this method to get the delta of an operation.
         """
-        new_statistics = self.get_device_statistics(
-            interface=interface, force_run=True
-        ).counters
+        new_statistics = dict(
+            self.get_device_statistics(interface=interface, force_run=True).counters
+        )
 
         for key, value in previous_statistics.items():
             new_statistics[key] = new_statistics.get(key, 0) - value
@@ -943,7 +1320,7 @@ class Ethtool(Tool):
             return device.device_firmware_version
 
         result = self.run(f"-i {interface}", force_run=force_run, shell=True)
-        if (result.exit_code != 0) and ("Operation not supported" in result.stdout):
+        if (result.exit_code != 0) and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"ethtool -i {interface} operation not supported."
             )
@@ -1153,9 +1530,8 @@ class EthtoolFreebsd(Ethtool):
         result = self.run(
             f"sysctl dev.{device_name}.{number}", force_run=True, shell=True
         )
-        if (result.exit_code != 0) and (
-            "Operation not supported" in result.stdout
-            or "no stats available" in result.stdout
+        if (result.exit_code != 0) and _is_unsupported(
+            result, "Operation not supported", "no stats available"
         ):
             raise UnsupportedOperationException(
                 f"Stats retrieval for {interface} operation not supported."
