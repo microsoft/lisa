@@ -2,13 +2,24 @@
 # Licensed under the MIT license.
 
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from microsoft.testsuites.kselftest.kselftest import Kselftest
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import TestResult, simple_requirement
+from lisa.tools import Cat
 from lisa.util import LisaException, SkippedException, UnsupportedDistroException
+
+
+# Kselftest subsystems that are known to be incompatible with FIPS mode.
+# These are typically tests that validate cryptographic algorithms (MD5, SHA-1, etc.)
+# that are disabled/forbidden in FIPS mode.
+# See: https://github.com/microsoft/lisa/issues/63548691
+_FIPS_INCOMPATIBLE_TESTS = [
+    "crypto:*",  # Cryptographic algorithm tests - MD5, SHA-1 forbidden in FIPS
+    # Other potentially problematic tests can be added here as discovered
+]
 
 
 @TestSuiteMetadata(
@@ -23,6 +34,38 @@ class KselftestTestsuite(TestSuite):
     # timeout below is in seconds and set to 2 hours.
     _CASE_TIME_OUT = 7200
     _KSELF_TIMEOUT = 6700
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        """
+        Pre-test setup hook. Adjusts test configuration for FIPS-enabled kernels.
+
+        On FIPS-enabled kernels, certain kselftest subsystems (particularly crypto
+        tests) are incompatible because they test algorithms that FIPS forbids
+        (MD5, SHA-1, etc.). Rather than skip the entire suite, we automatically
+        add FIPS-incompatible tests to the skip list to maintain coverage of
+        compatible subsystems (BPF, networking, timers, etc.).
+        """
+        node = kwargs["node"]
+
+        # Check if FIPS mode is enabled
+        fips_result = node.tools[Cat].run(
+            "/proc/sys/crypto/fips_enabled",
+            force_run=True,
+            no_error_log=True,
+        )
+        is_fips_enabled = (
+            fips_result.exit_code == 0
+            and (fips_result.stdout or "").strip() == "1"
+        )
+
+        if is_fips_enabled:
+            self._log.info(
+                "FIPS mode is enabled. Some kselftest subsystems will be skipped "
+                "due to incompatibility with FIPS-restricted algorithms."
+            )
+            # Note: The actual skip list is applied in verify_kselftest() via
+            # the kselftest_skip_tests variable. This log serves as notification
+            # that automatic FIPS adjustments are being applied.
 
     @TestCaseMetadata(
         description="""
@@ -77,6 +120,21 @@ class KselftestTestsuite(TestSuite):
             if variables.get("kselftest_skip_tests", "")
             else []
         )
+
+        # Check if FIPS is enabled and automatically add FIPS-incompatible tests
+        # to the skip list
+        fips_result = node.tools[Cat].run(
+            "/proc/sys/crypto/fips_enabled",
+            force_run=True,
+            no_error_log=True,
+        )
+        if fips_result.exit_code == 0 and (fips_result.stdout or "").strip() == "1":
+            self._log.info(
+                "FIPS mode enabled: automatically skipping FIPS-incompatible tests "
+                f"({', '.join(_FIPS_INCOMPATIBLE_TESTS)})"
+            )
+            skip_tests_list.extend(_FIPS_INCOMPATIBLE_TESTS)
+
         # Optionally extend the skip list from a file (one test per line). This
         # keeps the LISA command line short when the skip list is large.
         skip_tests_file = variables.get("kselftest_skip_tests_file", "")
