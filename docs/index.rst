@@ -45,6 +45,7 @@ Why LISA
 
    Introduction <quick_start>
    Installation & Update <install>
+   LISA MCP server <mcp_server>
    Run tests <run_test/run>
    Write tests <write_test/write>
    Test Maturity Model <test_maturity_model>
