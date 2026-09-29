@@ -145,8 +145,8 @@ Test execution and configuration
    * - Tool
      - Purpose
    * - ``lisa_run``
-     - Run LISA locally with the configured Azure settings. This tool is
-       available only over the ``stdio`` transport.
+     - Run LISA locally; Azure settings are required only for Azure runbooks.
+       This tool is available only over the ``stdio`` transport.
    * - ``lisa_get_config``
      - Show the effective MCP configuration and any missing Azure settings.
    * - ``lisa_save_config``
