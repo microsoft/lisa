@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 from decimal import Decimal
 from time import sleep
-from typing import Any, List, Optional, Tuple, cast
+from typing import Any, List, Optional, cast
 
 from assertpy import assert_that
 from retry import retry
@@ -207,78 +207,11 @@ def _perform_hibernation_cycle(
     return boot_time_before_hibernation, boot_time_after_hibernation
 
 
-def _expected_pci_nic_count(node: Node, log: Logger) -> Optional[int]:
-    """Return the SR-IOV VF count Azure configured for this VM, or ``None``.
-
-    The accelerated-networking VF (MANA) is hot-attached asynchronously a
-    short time after boot, so reading the PCI/VF count too early yields a
-    spuriously low baseline. Anchoring to the platform's expected count lets
-    the baseline capture wait for the VF to finish attaching.
-
-    Returns 0 when accelerated networking is disabled, and ``None`` when the
-    expectation cannot be determined (non-Azure platform or query failure), in
-    which case the caller falls back to a best-effort snapshot.
-    """
-    try:
-        network = node.features[NetworkInterface]
-    except Exception as e:
-        log.debug(f"NetworkInterface feature unavailable: {e}")
-        return None
-    try:
-        if not network.is_enabled_sriov():
-            return 0
-        return network.get_nic_count()
-    except Exception as e:
-        log.debug(f"could not query expected sriov nic count: {e}")
-        return None
-
-
-def _capture_stable_nic_baseline(
-    node: Node, log: Logger
-) -> Tuple[List[str], List[str]]:
-    """Capture the pre-hibernation NIC baseline once the topology is stable.
-
-    Waits (bounded) for the accelerated-networking VF to finish hot-attaching
-    so the PCI/VF baseline matches the count Azure configured, then returns
-    ``(lower_nics, upper_nics)``. Without this wait the baseline can be read
-    while the VF is still attaching (PCI count 0), which later mismatches the
-    correctly-restored count after resume and fails the test spuriously.
-
-    Falls back to an immediate snapshot when the expected count is unknown.
-    """
-    node_nic = node.nics
-    expected_pci = _expected_pci_nic_count(node, log)
-
-    if expected_pci:
-
-        @retry(tries=20, delay=3, backoff=1.1)  # type: ignore
-        def _wait_for_vf() -> None:
-            node_nic.reload()
-            actual = len(node_nic.get_pci_nics())
-            assert_that(actual).described_as(
-                "waiting for accelerated-networking VF to attach before "
-                f"hibernation (expected {expected_pci} PCI NIC(s))"
-            ).is_equal_to(expected_pci)
-
-        try:
-            _wait_for_vf()
-        except AssertionError:
-            log.debug(
-                "accelerated-networking VF did not reach the expected count "
-                "before hibernation; using best-effort baseline"
-            )
-    else:
-        node_nic.reload()
-
-    return node_nic.get_pci_nics(), node_nic.get_nic_names()
-
-
 def _verify_common_hibernation_requirements(
     node: Node,
     log: Logger,
     boot_time_before: Any,
     boot_time_after: Any,
-    lower_nics_before: List[Any],
     upper_nics_before: List[str],
     throw_error: bool = True,
 ) -> None:
@@ -298,27 +231,32 @@ def _verify_common_hibernation_requirements(
 
     node_nic = node.nics
 
-    # After resume, the accelerated-networking VF (SR-IOV) is re-attached and
-    # re-enumerated asynchronously by the guest kernel, so the PCI NIC can be
-    # briefly absent immediately after the VM is reachable again. Reload and
-    # re-check on a bounded interval until the counts converge to the
-    # pre-hibernation baseline (which was itself captured only once the VF had
-    # attached, see _capture_stable_nic_baseline). A genuine NIC loss still
+    # The accelerated-networking VF (SR-IOV) is hot-attached asynchronously both
+    # after boot and after resume, so comparing raw before/after snapshots is
+    # racy. Anchor to the count Azure configured instead: after resume, reload
+    # until the VF count matches the platform's expected count. ``None`` means
+    # the expectation is unknown (non-Azure or query failure), so the VF check
+    # is skipped rather than risking a false failure. A genuine VF loss still
     # fails after the retries.
-    @retry(tries=15, delay=3, backoff=1.15)  # type: ignore
-    def _assert_nic_counts_restored() -> None:
-        node_nic.reload()
-        lower_nics_after_hibernation = node_nic.get_pci_nics()
-        upper_nics_after_hibernation = node_nic.get_nic_names()
+    expected_sriov: Optional[int] = None
+    try:
+        network = node.features[NetworkInterface]
+        expected_sriov = network.get_nic_count() if network.is_enabled_sriov() else 0
+    except Exception as e:
+        log.debug(f"could not determine expected sriov nic count: {e}")
 
-        assert_that(len(lower_nics_after_hibernation)).described_as(
-            "sriov nics count changes after hibernation."
-        ).is_equal_to(len(lower_nics_before))
-        assert_that(len(upper_nics_after_hibernation)).described_as(
+    @retry(tries=20, delay=3, backoff=1.15)  # type: ignore
+    def _assert_nics_restored() -> None:
+        node_nic.reload()
+        if expected_sriov is not None:
+            assert_that(len(node_nic.get_pci_nics())).described_as(
+                "sriov nics count changes after hibernation."
+            ).is_equal_to(expected_sriov)
+        assert_that(len(node_nic.get_nic_names())).described_as(
             "synthetic nics count changes after hibernation."
         ).is_equal_to(len(upper_nics_before))
 
-    _assert_nic_counts_restored()
+    _assert_nics_restored()
 
     dmesg.check_kernel_errors(force_run=True, throw_error=throw_error)
 
@@ -332,11 +270,9 @@ def verify_hibernation_by_tool(
     This method installs and configures hibernation-setup-tool,
     then verifies hibernation through tool-specific logs and metrics.
     """
-    # Capture the NIC baseline only after the accelerated-networking VF has
-    # finished hot-attaching, so the pre-hibernation PCI/VF count is stable.
-    lower_nics_before_hibernation, upper_nics_before_hibernation = (
-        _capture_stable_nic_baseline(node, log)
-    )
+    # The synthetic NICs are stable from boot; the VF is verified against the
+    # Azure-expected count after resume (see _verify_common_hibernation_...).
+    upper_nics_before_hibernation = node.nics.get_nic_names()
 
     hibernation_setup_tool = node.tools[HibernationSetup]
 
@@ -387,7 +323,6 @@ def verify_hibernation_by_tool(
         log,
         boot_time_before,
         boot_time_after,
-        lower_nics_before_hibernation,
         upper_nics_before_hibernation,
         throw_error,
     )
@@ -456,11 +391,9 @@ def verify_hibernation_by_vm_extension(
         node.mark_dirty()
         raise
 
-    # Capture the NIC baseline only after the accelerated-networking VF has
-    # finished hot-attaching, so the pre-hibernation PCI/VF count is stable.
-    lower_nics_before_hibernation, upper_nics_before_hibernation = (
-        _capture_stable_nic_baseline(node, log)
-    )
+    # The synthetic NICs are stable from boot; the VF is verified against the
+    # Azure-expected count after resume (see _verify_common_hibernation_...).
+    upper_nics_before_hibernation = node.nics.get_nic_names()
 
     # Perform hibernation cycle
     boot_time_before, boot_time_after = _perform_hibernation_cycle(
@@ -473,7 +406,6 @@ def verify_hibernation_by_vm_extension(
         log,
         boot_time_before,
         boot_time_after,
-        lower_nics_before_hibernation,
         upper_nics_before_hibernation,
         throw_error,
     )
