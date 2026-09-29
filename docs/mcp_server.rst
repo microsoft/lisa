@@ -176,32 +176,15 @@ only the ``mcp`` subdirectory is installed.
 
 .. note::
 
-   On Windows the command above fails unless Git is allowed to create long
-   paths:
-
-   .. code-block:: text
-
-      error: unable to create file lisa/ai/data/...serial_console.log: Filename too long
-      warning: Clone succeeded, but checkout failed.
-      ERROR: Failed to build 'lisa-mcp' ...
-
-   Some sample logs under ``lisa/ai/data`` have paths close to the 260
-   character limit, and pip's temporary directory name consumes about a
-   hundred characters before them. Enable long paths in Git once:
+   On Windows this fails during checkout with ``Filename too long``. Some
+   sample logs under ``lisa/ai/data`` sit near the 260 character limit, and
+   pip's temporary directory name consumes about a hundred characters before
+   them. Enable long paths in Git — the ``LongPathsEnabled`` registry
+   setting does not cover Git:
 
    .. code-block:: powershell
 
       git config --global core.longpaths true
-
-   Setting ``LongPathsEnabled`` in the registry is not enough on its own —
-   Git for Windows applies its own path handling and needs
-   ``core.longpaths``. Alternatively, clone to a short path and install from
-   there:
-
-   .. code-block:: powershell
-
-      git clone -c core.longpaths=true https://github.com/microsoft/lisa.git C:\lisa
-      pip install C:\lisa\mcp
 
 For development, install from a local checkout:
 
