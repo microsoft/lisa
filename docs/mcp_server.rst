@@ -171,6 +171,38 @@ Install directly from the LISA repository:
 
    pip install "lisa-mcp @ git+https://github.com/microsoft/lisa.git@main#subdirectory=mcp"
 
+This clones the whole LISA repository into a temporary directory even though
+only the ``mcp`` subdirectory is installed.
+
+.. note::
+
+   On Windows the command above fails unless Git is allowed to create long
+   paths:
+
+   .. code-block:: text
+
+      error: unable to create file lisa/ai/data/...serial_console.log: Filename too long
+      warning: Clone succeeded, but checkout failed.
+      ERROR: Failed to build 'lisa-mcp' ...
+
+   Some sample logs under ``lisa/ai/data`` have paths close to the 260
+   character limit, and pip's temporary directory name consumes about a
+   hundred characters before them. Enable long paths in Git once:
+
+   .. code-block:: powershell
+
+      git config --global core.longpaths true
+
+   Setting ``LongPathsEnabled`` in the registry is not enough on its own —
+   Git for Windows applies its own path handling and needs
+   ``core.longpaths``. Alternatively, clone to a short path and install from
+   there:
+
+   .. code-block:: powershell
+
+      git clone -c core.longpaths=true https://github.com/microsoft/lisa.git C:\lisa
+      pip install C:\lisa\mcp
+
 For development, install from a local checkout:
 
 .. code-block:: bash
@@ -191,6 +223,29 @@ Visual Studio Code or Claude Desktop:
 .. code-block:: bash
 
    lisa-mcp
+
+.. note::
+
+   ``lisa-mcp: The term 'lisa-mcp' is not recognized`` (or
+   ``command not found``) means the launcher was installed somewhere that is
+   not on ``PATH``, not that the installation failed. Installing with a
+   Python whose ``Scripts`` directory is not writable — the usual case for
+   ``C:\Program Files\PythonXXX`` — makes pip fall back to a per-user
+   location that is off ``PATH`` by default:
+
+   * Windows: ``%APPDATA%\Python\PythonXXX\Scripts``
+   * Linux and macOS: ``~/.local/bin``
+
+   Find the launcher and run it by full path, or activate the virtual
+   environment it belongs to:
+
+   .. code-block:: powershell
+
+      Get-ChildItem -Recurse -Filter lisa-mcp.exe "$env:APPDATA\Python", ".venv"
+      .\.venv\Scripts\Activate.ps1
+
+   Installing into a virtual environment avoids the problem, and MCP client
+   configurations should use the full path in any case — see below.
 
 Configure Visual Studio Code
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -247,6 +302,9 @@ Add the server to ``claude_desktop_config.json``:
        }
      }
    }
+
+On Windows, use ``C:/path/to/lisa/.venv/Scripts/lisa-mcp.exe``. As with
+Visual Studio Code, give the full path rather than a bare ``lisa-mcp``.
 
 Configure local test execution
 ------------------------------
@@ -414,6 +472,21 @@ Use the ``mcp`` directory as the Docker build context:
      -v lisa-downloads:/app/logs \
      -v /var/log/lisa:/app/logs/runs:ro \
      lisa-mcp
+
+.. note::
+
+   Where public PyPI is unreachable, the build fails inside ``pip install``
+   with ``SSLV3_ALERT_HANDSHAKE_FAILURE`` against ``files.pythonhosted.org``
+   even though ``apt-get`` and ``git clone`` in the same build succeed. Pass
+   a mirror:
+
+   .. code-block:: bash
+
+      docker build --build-arg PIP_INDEX_URL=https://<your-mirror>/pypi/simple/ \
+        -t lisa-mcp .
+
+   Use ``--build-arg LISA_BRANCH=<branch>`` to build from a branch other than
+   ``main``.
 
 ``LISA_LOG_ROOT`` must be writable because downloaded logs are retained
 beneath it. Existing run logs may be mounted read-only in a child directory,
