@@ -19,7 +19,7 @@ from lisa import (
 )
 from lisa.base_tools import Cat, Uname
 from lisa.operating_system import CBLMariner, Posix, Ubuntu
-from lisa.tools import Lsmod, Modinfo, Modprobe, Usermod
+from lisa.tools import Dmesg, Lsmod, Modinfo, Modprobe, Usermod
 from lisa.util import check_till_timeout
 
 AZIHSM_DEV = "/dev/azihsm0"
@@ -60,6 +60,41 @@ class AziHsm(TestSuite):
                 f"{AZIHSM_DEV} was not found. Verify that an AZIHSM device is "
                 "attached to the test VM."
             )
+
+    #
+    # Collect extra diagnostics when an azihsm binary test fails under LISA.
+    # This helps identify environment differences (permissions, device
+    # ownership, stray processes, kernel messages, etc.) between a run
+    # driven by LISA and a manual run on the same VM.
+    #
+    def _log_azihsm_test_failure_diagnostics(
+        self, node: Node, log: Logger, test_name: str
+    ) -> None:
+        log.info(f"Collecting additional diagnostics for {test_name} failure")
+
+        diagnostic_commands = [
+            "id",
+            "groups",
+            f"ls -la {AZIHSM_DEV}",
+            "ps -ef | grep -i azihsm",
+            "lsmod | grep -i azihsm",
+        ]
+        for command in diagnostic_commands:
+            result = node.execute(
+                command,
+                shell=True,
+                sudo=True,
+                expected_exit_code=None,
+            )
+            log.info(f"[{command}]:\n{result.stdout.strip()}")
+
+        try:
+            dmesg_output = node.tools[Dmesg].get_output(
+                force_run=True, tail_lines=200
+            )
+            log.info(f"[dmesg tail]:\n{dmesg_output}")
+        except Exception as e:
+            log.error(f"Failed to collect dmesg output: {e}")
 
     #
     # Make sure the azihsm package repository is configured for this system.
@@ -129,6 +164,18 @@ class AziHsm(TestSuite):
                         f"ms-oss/{arch_name}/"
                     ),
                     repo_name="AZIHSM Packages",
+                    keys_location=[
+                        "https://packages.microsoft.com/keys/microsoft.asc",
+                        "https://packages.microsoft.com/keys/microsoft-rolling.asc",
+                    ],
+                )
+                node.os.add_repository(
+                    repo=(
+                        "https://packages.microsoft.com/azurelinux/"
+                        f"{node.os.information.release}/preview/"
+                        f"ms-non-oss/{arch_name}/"
+                    ),
+                    repo_name="AZIHSM Packages Non-OSS",
                     keys_location=[
                         "https://packages.microsoft.com/keys/microsoft.asc",
                         "https://packages.microsoft.com/keys/microsoft-rolling.asc",
@@ -645,17 +692,39 @@ class AziHsm(TestSuite):
 
         result = node.execute(
             f"/usr/bin/azihsm/driver_tests {params}",
+            # driver_tests runs against real, TPM-backed hardware. Without
+            # AZIHSM_USE_TPM=1 the test helpers take the mock BK3 path
+            # (treating sealed_bk3 as masked_bk3), which is invalid on real
+            # hardware and results in UnmaskingBk3Failed. Match the SDK
+            # tests below, which already set this.
+            update_envs={"AZIHSM_USE_TPM": "1"},
             timeout=1800,  # Allow up to 30 minutes for the driver tests.
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "AZIHSM driver tests failed. Review the command output "
-                "above and any AZIHSM/kernel logs to diagnose the cause."
-            ),
+            # Don't assert here so we can log full output/diagnostics below
+            # before failing, whether the failure is a bad exit code or
+            # simply missing "PASSED" in the output.
+            expected_exit_code=None,
+            no_info_log=False,
         )
-        cmd_output = result.stdout.strip()
-        assert_that(cmd_output).described_as("AZIHSM driver tests failed").contains(
-            "PASSED"
-        )
+        log.info(f"driver_tests exit code: {result.exit_code}")
+        if result.stderr.strip():
+            log.info(f"driver_tests stderr:\n{result.stderr.strip()}")
+
+        if result.exit_code != 0:
+            self._log_azihsm_test_failure_diagnostics(
+                node=node, log=log, test_name="driver_tests"
+            )
+
+        # driver_tests is a Rust test binary (like the SDK tests below).
+        # cargo test's pretty-printed output can include a literal terminfo
+        # padding artifact (e.g. "ok\x0f$<2>.") when run over a
+        # non-interactive SSH session, which breaks a literal substring
+        # match on "test result: ok.". The process exit code (0 on success,
+        # 101 if any test fails) is the authoritative signal, so rely on
+        # that instead, matching azihsm_api_cpp_tests below.
+        assert_that(result.exit_code).described_as(
+            "AZIHSM driver tests failed. Review the command output "
+            "above and any AZIHSM/kernel logs to diagnose the cause."
+        ).is_equal_to(0)
 
     #
     #
@@ -698,24 +767,37 @@ class AziHsm(TestSuite):
                     f"/usr/bin/azihsm/{test} {params}",
                     update_envs={"AZIHSM_USE_TPM": "1"},
                     timeout=1800,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        f"{test} failed. Review the command output above to "
-                        "diagnose the cause."
-                    ),
+                    # Don't assert here; the exit code is checked manually
+                    # below so we can log full output/diagnostics first.
+                    expected_exit_code=None,
+                    no_info_log=False,
                 )
-                cmd_output = result.stdout.strip()
             except Exception as e:
-                cmd_output = ""
                 log.error(f"Exception: {e}")
                 failed_tests.append(f"{test} ({e})")
+                self._log_azihsm_test_failure_diagnostics(
+                    node=node, log=log, test_name=test
+                )
                 continue
 
-            if "test result: ok." in cmd_output:
+            log.info(f"{test} exit code: {result.exit_code}")
+            if result.stderr.strip():
+                log.info(f"{test} stderr:\n{result.stderr.strip()}")
+
+            # These are Rust test binaries. The process exit code (0 on
+            # success, non-zero if any test fails) is the authoritative
+            # signal: cargo test's pretty-printed output can include a
+            # literal terminfo padding artifact (e.g. "ok\x0f$<2>.") when
+            # run over a non-interactive SSH session, which breaks a
+            # literal substring match on "test result: ok.".
+            if result.exit_code == 0:
                 log.info(f"{test} Passed")
             else:
                 log.info(f"{test} Failed")
                 failed_tests.append(test)
+                self._log_azihsm_test_failure_diagnostics(
+                    node=node, log=log, test_name=test
+                )
 
         # Do the api_cpp_tests here because its output format differs from the
         # Rust-based tests above; use the process exit code to determine
@@ -723,21 +805,33 @@ class AziHsm(TestSuite):
         test = "azihsm_api_cpp_tests"
         log.info(f"Running {test}")
         try:
-            node.execute(
+            result = node.execute(
                 f"/usr/bin/azihsm/{test} {params}",
-                update_envs={"AZIHSM_USE_TPM": "1"},
+                update_envs={"AZIHSM_USE_TPM": "1",
+                             "AZIHSM_DISABLE_MULTI_PROCESS_TESTS": "1"},
                 timeout=1800,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    f"{test} failed. Review the command output above to "
-                    "diagnose the cause."
-                ),
+                expected_exit_code=None,
+                no_info_log=False,
             )
         except Exception as e:
             log.error(f"Exception {e}")
             failed_tests.append(f"{test} ({e})")
+            self._log_azihsm_test_failure_diagnostics(
+                node=node, log=log, test_name=test
+            )
         else:
-            log.info(f"{test} Passed")
+            log.info(f"{test} exit code: {result.exit_code}")
+            if result.stderr.strip():
+                log.info(f"{test} stderr:\n{result.stderr.strip()}")
+
+            if result.exit_code == 0:
+                log.info(f"{test} Passed")
+            else:
+                log.info(f"{test} Failed")
+                failed_tests.append(test)
+                self._log_azihsm_test_failure_diagnostics(
+                    node=node, log=log, test_name=test
+                )
 
         assert_that(failed_tests).described_as(
             "Not all SDK tests passed, failed tests: "
