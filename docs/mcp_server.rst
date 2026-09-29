@@ -552,8 +552,8 @@ The implementation follows these principles:
   the reasoning.
 * **Stateless tool calls.** Each call contains the information required to
   complete its operation.
-* **Runtime documentation.** ``mcp/lisa_mcp/docs_index.yaml`` maps each MCP
-  tool to relevant LISA ``.rst`` and ``.md`` files.
+* **Runtime documentation.** ``mcp/lisa_mcp/docs_index.yaml`` maps MCP tool
+  names to relevant LISA ``.rst`` and ``.md`` files.
 
 Tool naming
 ~~~~~~~~~~~
