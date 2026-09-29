@@ -8,7 +8,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from assertpy import assert_that
 from retry import retry
@@ -18,6 +18,20 @@ from lisa.util import InitializableMixin, LisaException, constants, find_groups_
 
 if TYPE_CHECKING:
     from lisa import Node
+
+# Normalized VF (Virtual Function) driver type -> kernel module name prefixes.
+# Used to gate test cases on the presence of a specific VF driver on the VM.
+# - "mlx": Mellanox ConnectX (mlx4_core / mlx5_core)
+# - "mana": Microsoft Azure Network Adapter (mana / mana_en / mana_ib)
+_VF_DRIVER_TYPE_PREFIXES: Dict[str, Tuple[str, ...]] = {
+    "mlx": ("mlx4", "mlx5"),
+    "mana": ("mana",),
+}
+
+
+def get_supported_vf_driver_types() -> List[str]:
+    """Return the VF driver types supported by the expected_vf_driver gate."""
+    return sorted(_VF_DRIVER_TYPE_PREFIXES.keys())
 
 
 class NicInfo:
@@ -225,6 +239,24 @@ class Nics(InitializableMixin):
             if item in used_module_list:
                 used_module_list.remove(item)
         return used_module_list
+
+    def has_vf_driver(self, driver_type: str) -> bool:
+        """Return True if a VF driver of the given type is in use on the node.
+
+        ``driver_type`` is a normalized VF driver type (e.g. 'mlx' or 'mana').
+        Raises LisaException if the type is not supported.
+        """
+        normalized_type = driver_type.strip().lower()
+        prefixes = _VF_DRIVER_TYPE_PREFIXES.get(normalized_type)
+        if prefixes is None:
+            raise LisaException(
+                f"Unsupported VF driver type '{driver_type}'. Expected one of "
+                f"{get_supported_vf_driver_types()}."
+            )
+        # Exclude the synthetic hv_netvsc driver so only the VF (PCI passthrough)
+        # driver modules are considered.
+        used_modules = self.get_used_modules(["hv_netvsc"])
+        return any(module.startswith(prefixes) for module in used_modules)
 
     def get_device_slots(self, exclude_ib: bool = False) -> List[str]:
         """Get PCI slots for NICs.
