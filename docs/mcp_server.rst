@@ -104,7 +104,7 @@ Log analysis and debugging
    * - ``lisa_get_log_analysis_prompts``
      - Return expert strategies for log analysis by the host AI.
    * - ``lisa_search_log_files``
-     - Search log files with a regular expression.
+     - Search log files for a case-insensitive string.
    * - ``lisa_read_log_file``
      - Read a selected range from a log file.
    * - ``lisa_list_log_files``
