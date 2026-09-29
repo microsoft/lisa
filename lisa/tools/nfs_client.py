@@ -3,8 +3,9 @@
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Redhat, Suse
-from lisa.tools import Firewall, Mount
+from lisa.tools.firewall import Firewall
 from lisa.tools.mkfs import FileSystem
+from lisa.tools.mount import Mount
 from lisa.tools.rm import Rm
 from lisa.util import SkippedException, UnsupportedDistroException
 
