@@ -74,7 +74,8 @@ Runbooks
    * - Tool
      - Purpose
    * - ``lisa_generate_runbook``
-     - Generate a YAML runbook from a natural-language description.
+     - Generate a YAML runbook from structured platform, test-selection, and
+       environment parameters.
    * - ``lisa_validate_runbook``
      - Check a runbook for structural and schema issues.
    * - ``lisa_fix_runbook``
