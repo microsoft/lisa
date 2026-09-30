@@ -5,7 +5,9 @@ import base64
 import os
 import re
 import secrets
+import shlex
 import shutil
+import time
 import xml.etree.ElementTree as ET  # noqa: N817
 from pathlib import Path
 from typing import Any, List, Type, cast
@@ -17,21 +19,60 @@ from lisa.node import Node
 from lisa.sut_orchestrator.libvirt.context import (
     GuestVmType,
     NodeContext,
+    get_environment_context,
     get_node_context,
 )
-from lisa.sut_orchestrator.libvirt.platform import BaseLibvirtPlatform
+from lisa.sut_orchestrator.libvirt.platform import (
+    BaseLibvirtPlatform,
+    GuestBootTimeoutError,
+)
 from lisa.tools import Ls, QemuImg
 from lisa.util import LisaException, parse_version
 from lisa.util.logger import Logger, filter_ansi_escape
+from lisa.util.process import ExecutableResult
 
 from .. import CLOUD_HYPERVISOR
 from .console_logger import QemuConsoleLogger
 from .schema import BaseLibvirtNodeSchema, CloudHypervisorNodeSchema, DiskImageFormat
 
 CH_VERSION_PATTERN = re.compile(r"cloud-hypervisor (?P<ch_version>.+)")
+CH_STATE_DIRECTORY = "/run/libvirt/ch"
+DOMAIN_STOP_TIMEOUT_SECONDS = 30
+DOMAIN_STOP_KILL_TIMEOUT_SECONDS = 5
+DOMAIN_PROCESS_EXIT_TIMEOUT_SECONDS = 15
+DOMAIN_PROCESS_LOOKUP_TIMEOUT_SECONDS = 15
+DOMAIN_DIAGNOSTICS_TIMEOUT_SECONDS = 30
+HOST_COMMAND_TIMEOUT_GRACE_SECONDS = 10
+DOMAIN_CLEANUP_DELAY_SECONDS = 1
+DELETE_NODE_WATCHDOG_MARGIN_SECONDS = 30
+CONSOLE_CLOSE_TIMEOUT_SECONDS = 15
+PASSTHROUGH_BOOT_RETRY_COUNT = 4
+
+DOMAIN_STOP_OPERATION_TIMEOUT_SECONDS = (
+    DOMAIN_STOP_TIMEOUT_SECONDS
+    + DOMAIN_STOP_KILL_TIMEOUT_SECONDS
+    + HOST_COMMAND_TIMEOUT_GRACE_SECONDS
+)
+DOMAIN_PROCESS_TERMINATION_TIMEOUT_SECONDS = (
+    DOMAIN_PROCESS_EXIT_TIMEOUT_SECONDS + HOST_COMMAND_TIMEOUT_GRACE_SECONDS
+)
+PASSTHROUGH_DELETE_NODE_TIMEOUT_SECONDS = (
+    DOMAIN_PROCESS_LOOKUP_TIMEOUT_SECONDS
+    + (2 * DOMAIN_STOP_OPERATION_TIMEOUT_SECONDS)
+    + DOMAIN_DIAGNOSTICS_TIMEOUT_SECONDS
+    + DOMAIN_PROCESS_TERMINATION_TIMEOUT_SECONDS
+    + DOMAIN_CLEANUP_DELAY_SECONDS
+    + DELETE_NODE_WATCHDOG_MARGIN_SECONDS
+)
+
+
+class CloudHypervisorDomainStopError(LisaException):
+    pass
 
 
 class CloudHypervisorPlatform(BaseLibvirtPlatform):
+    DELETE_NODE_WATCHDOG_TIMEOUT_SECONDS = PASSTHROUGH_DELETE_NODE_TIMEOUT_SECONDS
+
     @classmethod
     def type_name(cls) -> str:
         return CLOUD_HYPERVISOR
@@ -276,6 +317,285 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             # pass-through for PCI device is happened properly or not
             self.device_pool._verify_device_passthrough_post_boot(
                 node_context=node_context,
+            )
+
+    def _stop_domain(self, node_context: NodeContext, log: Logger) -> None:
+        if not node_context.passthrough_devices:
+            super()._stop_domain(node_context, log)
+            return
+
+        if node_context.domain_stop_failed is True:
+            raise CloudHypervisorDomainStopError(
+                f"Cloud Hypervisor domain {node_context.vm_name} previously "
+                "failed its bounded stop and cannot be safely reused."
+            )
+
+        assert node_context.domain is not None
+        process_id = self._find_domain_process_id(node_context.vm_name)
+
+        stop_result = self._run_bounded_domain_stop(node_context.vm_name)
+        if self._domain_stop_succeeded(stop_result):
+            node_context.domain_stop_failed = False
+            return
+        if not self._domain_stop_timed_out(stop_result):
+            raise CloudHypervisorDomainStopError(
+                self._domain_stop_error_message(node_context.vm_name, stop_result)
+            )
+
+        log.warning(
+            f"Timed out stopping Cloud Hypervisor domain {node_context.vm_name}; "
+            f"capturing diagnostics and targeting only process {process_id}"
+        )
+        self._capture_domain_process_diagnostics(
+            node_context.vm_name,
+            process_id,
+            log,
+        )
+        if process_id <= 1:
+            node_context.domain_stop_failed = True
+            raise CloudHypervisorDomainStopError(
+                f"Cloud Hypervisor domain {node_context.vm_name} did not stop and "
+                f"libvirt returned invalid process ID {process_id}."
+            )
+
+        kill_result = self._force_kill_domain_process(
+            node_context.vm_name,
+            process_id,
+        )
+        if kill_result.exit_code != 0:
+            if kill_result.exit_code == 124:
+                self._capture_domain_process_diagnostics(
+                    node_context.vm_name,
+                    process_id,
+                    log,
+                )
+            node_context.domain_stop_failed = True
+            raise CloudHypervisorDomainStopError(
+                f"Exact-process termination failed for Cloud Hypervisor domain "
+                f"{node_context.vm_name}, process {process_id} "
+                f"(exit code {kill_result.exit_code})."
+            )
+
+        # Let the timed-out libvirt destroy job reap the process and release its
+        # host devices before checking the domain state again.
+        time.sleep(DOMAIN_CLEANUP_DELAY_SECONDS)
+        cleanup_result = self._run_bounded_domain_stop(node_context.vm_name)
+        if not self._domain_stop_succeeded(cleanup_result):
+            node_context.domain_stop_failed = True
+            raise CloudHypervisorDomainStopError(
+                self._domain_stop_error_message(
+                    node_context.vm_name,
+                    cleanup_result,
+                )
+            )
+        node_context.domain_stop_failed = False
+        node_context.domain = self._lookup_domain(node_context.vm_name, log)
+
+    def _find_domain_process_id(self, vm_name: str) -> int:
+        event_monitor_argument = shlex.quote(
+            f"path={CH_STATE_DIRECTORY}/{vm_name}-event-monitor-fifo"
+        )
+        command = (
+            "for cmdline in /proc/[0-9]*/cmdline; do "
+            '[ -r "$cmdline" ] || continue; '
+            f"tr '\\0' '\\n' < \"$cmdline\" "
+            f"| grep -Fqx -- {event_monitor_argument} || continue; "
+            'pid="${cmdline#/proc/}"; pid="${pid%/cmdline}"; '
+            'executable="$(readlink -f "/proc/$pid/exe")" || continue; '
+            '[ "${executable##*/}" = "cloud-hypervisor" ] || continue; '
+            'printf "%s\\n" "$pid"; '
+            "done"
+        )
+        result = self.host_node.execute(
+            command,
+            sudo=True,
+            shell=True,
+            timeout=DOMAIN_PROCESS_LOOKUP_TIMEOUT_SECONDS,
+        )
+        process_ids = [
+            int(line) for line in result.stdout.splitlines() if line.strip().isdigit()
+        ]
+        if len(process_ids) > 1:
+            raise CloudHypervisorDomainStopError(
+                f"Found multiple Cloud Hypervisor processes for domain {vm_name}: "
+                f"{process_ids}"
+            )
+        return process_ids[0] if process_ids else -1
+
+    def _run_bounded_domain_stop(self, vm_name: str) -> ExecutableResult:
+        command = (
+            "LC_ALL=C timeout "
+            f"--kill-after={DOMAIN_STOP_KILL_TIMEOUT_SECONDS}s "
+            f"{DOMAIN_STOP_TIMEOUT_SECONDS}s "
+            "virsh --connect ch:///system destroy "
+            f"{shlex.quote(vm_name)}"
+        )
+        return self.host_node.execute(
+            command,
+            sudo=True,
+            shell=True,
+            timeout=DOMAIN_STOP_OPERATION_TIMEOUT_SECONDS,
+        )
+
+    def _force_kill_domain_process(
+        self,
+        vm_name: str,
+        process_id: int,
+    ) -> ExecutableResult:
+        event_monitor_argument = shlex.quote(
+            f"path={CH_STATE_DIRECTORY}/{vm_name}-event-monitor-fifo"
+        )
+        command = (
+            f"if [ ! -d /proc/{process_id} ]; then exit 0; fi; "
+            f'executable="$(readlink -f /proc/{process_id}/exe)" || exit 126; '
+            '[ "${executable##*/}" = "cloud-hypervisor" ] || exit 125; '
+            f"tr '\\0' '\\n' < /proc/{process_id}/cmdline "
+            f"| grep -Fqx -- {event_monitor_argument} || exit 125; "
+            f"kill -KILL {process_id}; "
+            f"remaining={DOMAIN_PROCESS_EXIT_TIMEOUT_SECONDS}; "
+            f"while kill -0 {process_id} 2>/dev/null; do "
+            '[ "$remaining" -le 0 ] && exit 124; '
+            "remaining=$((remaining - 1)); "
+            "sleep 1; "
+            "done"
+        )
+        return self.host_node.execute(
+            command,
+            sudo=True,
+            shell=True,
+            timeout=DOMAIN_PROCESS_TERMINATION_TIMEOUT_SECONDS,
+        )
+
+    def _capture_domain_process_diagnostics(
+        self,
+        vm_name: str,
+        process_id: int,
+        log: Logger,
+    ) -> None:
+        diagnostic_header = shlex.quote(f"domain={vm_name} pid={process_id}")
+        command = (
+            f"if [ ! -d /proc/{process_id} ]; then "
+            f"echo 'process {process_id} no longer exists'; exit 0; fi; "
+            f"echo {diagnostic_header}; "
+            f"grep -E '^(Name|State|Pid|PPid|Threads):' /proc/{process_id}/status "
+            "|| true; "
+            f"ps -L -p {process_id} -o pid=,tid=,stat=,wchan:32=,comm= || true; "
+            f"for task in /proc/{process_id}/task/[0-9]*; do "
+            'tid="${task##*/}"; '
+            "printf '\\nthread=%s wchan=' \"$tid\"; "
+            'cat "$task/wchan" 2>/dev/null || true; '
+            'cat "$task/stack" 2>/dev/null || true; '
+            "done; "
+            "echo 'recent mshv/vfio kernel messages:'; "
+            "dmesg | grep -Ei 'mshv|vfio|iommu|cloud.?hypervisor' "
+            "| tail -n 80 || true"
+        )
+        process = self.host_node.execute_async(
+            command,
+            sudo=True,
+            shell=True,
+            no_error_log=True,
+        )
+        result = process.wait_result(
+            timeout=DOMAIN_DIAGNOSTICS_TIMEOUT_SECONDS,
+            raise_on_timeout=False,
+        )
+        output = "\n".join(
+            part for part in (result.stdout, result.stderr) if part.strip()
+        )
+        if len(output) > 32768:
+            output = output[-32768:]
+        log.warning(
+            f"Cloud Hypervisor stop diagnostics for {vm_name}:\n"
+            f"{output or '<no diagnostics returned>'}"
+        )
+
+    @staticmethod
+    def _domain_stop_succeeded(result: ExecutableResult) -> bool:
+        output = f"{result.stdout}\n{result.stderr}".lower()
+        return result.exit_code == 0 or any(
+            message in output
+            for message in (
+                "domain is not running",
+                "domain is not active",
+            )
+        )
+
+    @staticmethod
+    def _domain_stop_timed_out(result: ExecutableResult) -> bool:
+        return result.is_timeout or result.exit_code in (124, 137, 143)
+
+    @staticmethod
+    def _domain_stop_error_message(
+        vm_name: str,
+        result: ExecutableResult,
+    ) -> str:
+        output = (result.stderr or result.stdout).strip()
+        if len(output) > 2048:
+            output = output[-2048:]
+        return (
+            f"Failed to stop Cloud Hypervisor domain {vm_name} with exit code "
+            f"{result.exit_code}: {output or '<no command output>'}"
+        )
+
+    def restart_domain_and_attach_logger(self, node: Node) -> None:
+        node_context = get_node_context(node)
+        domain = cast(Any, node_context.domain)
+        assert domain is not None
+
+        if domain.isActive():
+            return
+
+        if node_context.console_logger is not None:
+            if not node_context.console_logger.wait_for_close(
+                CONSOLE_CLOSE_TIMEOUT_SECONDS
+            ) and not node_context.console_logger.close(
+                timeout=CONSOLE_CLOSE_TIMEOUT_SECONDS
+            ):
+                raise CloudHypervisorDomainStopError(
+                    f"Console stream for {node_context.vm_name} did not close "
+                    "after the Cloud Hypervisor domain stopped."
+                )
+            node_context.console_logger = None
+
+        self._create_domain_and_attach_logger(node_context)
+
+    def _get_node_ip_address(
+        self,
+        environment: Environment,
+        log: Logger,
+        node: Node,
+        timeout: float,
+    ) -> str:
+        node_context = get_node_context(node)
+        restart_count = 0
+        current_timeout = timeout
+        while True:
+            try:
+                return super()._get_node_ip_address(
+                    environment,
+                    log,
+                    node,
+                    current_timeout,
+                )
+            except GuestBootTimeoutError:
+                if (
+                    not node_context.passthrough_devices
+                    or restart_count >= PASSTHROUGH_BOOT_RETRY_COUNT
+                ):
+                    raise
+
+            restart_count += 1
+            log.warning(
+                f"VM {node_context.vm_name} did not acquire an IP address before "
+                "the boot timeout; restarting the Cloud Hypervisor passthrough "
+                f"domain (attempt {restart_count} of "
+                f"{PASSTHROUGH_BOOT_RETRY_COUNT})"
+            )
+            self._stop_domain(node_context, log)
+            self.restart_domain_and_attach_logger(node)
+            current_timeout = (
+                time.time() + get_environment_context(environment).network_boot_timeout
             )
 
     def _attach_console_logger(self, node_context: NodeContext) -> None:
