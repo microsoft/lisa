@@ -261,6 +261,7 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-0
     subnets: [for j in range(0, subnet_count): {
       name: '${subnet_prefix}${j}'
       properties: {
+        // NOTE: changing this convention will break the DPDK suite.
         addressPrefixes: concat(
           ['10.0.${j}.0/24'],
           use_ipv6 ? ['2001:db8:${j}::/64'] : []

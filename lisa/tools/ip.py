@@ -205,6 +205,7 @@ class Ip(Tool):
     def add_ipv4_address(self, nic_name: str, ip: str, persist: bool = True) -> None:
         self.run(
             f"addr add {ip} dev {nic_name}",
+            force_run=True,
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
@@ -511,6 +512,50 @@ class Ip(Tool):
             ),
         )
 
+    def remove_route_to(self, dest: str, via: str, dev: str) -> None:
+        self.run(
+            f"route del {dest} via {via} dev {dev}",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not remove ip route to {dest} via {via} through dev {dev}"
+            ),
+        )
+
+    def replace_route_for_device(self, dest: str, src: str, dev: str) -> None:
+        self.run(
+            f"route replace {dest} dev {dev} scope link src {src}",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not restore ip route to {dest} through dev {dev}"
+            ),
+        )
+
+    def add_neighbor(self, address: str, mac_address: str, dev: str) -> None:
+        self.run(
+            f"neigh replace {address} lladdr {mac_address} nud permanent dev {dev}",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not add neighbor {address} ({mac_address}) through dev {dev}"
+            ),
+        )
+
+    def remove_neighbor(self, address: str, dev: str) -> None:
+        self.run(
+            f"neigh flush to {address} dev {dev}",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not remove neighbor {address} through dev {dev}"
+            ),
+        )
+
     def remove_all_routes_for_device(self, device: str) -> None:
         # get any routes going through a specific nic and remove them.
         all_routes = self.run(
@@ -569,6 +614,7 @@ class Ip(Tool):
         details = self.run(
             f"-d link show {interface}",
             shell=True,
+            force_run=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "Could not fetch interface details with 'ip -d link show'"
