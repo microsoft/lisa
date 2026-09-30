@@ -2,11 +2,20 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
+import re
 from typing import Dict, List
 
 from lisa import BadEnvironmentStateException, Logger, Node
 from lisa.tools import Cat, Dmesg, Echo, KernelConfig, Lscpu, Lsvmbus, Uname
 from lisa.util import SkippedException
+
+# /proc/irq/274/smp_affinity_list:0-1
+IRQ_AFFINITY_PATTERN = re.compile(
+    r"^/proc/irq/(?P<irq>\d+)/smp_affinity_list:(?P<affinity>[\d,-]+)", re.M
+)
+# errno returned when the remaining online cpus can't absorb the irq vectors
+# of the cpu being offlined, e.g. "CPU 371 has 192 vectors, 2 available."
+CPU_OFFLINE_NO_VECTOR_ERROR = "No space left on device"
 
 
 class CPUState:
@@ -98,6 +107,82 @@ def set_cpu_state_serial(
             )
 
 
+def set_cpus_offline_best_effort(log: Logger, node: Node, cpus: List[str]) -> List[str]:
+    # stop at the first ENOSPC, every later cpu would be refused the same way.
+    offline_cpus: List[str] = []
+    for cpu in cpus:
+        log.debug(f"setting cpu{cpu} to {CPUState.OFFLINE}.")
+        cpu_state_file = get_cpu_state_file(cpu)
+        # tee reports errno on every distro, the echo builtin of dash doesn't.
+        result = node.execute(
+            f"echo {CPUState.OFFLINE} | tee {cpu_state_file}",
+            shell=True,
+            sudo=True,
+        )
+        state = node.tools[Cat].read(cpu_state_file, force_run=True, sudo=True)
+        if state == CPUState.OFFLINE:
+            offline_cpus.append(cpu)
+            continue
+
+        if CPU_OFFLINE_NO_VECTOR_ERROR not in f"{result.stdout}{result.stderr}":
+            raise BadEnvironmentStateException(
+                (
+                    f"Expected cpu{cpu} state: {CPUState.OFFLINE}."
+                    f"The test failed leaving cpu{cpu} in a bad state."
+                ),
+            )
+
+        kernel_messages = [
+            line
+            for line in node.tools[Dmesg].get_output(force_run=True).splitlines()
+            if "Cannot disable CPU" in line
+        ]
+        log.info(
+            f"cpu{cpu} can't be taken offline, the remaining online cpus don't "
+            f"have enough free interrupt vectors: {kernel_messages[-1:]}. "
+            f"Stop offlining with {len(offline_cpus)} of {len(cpus)} cpus offline."
+        )
+        break
+    return offline_cpus
+
+
+def get_irq_affinity(node: Node) -> Dict[str, str]:
+    result = node.execute(
+        "grep -H . /proc/irq/*/smp_affinity_list", shell=True, sudo=True
+    )
+    return {
+        match.group("irq"): match.group("affinity")
+        for match in IRQ_AFFINITY_PATTERN.finditer(result.stdout)
+    }
+
+
+def restore_irq_affinity(log: Logger, node: Node, irq_affinity: Dict[str, str]) -> None:
+    # the kernel rewrites the affinity of an unmanaged irq to the online cpus
+    # when all cpus in its mask go offline, and doesn't revert it on online.
+    if not irq_affinity:
+        return
+    current_affinity = get_irq_affinity(node)
+    changed = [
+        (irq, affinity)
+        for irq, affinity in irq_affinity.items()
+        if current_affinity.get(irq, affinity) != affinity
+    ]
+    if not changed:
+        return
+
+    log.debug(f"restoring smp_affinity_list of {len(changed)} irqs.")
+    batch_size = 100
+    for index in range(0, len(changed), batch_size):
+        command = "; ".join(
+            f"echo {affinity} > /proc/irq/{irq}/smp_affinity_list 2>/dev/null"
+            f" || echo {irq}"
+            for irq, affinity in changed[index : index + batch_size]
+        )
+        failed_irqs = node.execute(command, shell=True, sudo=True).stdout.split()
+        if failed_irqs:
+            log.debug(f"failed to restore smp_affinity_list of irqs: {failed_irqs}")
+
+
 def set_idle_cpu_offline_online(log: Logger, node: Node, idle_cpu: List[str]) -> None:
     for target_cpu in idle_cpu:
         set_offline = set_cpu_state(node, target_cpu, False)
@@ -127,6 +212,7 @@ def set_idle_cpu_offline_online(log: Logger, node: Node, idle_cpu: List[str]) ->
 
 def verify_cpu_hot_plug(log: Logger, node: Node, run_times: int = 1) -> None:
     check_runnable(node)
+    irq_affinity = get_irq_affinity(node)
     file_path_list: Dict[str, str] = {}
     restore_state = False
     try:
@@ -152,6 +238,7 @@ def verify_cpu_hot_plug(log: Logger, node: Node, run_times: int = 1) -> None:
     finally:
         if not restore_state:
             restore_interrupts_assignment(file_path_list, node)
+        restore_irq_affinity(log, node, irq_affinity)
 
 
 def get_cpu_state_file(cpu_id: str) -> str:

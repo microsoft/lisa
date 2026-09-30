@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import random
 import time
-from typing import cast
+from typing import Dict, List, cast
 
 from assertpy import assert_that
 from microsoft.testsuites.cpu.common import (
     CPUState,
     check_runnable,
     get_idle_cpus,
+    get_irq_affinity,
+    restore_interrupts_assignment,
+    restore_irq_affinity,
     set_cpu_state_serial,
+    set_cpus_offline_best_effort,
     set_interrupts_assigned_cpu,
     verify_cpu_hot_plug,
 )
@@ -177,10 +181,13 @@ class CPUSuite(TestSuite):
             This test will check that the added channels to synthetic network
             adapter do not handle interrupts on offline cpu.
             Steps:
-            1. Get list of offline CPUs.
+            1. Take idle CPUs offline serially. On high vCPU count VMs stop early
+               when the kernel refuses an offline with ENOSPC because the
+               remaining online CPUs run out of interrupt vectors.
             2. Add channels to synthetic network adapter.
             3. Verify that the channels were added to synthetic network adapter.
             4. Verify that the added channels do not handle interrupts on offline cpu.
+            5. Restore CPUs, channel count, vmbus channel CPUs and irq affinity.
             """,
         priority=4,
         requirement=simple_requirement(
@@ -191,13 +198,7 @@ class CPUSuite(TestSuite):
         # skip test if kernel doesn't support cpu hotplug
         check_runnable(node)
 
-        # set vmbus channels target cpu into 0 if kernel supports this feature.
-        set_interrupts_assigned_cpu(log, node)
-
-        # when kernel doesn't support above feature, we have to rely on current vm's
-        # cpu usage. then collect the cpu not in used exclude cpu0.
-        idle_cpus = get_idle_cpus(node)
-        log.debug(f"idle cpus: {idle_cpus}")
+        irq_affinity = get_irq_affinity(node)
 
         # save origin current channel
         origin_device_channel = (
@@ -210,31 +211,43 @@ class CPUSuite(TestSuite):
         ).max_channels
         log.debug(f"max device channel count: {max_device_channel}")
 
-        # set channel count into 1 to get idle cpus
-        if len(idle_cpus) == 0:
-            node.tools[Ethtool].change_device_channels_info("eth0", 1)
+        vmbus_channel_cpus: Dict[str, str] = {}
+        idle_cpus: List[str] = []
+        try:
+            # set vmbus channels target cpu into 0 if kernel supports this feature.
+            vmbus_channel_cpus = set_interrupts_assigned_cpu(log, node)
+
+            # when kernel doesn't support above feature, we have to rely on current
+            # vm's cpu usage. then collect the cpu not in used exclude cpu0.
             idle_cpus = get_idle_cpus(node)
             log.debug(f"idle cpus: {idle_cpus}")
-        if len(idle_cpus) == 0:
-            raise SkippedException(
-                "all of the cpu are associated vmbus channels, "
-                "no idle cpu can be used to test hotplug."
-            )
 
-        # set idle cpu state offline and change channels
-        # current max channel will be cpu_count - len(idle_cpus)
-        # check channels of synthetic network adapter align with current setting channel
-        try:
-            # take idle cpu to offline
-            set_cpu_state_serial(log, node, idle_cpus, CPUState.OFFLINE)
+            # set channel count into 1 to get idle cpus
+            if len(idle_cpus) == 0:
+                node.tools[Ethtool].change_device_channels_info("eth0", 1)
+                idle_cpus = get_idle_cpus(node)
+                log.debug(f"idle cpus: {idle_cpus}")
+            if len(idle_cpus) == 0:
+                raise SkippedException(
+                    "all of the cpu are associated vmbus channels, "
+                    "no idle cpu can be used to test hotplug."
+                )
+
+            # set idle cpu state offline and change channels
+            # current max channel will be cpu_count - len(offline_cpus)
+            # check synthetic network adapter channels align with current setting
+            offline_cpus = set_cpus_offline_best_effort(log, node, idle_cpus)
+            assert_that(offline_cpus).described_as(
+                "no idle cpu could be taken offline"
+            ).is_not_empty()
 
             # get vmbus channels of synthetic network adapter. the synthetic network
             # drivers have class id "f8615163-df3e-46c5-913f-f2d2f965ed0e"
             node.tools[Lsvmbus].get_device_channels(force_run=True)
             thread_count = node.tools[Lscpu].get_thread_count()
 
-            # current max channel count need minus count of idle cpus
-            max_channel_count = thread_count - len(idle_cpus)
+            # current max channel count need minus count of offline cpus
+            max_channel_count = thread_count - len(offline_cpus)
 
             first_current_device_channel = (
                 node.tools[Ethtool].get_device_channels_info("eth0", True)
@@ -255,7 +268,7 @@ class CPUSuite(TestSuite):
                     if first_channel_count != first_current_device_channel:
                         break
                     first_channel_count = random.randint(
-                        1, min(thread_count, 64, max_device_channel)
+                        1, min(max_channel_count, 64, max_device_channel)
                     )
                 log.debug(f"first final channel count: {first_channel_count}")
                 node.tools[Ethtool].change_device_channels_info(
@@ -281,10 +294,10 @@ class CPUSuite(TestSuite):
 
                 # verify that devices do not handle interrupts on offline cpu
                 for channel_vp in channel.channel_vp_map:
-                    assert_that(channel_vp.target_cpu).is_not_in(idle_cpus)
+                    assert_that(channel_vp.target_cpu).is_not_in(*offline_cpus)
 
-            # reset idle cpu to online
-            set_cpu_state_serial(log, node, idle_cpus, CPUState.ONLINE)
+            # reset offline cpu to online
+            set_cpu_state_serial(log, node, offline_cpus, CPUState.ONLINE)
 
             # reset max and current channel count into original ones
             # by reloading hv_netvsc driver if hv_netvsc can be reload
@@ -293,6 +306,9 @@ class CPUSuite(TestSuite):
                 node.tools[Modprobe].reload("hv_netvsc")
             else:
                 node.tools[Reboot].reboot()
+                # reboot resets interrupt placement, irq numbers may change too
+                irq_affinity = {}
+                vmbus_channel_cpus = {}
 
             # change the combined channels count after all cpus online
             second_channel_count = random.randint(
@@ -336,3 +352,5 @@ class CPUSuite(TestSuite):
                 node.tools[Ethtool].change_device_channels_info(
                     "eth0", origin_device_channel
                 )
+            restore_interrupts_assignment(vmbus_channel_cpus, node)
+            restore_irq_affinity(log, node, irq_affinity)
