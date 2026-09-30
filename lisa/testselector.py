@@ -115,11 +115,56 @@ def _prefilter_by_target_platforms(
     return kept
 
 
+def _is_capability_compatible(
+    case: TestCaseMetadata, target_capabilities: List[str]
+) -> bool:
+    """Return True if the case's declared ``host_capabilities`` requirement is
+    satisfiable by ``target_capabilities``. Cases that declare no capability
+    are always kept, so this filter only affects capability-gated cases.
+    """
+    requirement = getattr(case, "requirement", None)
+    if requirement is None:
+        return True
+    host_capabilities = getattr(requirement, "host_capabilities", None)
+    if not host_capabilities or len(host_capabilities) == 0:
+        return True
+
+    if host_capabilities.is_allow_set:
+        return all(cap in target_capabilities for cap in host_capabilities)
+
+    return all(cap not in target_capabilities for cap in host_capabilities)
+
+
+def _prefilter_by_target_capabilities(
+    full_list: Dict[str, TestCaseMetadata], target_capabilities: List[str]
+) -> Dict[str, TestCaseMetadata]:
+    """Drop cases whose declared ``requirement.host_capabilities`` cannot be
+    satisfied by the target host. This avoids deploying an environment only to
+    mark capability-gated cases (e.g. MSHV) as Skipped at runtime.
+    """
+    log = _get_logger()
+    kept: Dict[str, TestCaseMetadata] = {}
+    dropped_names: List[str] = []
+    for name, metadata in full_list.items():
+        if _is_capability_compatible(metadata, target_capabilities):
+            kept[name] = metadata
+        else:
+            dropped_names.append(name)
+    if dropped_names:
+        log.info(
+            f"pre-filter: dropped {len(dropped_names)} case(s) incompatible "
+            f"with host capabilities {target_capabilities}"
+        )
+        log.debug(f"pre-filter dropped cases: {dropped_names}")
+    return kept
+
+
 def select_testcases(  # noqa: C901
     filters: Optional[List[schema.TestCase]] = None,
     init_cases: Optional[List[TestCaseMetadata]] = None,
     target_os: Optional[Type[OperatingSystem]] = None,
     target_platforms: Optional[List[str]] = None,
+    target_capabilities: Optional[List[str]] = None,
     apply_stable_gate: bool = True,
 ) -> List[TestCaseRuntimeData]:
     """
@@ -145,6 +190,8 @@ def select_testcases(  # noqa: C901
         full_list = _prefilter_by_target_os(full_list, target_os)
     if target_platforms:
         full_list = _prefilter_by_target_platforms(full_list, target_platforms)
+    if target_capabilities:
+        full_list = _prefilter_by_target_capabilities(full_list, target_capabilities)
     if filters:
         selected: Dict[str, TestCaseRuntimeData] = {}
         force_included: Set[str] = set()
