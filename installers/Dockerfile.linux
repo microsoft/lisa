@@ -1,28 +1,52 @@
-FROM mcr.microsoft.com/azurelinux/base/python:3
+FROM mcr.microsoft.com/azurelinux/base/core:3.0
+
+ARG PYTHON_VERSION=stable
 
 WORKDIR /app
 
 RUN tdnf update -y && \
     tdnf install -y \
         git \
-        gcc \
-        gobject-introspection-devel \
-        cairo-gobject \
-        cairo-devel \
-        pkg-config \
-        libvirt-devel \
-        python3-devel \
-        python3-pip \
-        python3-virtualenv \
-        build-essential \
-        cairo-gobject-devel \
-        curl \
         wget \
         tar \
+        gcc \
+        gcc-c++ \
+        make \
+        binutils \
+        glibc-devel \
+        ca-certificates \
+        openssl-devel \
+        sqlite-devel \
+        zlib-devel \
+        xz \
+        xz-devel \
+        gawk \
+        bzip2-devel \
+        libffi-devel \
+        readline-devel \
+        libvirt-devel \
+        curl \
         azure-cli \
-        ca-certificates && \
+        kernel-headers && \
     tdnf clean all && \
     rm -rf /var/cache/tdnf /tmp/*
+
+RUN wget "https://aka.ms/lisa-python" -O "Python-${PYTHON_VERSION}.tar.xz" && \
+    tar -xJf "Python-${PYTHON_VERSION}.tar.xz" && \
+    PYTHON_SOURCE_DIR="$(find /app -maxdepth 1 -type d -name 'Python-*' -print -quit)" && \
+    test -n "${PYTHON_SOURCE_DIR}" && \
+    cd "${PYTHON_SOURCE_DIR}" && \
+    ./configure --prefix=/opt/python --enable-optimizations --with-ensurepip=install && \
+    make -j "$(nproc)" && \
+    PYTHON_RELEASE_VERSION="$(./python -c 'import sys; print(".".join(map(str, sys.version_info[:3])))')" && \
+    make altinstall && \
+    ln -sf "/opt/python/bin/python${PYTHON_RELEASE_VERSION%.*}" /usr/local/bin/python3 && \
+    ln -sf "/opt/python/bin/pip${PYTHON_RELEASE_VERSION%.*}" /usr/local/bin/pip3 && \
+    python3 --version | grep -Fx "Python ${PYTHON_RELEASE_VERSION}" && \
+    cd /app && \
+    rm -rf "${PYTHON_SOURCE_DIR}" "Python-${PYTHON_VERSION}.tar.xz"
+
+ENV PATH="/opt/python/bin:${PATH}"
 
 RUN wget https://aka.ms/downloadazcopy-v10-linux -O azcopy.tar.gz && \
     tar -xvf azcopy.tar.gz && \

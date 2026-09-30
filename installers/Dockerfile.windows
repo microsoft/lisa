@@ -4,9 +4,7 @@ SHELL ["powershell", "-Command"]
 
 WORKDIR C:\\app\\
 
-ENV PYTHON_VERSION=3.12.9
-
-RUN Invoke-WebRequest -Uri "https://www.python.org/ftp/python/$Env:PYTHON_VERSION/python-$Env:PYTHON_VERSION-amd64.exe" -OutFile "C:\\python-installer.exe" -UseBasicParsing; \
+RUN Invoke-WebRequest -Uri "https://aka.ms/lisa-python-windows" -OutFile "C:\\python-installer.exe" -UseBasicParsing; \
     $gitRelease = Invoke-RestMethod -Uri "https://api.github.com/repos/git-for-windows/git/releases/latest" -Headers @{ 'User-Agent' = 'Docker Build' }; \
     $gitInstallerUrl = $gitRelease.assets | Where-Object { $_.name -like '*64-bit.exe' } | Select-Object -ExpandProperty browser_download_url; \
     Invoke-WebRequest -Uri $gitInstallerUrl -OutFile "C:\\git-installer.exe" -UseBasicParsing;
