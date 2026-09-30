@@ -7,8 +7,10 @@ import time
 import uuid
 from datetime import datetime
 from pathlib import PurePosixPath
+from typing import Any, Dict
 
 from assertpy.assertpy import assert_that
+from microsoft.testsuites.vm_extensions.vm_extension_base import VmExtensionTestBase
 
 from lisa import (
     Environment,
@@ -294,3 +296,55 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
             os.path.join((os.path.dirname(__file__)), "scripts", temp_file)
         )
         node.shell.copy(file_path, f_name)
+
+
+@TestSuiteMetadata(
+    area="vm_extension",
+    category="functional",
+    description="""
+    This test suite validates the VMSnapshot Linux VM extension
+    (Microsoft.Azure.RecoveryServices.VMSnapshotLinux).
+
+    Coverage is boot validation: install the extension with empty settings,
+    confirm provisioning succeeds, confirm the requested version was installed,
+    confirm the VM is still reachable over SSH, then remove the extension.
+    """,
+    tags=["VM_Extension", "VMSnapshotLinux"],
+    requirement=simple_requirement(
+        supported_features=[AzureExtension, CvmDisabled()],
+        supported_platform_type=[AZURE],
+        unsupported_os=[BSD, Windows],
+    ),
+)
+class VMSnapshotLinuxBootValidation(VmExtensionTestBase):  # type: ignore[misc]
+    PUBLISHER = "Microsoft.Azure.RecoveryServices"
+    EXTENSION_TYPE = "VMSnapshotLinux"
+    EXTENSION_KEY = "vmsnapshot_linux"
+
+    @TestCaseMetadata(
+        description="""
+        Basic boot validation for the VMSnapshot Linux VM extension.
+
+        Installs the explicitly requested candidate version with empty public
+        settings and no protected settings. Verifies that extension provisioning
+        succeeds, the installed patch version matches when a full version is
+        supplied, and the VM remains reachable before removing the extension.
+
+        The candidate version is read from the 'extension_version' or
+        'vmsnapshot_linux_version' runbook variable; the test is skipped if
+        neither is set. The deployed extension is named
+        '<publisher>_<extension_type>_boot_validation_test'.
+        """,
+        priority=5,
+        tags=["microsoft.azure.recoveryservices.vmsnapshotlinux"],
+        maturity="preview",
+    )
+    def microsoft_azure_recoveryservices_vmsnapshotlinux_boot_validation_test(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        self._boot_validation(
+            node=node,
+            log=log,
+            variables=variables,
+            settings={},
+        )
