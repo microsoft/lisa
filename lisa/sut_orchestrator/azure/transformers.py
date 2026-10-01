@@ -531,6 +531,9 @@ class SigTransformerSchema(schema.Transformer):
     # Disk controller type feature for the gallery image definition.
     # Common values: NVMe, SCSI, or comma-separated (e.g. SCSI,NVMe)
     gallery_image_disk_controller_types: str = ""
+    # Set IsHibernateSupported=True on the gallery image definition, so VMs
+    # with hibernation enabled can be deployed from it.
+    gallery_image_hibernation_supported: bool = False
     gallery_image_osstate: str = field(
         default="Generalized",
         metadata=field_metadata(
@@ -659,6 +662,13 @@ class SharedGalleryImageTransformer(Transformer):
             disk_controller_types = runbook.gallery_image_disk_controller_types
             if disk_controller_types:
                 features["DiskControllerTypes"] = disk_controller_types
+
+        if runbook.gallery_image_hibernation_supported:
+            if not features:
+                # keep the default disk controller types, which are only applied
+                # by check_or_create_gallery_image when no feature is specified.
+                features["DiskControllerTypes"] = "SCSI,NVMe"
+            features["IsHibernateSupported"] = "True"
 
         (
             gallery_image_publisher,

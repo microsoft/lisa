@@ -194,6 +194,16 @@ gallery_image_securitytype
 
 type: string | Default: "" | Allowed values: TrustedLaunch, ""
 
+gallery_image_hibernation_supported
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+type: bool | Default: False
+
+Adds the ``IsHibernateSupported=True`` feature to the image definition, which is
+required to deploy VMs with hibernation enabled from the gallery image. Features
+are only applied when the image definition is created; an existing image
+definition is reused as is.
+
 gallery_image_osstate
 ^^^^^^^^^^^^^^^^^^^^^
 
