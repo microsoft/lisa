@@ -188,6 +188,13 @@ class CPUSuite(TestSuite):
         ),
     )
     def verify_cpu_offline_channel_add(self, log: Logger, node: Node) -> None:
+        node.execute("dnf update -y", sudo=True)
+        node.reboot()
+        os_release = node.execute(
+            cmd="cat /etc/os-release", no_error_log=True, timeout=60
+        )
+        log.info(f"os release after dnf update and reboot: {os_release}")
+
         # skip test if kernel doesn't support cpu hotplug
         check_runnable(node)
 
