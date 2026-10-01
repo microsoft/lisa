@@ -315,7 +315,9 @@ class LibvirtPackageInstaller(LibvirtInstaller):
 
 class QemuPackageInstaller(QemuInstaller):
     _distro_package_mapping = {
-        Ubuntu.__name__: ["qemu-kvm"],
+        # qemu-kvm is a virtual package on Ubuntu with multiple providers on
+        # newer releases, so install the concrete package.
+        Ubuntu.__name__: ["qemu-system-x86"],
         CBLMariner.__name__: ["qemu-kvm", "edk2-ovmf"],
     }
 

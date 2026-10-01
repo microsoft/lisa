@@ -9,7 +9,7 @@ from assertpy.assertpy import assert_that
 from randmac import RandMac
 
 from lisa.executable import Tool
-from lisa.operating_system import Fedora, Posix, Redhat
+from lisa.operating_system import Debian, Fedora, Posix, Redhat
 from lisa.tools import Ip, KernelConfig, Kill, Lscpu, Lsmod, Pgrep
 from lisa.tools.lscpu import CpuType
 from lisa.util import LisaException, SkippedException, get_matched_str
@@ -190,7 +190,14 @@ class Qemu(Tool):
         assert isinstance(self.node.os, Posix)
 
         # install qemu
-        self.node.os.install_packages("qemu-kvm")
+        if isinstance(self.node.os, Debian):
+            # qemu-kvm is a virtual package on Debian/Ubuntu. Newer releases
+            # (e.g. Ubuntu 26.04) have multiple providers for it, such as
+            # qemu-system-x86 and qemu-system-x86-hwe, and apt refuses to pick
+            # one. Install the concrete package instead.
+            self.node.os.install_packages("qemu-system-x86")
+        else:
+            self.node.os.install_packages("qemu-kvm")
 
         if isinstance(self.node.os, Redhat):
             # fix issue 'qemu-kvm: cannot initialize crypto: Unable to initialize gcrypt' # noqa E501
