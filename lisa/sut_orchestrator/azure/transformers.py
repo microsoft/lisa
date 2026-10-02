@@ -664,6 +664,12 @@ class SharedGalleryImageTransformer(Transformer):
                 features["DiskControllerTypes"] = disk_controller_types
 
         if runbook.gallery_image_hibernation_supported:
+            if runbook.gallery_image_hyperv_generation != 2:
+                raise LisaException(
+                    "Gallery image hibernation requires Hyper-V generation 2. "
+                    "Set gallery_image_hyperv_generation to 2 or use a Gen2 "
+                    "marketplace source."
+                )
             if not features:
                 # keep the default disk controller types, which are only applied
                 # by check_or_create_gallery_image when no feature is specified.
