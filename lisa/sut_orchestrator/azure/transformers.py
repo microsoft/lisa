@@ -27,6 +27,7 @@ from lisa.util import (
 
 from .common import (
     AZURE_SHARED_RG_NAME,
+    DEFAULT_GALLERY_IMAGE_DISK_CONTROLLER_TYPES,
     AzureNodeSchema,
     check_blob_exist,
     check_or_create_gallery,
@@ -659,7 +660,9 @@ class SharedGalleryImageTransformer(Transformer):
             if not features:
                 # keep the default disk controller types, which are only applied
                 # by check_or_create_gallery_image when no feature is specified.
-                features["DiskControllerTypes"] = "SCSI,NVMe"
+                features[
+                    "DiskControllerTypes"
+                ] = DEFAULT_GALLERY_IMAGE_DISK_CONTROLLER_TYPES
             features["IsHibernateSupported"] = "True"
 
         vhd_path = get_deployable_storage_path(

@@ -176,6 +176,8 @@ CG_IMAGE_KEYS = [
     "image_version",
 ]
 PURCHASE_PLAN_KEYS = ["name", "product", "publisher"]
+# DiskControllerTypes applied to a new gallery image definition by default.
+DEFAULT_GALLERY_IMAGE_DISK_CONTROLLER_TYPES = "SCSI,NVMe"
 
 # IMDS is a REST API that's available at a well-known, non-routable IP address (169.254.169.254). # noqa: E501
 METADATA_ENDPOINT = "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
@@ -3086,7 +3088,7 @@ def check_or_create_gallery_image(
                 "features": [
                     {
                         "name": "DiskControllerTypes",
-                        "value": "SCSI,NVMe",
+                        "value": DEFAULT_GALLERY_IMAGE_DISK_CONTROLLER_TYPES,
                     },
                 ],
             }
