@@ -2,13 +2,22 @@
 # Licensed under the MIT license.
 
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from microsoft.testsuites.kselftest.kselftest import Kselftest
 
-from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.testsuite import TestResult, simple_requirement
+from lisa.tools import Cat
 from lisa.util import LisaException, SkippedException, UnsupportedDistroException
+
+# Kselftest subsystems that are known to be incompatible with FIPS mode.
+# These are typically tests that validate cryptographic algorithms (MD5, SHA-1, etc.)
+# that are disabled/forbidden in FIPS mode.
+_FIPS_INCOMPATIBLE_TESTS = [
+    "crypto:*",  # Cryptographic algorithm tests - MD5, SHA-1 forbidden in FIPS
+    # Other potentially problematic tests can be added here as discovered
+]
 
 
 @TestSuiteMetadata(
@@ -23,6 +32,49 @@ class KselftestTestsuite(TestSuite):
     # timeout below is in seconds and set to 2 hours.
     _CASE_TIME_OUT = 7200
     _KSELF_TIMEOUT = 6700
+
+    def __init__(self, metadata: TestSuiteMetadata) -> None:
+        super().__init__(metadata)
+        # Cache the FIPS check result for this case (a fresh TestSuite
+        # instance is created per case, each bound to a single node), so
+        # before_case() and verify_kselftest() don't redo the remote check.
+        self._fips_enabled_cache: Optional[bool] = None
+
+    def _is_fips_enabled(self, node: Node) -> bool:
+        if self._fips_enabled_cache is None:
+            fips_result = node.tools[Cat].run(
+                "/proc/sys/crypto/fips_enabled",
+                force_run=True,
+                no_error_log=True,
+            )
+            self._fips_enabled_cache = (
+                fips_result.exit_code == 0 and (fips_result.stdout or "").strip() == "1"
+            )
+        return self._fips_enabled_cache
+
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        """
+        Pre-test hook. Detects whether FIPS mode is enabled on the node and
+        logs a notice if so; it does not modify any test configuration.
+
+        On FIPS-enabled kernels, certain kselftest subsystems (particularly
+        crypto tests) are incompatible because they test algorithms that FIPS
+        forbids (MD5, SHA-1, etc.). This hook only performs the detection and
+        caches the result (see _is_fips_enabled()) so verify_kselftest() can
+        reuse it without repeating the remote check. The skip list itself is
+        built and applied in verify_kselftest(), which is what actually adds
+        the FIPS-incompatible tests so compatible subsystems (BPF, networking,
+        timers, etc.) still run.
+        """
+        node = kwargs["node"]
+
+        if self._is_fips_enabled(node):
+            log.info(
+                "FIPS mode is enabled. Some kselftest subsystems will be skipped "
+                "due to incompatibility with FIPS-restricted algorithms."
+            )
+            # Note: this log is purely informational. The skip list is built
+            # and applied in verify_kselftest(), not here.
 
     @TestCaseMetadata(
         description="""
@@ -60,6 +112,7 @@ class KselftestTestsuite(TestSuite):
     def verify_kselftest(
         self,
         node: Node,
+        log: Logger,
         log_path: str,
         variables: Dict[str, Any],
         result: TestResult,
@@ -77,6 +130,15 @@ class KselftestTestsuite(TestSuite):
             if variables.get("kselftest_skip_tests", "")
             else []
         )
+
+        # Automatically add FIPS-incompatible tests to the skip list.
+        if self._is_fips_enabled(node):
+            log.info(
+                "FIPS mode enabled: automatically skipping FIPS-incompatible tests "
+                f"({', '.join(_FIPS_INCOMPATIBLE_TESTS)})"
+            )
+            skip_tests_list.extend(_FIPS_INCOMPATIBLE_TESTS)
+
         # Optionally extend the skip list from a file (one test per line). This
         # keeps the LISA command line short when the skip list is large.
         skip_tests_file = variables.get("kselftest_skip_tests_file", "")
