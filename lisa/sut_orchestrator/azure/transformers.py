@@ -27,6 +27,7 @@ from lisa.util import (
 
 from .common import (
     AZURE_SHARED_RG_NAME,
+    DEFAULT_GALLERY_IMAGE_DISK_CONTROLLER_TYPES,
     AzureNodeSchema,
     check_blob_exist,
     check_or_create_gallery,
@@ -531,6 +532,9 @@ class SigTransformerSchema(schema.Transformer):
     # Disk controller type feature for the gallery image definition.
     # Common values: NVMe, SCSI, or comma-separated (e.g. SCSI,NVMe)
     gallery_image_disk_controller_types: str = ""
+    # Set IsHibernateSupported=True on the gallery image definition, so VMs
+    # with hibernation enabled can be deployed from it.
+    gallery_image_hibernation_supported: bool = False
     gallery_image_osstate: str = field(
         default="Generalized",
         metadata=field_metadata(
@@ -624,6 +628,50 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_location = image_location
 
         source_vhd_path, source_data_vhd_paths = self._resolve_vhd_sources(runbook)
+
+        # Resolve image features from the marketplace source (if specified) and
+        # validate them before copying any VHD, so invalid configurations fail
+        # without expensive Azure side effects.
+        features = self._get_image_features(platform, runbook.marketplace_source)
+        purchase_plan = self._get_image_purchase_plan(features)
+        hyperv_generation_source = "gallery_image_hyperv_generation"
+        if features:
+            if "hyper_v_generation" in features:
+                hyperv_generation_source = (
+                    f"marketplace_source '{runbook.marketplace_source}'"
+                )
+            runbook.gallery_image_hyperv_generation = features.pop(
+                "hyper_v_generation", runbook.gallery_image_hyperv_generation
+            )
+            runbook.gallery_image_architecture = features.pop(
+                "architecture", runbook.gallery_image_architecture
+            )
+            features.pop("os_type", None)
+        else:
+            if runbook.gallery_image_securitytype:
+                features["SecurityType"] = runbook.gallery_image_securitytype
+
+            disk_controller_types = runbook.gallery_image_disk_controller_types
+            if disk_controller_types:
+                features["DiskControllerTypes"] = disk_controller_types
+
+        if runbook.gallery_image_hibernation_supported:
+            if runbook.gallery_image_hyperv_generation != 2:
+                raise LisaException(
+                    "Gallery image hibernation requires Hyper-V generation 2, "
+                    f"but {hyperv_generation_source} resolves to generation "
+                    f"{runbook.gallery_image_hyperv_generation}. Use a Gen2 "
+                    "marketplace_source or set gallery_image_hyperv_generation "
+                    "to 2."
+                )
+            if not features:
+                # keep the default disk controller types, which are only applied
+                # by check_or_create_gallery_image when no feature is specified.
+                features[
+                    "DiskControllerTypes"
+                ] = DEFAULT_GALLERY_IMAGE_DISK_CONTROLLER_TYPES
+            features["IsHibernateSupported"] = "True"
+
         vhd_path = get_deployable_storage_path(
             platform, source_vhd_path, image_location, self._log
         )
@@ -640,25 +688,6 @@ class SharedGalleryImageTransformer(Transformer):
             if "lun" in source_data_vhd:
                 data_vhd["lun"] = source_data_vhd["lun"]
             data_vhd_paths.append(data_vhd)
-
-        # Get features from marketplace image if specified
-        features = self._get_image_features(platform, runbook.marketplace_source)
-        purchase_plan = self._get_image_purchase_plan(features)
-        if features:
-            runbook.gallery_image_hyperv_generation = features.pop(
-                "hyper_v_generation", runbook.gallery_image_hyperv_generation
-            )
-            runbook.gallery_image_architecture = features.pop(
-                "architecture", runbook.gallery_image_architecture
-            )
-            features.pop("os_type", None)
-        else:
-            if runbook.gallery_image_securitytype:
-                features["SecurityType"] = runbook.gallery_image_securitytype
-
-            disk_controller_types = runbook.gallery_image_disk_controller_types
-            if disk_controller_types:
-                features["DiskControllerTypes"] = disk_controller_types
 
         (
             gallery_image_publisher,
@@ -683,7 +712,7 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_description,
         )
 
-        check_or_create_gallery_image(
+        mismatched_features = check_or_create_gallery_image(
             platform,
             runbook.gallery_resource_group_name,
             runbook.gallery_name,
@@ -699,6 +728,23 @@ class SharedGalleryImageTransformer(Transformer):
             features,
             purchase_plan,
         )
+        if mismatched_features:
+            if (
+                runbook.gallery_image_hibernation_supported
+                and "IsHibernateSupported" in mismatched_features
+            ):
+                raise LisaException(
+                    f"Gallery image definition '{runbook.gallery_image_name}' "
+                    "already exists without IsHibernateSupported=True, and "
+                    "features of an existing definition can't be changed. Use "
+                    "a new gallery_image_name or delete the existing definition."
+                )
+            self._log.warning(
+                f"Gallery image definition '{runbook.gallery_image_name}' "
+                "already exists and is reused as is, but it doesn't match "
+                f"the requested features {features}. Existing values of the "
+                f"mismatched features: {mismatched_features}"
+            )
 
         check_or_create_gallery_image_version(
             platform,

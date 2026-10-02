@@ -194,6 +194,21 @@ gallery_image_securitytype
 
 type: string | Default: "" | Allowed values: TrustedLaunch, ""
 
+gallery_image_hibernation_supported
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+type: bool | Default: False
+
+Adds the ``IsHibernateSupported=True`` feature to the image definition, which is
+required to deploy VMs with hibernation enabled from the gallery image. Azure
+requires hibernation-capable image definitions to use Hyper-V generation V2, so
+set ``gallery_image_hyperv_generation: 2`` when enabling this option. If
+``marketplace_source`` is set, its Hyper-V generation overrides
+``gallery_image_hyperv_generation`` and must be V2. Features are only applied
+when the image definition is created. If an image definition with the same name
+already exists without ``IsHibernateSupported=True``, the transformer fails;
+use a new ``gallery_image_name`` or delete the existing definition.
+
 gallery_image_osstate
 ^^^^^^^^^^^^^^^^^^^^^
 
