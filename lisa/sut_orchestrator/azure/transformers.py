@@ -627,24 +627,10 @@ class SharedGalleryImageTransformer(Transformer):
             runbook.gallery_location = image_location
 
         source_vhd_path, source_data_vhd_paths = self._resolve_vhd_sources(runbook)
-        vhd_path = get_deployable_storage_path(
-            platform, source_vhd_path, image_location, self._log
-        )
-        vhd_details = self._check_blob_exists(platform, vhd_path)
 
-        data_vhd_paths: List[Dict[str, Any]] = []
-        for source_data_vhd in source_data_vhd_paths:
-            source_data_vhd_path = source_data_vhd["url"]
-            data_vhd_path = get_deployable_storage_path(
-                platform, source_data_vhd_path, image_location, self._log
-            )
-            self._check_blob_exists(platform, data_vhd_path)
-            data_vhd: Dict[str, Any] = {"url": data_vhd_path}
-            if "lun" in source_data_vhd:
-                data_vhd["lun"] = source_data_vhd["lun"]
-            data_vhd_paths.append(data_vhd)
-
-        # Get features from marketplace image if specified
+        # Resolve image features from the marketplace source (if specified) and
+        # validate them before copying any VHD, so invalid configurations fail
+        # without expensive Azure side effects.
         features = self._get_image_features(platform, runbook.marketplace_source)
         purchase_plan = self._get_image_purchase_plan(features)
         if features:
@@ -675,6 +661,23 @@ class SharedGalleryImageTransformer(Transformer):
                 # by check_or_create_gallery_image when no feature is specified.
                 features["DiskControllerTypes"] = "SCSI,NVMe"
             features["IsHibernateSupported"] = "True"
+
+        vhd_path = get_deployable_storage_path(
+            platform, source_vhd_path, image_location, self._log
+        )
+        vhd_details = self._check_blob_exists(platform, vhd_path)
+
+        data_vhd_paths: List[Dict[str, Any]] = []
+        for source_data_vhd in source_data_vhd_paths:
+            source_data_vhd_path = source_data_vhd["url"]
+            data_vhd_path = get_deployable_storage_path(
+                platform, source_data_vhd_path, image_location, self._log
+            )
+            self._check_blob_exists(platform, data_vhd_path)
+            data_vhd: Dict[str, Any] = {"url": data_vhd_path}
+            if "lun" in source_data_vhd:
+                data_vhd["lun"] = source_data_vhd["lun"]
+            data_vhd_paths.append(data_vhd)
 
         (
             gallery_image_publisher,
