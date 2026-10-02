@@ -3062,10 +3062,15 @@ def check_or_create_gallery_image(
     gallery_image_architecture: str,
     gallery_image_features: Dict[str, Any],
     gallery_image_purchase_plan: Optional[Dict[str, str]] = None,
-) -> None:
+) -> Dict[str, Optional[str]]:
+    """
+    Create the gallery image definition if it doesn't exist. An existing
+    definition is reused as is, so this returns the requested features it
+    doesn't match, mapped to the existing value (None if the feature is absent).
+    """
     try:
         compute_client = get_compute_client(platform)
-        compute_client.gallery_images.get(
+        gallery_image = compute_client.gallery_images.get(
             gallery_resource_group_name,
             gallery_name,
             gallery_image_name,
@@ -3112,8 +3117,30 @@ def check_or_create_gallery_image(
                 image_post_body,
             )
             wait_operation(operation)
+            return {}
         else:
             raise LisaException(ex)
+
+    return _get_mismatched_gallery_image_features(gallery_image, gallery_image_features)
+
+
+def _get_mismatched_gallery_image_features(
+    gallery_image: GalleryImage, requested_features: Dict[str, Any]
+) -> Dict[str, Optional[str]]:
+    def _normalize(value: Any) -> str:
+        return "".join(str(value).split()).lower()
+
+    existing_features = {
+        feature.name.lower(): feature.value
+        for feature in (gallery_image.features or [])
+        if feature.name
+    }
+    mismatched: Dict[str, Optional[str]] = {}
+    for name, value in requested_features.items():
+        existing_value = existing_features.get(name.lower())
+        if existing_value is None or _normalize(existing_value) != _normalize(value):
+            mismatched[name] = existing_value
+    return mismatched
 
 
 def check_or_create_gallery_image_version(
