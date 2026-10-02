@@ -200,7 +200,9 @@ gallery_image_hibernation_supported
 type: bool | Default: False
 
 Adds the ``IsHibernateSupported=True`` feature to the image definition, which is
-required to deploy VMs with hibernation enabled from the gallery image. Features
+required to deploy VMs with hibernation enabled from the gallery image. Azure
+requires hibernation-capable image definitions to use Hyper-V generation V2, so
+set ``gallery_image_hyperv_generation: 2`` when enabling this option. Features
 are only applied when the image definition is created; an existing image
 definition is reused as is.
 
