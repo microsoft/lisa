@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import inspect
 from contextlib import ExitStack, contextmanager
 from typing import Any, Dict, Iterator, Optional
 from unittest import TestCase, mock
@@ -179,5 +180,8 @@ class SharedGalleryImageTransformerTestCase(TestCase):
         self, mocks: Dict[str, mock.MagicMock]
     ) -> Dict[str, Any]:
         call = mocks["check_or_create_gallery_image"].call_args
-        features: Dict[str, Any] = call.args[12]
+        bound = inspect.signature(common.check_or_create_gallery_image).bind(
+            *call.args, **call.kwargs
+        )
+        features: Dict[str, Any] = bound.arguments["gallery_image_features"]
         return features
