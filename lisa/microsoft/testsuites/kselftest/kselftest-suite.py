@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from microsoft.testsuites.kselftest.kselftest import Kselftest
 
@@ -33,14 +33,24 @@ class KselftestTestsuite(TestSuite):
     _CASE_TIME_OUT = 7200
     _KSELF_TIMEOUT = 6700
 
-    @staticmethod
-    def _is_fips_enabled(node: Node) -> bool:
-        fips_result = node.tools[Cat].run(
-            "/proc/sys/crypto/fips_enabled",
-            force_run=True,
-            no_error_log=True,
-        )
-        return fips_result.exit_code == 0 and (fips_result.stdout or "").strip() == "1"
+    def __init__(self, metadata: TestSuiteMetadata) -> None:
+        super().__init__(metadata)
+        # Cache the FIPS check result for this case (a fresh TestSuite
+        # instance is created per case, each bound to a single node), so
+        # before_case() and verify_kselftest() don't redo the remote check.
+        self._fips_enabled_cache: Optional[bool] = None
+
+    def _is_fips_enabled(self, node: Node) -> bool:
+        if self._fips_enabled_cache is None:
+            fips_result = node.tools[Cat].run(
+                "/proc/sys/crypto/fips_enabled",
+                force_run=True,
+                no_error_log=True,
+            )
+            self._fips_enabled_cache = (
+                fips_result.exit_code == 0 and (fips_result.stdout or "").strip() == "1"
+            )
+        return self._fips_enabled_cache
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         """
