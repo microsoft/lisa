@@ -3,6 +3,7 @@
 import unittest
 
 from lisa.tools.ethtool import DeviceChannel
+from lisa.util import LisaException
 
 
 class TestEthtoolChannelParser(unittest.TestCase):
@@ -60,12 +61,7 @@ Combined:	1"""
         self.assertEqual(channel_info.max_channels, 16)
 
     def test_device_channel_parsing_with_extra_content(self) -> None:
-        """
-        Test parsing when output contains extra content after value.
-
-        This is a regression test for the bug where ethtool output
-        with trailing non-numeric content caused ValueError.
-        """
+        """Test rejecting output with extra content after the value."""
         raw_output = """Channel parameters for eth0:
 Pre-set maximums:
 RX:             0
@@ -78,9 +74,8 @@ TX:             0
 Other:          0
 Combined:       2 # another comment"""
 
-        channel_info = DeviceChannel("eth0", raw_output)
-        self.assertEqual(channel_info.current_channels, 2)
-        self.assertEqual(channel_info.max_channels, 8)
+        with self.assertRaises(LisaException):
+            DeviceChannel("eth0", raw_output)
 
     def test_device_channel_parsing_large_numbers(self) -> None:
         """Test parsing with larger channel numbers."""
