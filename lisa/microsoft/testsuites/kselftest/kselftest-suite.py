@@ -54,13 +54,17 @@ class KselftestTestsuite(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         """
-        Pre-test setup hook. Adjusts test configuration for FIPS-enabled kernels.
+        Pre-test hook. Detects whether FIPS mode is enabled on the node and
+        logs a notice if so; it does not modify any test configuration.
 
-        On FIPS-enabled kernels, certain kselftest subsystems (particularly crypto
-        tests) are incompatible because they test algorithms that FIPS forbids
-        (MD5, SHA-1, etc.). Rather than skip the entire suite, we automatically
-        add FIPS-incompatible tests to the skip list to maintain coverage of
-        compatible subsystems (BPF, networking, timers, etc.).
+        On FIPS-enabled kernels, certain kselftest subsystems (particularly
+        crypto tests) are incompatible because they test algorithms that FIPS
+        forbids (MD5, SHA-1, etc.). This hook only performs the detection and
+        caches the result (see _is_fips_enabled()) so verify_kselftest() can
+        reuse it without repeating the remote check. The skip list itself is
+        built and applied in verify_kselftest(), which is what actually adds
+        the FIPS-incompatible tests so compatible subsystems (BPF, networking,
+        timers, etc.) still run.
         """
         node = kwargs["node"]
 
@@ -69,9 +73,8 @@ class KselftestTestsuite(TestSuite):
                 "FIPS mode is enabled. Some kselftest subsystems will be skipped "
                 "due to incompatibility with FIPS-restricted algorithms."
             )
-            # Note: The actual skip list is applied in verify_kselftest() via
-            # the kselftest_skip_tests variable. This log serves as notification
-            # that automatic FIPS adjustments are being applied.
+            # Note: this log is purely informational. The skip list is built
+            # and applied in verify_kselftest(), not here.
 
     @TestCaseMetadata(
         description="""
