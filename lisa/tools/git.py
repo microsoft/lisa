@@ -246,6 +246,33 @@ class Git(Tool):
             )
         result.assert_exit_code(message=f"failed on applying patches. {result.stdout}")
 
+    def apply_patch(
+        self,
+        cwd: pathlib.PurePath,
+        patch: pathlib.PurePath,
+    ) -> None:
+        result = self.run(
+            f"apply --check '{patch}'",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        if result.exit_code == 0:
+            self.apply(cwd=cwd, patches=patch)
+            return
+
+        result = self.run(
+            f"apply --reverse --check '{patch}'",
+            shell=True,
+            cwd=cwd,
+            force_run=True,
+            no_info_log=True,
+            no_error_log=True,
+        )
+        result.assert_exit_code(message=f"patch {patch.name} does not match source")
+
     def list_tags(self, cwd: pathlib.PurePath) -> List[str]:
         result = self.run(
             "--no-pager tag --color=never",

@@ -7,3 +7,4 @@ prune .github
 exclude .git*
 
 # Everything else tracked by git is include automatically by setuptools-scm
+recursive-include lisa/microsoft/testsuites/xdp *.patch

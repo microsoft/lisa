@@ -25,6 +25,7 @@ from lisa.features import NetworkInterface, Sriov, Synthetic
 from lisa.operating_system import BSD, Linux, Windows
 from lisa.tools import Firewall, Ip, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
+from lisa.tools.tcpdump import get_icmp_filter_for_ip
 from lisa.util import get_matched_str
 from lisa.util.constants import SIGINT
 
@@ -468,9 +469,10 @@ class XdpFunctional(TestSuite):
         ping_address = self._get_ping_address(environment)
 
         pcap_filename = f"{case_name}.pcap"
+        icmp_filter = get_icmp_filter_for_ip(ping_address)
         tcpdump.dump_async(
             ping_source_node.nics.default_nic,
-            expression=f'"icmp and host {ping_address}"',
+            expression=f'"{icmp_filter} and host {ping_address}"',
             packet_filename=pcap_filename,
         )
         xdpdump.test_by_ping(
