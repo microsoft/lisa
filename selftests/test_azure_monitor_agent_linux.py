@@ -1,11 +1,11 @@
 from unittest import TestCase
 from unittest.mock import MagicMock
 
-from lisa.operating_system import CpuArchitecture, OsInformation
-from lisa.util import SkippedException, parse_version
-from microsoft.testsuites.vm_extensions.AzureMonitorAgentLinux import (
+from lisa.microsoft.testsuites.vm_extensions.AzureMonitorAgentLinux import (
     AzureMonitorAgentLinuxExtension,
 )
+from lisa.operating_system import CpuArchitecture, OsInformation
+from lisa.util import SkippedException, parse_version
 
 
 class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
@@ -19,9 +19,7 @@ class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
         node.execute.return_value.stdout = "/tmp/lisa-ama-os-release.test\n"
         log = MagicMock()
 
-        with self.suite._simulate_supported_linux_identity(
-            node, log, "rhel", "7"
-        ):
+        with self.suite._simulate_supported_linux_identity(node, log, "rhel", "7"):
             pass
 
         self.assertEqual(3, node.execute.call_count)

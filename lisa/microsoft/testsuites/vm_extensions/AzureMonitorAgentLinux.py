@@ -130,7 +130,8 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         )
         package_manager = package_manager_result.stdout.strip()
         os_version = node.os.information.version
-        architecture = node.os.get_kernel_information().hardware_platform
+        kernel_information = node.os.get_kernel_information()  # type: ignore
+        architecture = kernel_information.hardware_platform
 
         if package_manager == "rpm":
             supported_versions = ["7", "8", "9", "10"]
@@ -189,7 +190,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         )
 
         try:
-            node.execute(
+            simulated_os_release_command = (
                 "cp --dereference /etc/os-release "
                 f"{quoted_backup_path} && "
                 "awk 'BEGIN { id = 0; version = 0 } "
@@ -204,7 +205,10 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
                 f"print \"VERSION_ID=\\\"{simulated_version}\\\"\" "
                 f"}}' {quoted_backup_path} | tee /etc/os-release >/dev/null && "
                 f"grep -q '^ID=\"{simulated_id}\"$' /etc/os-release && "
-                f"grep -q '^VERSION_ID=\"{simulated_version}\"$' /etc/os-release",
+                f"grep -q '^VERSION_ID=\"{simulated_version}\"$' /etc/os-release"
+            )
+            node.execute(
+                simulated_os_release_command,
                 sudo=True,
                 shell=True,
                 expected_exit_code=0,
