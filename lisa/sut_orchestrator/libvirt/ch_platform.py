@@ -342,7 +342,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 self._domain_stop_error_message(node_context.vm_name, stop_result)
             )
 
-        log.info(
+        log.debug(
             f"Timed out stopping Cloud Hypervisor domain {node_context.vm_name}; "
             f"capturing diagnostics and targeting only process {process_id}"
         )
