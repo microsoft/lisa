@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import ipaddress
 import re
 import time
 from dataclasses import dataclass
@@ -10,6 +11,12 @@ from retry import retry
 from lisa.executable import Tool
 from lisa.util import find_groups_in_lines
 from lisa.util.process import Process
+
+
+def get_icmp_filter_for_ip(address: str) -> str:
+    if ipaddress.ip_address(address).version == 6:
+        return "icmp6 and (ip6[40] == 128 or ip6[40] == 129)"
+    return "icmp"
 
 
 @dataclass
@@ -27,8 +34,9 @@ class TcpDump(Tool):
     #   47850+ [1au] PTR? 200.197.79.204.in-addr.arpa. (56)
     # 08:26:46.736965 IP a-0001.a-msedge.net > node-0.internal.cloudapp.net:
     #   ICMP echo reply, id 18491, seq 1, length 64
+    # 08:26:46.736965 IP6 2001:db8::1 > 2001:db8::2: ICMP6, echo reply
     _information_pattern: Pattern[str] = re.compile(
-        r"^(?P<time>[\d:.]+) IP (?P<source>.*?)"
+        r"^(?P<time>[\d:.]+) IP6? (?P<source>.*?)"
         r" > (?P<destination>.*?): (?P<extra>.*)$",
         re.MULTILINE,
     )
