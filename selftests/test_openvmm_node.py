@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import yaml
 from assertpy import assert_that
+from paramiko.ssh_exception import SSHException
 
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
@@ -94,6 +95,66 @@ class OpenVmmNodeTestCase(TestCase):
             runbook.device_pools, stabilize_management_route=True
         )
         assert_that(reused_pool).is_same_as(pool)
+
+    def test_failed_shared_pool_initialization_retains_pool_for_retry(self) -> None:
+        device_pool_module = _load_device_pool_module()
+        controller, _, _, _ = self._create_controller()
+        runbook = OpenVmmGuestNodeSchema(
+            uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+            disk_img="/tmp/guest.img",
+            device_pools=[HostDevicePoolSchema(auto_discover=True)],
+        )
+        host_context = get_host_context(controller.host_node)
+
+        with patch.object(device_pool_module, "LibvirtDevicePool") as pool_type:
+            pool = pool_type.return_value
+            pool.configure_device_passthrough_pool.side_effect = [
+                SSHException("route add response lost"),
+                None,
+            ]
+            with self.assertRaisesRegex(SSHException, "route add response lost"):
+                controller._get_or_create_device_pool(runbook)
+
+            assert_that(host_context.device_pool).is_same_as(pool)
+            assert_that(host_context.device_pool_initialized).is_false()
+            pool.cleanup.assert_called_once_with()
+
+            reused_pool = controller._get_or_create_device_pool(runbook)
+
+        pool_type.assert_called_once()
+        assert_that(reused_pool).is_same_as(pool)
+        assert_that(host_context.device_pool_initialized).is_true()
+        assert_that(pool.configure_device_passthrough_pool.call_count).is_equal_to(2)
+        pool.cleanup.assert_called_once_with()
+
+    def test_release_retries_route_cleanup_without_allocated_devices(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        pool = MagicMock()
+        get_host_context(controller.host_node).device_pool = pool
+
+        with patch(
+            "lisa.sut_orchestrator.openvmm.node.get_node_context",
+            return_value=NodeContext(),
+        ), patch.object(controller, "_restore_device_passthrough_drivers") as restore:
+            controller.release_device_passthrough(cast(Any, SimpleNamespace()))
+
+        restore.assert_not_called()
+        pool.release_devices.assert_not_called()
+        pool.cleanup.assert_called_once_with()
+
+    def test_uninitialized_shared_pool_requires_configuration_for_retry(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        pool = MagicMock()
+        get_host_context(controller.host_node).device_pool = pool
+        runbook = OpenVmmGuestNodeSchema(
+            uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+            disk_img="/tmp/guest.img",
+        )
+
+        with self.assertRaisesRegex(LisaException, "device pool is not initialized"):
+            controller._get_or_create_device_pool(runbook)
+
+        pool.configure_device_passthrough_pool.assert_not_called()
 
     def test_release_cleans_route_after_restoring_and_releasing_devices(self) -> None:
         controller, _, _, _ = self._create_controller()
@@ -183,7 +244,7 @@ class OpenVmmNodeTestCase(TestCase):
                 )
             )
         cleanup_command = "ip route del 192.0.2.10/32"
-        pool._management_route_cleanup_command = cleanup_command
+        pool._management_route_cleanup_commands = [cleanup_command]
         execute = MagicMock(
             return_value=SimpleNamespace(exit_code=0, stderr="", stdout="")
         )
@@ -198,8 +259,8 @@ class OpenVmmNodeTestCase(TestCase):
         ):
             controller.release_device_passthrough(cast(Any, SimpleNamespace()))
             execute.assert_not_called()
-            assert_that(pool._management_route_cleanup_command).is_equal_to(
-                cleanup_command
+            assert_that(pool._management_route_cleanup_commands).is_equal_to(
+                [cleanup_command]
             )
 
             controller.release_device_passthrough(cast(Any, SimpleNamespace()))
@@ -211,7 +272,7 @@ class OpenVmmNodeTestCase(TestCase):
             no_error_log=True,
             expected_exit_code=None,
         )
-        assert_that(pool._management_route_cleanup_command).is_empty()
+        assert_that(pool._management_route_cleanup_commands).is_empty()
         assert_that(pool._allocated_device_groups).is_empty()
 
     def test_unallocated_passthrough_failure_cleans_management_route(self) -> None:
@@ -228,6 +289,25 @@ class OpenVmmNodeTestCase(TestCase):
         with patch.object(
             controller, "_get_or_create_device_pool", return_value=pool
         ), self.assertRaisesRegex(ResourceAwaitableException, "pool exhausted"):
+            controller.set_device_passthrough_node_context(node_context, runbook)
+
+        pool.cleanup.assert_called_once_with()
+        assert_that(node_context.passthrough_devices).is_empty()
+
+    def test_route_guard_ssh_failure_cleans_unallocated_management_route(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        pool = MagicMock()
+        pool.request_devices.side_effect = SSHException("route add response lost")
+        node_context = NodeContext()
+        runbook = OpenVmmGuestNodeSchema(
+            uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+            disk_img="/tmp/guest.img",
+            device_passthrough=[OpenVmmDevicePassthroughSchema(count=1)],
+        )
+
+        with patch.object(
+            controller, "_get_or_create_device_pool", return_value=pool
+        ), self.assertRaisesRegex(SSHException, "route add response lost"):
             controller.set_device_passthrough_node_context(node_context, runbook)
 
         pool.cleanup.assert_called_once_with()

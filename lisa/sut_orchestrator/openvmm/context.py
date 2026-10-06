@@ -100,6 +100,7 @@ class OpenVmmHostContext:
     device_pool_lock: Lock = field(default_factory=Lock)
     device_pool: Optional[Any] = None
     device_pool_config_key: str = ""
+    device_pool_initialized: bool = False
     tap_network_lock: RLock = field(default_factory=RLock)
     shared_tap_networks: Dict[str, SharedTapNetworkContext] = field(
         default_factory=dict

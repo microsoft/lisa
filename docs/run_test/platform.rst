@@ -387,7 +387,17 @@ The temporary route remains while any passthrough NIC is allocated. Cleanup
 restores the original device drivers before releasing devices and removes the
 route after the last NIC is released. If driver restoration fails, the allocation
 and route are retained; resolve the host connectivity or driver problem and retry
-cleanup. A cached pool rechecks the route before allocating NICs again.
+cleanup. The pool checks the actual return route before every NIC allocation,
+even when a previous route still has pending cleanup, and verifies a newly
+pinned route before allowing allocation.
+
+Each pool uses a distinct route metric to identify its temporary peer routes.
+Cleanup intent is recorded before adding a route, so a lost SSH acknowledgement
+does not orphan a route or cause cleanup to remove an operator-owned route.
+Cleanup retains failed removals for retry and tracks routes to multiple SSH peers.
+If shared-pool initialization fails, OpenVMM attempts route cleanup and retains
+the uninitialized pool for later cleanup or initialization retry. Retry
+initialization with the same ``device_pools`` configuration.
 
 The guard requires an IPv4 SSH session with ``SSH_CONNECTION`` available. It does
 not protect IPv6 management routing.

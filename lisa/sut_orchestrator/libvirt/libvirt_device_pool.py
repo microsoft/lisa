@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+import uuid
 import xml.etree.ElementTree as ET  # noqa: N817
 from ipaddress import ip_address
 from itertools import combinations
@@ -38,7 +39,9 @@ class LibvirtDevicePool(BaseDevicePool):
             HostDevicePoolType, Dict[str, List[DeviceAddressSchema]]
         ] = {}
         self._allocated_device_groups: Dict[HostDevicePoolType, Dict[str, str]] = {}
-        self._management_route_cleanup_command = ""
+        self._management_route_cleanup_commands: List[str] = []
+        # The metric identifies our routes even when an SSH acknowledgement is lost.
+        self._management_route_metric = 2**31 + uuid.uuid4().int % 2**31
         self._management_route_guard_enabled = False
 
         self.supported_pool_type = [
@@ -119,7 +122,6 @@ class LibvirtDevicePool(BaseDevicePool):
         if (
             pool_type == HostDevicePoolType.PCI_NIC
             and self._management_route_guard_enabled
-            and not self._management_route_cleanup_command
         ):
             self._stabilize_management_route()
 
@@ -247,17 +249,8 @@ class LibvirtDevicePool(BaseDevicePool):
             )
         self._validate_interface_name(management_interface, "Management")
 
-        route_result = self.host_node.execute(
-            cmd=f"ip -o -4 route get {peer_ip} from {host_ip}",
-            shell=True,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                f"Can not resolve the SSH return route to {peer_ip}"
-            ),
-        )
-        route_interface = self._get_route_interface(
-            route_result.stdout, f"SSH return route to '{peer_ip}'"
+        route_interface = self._get_ssh_return_route_interface(
+            str(peer_ip), str(host_ip)
         )
         if route_interface == management_interface:
             return
@@ -288,6 +281,9 @@ class LibvirtDevicePool(BaseDevicePool):
         route_command = self._get_management_route_command(
             str(peer_ip), str(host_ip), management_interface
         )
+        cleanup_command = route_command.replace(" route add ", " route del ", 1)
+        if cleanup_command not in self._management_route_cleanup_commands:
+            self._management_route_cleanup_commands.append(cleanup_command)
         self.host_node.execute(
             cmd=route_command,
             shell=True,
@@ -297,13 +293,33 @@ class LibvirtDevicePool(BaseDevicePool):
                 f"Can not pin the SSH return route to {management_interface}"
             ),
         )
-        self._management_route_cleanup_command = route_command.replace(
-            " route add ", " route del ", 1
+        pinned_interface = self._get_ssh_return_route_interface(
+            str(peer_ip), str(host_ip)
         )
+        if pinned_interface != management_interface:
+            raise LisaException(
+                f"SSH return route to '{peer_ip}' still uses interface "
+                f"'{pinned_interface}' after pinning it to management interface "
+                f"'{management_interface}'. Refusing to allocate passthrough NICs."
+            )
         self.host_node.log.debug(
             f"Pinned SSH peer {peer_ip} to management interface "
             f"'{management_interface}' because the previous route used "
             f"'{route_interface}'."
+        )
+
+    def _get_ssh_return_route_interface(self, peer_ip: str, host_ip: str) -> str:
+        route_result = self.host_node.execute(
+            cmd=f"ip -o -4 route get {peer_ip} from {host_ip}",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Can not resolve the SSH return route to {peer_ip}"
+            ),
+        )
+        return self._get_route_interface(
+            route_result.stdout, f"SSH return route to '{peer_ip}'"
         )
 
     def _is_passthrough_nic_interface(self, interface_name: str) -> bool:
@@ -379,7 +395,16 @@ class LibvirtDevicePool(BaseDevicePool):
                 )
             route_parts.extend(["via", str(gateway)])
         route_parts.extend(
-            ["dev", management_interface, "src", str(host_ip), "proto", "static"]
+            [
+                "dev",
+                management_interface,
+                "src",
+                str(host_ip),
+                "proto",
+                "static",
+                "metric",
+                str(self._management_route_metric),
+            ]
         )
         return " ".join(route_parts)
 
@@ -423,7 +448,7 @@ class LibvirtDevicePool(BaseDevicePool):
         return ""
 
     def cleanup(self) -> None:
-        if not self._management_route_cleanup_command:
+        if not self._management_route_cleanup_commands:
             return
 
         if self._allocated_device_groups.get(HostDevicePoolType.PCI_NIC):
@@ -433,29 +458,29 @@ class LibvirtDevicePool(BaseDevicePool):
             )
             return
 
-        cleanup_command = self._management_route_cleanup_command
-        try:
-            result = self.host_node.execute(
-                cmd=cleanup_command,
-                shell=True,
-                sudo=True,
-                no_error_log=True,
-                expected_exit_code=None,
-            )
-        except Exception as identifier_error:
-            self.host_node.log.debug(
-                f"Failed to remove the temporary SSH peer route with "
-                f"'{cleanup_command}': {identifier_error}"
-            )
-            return
-        if result.exit_code != 0:
-            self.host_node.log.debug(
-                f"Failed to remove the temporary SSH peer route with "
-                f"'{cleanup_command}'. Exit code: {result.exit_code}. "
-                f"Output: {(result.stdout + result.stderr).strip()}"
-            )
-            return
-        self._management_route_cleanup_command = ""
+        for cleanup_command in self._management_route_cleanup_commands[:]:
+            try:
+                result = self.host_node.execute(
+                    cmd=cleanup_command,
+                    shell=True,
+                    sudo=True,
+                    no_error_log=True,
+                    expected_exit_code=None,
+                )
+            except Exception as identifier_error:
+                self.host_node.log.debug(
+                    f"Failed to remove the temporary SSH peer route with "
+                    f"'{cleanup_command}': {identifier_error}"
+                )
+                continue
+            if result.exit_code != 0:
+                self.host_node.log.debug(
+                    f"Failed to remove the temporary SSH peer route with "
+                    f"'{cleanup_command}'. Exit code: {result.exit_code}. "
+                    f"Output: {(result.stdout + result.stderr).strip()}"
+                )
+                continue
+            self._management_route_cleanup_commands.remove(cleanup_command)
 
     def get_rootfs_nvme_iommu_group(self) -> str:
         # Find the NVMe device backing the root filesystem to exclude it
