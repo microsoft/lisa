@@ -173,24 +173,44 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         simulated_id: str,
         simulated_version: str,
     ) -> Iterator[None]:
-        backup_command = (
-            "backup_path=$(mktemp /tmp/lisa-ama-os-release.XXXXXX) && "
-            "trap 'rm -f $backup_path' EXIT && "
-            "cp --dereference /etc/os-release $backup_path && "
-            "cmp -s /etc/os-release $backup_path && "
-            "printf '%s' $backup_path && "
+        create_simulated_os_release_command = (
+            "target_path=$(readlink -f /etc/os-release) && "
+            "simulated_path=$(mktemp /tmp/lisa-ama-os-release.XXXXXX) && "
+            "trap 'rm -f $simulated_path' EXIT && "
+            "awk 'BEGIN { id = 0; version = 0 } "
+            f'/^ID=/ {{ print "ID={simulated_id}"; id = 1; next }} '
+            "/^VERSION_ID=/ { "
+            f'print "VERSION_ID={simulated_version}"; '
+            "version = 1; next } "
+            "{ print } "
+            "END { "
+            f'if (!id) print "ID={simulated_id}"; '
+            "if (!version) "
+            f'print "VERSION_ID={simulated_version}" '
+            "}' /etc/os-release > $simulated_path && "
+            f"grep -q '^ID={simulated_id}$' $simulated_path && "
+            f"grep -q '^VERSION_ID={simulated_version}$' $simulated_path && "
+            "chmod 0444 $simulated_path && "
+            "! mountpoint -q $target_path && "
+            "printf '%s\\n%s\\n' $target_path $simulated_path && "
             "trap - EXIT"
         )
-        backup_result = node.execute(
-            backup_command,
+        simulated_os_release_result = node.execute(
+            create_simulated_os_release_command,
             shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
-                "Failed to create and verify a backup of /etc/os-release"
+                "Failed to create a simulated /etc/os-release"
             ),
         )
-        backup_path = backup_result.stdout.strip()
-        quoted_backup_path = shlex.quote(backup_path)
+        paths = simulated_os_release_result.stdout.splitlines()
+        if len(paths) != 2:
+            raise LisaException(
+                "Failed to determine the os-release mount target and temporary file."
+            )
+        target_path, simulated_path = paths
+        quoted_target_path = shlex.quote(target_path)
+        quoted_simulated_path = shlex.quote(simulated_path)
         log.info(
             f"Temporarily identifying {node.os.information.full_version} as "
             f"{simulated_id} {simulated_version} while provisioning the "
@@ -199,53 +219,47 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
 
         try:
             node.mark_dirty()
-            simulated_os_release_command = (
-                "simulated_os_release=$(awk 'BEGIN { id = 0; version = 0 } "
-                f'/^ID=/ {{ print "ID={simulated_id}"; id = 1; next }} '
-                "/^VERSION_ID=/ { "
-                f'print "VERSION_ID={simulated_version}"; '
-                "version = 1; next } "
-                "{ print } "
-                "END { "
-                f'if (!id) print "ID={simulated_id}"; '
-                "if (!version) "
-                f'print "VERSION_ID={simulated_version}" '
-                f"}}' {quoted_backup_path}) && "
-                "printf '%s\\n' \"$simulated_os_release\" "
-                "| tee /etc/os-release >/dev/null && "
-                f"grep -q '^ID={simulated_id}$' /etc/os-release && "
-                f"grep -q '^VERSION_ID={simulated_version}$' /etc/os-release"
-            )
             node.execute(
-                simulated_os_release_command,
+                f"mount --bind {quoted_simulated_path} {quoted_target_path}",
                 sudo=True,
                 shell=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message=(
-                    "Failed to simulate a supported Linux identity"
+                    "Failed to bind mount the simulated /etc/os-release"
+                ),
+            )
+            node.execute(
+                f"mount -o remount,bind,ro {quoted_target_path}",
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to make the simulated /etc/os-release read-only"
                 ),
             )
             yield
         finally:
-            restore_command = (
-                f"cp --dereference {quoted_backup_path} /etc/os-release && "
-                f"cmp -s {quoted_backup_path} /etc/os-release && "
-                f"rm -f {quoted_backup_path}"
+            cleanup_command = (
+                f"if mountpoint -q {quoted_target_path}; then "
+                f"umount {quoted_target_path}; fi && "
+                f"rm -f {quoted_simulated_path}"
             )
             try:
-                restore_result = node.execute(
-                    restore_command,
+                cleanup_result = node.execute(
+                    cleanup_command,
                     sudo=True,
                     shell=True,
                 )
             except LisaException as error:
                 raise LisaException(
-                    "Failed to restore the original /etc/os-release. "
-                    f"Recover it from {backup_path} before reusing the node."
+                    "Failed to remove the simulated /etc/os-release mount. "
+                    f"Unmount {target_path} and remove {simulated_path} "
+                    "before reusing the node."
                 ) from error
 
-            if restore_result.exit_code != 0:
+            if cleanup_result.exit_code != 0:
                 raise LisaException(
-                    "Failed to restore the original /etc/os-release. "
-                    f"Recover it from {backup_path} before reusing the node."
+                    "Failed to remove the simulated /etc/os-release mount. "
+                    f"Unmount {target_path} and remove {simulated_path} "
+                    "before reusing the node."
                 )

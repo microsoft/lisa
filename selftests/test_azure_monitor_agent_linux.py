@@ -19,43 +19,50 @@ class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
 
     def test_simulates_supported_identity(self) -> None:
         node = self._create_node("CentOS 7.9", "7.9")
-        node.execute.return_value.stdout = "/tmp/lisa-ama-os-release.test\n"
+        node.execute.return_value.stdout = (
+            "/usr/lib/os-release\n/tmp/lisa-ama-os-release.test\n"
+        )
         log = MagicMock()
 
         with self.suite._simulate_supported_linux_identity(node, log, "rhel", "7"):
             pass
 
-        self.assertEqual(3, node.execute.call_count)
-        simulation_command = node.execute.call_args_list[1].args[0]
-        self.assertIn("simulated_os_release=$(awk", simulation_command)
-        self.assertIn('print "ID=rhel"', simulation_command)
-        self.assertIn('print "VERSION_ID=7"', simulation_command)
-        self.assertIn(") && printf", simulation_command)
-        self.assertIn('"$simulated_os_release"', simulation_command)
-        restore_command = node.execute.call_args_list[2].args[0]
-        self.assertIn("cp --dereference", restore_command)
-        self.assertIn("cmp -s", restore_command)
-        self.assertIn("rm -f", restore_command)
-        self.assertNotIn("tee /etc/os-release", restore_command)
+        self.assertEqual(4, node.execute.call_count)
+        create_command = node.execute.call_args_list[0].args[0]
+        self.assertIn("readlink -f /etc/os-release", create_command)
+        self.assertIn('print "ID=rhel"', create_command)
+        self.assertIn('print "VERSION_ID=7"', create_command)
+        self.assertIn("> $simulated_path", create_command)
+        self.assertNotIn("tee /etc/os-release", create_command)
+        self.assertIn("! mountpoint -q $target_path", create_command)
+        mount_command = node.execute.call_args_list[1].args[0]
+        self.assertIn("mount --bind", mount_command)
+        readonly_command = node.execute.call_args_list[2].args[0]
+        self.assertIn("mount -o remount,bind,ro", readonly_command)
+        cleanup_command = node.execute.call_args_list[3].args[0]
+        self.assertIn("umount /usr/lib/os-release", cleanup_command)
+        self.assertIn("rm -f /tmp/lisa-ama-os-release.test", cleanup_command)
         node.mark_dirty.assert_called_once()
         log.info.assert_called_once()
 
-    def test_does_not_restore_identity_when_backup_fails(self) -> None:
+    def test_does_not_mount_identity_when_temporary_file_creation_fails(self) -> None:
         node = self._create_node("Unsupported Linux 1", "1")
-        node.execute.side_effect = RuntimeError("backup failed")
+        node.execute.side_effect = RuntimeError("temporary file creation failed")
 
-        with self.assertRaisesRegex(RuntimeError, "backup failed"):
+        with self.assertRaisesRegex(RuntimeError, "temporary file creation failed"):
             with self.suite._simulate_supported_linux_identity(
                 node, MagicMock(), "ubuntu", "22.04"
             ):
                 pass
 
         node.execute.assert_called_once()
-        self.assertNotIn("tee /etc/os-release", node.execute.call_args.args[0])
+        self.assertNotIn("mount --bind", node.execute.call_args.args[0])
 
-    def test_restores_identity_after_provisioning_failure(self) -> None:
+    def test_unmounts_identity_after_provisioning_failure(self) -> None:
         node = self._create_node("Unsupported Linux 1", "1")
-        node.execute.return_value.stdout = "/tmp/lisa-ama-os-release.test\n"
+        node.execute.return_value.stdout = (
+            "/usr/lib/os-release\n/tmp/lisa-ama-os-release.test\n"
+        )
 
         with self.assertRaisesRegex(RuntimeError, "provisioning failed"):
             with self.suite._simulate_supported_linux_identity(
@@ -63,20 +70,24 @@ class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
             ):
                 raise RuntimeError("provisioning failed")
 
-        self.assertEqual(3, node.execute.call_count)
-        self.assertIn("cp --dereference", node.execute.call_args.args[0])
+        self.assertEqual(4, node.execute.call_count)
+        self.assertIn("umount", node.execute.call_args.args[0])
 
-    def test_marks_node_dirty_when_identity_restore_fails(self) -> None:
+    def test_reports_recovery_steps_when_unmount_fails(self) -> None:
         node = self._create_node("Unsupported Linux 1", "1")
-        backup_result = MagicMock(stdout="/tmp/lisa-ama-os-release.test\n")
-        simulation_result = MagicMock(exit_code=0)
+        create_result = MagicMock(
+            stdout="/usr/lib/os-release\n/tmp/lisa-ama-os-release.test\n"
+        )
+        mount_result = MagicMock(exit_code=0)
+        readonly_result = MagicMock(exit_code=0)
         node.execute.side_effect = [
-            backup_result,
-            simulation_result,
-            LisaException("restore failed"),
+            create_result,
+            mount_result,
+            readonly_result,
+            LisaException("unmount failed"),
         ]
 
-        with self.assertRaisesRegex(LisaException, "/tmp/lisa-ama-os-release.test"):
+        with self.assertRaisesRegex(LisaException, "Unmount /usr/lib/os-release"):
             with self.suite._simulate_supported_linux_identity(
                 node, MagicMock(), "ubuntu", "22.04"
             ):
