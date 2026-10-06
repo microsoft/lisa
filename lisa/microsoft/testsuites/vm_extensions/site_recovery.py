@@ -16,7 +16,6 @@ from lisa.operating_system import (
     Oracle,
     Redhat,
     Ubuntu,
-    Windows,
 )
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
@@ -54,15 +53,15 @@ def _settings(command: str) -> Dict[str, str]:
     description="""
     This test suite validates production Azure Site Recovery VM extensions.
 
-    The common Linux extension runs GetOsDetails. Windows and distro-specific
-    extensions run the public-only Install command, which installs the embedded
-    Mobility Service package without configuring replication.
+    The common Linux extension runs GetOsDetails. Distro-specific extensions
+    run the public-only Install command, which installs the embedded Mobility
+    Service package without configuring replication.
     """,
     tags=["VM_Extension"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
-        supported_os=[Linux, Windows],
+        supported_os=[Linux],
     ),
 )
 class SiteRecoveryTests(VmExtensionTestBase):  # type: ignore[misc]
@@ -129,29 +128,6 @@ class SiteRecoveryTests(VmExtensionTestBase):  # type: ignore[misc]
             "Linux",
             "site_recovery_linux",
             "GetOsDetails",
-        )
-
-    @TestCaseMetadata(
-        description="""
-        Validates the production Site Recovery Windows extension by installing
-        its embedded Mobility Service package without configuring replication.
-        """,
-        priority=5,
-        tags=["microsoft.azure.recoveryservices.siterecovery.windows"],
-        maturity="preview",
-        requirement=_extension_requirement(Windows),
-    )
-    def microsoft_azure_recoveryservices_siterecovery_windows_boot_validation_test(
-        self, log: Logger, node: Node, variables: Dict[str, Any]
-    ) -> None:
-        self._validate_extension(
-            node,
-            log,
-            variables,
-            _SITE_RECOVERY_PUBLISHER,
-            "Windows",
-            "site_recovery_windows",
-            "Install",
         )
 
     @TestCaseMetadata(
