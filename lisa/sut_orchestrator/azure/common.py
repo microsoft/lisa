@@ -292,6 +292,7 @@ class AzureImageSchema(schema.ImageSchema):
                     SecurityProfileType.SecureBoot,
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
+                    SecurityProfileType.TrustedLaunchNoSecureBoot,
                 ],
             ),
             required=False,
@@ -384,7 +385,11 @@ class AzureImageSchema(schema.ImageSchema):
         encrypt_capability: List[bool] = [False]
         if security_profile in ["TrustedLaunchSupported", "TrustedLaunch"]:
             security_profile_capabilities.extend(
-                [SecurityProfileType.Standard, SecurityProfileType.SecureBoot]
+                [
+                    SecurityProfileType.Standard,
+                    SecurityProfileType.SecureBoot,
+                    SecurityProfileType.TrustedLaunchNoSecureBoot,
+                ]
             )
         elif (
             security_profile == "TrustedLaunchAndConfidentialVmSupported"
@@ -396,6 +401,7 @@ class AzureImageSchema(schema.ImageSchema):
                     SecurityProfileType.SecureBoot,
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
+                    SecurityProfileType.TrustedLaunchNoSecureBoot,
                 ]
             )
             encrypt_capability.append(True)
@@ -593,6 +599,7 @@ class VhdSchema(AzureImageSchema):
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
                     SecurityProfileType.SecureBoot,
+                    SecurityProfileType.TrustedLaunchNoSecureBoot,
                 ],
             )
             self.encrypt_disk = search_space.SetSpace(True, [True, False])
@@ -602,6 +609,7 @@ class VhdSchema(AzureImageSchema):
                 [
                     SecurityProfileType.Standard,
                     SecurityProfileType.SecureBoot,
+                    SecurityProfileType.TrustedLaunchNoSecureBoot,
                 ],
             )
             self.encrypt_disk = search_space.SetSpace(True, [False])
