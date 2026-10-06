@@ -330,7 +330,7 @@ class LibvirtDevicePoolTestCase(TestCase):
         device_pool_module = _load_device_pool_module()
         pool, _, state = self._create_route_guard_pool()
         operator_route = (
-            "192.0.2.10/32 via 198.51.100.1 dev eth1 " "src 198.51.100.214 proto static"
+            "192.0.2.10/32 via 198.51.100.1 dev eth1 src 198.51.100.214 proto static"
         )
         build_command = pool._get_management_route_command
 
@@ -353,7 +353,7 @@ class LibvirtDevicePoolTestCase(TestCase):
     def test_management_route_guard_does_not_adopt_existing_peer_route(self) -> None:
         pool, host_node, state = self._create_route_guard_pool()
         operator_route = (
-            "192.0.2.10/32 via 198.51.100.1 dev eth1 " "src 198.51.100.214 proto static"
+            "192.0.2.10/32 via 198.51.100.1 dev eth1 src 198.51.100.214 proto static"
         )
         state.routes.append(operator_route)
 
