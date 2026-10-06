@@ -37,6 +37,7 @@ class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
         self.assertIn("cmp -s", restore_command)
         self.assertIn("rm -f", restore_command)
         self.assertNotIn("tee /etc/os-release", restore_command)
+        node.mark_dirty.assert_called_once()
         log.info.assert_called_once()
 
     def test_does_not_restore_identity_when_backup_fails(self) -> None:

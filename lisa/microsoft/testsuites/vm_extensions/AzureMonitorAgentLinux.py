@@ -198,6 +198,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         )
 
         try:
+            node.mark_dirty()
             simulated_os_release_command = (
                 "simulated_os_release=$(awk 'BEGIN { id = 0; version = 0 } "
                 f'/^ID=/ {{ print "ID={simulated_id}"; id = 1; next }} '
@@ -238,14 +239,12 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
                     shell=True,
                 )
             except LisaException as error:
-                node.mark_dirty()
                 raise LisaException(
                     "Failed to restore the original /etc/os-release. "
                     f"Recover it from {backup_path} before reusing the node."
                 ) from error
 
             if restore_result.exit_code != 0:
-                node.mark_dirty()
                 raise LisaException(
                     "Failed to restore the original /etc/os-release. "
                     f"Recover it from {backup_path} before reusing the node."
