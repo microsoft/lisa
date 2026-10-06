@@ -61,19 +61,30 @@ class AziHsm(TestSuite):
     ) -> List[str]:
         # Return the dmesg lines appended since the "pre" snapshot was
         # captured. Rather than assuming the ring buffer only appends (and
-        # slicing at len(pre_lines)), anchor on the last line of the "pre"
-        # snapshot and locate its most recent occurrence in "post". This
-        # stays correct even if the buffer wrapped and dropped older lines
-        # in between the two snapshots, shifting offsets. If the anchor line
-        # can no longer be found (the whole "pre" snapshot has been evicted
-        # by wraparound), conservatively treat every "post" line as new
-        # rather than risk silently dropping genuinely new error lines.
+        # slicing at len(pre_lines)), anchor on a short multi-line sequence
+        # from the tail of the "pre" snapshot and locate its first (i.e.
+        # earliest, chronologically correct) occurrence in "post". A single
+        # repeated line is not a sufficiently unique anchor: if the same
+        # text recurs later in "post" (e.g. a generic info message), taking
+        # its most recent occurrence could truncate past, and hide, a
+        # genuinely new error line that appeared between the real boundary
+        # and the coincidental repeat. Requiring several consecutive lines
+        # to match makes a coincidental collision far less likely, and
+        # searching left-to-right finds the true (earliest) boundary rather
+        # than a later look-alike. This stays correct even if the buffer
+        # wrapped and dropped older lines between the two snapshots,
+        # shifting offsets. If no matching anchor sequence can be found at
+        # all (the whole "pre" snapshot has been evicted by wraparound),
+        # conservatively treat every "post" line as new rather than risk
+        # silently dropping genuinely new error lines.
         if not pre_lines:
             return post_lines
-        anchor = pre_lines[-1]
-        for index in range(len(post_lines) - 1, -1, -1):
-            if post_lines[index] == anchor:
-                return post_lines[index + 1 :]
+        anchor_len = min(5, len(pre_lines))
+        anchor_seq = pre_lines[-anchor_len:]
+        last_start = len(post_lines) - anchor_len
+        for start in range(last_start + 1):
+            if post_lines[start : start + anchor_len] == anchor_seq:
+                return post_lines[start + anchor_len :]
         return post_lines
 
     def check_azihsm_device(self, node: Node) -> None:
