@@ -181,8 +181,7 @@ class AziHsm(TestSuite):
                         "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                     ],
                 )
-            else:
-                # Assume Azure Linux 4 for now. Will have to refactor when Azl5 happens.
+            elif major_version == 4:
                 node.os.add_repository(
                     repo=(
                         "https://packages.microsoft.com/azurelinux/"
@@ -194,6 +193,12 @@ class AziHsm(TestSuite):
                         "https://packages.microsoft.com/keys/microsoft.asc",
                         "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                     ],
+                )
+            else:
+                raise SkippedException(
+                    "AZIHSM repository configuration is not defined for Azure Linux "
+                    f"{node.os.information.release}. Add the matching package repository "
+                    "before running this suite."
                 )
 
         # Indicate we have done this step already
