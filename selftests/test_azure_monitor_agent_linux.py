@@ -9,7 +9,7 @@ from lisa.microsoft.testsuites.vm_extensions.AzureMonitorAgentLinux import (
     AzureMonitorAgentLinuxExtension,
 )
 from lisa.operating_system import CpuArchitecture, OsInformation
-from lisa.util import SkippedException, parse_version
+from lisa.util import LisaException, SkippedException, parse_version
 
 
 class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
@@ -75,9 +75,7 @@ class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
             LisaException("restore failed"),
         ]
 
-        with self.assertRaisesRegex(
-            LisaException, "/tmp/lisa-ama-os-release.test"
-        ):
+        with self.assertRaisesRegex(LisaException, "/tmp/lisa-ama-os-release.test"):
             with self.suite._simulate_supported_linux_identity(
                 node, MagicMock(), "ubuntu", "22.04"
             ):
