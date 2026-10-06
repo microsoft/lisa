@@ -15,7 +15,7 @@ from lisa import (
 )
 from lisa.operating_system import BSD, CpuArchitecture
 from lisa.sut_orchestrator.azure.features import AzureExtension
-from lisa.util import SkippedException
+from lisa.util import LisaException, SkippedException
 
 
 @TestSuiteMetadata(
@@ -199,19 +199,21 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
 
         try:
             simulated_os_release_command = (
-                "awk 'BEGIN { id = 0; version = 0 } "
-                f"/^ID=/ {{ print \"ID=\\\"{simulated_id}\\\"\"; id = 1; next }} "
+                "simulated_os_release=$(awk 'BEGIN { id = 0; version = 0 } "
+                f'/^ID=/ {{ print "ID={simulated_id}"; id = 1; next }} '
                 "/^VERSION_ID=/ { "
-                f"print \"VERSION_ID=\\\"{simulated_version}\\\"\"; "
+                f'print "VERSION_ID={simulated_version}"; '
                 "version = 1; next } "
                 "{ print } "
                 "END { "
-                f"if (!id) print \"ID=\\\"{simulated_id}\\\"\"; "
+                f'if (!id) print "ID={simulated_id}"; '
                 "if (!version) "
-                f"print \"VERSION_ID=\\\"{simulated_version}\\\"\" "
-                f"}}' {quoted_backup_path} | tee /etc/os-release >/dev/null && "
-                f"grep -q '^ID=\"{simulated_id}\"$' /etc/os-release && "
-                f"grep -q '^VERSION_ID=\"{simulated_version}\"$' /etc/os-release"
+                f'print "VERSION_ID={simulated_version}" '
+                f"}}' {quoted_backup_path}) && "
+                "printf '%s\\n' \"$simulated_os_release\" "
+                "| tee /etc/os-release >/dev/null && "
+                f"grep -q '^ID={simulated_id}$' /etc/os-release && "
+                f"grep -q '^VERSION_ID={simulated_version}$' /etc/os-release"
             )
             node.execute(
                 simulated_os_release_command,
@@ -224,14 +226,27 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
             )
             yield
         finally:
-            node.execute(
-                f"cat {quoted_backup_path} | tee /etc/os-release >/dev/null && "
+            restore_command = (
+                f"cp --dereference {quoted_backup_path} /etc/os-release && "
                 f"cmp -s {quoted_backup_path} /etc/os-release && "
-                f"rm -f {quoted_backup_path}",
-                sudo=True,
-                shell=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Failed to restore the original /etc/os-release"
-                ),
+                f"rm -f {quoted_backup_path}"
             )
+            try:
+                restore_result = node.execute(
+                    restore_command,
+                    sudo=True,
+                    shell=True,
+                )
+            except LisaException as error:
+                node.mark_dirty()
+                raise LisaException(
+                    "Failed to restore the original /etc/os-release. "
+                    f"Recover it from {backup_path} before reusing the node."
+                ) from error
+
+            if restore_result.exit_code != 0:
+                node.mark_dirty()
+                raise LisaException(
+                    "Failed to restore the original /etc/os-release. "
+                    f"Recover it from {backup_path} before reusing the node."
+                )

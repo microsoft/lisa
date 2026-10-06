@@ -27,11 +27,16 @@ class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
 
         self.assertEqual(3, node.execute.call_count)
         simulation_command = node.execute.call_args_list[1].args[0]
-        self.assertIn('ID=\\"rhel\\"', simulation_command)
-        self.assertIn('VERSION_ID=\\"7\\"', simulation_command)
+        self.assertIn("simulated_os_release=$(awk", simulation_command)
+        self.assertIn('print "ID=rhel"', simulation_command)
+        self.assertIn('print "VERSION_ID=7"', simulation_command)
+        self.assertIn(") && printf", simulation_command)
+        self.assertIn('"$simulated_os_release"', simulation_command)
         restore_command = node.execute.call_args_list[2].args[0]
+        self.assertIn("cp --dereference", restore_command)
         self.assertIn("cmp -s", restore_command)
         self.assertIn("rm -f", restore_command)
+        self.assertNotIn("tee /etc/os-release", restore_command)
         log.info.assert_called_once()
 
     def test_does_not_restore_identity_when_backup_fails(self) -> None:
@@ -58,7 +63,27 @@ class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
                 raise RuntimeError("provisioning failed")
 
         self.assertEqual(3, node.execute.call_count)
-        self.assertIn("tee /etc/os-release", node.execute.call_args.args[0])
+        self.assertIn("cp --dereference", node.execute.call_args.args[0])
+
+    def test_marks_node_dirty_when_identity_restore_fails(self) -> None:
+        node = self._create_node("Unsupported Linux 1", "1")
+        backup_result = MagicMock(stdout="/tmp/lisa-ama-os-release.test\n")
+        simulation_result = MagicMock(exit_code=0)
+        node.execute.side_effect = [
+            backup_result,
+            simulation_result,
+            LisaException("restore failed"),
+        ]
+
+        with self.assertRaisesRegex(
+            LisaException, "/tmp/lisa-ama-os-release.test"
+        ):
+            with self.suite._simulate_supported_linux_identity(
+                node, MagicMock(), "ubuntu", "22.04"
+            ):
+                pass
+
+        node.mark_dirty.assert_called_once()
 
     def test_preserves_supported_rpm_major_version(self) -> None:
         node = self._create_node("CentOS 7.9", "7.9")
@@ -153,6 +178,7 @@ class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
         architecture: CpuArchitecture = CpuArchitecture.X64,
     ) -> MagicMock:
         node = MagicMock()
+        node.execute.return_value.exit_code = 0
         node.os.information = OsInformation(
             version=parse_version(version),
             vendor=full_version.split()[0],
