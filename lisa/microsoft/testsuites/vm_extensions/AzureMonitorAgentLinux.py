@@ -13,7 +13,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import CpuArchitecture
+from lisa.operating_system import BSD, CpuArchitecture
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
 
@@ -27,7 +27,7 @@ from lisa.util import SkippedException
 class AzureMonitorAgentLinuxExtension(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         node = kwargs["node"]
-        if not node.os.is_posix:
+        if not node.os.is_posix or isinstance(node.os, BSD):
             raise SkippedException("Azure Monitor Agent requires a Linux distro.")
 
     @TestCaseMetadata(
@@ -44,62 +44,62 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         # Run VM Extension
         extension = node.features[AzureExtension]
         extension_name = "Microsoft.Azure.Monitor.AzureMonitorLinuxAgent"
-        is_extension_present = False
-        is_extension_present = extension.delete(
+        simulated_id, simulated_version = self._get_supported_linux_identity(node)
+        was_extension_present = extension.delete(
             name=extension_name, ignore_not_found=True
         )
 
         try:
-            extension_result = extension.create_or_update(
-                name=extension_name,
-                publisher="Microsoft.Azure.Monitor",
-                type_="AzureMonitorLinuxAgent",
-                type_handler_version="1.0",
-                auto_upgrade_minor_version=True,
-            )
+            try:
+                extension_result = extension.create_or_update(
+                    name=extension_name,
+                    publisher="Microsoft.Azure.Monitor",
+                    type_="AzureMonitorLinuxAgent",
+                    type_handler_version="1.0",
+                    auto_upgrade_minor_version=True,
+                )
 
-            assert_that(extension_result["provisioning_state"]).described_as(
-                "Expected the extension to succeed"
-            ).is_equal_to("Succeeded")
-        except HttpResponseError as e:
-            if "already added" in str(e):
-                node.log.debug(
-                    "AzureMonitorLinuxAgent has been installed in current VM."
-                )
-                is_extension_present = True
-                result = extension.get(extension_name)
-                node.log.debug(f"extension status {result.provisioning_state}")
-            elif self._is_unsupported_os_error(e):
-                extension.delete(name=extension_name, ignore_not_found=True)
-                simulated_id, simulated_version = self._get_supported_linux_identity(
-                    node
-                )
-                with self._simulate_supported_linux_identity(
-                    node,
-                    log,
-                    simulated_id,
-                    simulated_version,
-                ):
-                    extension_result = extension.create_or_update(
-                        name=extension_name,
-                        publisher="Microsoft.Azure.Monitor",
-                        type_="AzureMonitorLinuxAgent",
-                        type_handler_version="1.0",
-                        auto_upgrade_minor_version=True,
+                assert_that(extension_result["provisioning_state"]).described_as(
+                    "Expected the extension to succeed"
+                ).is_equal_to("Succeeded")
+            except HttpResponseError as e:
+                if "already added" in str(e):
+                    node.log.debug(
+                        "AzureMonitorLinuxAgent has been installed in current VM."
                     )
-                    assert_that(extension_result["provisioning_state"]).described_as(
-                        "Expected the extension to succeed"
-                    ).is_equal_to("Succeeded")
-            else:
-                raise
+                    was_extension_present = True
+                    result = extension.get(extension_name)
+                    node.log.debug(f"extension status {result.provisioning_state}")
+                elif self._is_unsupported_os_error(e):
+                    extension.delete(name=extension_name, ignore_not_found=True)
+                    with self._simulate_supported_linux_identity(
+                        node,
+                        log,
+                        simulated_id,
+                        simulated_version,
+                    ):
+                        extension_result = extension.create_or_update(
+                            name=extension_name,
+                            publisher="Microsoft.Azure.Monitor",
+                            type_="AzureMonitorLinuxAgent",
+                            type_handler_version="1.0",
+                            auto_upgrade_minor_version=True,
+                        )
+                        assert_that(
+                            extension_result["provisioning_state"]
+                        ).described_as("Expected the extension to succeed").is_equal_to(
+                            "Succeeded"
+                        )
+                else:
+                    raise
+        finally:
+            if not was_extension_present:
+                extension.delete(name=extension_name, ignore_not_found=True)
 
-        if not is_extension_present:
-            extension.delete(extension_name)
-
-            assert_that(extension.check_exist(extension_name)).described_as(
-                "Found the VM Extension still unexpectedly exists on the VM"
-                " after deletion"
-            ).is_false()
+                assert_that(extension.check_exist(extension_name)).described_as(
+                    "Found the VM Extension still unexpectedly exists on the VM"
+                    " after deletion"
+                ).is_false()
 
     def _is_unsupported_os_error(self, error: HttpResponseError) -> bool:
         error_message = str(error)
@@ -173,12 +173,20 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         simulated_id: str,
         simulated_version: str,
     ) -> Iterator[None]:
+        backup_command = (
+            "backup_path=$(mktemp /tmp/lisa-ama-os-release.XXXXXX) && "
+            "trap 'rm -f \"$backup_path\"' EXIT && "
+            "cp --dereference /etc/os-release \"$backup_path\" && "
+            "cmp -s /etc/os-release \"$backup_path\" && "
+            "printf '%s' \"$backup_path\" && "
+            "trap - EXIT"
+        )
         backup_result = node.execute(
-            "mktemp /tmp/lisa-ama-os-release.XXXXXX",
+            backup_command,
             shell=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
-                "Failed to create a backup file for /etc/os-release"
+                "Failed to create and verify a backup of /etc/os-release"
             ),
         )
         backup_path = backup_result.stdout.strip()
@@ -191,8 +199,6 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
 
         try:
             simulated_os_release_command = (
-                "cp --dereference /etc/os-release "
-                f"{quoted_backup_path} && "
                 "awk 'BEGIN { id = 0; version = 0 } "
                 f"/^ID=/ {{ print \"ID=\\\"{simulated_id}\\\"\"; id = 1; next }} "
                 "/^VERSION_ID=/ { "
