@@ -401,7 +401,7 @@ class AziHsm(TestSuite):
         1. Package installs without errors.
         2. Package registered in package database.
         3. Module .ko file exists on disk.
-        4. rpm -V reports no discrepancies.
+        4. rpm -V (CBLMariner) / dpkg -V (Ubuntu) reports no discrepancies.
         5. depmod registered the module in modules.dep.
             """,
         priority=1,
@@ -892,7 +892,10 @@ class AziHsm(TestSuite):
                     no_info_log=False,
                 )
             except LisaException as e:
-                log.error(f"Exception: {e}")
+                log.error(
+                    f"{test} raised an exception: {e}. See the azihsm "
+                    "diagnostics logged immediately below for details."
+                )
                 failed_tests.append(f"{test} ({e})")
                 self._log_azihsm_test_failure_diagnostics(
                     node=node, log=log, test_name=test
@@ -933,7 +936,10 @@ class AziHsm(TestSuite):
                 no_info_log=False,
             )
         except LisaException as e:
-            log.error(f"Exception {e}")
+            log.error(
+                f"{test} raised an exception: {e}. See the azihsm "
+                "diagnostics logged immediately below for details."
+            )
             failed_tests.append(f"{test} ({e})")
             self._log_azihsm_test_failure_diagnostics(
                 node=node, log=log, test_name=test
