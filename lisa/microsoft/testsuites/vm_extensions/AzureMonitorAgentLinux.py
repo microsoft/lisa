@@ -174,6 +174,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         simulated_version: str,
     ) -> Iterator[None]:
         create_simulated_os_release_command = (
+            "command -v mountpoint >/dev/null 2>&1 && "
             "target_path=$(readlink -f /etc/os-release) && "
             "simulated_path=$(mktemp /tmp/lisa-ama-os-release.XXXXXX) && "
             "trap 'rm -f $simulated_path' EXIT && "

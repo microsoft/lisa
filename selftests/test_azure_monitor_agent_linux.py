@@ -29,6 +29,7 @@ class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
 
         self.assertEqual(4, node.execute.call_count)
         create_command = node.execute.call_args_list[0].args[0]
+        self.assertIn("command -v mountpoint", create_command)
         self.assertIn("readlink -f /etc/os-release", create_command)
         self.assertIn('print "ID=rhel"', create_command)
         self.assertIn('print "VERSION_ID=7"', create_command)
@@ -57,6 +58,20 @@ class AzureMonitorAgentLinuxExtensionTestCase(TestCase):
 
         node.execute.assert_called_once()
         self.assertNotIn("mount --bind", node.execute.call_args.args[0])
+
+    def test_does_not_mount_identity_when_mountpoint_is_unavailable(self) -> None:
+        node = self._create_node("Unsupported Linux 1", "1")
+        node.execute.side_effect = LisaException("mountpoint is unavailable")
+
+        with self.assertRaisesRegex(LisaException, "mountpoint is unavailable"):
+            with self.suite._simulate_supported_linux_identity(
+                node, MagicMock(), "ubuntu", "22.04"
+            ):
+                pass
+
+        node.execute.assert_called_once()
+        self.assertIn("command -v mountpoint", node.execute.call_args.args[0])
+        node.mark_dirty.assert_not_called()
 
     def test_unmounts_identity_after_provisioning_failure(self) -> None:
         node = self._create_node("Unsupported Linux 1", "1")
