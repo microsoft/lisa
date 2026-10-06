@@ -39,6 +39,7 @@ class LibvirtDevicePool(BaseDevicePool):
         ] = {}
         self._allocated_device_groups: Dict[HostDevicePoolType, Dict[str, str]] = {}
         self._management_route_cleanup_command = ""
+        self._management_route_guard_enabled = False
 
         self.supported_pool_type = [
             HostDevicePoolType.PCI_NIC,
@@ -71,9 +72,10 @@ class LibvirtDevicePool(BaseDevicePool):
         if not allow_unsafe_interrupt:
             raise LisaException("Allowing unsafe interrupt failed")
 
-        if stabilize_management_route and any(
+        self._management_route_guard_enabled = stabilize_management_route and any(
             config.type == HostDevicePoolType.PCI_NIC for config in device_configs
-        ):
+        )
+        if self._management_route_guard_enabled:
             self._stabilize_management_route()
 
         # Dump the initialized pool to ease debugging of passthrough issues.
@@ -113,6 +115,13 @@ class LibvirtDevicePool(BaseDevicePool):
                 "No IOMMU Group has sufficient count of devices, "
                 f"Refer: {pool}"
             )
+
+        if (
+            pool_type == HostDevicePoolType.PCI_NIC
+            and self._management_route_guard_enabled
+            and not self._management_route_cleanup_command
+        ):
+            self._stabilize_management_route()
 
         devices: List[DeviceAddressSchema] = []
         selected_pools = results[0]

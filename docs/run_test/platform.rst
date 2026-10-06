@@ -14,6 +14,8 @@ Run tests on different platforms
 
 -  `Run on Linux and QEMU <#run-on-linux-and-qemu>`__
 
+-  `OpenVMM NIC passthrough <#openvmm-nic-passthrough>`__
+
 -  `Run on AWS <#run-on-aws>`__
 
 -  `Run on WSL <#run-on-wsl>`__
@@ -370,6 +372,25 @@ For CBL-Mariner:
    .. code:: bash
 
       ./lisa.sh  -r ./microsoft/runbook/qemu/CBL-Mariner.yml -v "admin_private_key_file:<private key file>" -v "qcow2:<qcow2 file>"
+
+OpenVMM NIC passthrough
+----------------------
+
+OpenVMM guests on the same host share a device pool. When NIC passthrough is
+configured, OpenVMM enables the pool's IPv4 SSH return-route guard before devices
+are detached. On a multi-NIC host, the interface owning the SSH server address
+may differ from the interface carrying SSH replies. If the return route uses an
+eligible passthrough NIC, LISA temporarily pins traffic to the SSH peer through
+the management interface.
+
+The temporary route remains while any passthrough NIC is allocated. Cleanup
+restores the original device drivers before releasing devices and removes the
+route after the last NIC is released. If driver restoration fails, the allocation
+and route are retained; resolve the host connectivity or driver problem and retry
+cleanup. A cached pool rechecks the route before allocating NICs again.
+
+The guard requires an IPv4 SSH session with ``SSH_CONNECTION`` available. It does
+not protect IPv6 management routing.
 
 Run on AWS
 ------------

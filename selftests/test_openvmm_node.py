@@ -4,20 +4,27 @@
 from pathlib import Path, PurePath, PurePosixPath
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from typing import Any, Tuple, cast
+from typing import Any, List, Tuple, cast
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 import yaml
+from assertpy import assert_that
 
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
-from lisa.sut_orchestrator.openvmm.context import NodeContext
+from lisa.sut_orchestrator.openvmm.context import (
+    DeviceAddressSchema,
+    DevicePassthroughContext,
+    NodeContext,
+    get_host_context,
+)
 from lisa.sut_orchestrator.openvmm.node import OpenVmmController, OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
     OPENVMM_ADDRESS_MODE_STATIC,
     OPENVMM_CONNECTION_MODE_HOST_PROXY,
     OPENVMM_NETWORK_MODE_TAP,
+    OpenVmmDevicePassthroughSchema,
     OpenVmmGuestNodeSchema,
     OpenVmmNetworkSchema,
     OpenVmmSerialSchema,
@@ -26,13 +33,15 @@ from lisa.sut_orchestrator.openvmm.schema import (
 from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
+from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
 from lisa.tools import Cat, Ip, Kill, Mkdir
 from lisa.tools.openvmm import (
     OPENVMM_DISK_DEVICE_SCSI,
     OPENVMM_IOMMU_NONE,
     OPENVMM_NETWORK_DEVICE_SYNTHETIC,
 )
-from lisa.util import LisaException
+from lisa.util import LisaException, ResourceAwaitableException
+from selftests.test_libvirt_device_pool import _load_device_pool_module
 
 
 class OpenVmmNodeTestCase(TestCase):
@@ -51,9 +60,226 @@ class OpenVmmNodeTestCase(TestCase):
             get_pure_path=PurePosixPath,
             shell=SimpleNamespace(copy=shell_copy),
             tools={Kill: SimpleNamespace(by_pid=kill_by_pid)},
+            log=guest_log,
         )
         controller = OpenVmmController(cast(Any, host_node), cast(Any, guest_log))
         return controller, shell_copy, kill_by_pid, guest_log
+
+    def _create_passthrough_context(self) -> NodeContext:
+        return NodeContext(
+            passthrough_devices=[
+                DevicePassthroughContext(
+                    managed="yes",
+                    device_list=[DeviceAddressSchema(bus="19", slot="00")],
+                )
+            ]
+        )
+
+    def test_shared_device_pool_enables_management_route_guard(self) -> None:
+        device_pool_module = _load_device_pool_module()
+        controller, _, _, _ = self._create_controller()
+        runbook = OpenVmmGuestNodeSchema(
+            uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+            disk_img="/tmp/guest.img",
+            device_pools=[HostDevicePoolSchema(auto_discover=True)],
+        )
+
+        with patch.object(device_pool_module, "LibvirtDevicePool") as pool_type:
+            pool = controller._get_or_create_device_pool(runbook)
+            reused_pool = controller._get_or_create_device_pool(runbook)
+
+        pool_type.assert_called_once()
+        configure_pool = pool_type.return_value.configure_device_passthrough_pool
+        configure_pool.assert_called_once_with(
+            runbook.device_pools, stabilize_management_route=True
+        )
+        assert_that(reused_pool).is_same_as(pool)
+
+    def test_release_cleans_route_after_restoring_and_releasing_devices(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        pool = MagicMock()
+        get_host_context(controller.host_node).device_pool = pool
+        node_context = self._create_passthrough_context()
+        events: List[str] = []
+        pool.release_devices.side_effect = lambda context: events.append("release")
+        pool.cleanup.side_effect = lambda: events.append("cleanup")
+
+        with patch(
+            "lisa.sut_orchestrator.openvmm.node.get_node_context",
+            return_value=node_context,
+        ), patch.object(
+            controller,
+            "_restore_device_passthrough_drivers",
+            side_effect=lambda context: events.append("restore"),
+        ):
+            controller.release_device_passthrough(cast(Any, SimpleNamespace()))
+
+        assert_that(events).is_equal_to(["restore", "release", "cleanup"])
+        assert_that(node_context.passthrough_devices).is_empty()
+
+    def test_release_keeps_allocations_when_driver_restoration_fails(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        pool = MagicMock()
+        get_host_context(controller.host_node).device_pool = pool
+        node_context = self._create_passthrough_context()
+
+        with patch(
+            "lisa.sut_orchestrator.openvmm.node.get_node_context",
+            return_value=node_context,
+        ), patch.object(
+            controller,
+            "_restore_device_passthrough_drivers",
+            side_effect=LisaException("driver restore failed"),
+        ), self.assertRaisesRegex(
+            LisaException, "failed to restore OpenVMM passthrough device drivers"
+        ):
+            controller.release_device_passthrough(cast(Any, SimpleNamespace()))
+
+        pool.release_devices.assert_not_called()
+        pool.cleanup.assert_not_called()
+        assert_that(node_context.passthrough_devices).described_as(
+            "Failed driver restoration must retain allocations and the shared SSH route"
+        ).is_length(1)
+
+    def test_shared_pool_route_cleanup_waits_for_last_openvmm_guest(self) -> None:
+        device_pool_module = _load_device_pool_module()
+        controller, _, _, _ = self._create_controller()
+        pool = device_pool_module.LibvirtDevicePool(controller.host_node, MagicMock())
+        get_host_context(controller.host_node).device_pool = pool
+        pool_type = HostDevicePoolType.PCI_NIC
+        pool.available_host_devices = {
+            pool_type: {
+                "iommu_grp_31": [
+                    device_pool_module.DeviceAddressSchema(
+                        domain="0000", bus="19", slot="00", function="0"
+                    )
+                ],
+                "iommu_grp_32": [
+                    device_pool_module.DeviceAddressSchema(
+                        domain="0000", bus="19", slot="00", function="1"
+                    )
+                ],
+            }
+        }
+        node_contexts: List[NodeContext] = []
+        for _ in list(pool.available_host_devices[pool_type]):
+            device = pool.request_devices(pool_type, 1)[0]
+            node_contexts.append(
+                NodeContext(
+                    passthrough_devices=[
+                        DevicePassthroughContext(
+                            managed="yes",
+                            device_list=[
+                                DeviceAddressSchema(
+                                    domain=device.domain,
+                                    bus=device.bus,
+                                    slot=device.slot,
+                                    function=device.function,
+                                    original_driver="ixgbe",
+                                )
+                            ],
+                        )
+                    ]
+                )
+            )
+        cleanup_command = "ip route del 192.0.2.10/32"
+        pool._management_route_cleanup_command = cleanup_command
+        execute = MagicMock(
+            return_value=SimpleNamespace(exit_code=0, stderr="", stdout="")
+        )
+
+        with patch(
+            "lisa.sut_orchestrator.openvmm.node.get_node_context",
+            side_effect=node_contexts,
+        ), patch.object(
+            controller, "_restore_device_passthrough_drivers"
+        ), patch.object(
+            controller.host_node, "execute", execute
+        ):
+            controller.release_device_passthrough(cast(Any, SimpleNamespace()))
+            execute.assert_not_called()
+            assert_that(pool._management_route_cleanup_command).is_equal_to(
+                cleanup_command
+            )
+
+            controller.release_device_passthrough(cast(Any, SimpleNamespace()))
+
+        execute.assert_called_once_with(
+            cmd=cleanup_command,
+            shell=True,
+            sudo=True,
+            no_error_log=True,
+            expected_exit_code=None,
+        )
+        assert_that(pool._management_route_cleanup_command).is_empty()
+        assert_that(pool._allocated_device_groups).is_empty()
+
+    def test_unallocated_passthrough_failure_cleans_management_route(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        pool = MagicMock()
+        pool.request_devices.side_effect = ResourceAwaitableException("pool exhausted")
+        node_context = NodeContext()
+        runbook = OpenVmmGuestNodeSchema(
+            uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+            disk_img="/tmp/guest.img",
+            device_passthrough=[OpenVmmDevicePassthroughSchema(count=1)],
+        )
+
+        with patch.object(
+            controller, "_get_or_create_device_pool", return_value=pool
+        ), self.assertRaisesRegex(ResourceAwaitableException, "pool exhausted"):
+            controller.set_device_passthrough_node_context(node_context, runbook)
+
+        pool.cleanup.assert_called_once_with()
+        assert_that(node_context.passthrough_devices).is_empty()
+
+    def test_binding_failure_only_cleans_route_after_successful_rollback(self) -> None:
+        for restore_failed in (False, True):
+            with self.subTest(restore_failed=restore_failed):
+                self._assert_binding_failure_rollback(restore_failed)
+
+    def _assert_binding_failure_rollback(self, restore_failed: bool) -> None:
+        controller, _, _, _ = self._create_controller()
+        pool = MagicMock()
+        pool.request_devices.return_value = [DeviceAddressSchema(bus="19", slot="00")]
+        node_context = NodeContext()
+        runbook = OpenVmmGuestNodeSchema(
+            uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+            disk_img="/tmp/guest.img",
+            device_passthrough=[OpenVmmDevicePassthroughSchema(count=1, managed="yes")],
+        )
+        events: List[str] = []
+        pool.release_devices.side_effect = lambda context: events.append("release")
+        pool.cleanup.side_effect = lambda: events.append("cleanup")
+
+        def restore(context: NodeContext) -> None:
+            events.append("restore")
+            if restore_failed:
+                raise LisaException("driver restore failed")
+
+        with patch.object(
+            controller, "_get_or_create_device_pool", return_value=pool
+        ), patch.object(
+            controller, "_get_pci_device_driver", return_value="ixgbe"
+        ), patch.object(
+            controller,
+            "_bind_device_passthrough_to_vfio",
+            side_effect=LisaException("VFIO bind failed"),
+        ), patch.object(
+            controller, "_restore_device_passthrough_drivers", side_effect=restore
+        ), self.assertRaisesRegex(
+            LisaException, "VFIO bind failed"
+        ):
+            controller.set_device_passthrough_node_context(node_context, runbook)
+
+        if restore_failed:
+            assert_that(events).is_equal_to(["restore"])
+            assert_that(node_context.passthrough_devices).is_length(1)
+            pool.release_devices.assert_not_called()
+            pool.cleanup.assert_not_called()
+        else:
+            assert_that(events).is_equal_to(["restore", "release", "cleanup"])
+            assert_that(node_context.passthrough_devices).is_empty()
 
     def test_resolve_guest_artifact_path_uses_unique_names(self) -> None:
         controller, shell_copy, _, _ = self._create_controller()
