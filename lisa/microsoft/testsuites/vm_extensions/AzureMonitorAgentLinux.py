@@ -175,10 +175,10 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
     ) -> Iterator[None]:
         backup_command = (
             "backup_path=$(mktemp /tmp/lisa-ama-os-release.XXXXXX) && "
-            "trap 'rm -f \"$backup_path\"' EXIT && "
-            "cp --dereference /etc/os-release \"$backup_path\" && "
-            "cmp -s /etc/os-release \"$backup_path\" && "
-            "printf '%s' \"$backup_path\" && "
+            "trap 'rm -f $backup_path' EXIT && "
+            "cp --dereference /etc/os-release $backup_path && "
+            "cmp -s /etc/os-release $backup_path && "
+            "printf '%s' $backup_path && "
             "trap - EXIT"
         )
         backup_result = node.execute(
