@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 from __future__ import annotations
 
+import re
 from threading import Lock
 from typing import cast
 from weakref import WeakKeyDictionary, WeakSet
@@ -196,9 +197,9 @@ class AziHsm(TestSuite):
                 )
             else:
                 raise SkippedException(
-                    "AZIHSM repository configuration is not defined for Azure Linux "
-                    f"{node.os.information.release}. Add the matching package repository "
-                    "before running this suite."
+                    "AZIHSM repository configuration is not defined for Azure "
+                    f"Linux {node.os.information.release}. Add the matching "
+                    "package repository before running this suite."
                 )
 
         # Indicate we have done this step already
@@ -413,8 +414,23 @@ class AziHsm(TestSuite):
         ).is_true()
 
         #
-        # Test 4 - rpm -V reports no discrepancies
-        # Skipping this until support is added to lisa/operating_system.py
+        # Test 4 - rpm -V / dpkg -V reports no discrepancies
+        if isinstance(node.os, CBLMariner):
+            verify_cmd = f"rpm -V {driver_package_name}"
+        else:
+            # Ubuntu/Debian
+            verify_cmd = f"dpkg -V {driver_package_name}"
+        verify_result = node.execute(
+            verify_cmd,
+            sudo=True,
+            shell=True,
+            expected_exit_code=None,
+        )
+        assert_that(verify_result.exit_code).described_as(
+            f"{verify_cmd} reported discrepancies for {driver_package_name}: "
+            f"{verify_result.stdout.strip()}"
+        ).is_equal_to(0)
+        log.info(f"{driver_package_name} passed integrity verification")
 
         #
         # Test 5 - depmod registered the module in modules.dep
@@ -423,12 +439,21 @@ class AziHsm(TestSuite):
             f"/lib/modules/{kernel_version}/modules.dep", force_run=True
         )
 
-        # Note: this could be under either 'extra' or 'updates'
-        # We do not provide the subdir, so a driver located anywhere
-        # in the tree would match and cause a false positive
+        # kmod_path is an absolute path such as
+        # /lib/modules/<kernel_version>/extra/azihsm.ko or
+        # .../updates/azihsm.ko. Match the path relative to the kernel's
+        # modules directory, rather than a bare "azihsm.ko" substring, so a
+        # stale/duplicate module elsewhere in the tree cannot cause a false
+        # positive.
+        modules_dir_prefix = f"/lib/modules/{kernel_version}/"
+        assert_that(kmod_path).described_as(
+            f"kmod_path {kmod_path} should be under {modules_dir_prefix}"
+        ).starts_with(modules_dir_prefix)
+        relative_kmod_path = kmod_path[len(modules_dir_prefix) :]
         assert_that(contents).described_as(
-            "modules.dep does not contain the AZIHSM kernel module"
-        ).contains("azihsm.ko")
+            "modules.dep does not contain the AZIHSM kernel module at "
+            f"{relative_kmod_path}"
+        ).contains(relative_kmod_path)
 
     #
     #
@@ -500,6 +525,14 @@ class AziHsm(TestSuite):
                 )
             log.info("module is not loaded as desired")
 
+            # Capture a dmesg baseline before loading, so Test 9 below only
+            # inspects lines newly appended by this load - not stale
+            # messages left over from earlier test cases (e.g. driver/SDK
+            # resiliency tests that deliberately exercise abort paths).
+            pre_load_dmesg_lines = node.tools[Dmesg].get_output(
+                force_run=True
+            ).splitlines()
+
             #
             # Test 7 -  modprobe loads module
             modprobe.load(AZIHSM_NAME)
@@ -514,7 +547,25 @@ class AziHsm(TestSuite):
 
             #
             # Test 9 -  No dmesg errors from the module
-            # Skipping this as normal loading does produce dmesg output
+            post_load_dmesg_lines = node.tools[Dmesg].get_output(
+                force_run=True
+            ).splitlines()
+            new_dmesg_lines = post_load_dmesg_lines[len(pre_load_dmesg_lines) :]
+            azihsm_lines = [
+                line for line in new_dmesg_lines if AZIHSM_NAME in line.lower()
+            ]
+            error_lines = [
+                line
+                for line in azihsm_lines
+                if re.search(
+                    r"\b(error|fail(ed|ure)?|panic|oops|bug)\b", line, re.IGNORECASE
+                )
+            ]
+            assert_that(error_lines).described_as(
+                "dmesg should not report azihsm error signatures after "
+                f"loading the module: {error_lines}"
+            ).is_empty()
+            log.info("No azihsm error signatures found in dmesg after module load")
 
             #
             # Test 10 -  /proc/modules shows state - Live
@@ -635,6 +686,26 @@ class AziHsm(TestSuite):
         # systems, which is enforced by this suite's supported_os.
         posix_os = cast(Posix, node.os)
 
+        # Capture the package's owned files (regular files only) before
+        # uninstalling, via the package manifest, so Test 18 below can
+        # verify specifically that *this* package's files are gone -
+        # rather than assuming the module directory is empty, which would
+        # false-fail if other drivers share it.
+        if isinstance(node.os, CBLMariner):
+            manifest_cmd = f"rpm -ql {driver_package_name}"
+        else:
+            # Ubuntu/Debian
+            manifest_cmd = f"dpkg -L {driver_package_name}"
+        manifest_result = node.execute(manifest_cmd, sudo=True, shell=True)
+        owned_files = [
+            path
+            for path in (
+                line.strip() for line in manifest_result.stdout.splitlines()
+            )
+            if path.startswith("/")
+            and not node.shell.is_dir(node.get_pure_path(path))
+        ]
+
         #
         # Test 14 - Package removal succeeds
         # The package unloads the module
@@ -670,8 +741,17 @@ class AziHsm(TestSuite):
 
         #
         # Test 18 - no leftover files
-        # Skipping this as it is possible for other drivers to also
-        # be installed thus the updates directory will not always be empty
+        # Check specifically for this package's own files (captured from
+        # the package manifest before uninstall), rather than assuming the
+        # whole module directory is empty - other drivers may share it.
+        leftover_files = [
+            path for path in owned_files if node.shell.exists(node.get_pure_path(path))
+        ]
+        assert_that(leftover_files).described_as(
+            f"Files owned by {driver_package_name} should not remain after "
+            f"uninstall: {leftover_files}"
+        ).is_empty()
+        log.info("No leftover AZIHSM files found after uninstall")
 
     #
     #
@@ -777,7 +857,7 @@ class AziHsm(TestSuite):
                     expected_exit_code=None,
                     no_info_log=False,
                 )
-            except Exception as e:
+            except LisaException as e:
                 log.error(f"Exception: {e}")
                 failed_tests.append(f"{test} ({e})")
                 self._log_azihsm_test_failure_diagnostics(
@@ -818,7 +898,7 @@ class AziHsm(TestSuite):
                 expected_exit_code=None,
                 no_info_log=False,
             )
-        except Exception as e:
+        except LisaException as e:
             log.error(f"Exception {e}")
             failed_tests.append(f"{test} ({e})")
             self._log_azihsm_test_failure_diagnostics(
