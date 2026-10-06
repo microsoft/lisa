@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from threading import Lock
-from typing import cast
+from typing import List, cast
 from weakref import WeakKeyDictionary, WeakSet
 
 from assertpy import assert_that
@@ -55,6 +55,27 @@ _STATE_LOCK = Lock()
     ),
 )
 class AziHsm(TestSuite):
+    @staticmethod
+    def _new_dmesg_lines(
+        pre_lines: List[str], post_lines: List[str]
+    ) -> List[str]:
+        # Return the dmesg lines appended since the "pre" snapshot was
+        # captured. Rather than assuming the ring buffer only appends (and
+        # slicing at len(pre_lines)), anchor on the last line of the "pre"
+        # snapshot and locate its most recent occurrence in "post". This
+        # stays correct even if the buffer wrapped and dropped older lines
+        # in between the two snapshots, shifting offsets. If the anchor line
+        # can no longer be found (the whole "pre" snapshot has been evicted
+        # by wraparound), conservatively treat every "post" line as new
+        # rather than risk silently dropping genuinely new error lines.
+        if not pre_lines:
+            return post_lines
+        anchor = pre_lines[-1]
+        for index in range(len(post_lines) - 1, -1, -1):
+            if post_lines[index] == anchor:
+                return post_lines[index + 1 :]
+        return post_lines
+
     def check_azihsm_device(self, node: Node) -> None:
         if not node.shell.exists(node.get_pure_path(AZIHSM_DEV)):
             raise SkippedException(
@@ -550,7 +571,9 @@ class AziHsm(TestSuite):
             post_load_dmesg_lines = node.tools[Dmesg].get_output(
                 force_run=True
             ).splitlines()
-            new_dmesg_lines = post_load_dmesg_lines[len(pre_load_dmesg_lines) :]
+            new_dmesg_lines = self._new_dmesg_lines(
+                pre_load_dmesg_lines, post_load_dmesg_lines
+            )
             azihsm_lines = [
                 line for line in new_dmesg_lines if AZIHSM_NAME in line.lower()
             ]
