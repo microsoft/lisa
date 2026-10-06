@@ -508,7 +508,9 @@ class OpenVmmController:
                     "least one OpenVMM guest runbook for the baremetal host."
                 )
             device_pool = LibvirtDevicePool(self.host_node, cast(Any, None))
-            device_pool.configure_device_passthrough_pool(runbook.device_pools)
+            device_pool.configure_device_passthrough_pool(
+                runbook.device_pools, stabilize_management_route=True
+            )
             host_context.device_pool = device_pool
             host_context.device_pool_config_key = config_key
         elif runbook.device_pools and host_context.device_pool_config_key != config_key:
@@ -561,16 +563,17 @@ class OpenVmmController:
 
                 self._bind_device_passthrough_to_vfio(node_context)
             except (LisaException, ResourceAwaitableException):
-                if node_context.passthrough_devices:
-                    try:
-                        self._restore_device_passthrough_drivers(node_context)
-                    except Exception as restore_error:
-                        self._log.debug(
-                            "failed to restore OpenVMM passthrough drivers after "
-                            f"allocation failure: {restore_error}"
-                        )
+                try:
+                    self._restore_device_passthrough_drivers(node_context)
+                except Exception as restore_error:
+                    self._log.debug(
+                        "failed to restore OpenVMM passthrough drivers after "
+                        f"allocation failure: {restore_error}"
+                    )
+                else:
                     device_pool.release_devices(cast(Any, node_context))
                     node_context.passthrough_devices.clear()
+                    device_pool.cleanup()
                 raise
 
     def _bind_device_passthrough_to_vfio(self, node_context: NodeContext) -> None:
@@ -727,15 +730,17 @@ class OpenVmmController:
                 self._restore_device_passthrough_drivers(node_context)
             except Exception as identifier:
                 restore_error = identifier
-            finally:
-                host_context.device_pool.release_devices(node_context)
-                node_context.passthrough_devices.clear()
 
-            if restore_error:
+            if restore_error is not None:
                 raise LisaException(
                     "failed to restore OpenVMM passthrough device drivers: "
-                    f"{restore_error}"
-                )
+                    f"{restore_error}. Verify host connectivity and the original "
+                    "PCI drivers, then retry cleanup."
+                ) from restore_error
+
+            host_context.device_pool.release_devices(node_context)
+            node_context.passthrough_devices.clear()
+            host_context.device_pool.cleanup()
 
     def launch(self, node: "OpenVmmGuestNode", log: Logger) -> None:
         runbook = cast(OpenVmmGuestNodeSchema, node.runbook)
