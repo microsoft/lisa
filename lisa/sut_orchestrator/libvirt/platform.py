@@ -23,6 +23,7 @@ import yaml
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
 from lisa.feature import Feature
+from lisa.features.security_profile import SecurityProfileType
 from lisa.node import Node, RemoteNode, local_node_connect
 from lisa.operating_system import CBLMariner
 from lisa.platform_ import Platform
@@ -371,7 +372,11 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         node_capabilities.network_interface.max_nic_count = 1
         node_capabilities.network_interface.nic_count = 1
         node_capabilities.gpu_count = 0
-        security_profile_setting = SecurityProfileSettings()
+        security_profile_setting = SecurityProfileSettings(
+            security_profile=search_space.SetSpace(
+                True, [SecurityProfileType.Standard, SecurityProfileType.CVM]
+            )
+        )
         node_capabilities.features = search_space.SetSpace[schema.FeatureSettings](
             is_allow_set=True,
             items=[
