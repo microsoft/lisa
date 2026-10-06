@@ -60,31 +60,25 @@ class AziHsm(TestSuite):
         pre_lines: List[str], post_lines: List[str]
     ) -> List[str]:
         # Return the dmesg lines appended since the "pre" snapshot was
-        # captured. Rather than assuming the ring buffer only appends (and
-        # slicing at len(pre_lines)), anchor on a short multi-line sequence
-        # from the tail of the "pre" snapshot and locate its first (i.e.
-        # earliest, chronologically correct) occurrence in "post". A single
-        # repeated line is not a sufficiently unique anchor: if the same
-        # text recurs later in "post" (e.g. a generic info message), taking
-        # its most recent occurrence could truncate past, and hide, a
-        # genuinely new error line that appeared between the real boundary
-        # and the coincidental repeat. Requiring several consecutive lines
-        # to match makes a coincidental collision far less likely, and
-        # searching left-to-right finds the true (earliest) boundary rather
-        # than a later look-alike. This stays correct even if the buffer
-        # wrapped and dropped older lines between the two snapshots,
-        # shifting offsets. If no matching anchor sequence can be found at
-        # all (the whole "pre" snapshot has been evicted by wraparound),
-        # conservatively treat every "post" line as new rather than risk
-        # silently dropping genuinely new error lines.
-        if not pre_lines:
-            return post_lines
-        anchor_len = min(5, len(pre_lines))
-        anchor_seq = pre_lines[-anchor_len:]
-        last_start = len(post_lines) - anchor_len
-        for start in range(last_start + 1):
-            if post_lines[start : start + anchor_len] == anchor_seq:
-                return post_lines[start + anchor_len :]
+        # captured. A ring buffer only ever drops lines from its front and
+        # appends lines at its end, so "post" must be some suffix of "pre"
+        # (if older lines were evicted) followed by newly appended lines.
+        # Find the largest k such that the last k lines of "pre" equal the
+        # first k lines of "post" - i.e. the maximal suffix-of-pre /
+        # prefix-of-post overlap - and treat everything in "post" after
+        # that overlap as new. Searching for an anchor sequence anywhere in
+        # "post" (an earlier approach) is unsound: if that same sequence
+        # also occurred earlier in "pre" itself, a match could be found at
+        # the wrong (too early) position, misclassifying old lines as new.
+        # Anchoring the overlap specifically at the start of "post" avoids
+        # that ambiguity and remains correct whether or not the buffer
+        # wrapped. If no overlap exists at all (the whole "pre" snapshot
+        # has been evicted), this returns the whole "post" snapshot,
+        # erring on the side of catching errors rather than missing them.
+        max_overlap = min(len(pre_lines), len(post_lines))
+        for overlap in range(max_overlap, 0, -1):
+            if pre_lines[-overlap:] == post_lines[:overlap]:
+                return post_lines[overlap:]
         return post_lines
 
     def check_azihsm_device(self, node: Node) -> None:
@@ -458,10 +452,17 @@ class AziHsm(TestSuite):
             shell=True,
             expected_exit_code=None,
         )
-        assert_that(verify_result.exit_code).described_as(
+        # dpkg -V (and rpm -V) report discrepancies as lines on stdout
+        # without necessarily setting a non-zero exit code, so the exit
+        # code alone is not sufficient evidence of a clean result; stdout
+        # must also be empty.
+        verify_stdout = verify_result.stdout.strip()
+        assert_that(
+            verify_result.exit_code == 0 and not verify_stdout
+        ).described_as(
             f"{verify_cmd} reported discrepancies for {driver_package_name}: "
-            f"{verify_result.stdout.strip()}"
-        ).is_equal_to(0)
+            f"exit code {verify_result.exit_code}, stdout: {verify_stdout}"
+        ).is_true()
         log.info(f"{driver_package_name} passed integrity verification")
 
         #
