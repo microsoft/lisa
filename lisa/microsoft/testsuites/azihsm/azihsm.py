@@ -20,7 +20,17 @@ from lisa import (
 )
 from lisa.base_tools import Cat, Uname
 from lisa.operating_system import CBLMariner, Posix, Ubuntu
-from lisa.tools import Dmesg, Echo, Lsmod, Modinfo, Modprobe, Usermod
+from lisa.tools import (
+    Dmesg,
+    Echo,
+    Lsmod,
+    Mkdir,
+    Modinfo,
+    Modprobe,
+    OpenSSL,
+    Rm,
+    Usermod,
+)
 from lisa.util import LisaException, check_till_timeout
 
 AZIHSM_DEV = "/dev/azihsm0"
@@ -771,14 +781,10 @@ class AziHsm(TestSuite):
 
         #
         # Test 17 - modprobe fails
-        result = node.execute(
-            f"modprobe {AZIHSM_NAME}",
-            sudo=True,
-            expected_exit_code=None,
-        )
-        assert_that(result.exit_code).described_as(
+        module_exists = node.tools[Modprobe].module_exists(AZIHSM_NAME)
+        assert_that(module_exists).described_as(
             "modprobe should fail after the package is uninstalled"
-        ).is_not_equal_to(0)
+        ).is_false()
         log.info("modprobe correctly failed")
 
         #
@@ -1004,12 +1010,13 @@ class AziHsm(TestSuite):
         # installed
         self.install_all_azihsm_packages(node=node, log=log)
 
+        openssl = node.tools[OpenSSL]
+
         # The modules directory differs across distros (e.g. /usr/lib64/
         # ossl-modules on CBLMariner vs. /usr/lib/<arch>/ossl-modules on
         # Ubuntu), so ask OpenSSL where it is instead of hard-coding a path.
-        version_result = node.execute(
-            "openssl version -m",
-            shell=True,
+        version_result = openssl.run(
+            "version -m",
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "Failed to query the OpenSSL modules directory"
@@ -1020,7 +1027,7 @@ class AziHsm(TestSuite):
             "Unexpected `openssl version -m` output: "
             f"{version_result.stdout}"
         ).is_not_none()
-        assert modules_dir_match is not None  # for mypy
+        modules_dir_match = cast(re.Match[str], modules_dir_match)
         provider_so = f"{modules_dir_match.group(1)}/azihsm_provider.so"
         assert_that(
             node.shell.exists(node.get_pure_path(provider_so))
@@ -1033,19 +1040,13 @@ class AziHsm(TestSuite):
         # behind. No OBK/POTA/credentials are provisioned here: see the
         # docstring above for why key generation isn't exercised yet.
         work_dir = node.get_pure_path("/tmp/azihsm_openssl_engine_test")
-        node.execute(f"rm -rf {work_dir}", sudo=True, shell=True)
-        node.execute(
-            f"mkdir -p {work_dir}",
-            sudo=True,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                f"Failed to create scratch directory {work_dir}"
-            ),
-        )
+        node.tools[Rm].remove_directory(str(work_dir), sudo=True)
+        node.tools[Mkdir].create_directory(str(work_dir), sudo=True)
 
         try:
-            openssl_cnf_path = node.get_pure_path(f"{work_dir}/openssl.cnf")
+            openssl_cnf_path = work_dir / "openssl.cnf"
+            bmk_path = work_dir / "bmk.bin"
+            muk_path = work_dir / "muk.bin"
             openssl_cnf_contents = (
                 "openssl_conf = openssl_init\n"
                 "[openssl_init]\n"
@@ -1058,8 +1059,8 @@ class AziHsm(TestSuite):
                 "[azihsm_sect]\n"
                 f"module = {provider_so}\n"
                 "activate = 1\n"
-                f"azihsm-bmk-path = {work_dir}/bmk.bin\n"
-                f"azihsm-muk-path = {work_dir}/muk.bin\n"
+                f"azihsm-bmk-path = {bmk_path}\n"
+                f"azihsm-muk-path = {muk_path}\n"
                 "azihsm-api-revision = 1.0\n"
             )
             node.tools[Echo].write_to_file(
@@ -1071,10 +1072,9 @@ class AziHsm(TestSuite):
 
             # Confirm the provider actually loads and is reported as
             # available via the generated openssl.cnf.
-            list_result = node.execute(
-                "openssl list -providers",
+            list_result = openssl.run(
+                "list -providers",
                 sudo=True,
-                shell=True,
                 update_envs={"OPENSSL_CONF": str(openssl_cnf_path)},
                 expected_exit_code=0,
                 expected_exit_code_failure_message=(
@@ -1086,9 +1086,4 @@ class AziHsm(TestSuite):
                 f"{list_result.stdout}"
             ).contains("azihsm")
         finally:
-            node.execute(
-                f"rm -rf {work_dir}",
-                sudo=True,
-                shell=True,
-                expected_exit_code=None,
-            )
+            node.tools[Rm].remove_directory(str(work_dir), sudo=True)
