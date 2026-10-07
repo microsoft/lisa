@@ -24,6 +24,8 @@ from lisa.util import SkippedException
 
 _SITE_RECOVERY_PUBLISHER = "Microsoft.Azure.RecoveryServices.SiteRecovery"
 _SITE_RECOVERY2_PUBLISHER = "Microsoft.Azure.RecoveryServices.SiteRecovery2"
+_SITE_RECOVERY_TEST_PUBLISHER = "Microsoft.Azure.SiteRecovery.Test"
+_SITE_RECOVERY2_TEST_PUBLISHER = "Microsoft.Azure.SiteRecovery2.Test"
 
 
 def _extension_requirement(
@@ -51,11 +53,12 @@ def _settings(command: str) -> Dict[str, str]:
     area="vm_extension",
     category="functional",
     description="""
-    This test suite validates production Azure Site Recovery VM extensions.
+    This test suite validates Azure Site Recovery VM extensions.
 
     The common Linux extension runs GetOsDetails. Distro-specific extensions
     run the public-only Install command, which installs the embedded Mobility
-    Service package without configuring replication.
+    Service package without configuring replication. Production extension
+    identities and selected test-namespace identities are covered.
     """,
     tags=["VM_Extension"],
     requirement=simple_requirement(
@@ -480,4 +483,71 @@ class SiteRecoveryTests(VmExtensionTestBase):  # type: ignore[misc]
             "Install",
             Ubuntu,
             26,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Validates the test-namespace Site Recovery common Linux extension by
+        running GetOsDetails with the explicitly requested candidate version.
+        """,
+        priority=5,
+        tags=["microsoft.azure.siterecovery.test.linux"],
+        maturity="preview",
+        requirement=_extension_requirement(Linux),
+    )
+    def microsoft_azure_siterecovery_test_linux_boot_validation_test(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        self._validate_extension(
+            node,
+            log,
+            variables,
+            _SITE_RECOVERY_TEST_PUBLISHER,
+            "Linux",
+            "site_recovery_test_linux",
+            "GetOsDetails",
+        )
+
+    @TestCaseMetadata(
+        description="Validates the test-namespace Site Recovery RHEL 9 package.",
+        priority=5,
+        tags=["microsoft.azure.siterecovery2.test.linuxrhel9"],
+        maturity="preview",
+        requirement=_extension_requirement(Redhat),
+    )
+    def microsoft_azure_siterecovery2_test_linuxrhel9_boot_validation_test(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        self._validate_extension(
+            node,
+            log,
+            variables,
+            _SITE_RECOVERY2_TEST_PUBLISHER,
+            "LinuxRHEL9",
+            "site_recovery2_test_linux_rhel9",
+            "Install",
+            Redhat,
+            9,
+        )
+
+    @TestCaseMetadata(
+        description="Validates the test-namespace Site Recovery Ubuntu 24.04 package.",
+        priority=5,
+        tags=["microsoft.azure.siterecovery2.test.linuxubuntu2404"],
+        maturity="preview",
+        requirement=_extension_requirement(Ubuntu),
+    )
+    def microsoft_azure_siterecovery2_test_linuxubuntu2404_boot_validation_test(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        self._validate_extension(
+            node,
+            log,
+            variables,
+            _SITE_RECOVERY2_TEST_PUBLISHER,
+            "LinuxUBUNTU2404",
+            "site_recovery2_test_linux_ubuntu2404",
+            "Install",
+            Ubuntu,
+            24,
         )
