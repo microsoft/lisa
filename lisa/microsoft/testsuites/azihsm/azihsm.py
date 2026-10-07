@@ -25,6 +25,7 @@ from lisa.util import LisaException, check_till_timeout
 
 AZIHSM_DEV = "/dev/azihsm0"
 AZIHSM_NAME = "azihsm"
+AZIHSM_BIN_DIR = "/usr/bin/azihsm"
 _TESTING_REPO_ADDED_NODES: WeakSet[Node] = WeakSet()
 _USER_GROUPS_ADDED_NODES: WeakSet[Node] = WeakSet()
 _PACKAGES_INSTALLED_NODES: WeakSet[Node] = WeakSet()
@@ -102,7 +103,7 @@ class AziHsm(TestSuite):
         diagnostic_commands = [
             ("id", False),
             ("groups", False),
-            (f"ls -la {AZIHSM_DEV}", True),
+            (f"ls -la {node.get_pure_path(AZIHSM_DEV)}", True),
             ("ps -ef | grep -i azihsm", True),
             ("lsmod | grep -i azihsm", True),
         ]
@@ -116,6 +117,10 @@ class AziHsm(TestSuite):
             log.info(f"[{command}]:\n{result.stdout.strip()}")
 
         try:
+            # 200 lines is comfortably larger than the dmesg output produced
+            # by a single azihsm test run, so the full module/device log
+            # trail leading up to the failure is captured without pulling in
+            # an excessive amount of unrelated kernel log history.
             dmesg_output = node.tools[Dmesg].get_output(
                 force_run=True, tail_lines=200
             )
@@ -605,7 +610,9 @@ class AziHsm(TestSuite):
             #
             # Test 10 -  /proc/modules shows state - Live
             result = node.execute(
-                f"awk -v mod={AZIHSM_NAME} " "'$1 == mod {print $5}' /proc/modules",
+                f"awk -v mod={AZIHSM_NAME} "
+                "'$1 == mod {print $5}' "
+                f"{node.get_pure_path('/proc/modules')}",
                 sudo=True,
                 shell=True,
             )
@@ -811,7 +818,7 @@ class AziHsm(TestSuite):
         params = "--test-threads 1"
 
         result = node.execute(
-            f"/usr/bin/azihsm/driver_tests {params}",
+            f"{node.get_pure_path(AZIHSM_BIN_DIR) / 'driver_tests'} {params}",
             # driver_tests runs against real, TPM-backed hardware. Without
             # AZIHSM_USE_TPM=1 the test helpers take the mock BK3 path
             # (treating sealed_bk3 as masked_bk3), which is invalid on real
@@ -884,7 +891,7 @@ class AziHsm(TestSuite):
             log.info(f"Running {test}")
             try:
                 result = node.execute(
-                    f"/usr/bin/azihsm/{test} {params}",
+                    f"{node.get_pure_path(AZIHSM_BIN_DIR) / test} {params}",
                     update_envs={"AZIHSM_USE_TPM": "1"},
                     timeout=1800,
                     # Don't assert here; the exit code is checked manually
@@ -929,7 +936,7 @@ class AziHsm(TestSuite):
         log.info(f"Running {test}")
         try:
             result = node.execute(
-                f"/usr/bin/azihsm/{test} {params}",
+                f"{node.get_pure_path(AZIHSM_BIN_DIR) / test} {params}",
                 update_envs={"AZIHSM_USE_TPM": "1",
                              "AZIHSM_DISABLE_MULTI_PROCESS_TESTS": "1"},
                 timeout=1800,
