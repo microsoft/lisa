@@ -396,7 +396,7 @@ class SelectTestcasesPrefilterTestCase(TestCase):
             _build_case("mshv_only", supported_host_capabilities=["mshv"]),
         ]
 
-        # gate off (empty target): capability filter must not drop anything
+        # gate off (target None): capability filter must not drop anything
         results = select_testcases(
             filters=None, init_cases=cases, target_capabilities=None
         )
@@ -423,16 +423,69 @@ class SelectTestcasesPrefilterTestCase(TestCase):
         self.assertTrue(_is_capability_compatible(cases[1], ["mshv"]))
         self.assertTrue(_is_capability_compatible(cases[0], []))
 
+    def test_empty_target_capabilities_drops_capability_cases(self) -> None:
+        cases = [
+            _build_case("any_host"),
+            _build_case("mshv_only", supported_host_capabilities=["mshv"]),
+        ]
+
+        # gate on but target declares no capabilities ([]): capability-gated
+        # cases are dropped pre-deploy, while cases with no requirement stay.
+        results = select_testcases(
+            filters=None, init_cases=cases, target_capabilities=[]
+        )
+        self.assertEqual(
+            sorted(result.name for result in results),
+            ["any_host"],
+        )
+
 
 class ResolveTargetCapabilitiesTestCase(TestCase):
-    def test_gate_off_returns_empty(self) -> None:
-        self.assertEqual(
-            _resolve_target_capabilities({"target_host_capabilities": "mshv"}), []
+    def test_gate_off_returns_none(self) -> None:
+        # gate missing: pre-filter disabled, so no filtering is applied.
+        self.assertIsNone(
+            _resolve_target_capabilities({"target_host_capabilities": "mshv"})
+        )
+
+    def test_gate_disabled_returns_none(self) -> None:
+        # gate explicitly false: pre-filter disabled.
+        self.assertIsNone(
+            _resolve_target_capabilities(
+                {
+                    "enable_capability_pre_filtering": "false",
+                    "target_host_capabilities": "mshv",
+                }
+            )
         )
 
     def test_gate_on_without_declaration_returns_empty(self) -> None:
+        # gate on, nothing declared: filter applies against an empty set.
         self.assertEqual(
             _resolve_target_capabilities({"enable_capability_pre_filtering": "true"}),
+            [],
+        )
+
+    def test_gate_on_empty_string_returns_empty(self) -> None:
+        # gate on, empty string: still an enabled empty set (not gate-off).
+        self.assertEqual(
+            _resolve_target_capabilities(
+                {
+                    "enable_capability_pre_filtering": "true",
+                    "target_host_capabilities": "",
+                }
+            ),
+            [],
+        )
+
+    def test_gate_on_empty_list_returns_empty(self) -> None:
+        # gate on, empty list: still an enabled empty set (not gate-off).
+        self.assertEqual(
+            _resolve_target_capabilities(
+                {
+                    "enable_capability_pre_filtering": True,
+                    "target_host_capabilities": [],
+                }
+            ),
             [],
         )
 

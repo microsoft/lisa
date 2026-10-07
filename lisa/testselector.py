@@ -190,7 +190,7 @@ def select_testcases(  # noqa: C901
         full_list = _prefilter_by_target_os(full_list, target_os)
     if target_platforms:
         full_list = _prefilter_by_target_platforms(full_list, target_platforms)
-    if target_capabilities:
+    if target_capabilities is not None:
         full_list = _prefilter_by_target_capabilities(full_list, target_capabilities)
     if filters:
         selected: Dict[str, TestCaseRuntimeData] = {}

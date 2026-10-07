@@ -78,15 +78,22 @@ def _resolve_target_platforms(runbook: schema.Runbook) -> List[str]:
     return platform_types
 
 
-def _resolve_target_capabilities(variables: Any) -> List[str]:
-    """Return the host capabilities the target provides, or an empty list.
+def _resolve_target_capabilities(variables: Any) -> Optional[List[str]]:
+    """Return the host capabilities the target provides, or ``None``.
 
     The ``enable_capability_pre_filtering`` runbook variable (default
     ``false``) gates the capability pre-filter. When enabled, the operator
     declares what the target host provides via ``target_host_capabilities``
     (comma-separated, e.g. ``mshv``). Cases requiring a capability not in
-    that set are dropped at selection time. When the gate is off or the
-    variable is missing, an empty list is returned and no case is dropped.
+    that set are dropped at selection time.
+
+    The return value distinguishes two states:
+
+    * ``None`` — the gate is off (or the variable is missing). The
+      pre-filter is skipped entirely and no case is dropped.
+    * ``[]`` — the gate is on but the target declares no capabilities. The
+      pre-filter is applied and every capability-gated case is dropped,
+      because the target satisfies no capability requirement.
     """
     if isinstance(variables, dict):
         raw = variables
@@ -94,10 +101,12 @@ def _resolve_target_capabilities(variables: Any) -> List[str]:
         raw = {}
     gate = raw.get("enable_capability_pre_filtering")
     if gate is None:
-        return []
+        return None
     gate_val = getattr(gate, "data", gate)
     if str(gate_val).lower() not in ("true", "1", "yes"):
-        return []
+        return None
+    # The gate is on from here: always return a list, never ``None``, so an
+    # explicitly empty declaration still applies the pre-filter.
     declared = raw.get("target_host_capabilities")
     if declared is None:
         return []

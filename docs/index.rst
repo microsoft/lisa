@@ -50,6 +50,7 @@ Why LISA
    Test Maturity Model <test_maturity_model>
    VM Extension Test Onboarding Strategy <vm_extension_validation_framework>
    Distro Pre-Filter <distro_pre_filter>
+   Host Capability Pre-Filter <host_capability_pre_filter>
    Contributing <contributing>
    Troubleshooting <troubleshooting>
 
