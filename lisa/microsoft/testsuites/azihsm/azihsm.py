@@ -1075,6 +1075,7 @@ class AziHsm(TestSuite):
             list_result = openssl.run(
                 "list -providers",
                 sudo=True,
+                force_run=True,
                 update_envs={"OPENSSL_CONF": str(openssl_cnf_path)},
                 expected_exit_code=0,
                 expected_exit_code_failure_message=(
