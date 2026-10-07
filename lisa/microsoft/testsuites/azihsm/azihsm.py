@@ -20,7 +20,7 @@ from lisa import (
 )
 from lisa.base_tools import Cat, Uname
 from lisa.operating_system import CBLMariner, Posix, Ubuntu
-from lisa.tools import Dmesg, Lsmod, Modinfo, Modprobe, Usermod
+from lisa.tools import Dmesg, Echo, Lsmod, Modinfo, Modprobe, Usermod
 from lisa.util import LisaException, check_till_timeout
 
 AZIHSM_DEV = "/dev/azihsm0"
@@ -971,3 +971,124 @@ class AziHsm(TestSuite):
             f"{failed_tests}. Review the command output above for each "
             "failing test to diagnose the cause."
         ).is_empty()
+
+    #
+    #
+    @TestCaseMetadata(
+        description="""
+            Verify the azihsm OpenSSL provider (packaged as
+            libengine-azihsm-openssl) is installed and loads via
+            openssl.cnf.
+
+            Note: this case deliberately stops short of exercising key
+            generation (openssl genpkey/storeutl against the azihsm
+            provider). The device's BK3 base key is one-shot per physical
+            power cycle, and once *any* consumer (this test, the driver
+            tests, or the SDK tests) initializes it, later init attempts
+            from a different caller only succeed with a cached MOBK file
+            from that original init. In practice this state has been
+            observed to persist even across an Azure VM deallocate/start
+            cycle (it lives on the physical HSM card, not the VM/OS disk),
+            so a key-generation assertion here would be flaky across
+            repeated CI runs rather than a reliable functional check.
+            """,
+        priority=1,
+    )
+    def verify_azihsm_openssl_engine(self, node: Node, log: Logger) -> None:
+        # Make sure the driver package is installed
+        self.install_azihsm_driver_package(node=node, log=log)
+        self.check_azihsm_device(node=node)
+        node.mark_dirty()  # this case installs packages and runs the engine
+
+        # Make sure the azihsm packages (including the OpenSSL provider) are
+        # installed
+        self.install_all_azihsm_packages(node=node, log=log)
+
+        # The modules directory differs across distros (e.g. /usr/lib64/
+        # ossl-modules on CBLMariner vs. /usr/lib/<arch>/ossl-modules on
+        # Ubuntu), so ask OpenSSL where it is instead of hard-coding a path.
+        version_result = node.execute(
+            "openssl version -m",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to query the OpenSSL modules directory"
+            ),
+        )
+        modules_dir_match = re.search(r'"([^"]+)"', version_result.stdout)
+        assert_that(modules_dir_match).described_as(
+            "Unexpected `openssl version -m` output: "
+            f"{version_result.stdout}"
+        ).is_not_none()
+        assert modules_dir_match is not None  # for mypy
+        provider_so = f"{modules_dir_match.group(1)}/azihsm_provider.so"
+        assert_that(
+            node.shell.exists(node.get_pure_path(provider_so))
+        ).described_as(
+            f"azihsm OpenSSL provider module not found at {provider_so}"
+        ).is_true()
+
+        # Use an isolated scratch directory for the provider config so
+        # repeated runs don't collide with each other or leave stale state
+        # behind. No OBK/POTA/credentials are provisioned here: see the
+        # docstring above for why key generation isn't exercised yet.
+        work_dir = node.get_pure_path("/tmp/azihsm_openssl_engine_test")
+        node.execute(f"rm -rf {work_dir}", sudo=True, shell=True)
+        node.execute(
+            f"mkdir -p {work_dir}",
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Failed to create scratch directory {work_dir}"
+            ),
+        )
+
+        try:
+            openssl_cnf_path = node.get_pure_path(f"{work_dir}/openssl.cnf")
+            openssl_cnf_contents = (
+                "openssl_conf = openssl_init\n"
+                "[openssl_init]\n"
+                "providers = provider_sect\n"
+                "[provider_sect]\n"
+                "default = default_sect\n"
+                "azihsm = azihsm_sect\n"
+                "[default_sect]\n"
+                "activate = 1\n"
+                "[azihsm_sect]\n"
+                f"module = {provider_so}\n"
+                "activate = 1\n"
+                f"azihsm-bmk-path = {work_dir}/bmk.bin\n"
+                f"azihsm-muk-path = {work_dir}/muk.bin\n"
+                "azihsm-api-revision = 1.0\n"
+            )
+            node.tools[Echo].write_to_file(
+                openssl_cnf_contents,
+                openssl_cnf_path,
+                sudo=True,
+                ignore_error=False,
+            )
+
+            # Confirm the provider actually loads and is reported as
+            # available via the generated openssl.cnf.
+            list_result = node.execute(
+                "openssl list -providers",
+                sudo=True,
+                shell=True,
+                update_envs={"OPENSSL_CONF": str(openssl_cnf_path)},
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to list OpenSSL providers"
+                ),
+            )
+            assert_that(list_result.stdout).described_as(
+                "azihsm provider was not loaded by OpenSSL: "
+                f"{list_result.stdout}"
+            ).contains("azihsm")
+        finally:
+            node.execute(
+                f"rm -rf {work_dir}",
+                sudo=True,
+                shell=True,
+                expected_exit_code=None,
+            )
