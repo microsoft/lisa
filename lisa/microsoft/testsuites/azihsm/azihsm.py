@@ -942,7 +942,7 @@ class AziHsm(TestSuite):
         log.info(f"Running {test}")
         try:
             result = node.execute(
-                f"{node.get_pure_path(AZIHSM_BIN_DIR) / test} {params}",
+                f"{node.get_pure_path(AZIHSM_BIN_DIR) / test}",
                 update_envs={"AZIHSM_USE_TPM": "1",
                              "AZIHSM_DISABLE_MULTI_PROCESS_TESTS": "1"},
                 timeout=1800,
@@ -1022,7 +1022,9 @@ class AziHsm(TestSuite):
                 "Failed to query the OpenSSL modules directory"
             ),
         )
-        modules_dir_match = re.search(r'"([^"]+)"', version_result.stdout)
+        modules_dir_match = re.search(
+            r'MODULESDIR:\s*"([^"]+)"', version_result.stdout
+        )
         assert_that(modules_dir_match).described_as(
             "Unexpected `openssl version -m` output: "
             f"{version_result.stdout}"
