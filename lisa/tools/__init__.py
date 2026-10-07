@@ -95,6 +95,7 @@ from .mokutil import Mokutil
 from .mono import Mono
 from .mount import Mount
 from .netperf import Netperf
+from .netshaper import NetShaper
 from .nfs_client import NFSClient
 from .nfs_server import NFSServer
 from .ninja import Ninja
@@ -254,6 +255,7 @@ __all__ = [
     "Mount",
     "Mv",
     "Netperf",
+    "NetShaper",
     "Ninja",
     "NFSClient",
     "NFSServer",
