@@ -266,7 +266,8 @@ class AziHsm(TestSuite):
         # Group membership changes don't apply to the already-established
         # session. Close it so the next command reconnects with a fresh
         # login that picks up the new group membership.
-        node.close()
+        node.shell.close()
+        node.shell.initialize()
 
         # Indicate we have done this step already
         with _STATE_LOCK:
