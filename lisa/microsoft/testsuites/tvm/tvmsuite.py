@@ -6,6 +6,7 @@ from typing import cast
 from lisa import (
     LisaException,
     Node,
+    OsRequirement,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
@@ -21,6 +22,7 @@ from lisa.operating_system import (
     Redhat,
     Suse,
     Ubuntu,
+    Windows,
 )
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.testsuite import simple_requirement
@@ -50,6 +52,7 @@ class TvmTest(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_features=[SecureBootEnabled()],
+            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="18.04")],
         ),
     )
     def verify_secureboot_compatibility(self, node: Node) -> None:
@@ -97,6 +100,7 @@ class TvmTest(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_features=[SecureBootEnabled()],
+            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="18.04")],
         ),
     )
     def verify_measuredboot_compatibility(self, node: Node) -> None:

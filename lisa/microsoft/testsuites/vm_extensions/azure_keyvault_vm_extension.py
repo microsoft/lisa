@@ -13,6 +13,7 @@ from azure.mgmt.keyvault.models import VaultProperties
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -99,7 +100,10 @@ class AzureKeyVaultExtensionBvt(TestSuite):
         tags=["microsoft.azure.keyvault.keyvaultforlinux"],
         requirement=simple_requirement(
             # This test is enabled for Ubuntu & CBLMariner.
-            supported_os=[Ubuntu, CBLMariner],
+            supported_os=[
+                OsRequirement(Ubuntu, min_version="20.04", max_version="22.10"),
+                CBLMariner,
+            ],
             supported_features=[AzureExtension],
         ),
     )
