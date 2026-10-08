@@ -78,6 +78,46 @@ def _resolve_target_platforms(runbook: schema.Runbook) -> List[str]:
     return platform_types
 
 
+def _resolve_target_capabilities(variables: Any) -> Optional[List[str]]:
+    """Return the host capabilities the target provides, or ``None``.
+
+    The ``enable_capability_pre_filtering`` runbook variable (default
+    ``false``) gates the capability pre-filter. When enabled, the operator
+    declares what the target host provides via ``target_host_capabilities``
+    (comma-separated, e.g. ``mshv``). Cases requiring a capability not in
+    that set are dropped at selection time.
+
+    The return value distinguishes two states:
+
+    * ``None`` — the gate is off (or the variable is missing). The
+      pre-filter is skipped entirely and no case is dropped.
+    * ``[]`` — the gate is on but the target declares no capabilities. The
+      pre-filter is applied and every capability-gated case is dropped,
+      because the target satisfies no capability requirement.
+    """
+    if isinstance(variables, dict):
+        raw = variables
+    else:
+        raw = {}
+    gate = raw.get("enable_capability_pre_filtering")
+    if gate is None:
+        return None
+    gate_val = getattr(gate, "data", gate)
+    if str(gate_val).lower() not in ("true", "1", "yes"):
+        return None
+    # The gate is on from here: always return a list, never ``None``, so an
+    # explicitly empty declaration still applies the pre-filter.
+    declared = raw.get("target_host_capabilities")
+    if declared is None:
+        return []
+    declared_val = getattr(declared, "data", declared)
+    if isinstance(declared_val, list):
+        items = declared_val
+    else:
+        items = str(declared_val).split(",")
+    return [item.strip() for item in items if str(item).strip()]
+
+
 class LisaRunner(BaseRunner):
     @classmethod
     def type_name(cls) -> str:
@@ -100,10 +140,12 @@ class LisaRunner(BaseRunner):
         )
         target_os = _resolve_target_os(variables_pool)
         target_platforms = _resolve_target_platforms(self._runbook)
+        target_capabilities = _resolve_target_capabilities(variables_pool)
         selected_test_cases = select_testcases(
             filters=self._runbook.testcase,
             target_os=target_os,
             target_platforms=target_platforms,
+            target_capabilities=target_capabilities,
         )
 
         # create test results
