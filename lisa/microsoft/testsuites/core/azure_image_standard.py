@@ -1238,6 +1238,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=5,
         requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        maturity="deprecated",
     )
     def verify_boot_error_fail_warnings(self, node: Node) -> None:
         dmesg = node.tools[Dmesg]
