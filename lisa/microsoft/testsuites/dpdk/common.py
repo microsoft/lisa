@@ -118,14 +118,11 @@ class GitDownloader(Downloader):
 
 # parent class for tarball source installations
 class TarDownloader(Downloader):
-    def __init__(
-        self,
-        node: Node,
-        tar_url: str,
-    ) -> None:
+    def __init__(self, node: Node, tar_url: str, exclude: str = "") -> None:
         super().__init__(node)
         self._tar_url = tar_url
         self._is_remote_tarball = tar_url.startswith("https://")
+        self.exclude = exclude
 
     # fetch the tarball (or copy it to the node)
     # then extract it
@@ -174,6 +171,7 @@ class TarDownloader(Downloader):
                     dest_dir=str(work_path),
                     gzip=True,
                     skip_existing_files=True,
+                    exclude=self.exclude,
                 )
             except AssertionError:
                 # tar extraction failed,
@@ -289,8 +287,15 @@ class Installer:
                 self._uninstall()
                 self._install_dependencies()
                 self._install()
-            except Exception:
-                self._rollback_installation()
+            except Exception as install_error:
+                try:
+                    self._rollback_installation()
+                except Exception as rollback_error:
+                    self._node.log.debug(
+                        "Installation rollback also failed; preserving the original "
+                        f"{type(install_error).__name__}: {install_error!r}. "
+                        f"Rollback error: {rollback_error!r}"
+                    )
                 raise
 
     def __init__(
@@ -521,6 +526,8 @@ class Pmd(str, Enum):
     # librte_net_netvsc
     # https://doc.dpdk.org/guides/nics/netvsc.html
     NETVSC = "netvsc"
+    # direct use of MANA pmd.
+    MANA = "mana"
 
 
 # set a threshold for an expected PPS minimum with DPDK.

@@ -3,10 +3,10 @@ from typing import Any, Dict, Tuple, cast
 from assertpy import assert_that
 from microsoft.testsuites.dpdk.common import Pmd, force_dpdk_default_source
 from microsoft.testsuites.dpdk.dpdkutil import (
+    DpdkCleanupManager,
     DpdkTestResources,
     SkippedException,
     UnsupportedPackageVersionException,
-    do_parallel_cleanup,
     verify_dpdk_build,
     verify_dpdk_l3fwd_ntttcp_tcp,
     verify_dpdk_send_receive,
@@ -45,6 +45,9 @@ from lisa.util import constants
     """,
 )
 class DpdkPerformance(TestSuite):
+    def before_case(self, log: Logger, **kwargs: Any) -> None:
+        self._dpdk_cleanup = DpdkCleanupManager()
+
     @TestCaseMetadata(
         description="""
         DPDK Performance: failsafe mode, minimal core count
@@ -66,7 +69,13 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         sender_kit = verify_dpdk_build(
-            node, log, variables, Pmd.FAILSAFE, HugePageSize.HUGE_2MB, result=result
+            node,
+            log,
+            variables,
+            Pmd.FAILSAFE,
+            HugePageSize.HUGE_2MB,
+            self._dpdk_cleanup,
+            result=result,
         )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
@@ -119,7 +128,13 @@ class DpdkPerformance(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         sender_kit = verify_dpdk_build(
-            node, log, variables, Pmd.NETVSC, HugePageSize.HUGE_2MB, result=result
+            node,
+            log,
+            variables,
+            Pmd.NETVSC,
+            HugePageSize.HUGE_2MB,
+            self._dpdk_cleanup,
+            result=result,
         )
         sender_fields: Dict[str, Any] = {}
         test_case_name = result.runtime_data.metadata.name
@@ -218,7 +233,7 @@ class DpdkPerformance(TestSuite):
             result,
             log,
             variables,
-            use_queues=True,
+            queues=4,
         )
 
     @TestCaseMetadata(
@@ -246,7 +261,7 @@ class DpdkPerformance(TestSuite):
             result,
             log,
             variables,
-            use_queues=True,
+            queues=4,
         )
 
     @TestCaseMetadata(
@@ -280,6 +295,7 @@ class DpdkPerformance(TestSuite):
             log,
             variables,
             HugePageSize.HUGE_2MB,
+            self._dpdk_cleanup,
             pmd=Pmd.NETVSC,
             is_perf_test=True,
         )
@@ -290,7 +306,7 @@ class DpdkPerformance(TestSuite):
         test_result: TestResult,
         log: Logger,
         variables: Dict[str, Any],
-        use_queues: bool = False,
+        queues: int = 1,
     ) -> None:
         environment = test_result.environment
         assert environment, "fail to get environment from testresult"
@@ -298,12 +314,14 @@ class DpdkPerformance(TestSuite):
         # run build + validation to populate results
         self._validate_core_counts_are_equal(test_result)
         try:
-            if use_queues:
+            if queues > 1:
                 send_kit, receive_kit = verify_dpdk_send_receive_multi_txrx_queue(
                     environment,
                     log,
                     variables,
                     pmd,
+                    queues=queues,
+                    cleanup_manager=self._dpdk_cleanup,
                     result=test_result,
                 )
             else:
@@ -313,6 +331,7 @@ class DpdkPerformance(TestSuite):
                     variables,
                     pmd,
                     HugePageSize.HUGE_2MB,
+                    self._dpdk_cleanup,
                     result=test_result,
                 )
         except UnsupportedPackageVersionException as err:
@@ -499,4 +518,4 @@ class DpdkPerformance(TestSuite):
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
-        do_parallel_cleanup(environment)
+        self._dpdk_cleanup.cleanup(environment)
