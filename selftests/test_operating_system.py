@@ -1,6 +1,6 @@
 import shlex
 from pathlib import PurePosixPath
-from typing import Any, Tuple
+from typing import Tuple
 from unittest import TestCase
 from unittest.mock import MagicMock
 

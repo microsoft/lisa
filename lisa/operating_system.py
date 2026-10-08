@@ -2321,8 +2321,6 @@ class CBLMariner(RPMDistro):
         **kwargs: Any,
     ) -> None:
         if keys_location:
-            from lisa.tools import Wget
-
             for key in keys_location:
                 key_name = Path(key).name
                 key_path = self._node.get_working_path() / key_name
