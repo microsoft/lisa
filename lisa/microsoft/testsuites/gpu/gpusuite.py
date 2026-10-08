@@ -294,6 +294,7 @@ class GpuTestSuite(TestSuite):
         """,
         timeout=GPU_RESET_TIMEOUT,
         priority=3,
+        maturity="preview",
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
             unsupported_os=[AlmaLinux, Oracle, Suse],
@@ -341,14 +342,14 @@ class GpuTestSuite(TestSuite):
                     output = f"{result.stdout}\n{result.stderr}"
                     if self._gpu_reset_unsupported_pattern.search(output):
                         raise SkippedException(
-                            f"GPU reset is not available to the guest on this VM "
+                            "GPU reset is not available to the guest on this VM "
                             f"size: {output}"
                         )
                     raise LisaException(
                         f"'nvidia-smi -r' failed with exit code {result.exit_code} "
                         f"on gpu reset iteration {iteration}: {output}. Verify no "
-                        f"process is holding a GPU and that the VM size allows a "
-                        f"guest initiated reset."
+                        "process is holding a GPU and that the VM size allows a "
+                        "guest initiated reset."
                     )
                 log.debug(f"gpu reset iteration {iteration} output: {result.stdout}")
 
@@ -361,9 +362,9 @@ class GpuTestSuite(TestSuite):
                     - baseline_errors
                 )
                 assert_that(sorted(new_errors)).described_as(
-                    f"new kernel errors appeared in dmesg after gpu reset iteration "
+                    "new kernel errors appeared in dmesg after gpu reset iteration "
                     f"{iteration}; resetting a GPU must not hang or destabilize the "
-                    f"guest kernel"
+                    "guest kernel"
                 ).is_empty()
         finally:
             service = node.tools[Service]
