@@ -9,9 +9,13 @@ deploying environments only to skip the cases at runtime.
 """
 
 import re
+from dataclasses import dataclass
 from typing import Any, Dict, Optional, Type
 
-from lisa.operating_system import OperatingSystem
+from semver import VersionInfo
+
+from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.util import parse_version
 from lisa.util.logger import get_logger
 
 _log = get_logger("init", "os_resolver")
@@ -76,6 +80,95 @@ _IMAGE_VAR_KEYS = (
 # original image string to avoid false positives from plain substring matches
 # (e.g. 'ol' inside 'golden-image.vhd').
 _SHORT_ALIAS_LEN_THRESHOLD = 4
+
+_UBUNTU_RELEASES = {
+    "xenial": "16.04",
+    "bionic": "18.04",
+    "focal": "20.04",
+    "jammy": "22.04",
+    "noble": "24.04",
+    "questing": "25.10",
+    "resolute": "26.04",
+}
+
+
+@dataclass(frozen=True)
+class TargetOs:
+    os_type: Type[OperatingSystem]
+    version: Optional[VersionInfo] = None
+
+
+def _infer_ubuntu_release(image: str) -> Optional[VersionInfo]:
+    if "," in image:
+        _log.debug("Ubuntu version pre-filter deferred: multiple image identifiers")
+        return None
+    text = image.lower().strip()
+    parts = text.split()
+    marketplace = len(parts) == 4 and parts[0] == "canonical"
+    if marketplace:
+        # Publication versions are not distro releases.
+        text = " ".join(parts[1:3])
+    else:
+        text = re.split(r"[?#]", text, maxsplit=1)[0]
+        # Ignore storage domains, gallery names, and gallery publication versions.
+        segments = text.rstrip("/").split("/")
+        if "images" in segments:
+            index = segments.index("images") + 1
+            text = segments[index] if index < len(segments) else ""
+        elif len(segments) > 1:
+            text = (
+                segments[-2]
+                if re.fullmatch(r"(?:[0-9]+\.)*[0-9]+|latest", segments[-1])
+                else segments[-1]
+            )
+
+    if "ubuntu" not in text:
+        _log.debug(
+            "Ubuntu version pre-filter deferred: image name does not identify Ubuntu"
+        )
+        return None
+
+    releases = set()
+    for codename, release in _UBUNTU_RELEASES.items():
+        if re.search(rf"(?:^|[^a-z0-9]){codename}(?:$|[^a-z0-9])", text):
+            releases.add(parse_version(release))
+
+    patterns = [
+        (
+            r"(?:^|[^a-z0-9])ubuntu[-_](\d{2})[._](\d{2})(?![a-z0-9]|[._]\d)",
+            text,
+        )
+    ]
+    if marketplace:
+        patterns.append(
+            (
+                r"^(?:pro-fips-)?(\d{2})[._](\d{2})(?![a-z0-9]|[._]\d)",
+                parts[2],
+            )
+        )
+    for pattern, source in patterns:
+        for match in re.finditer(pattern, source):
+            if not 1 <= int(match[2]) <= 12:
+                _log.debug(
+                    f"Ubuntu version pre-filter deferred: invalid release in '{image}'"
+                )
+                return None
+            releases.add(parse_version(f"{match[1]}.{match[2]}"))
+    if len(releases) == 1:
+        return releases.pop()
+    _log.debug(
+        "Ubuntu version pre-filter deferred: "
+        f"unknown or conflicting release in '{image}'"
+    )
+    return None
+
+
+def resolve_target_os(variables: Dict[str, Any]) -> Optional[TargetOs]:
+    """Apply the shared opt-in gate for runner and CLI listing."""
+    gate = variables.get("enable_distro_pre_filtering")
+    if str(getattr(gate, "data", gate)).lower() not in ("true", "1", "yes"):
+        return None
+    return infer_target_os_info(variables)
 
 
 def _normalize(name: str) -> str:
@@ -158,6 +251,13 @@ def _infer_from_image_string(image: str) -> Optional[Type[OperatingSystem]]:
 def infer_target_os(
     variables: Optional[Dict[str, Any]],
 ) -> Optional[Type[OperatingSystem]]:
+    target = infer_target_os_info(variables)
+    return target.os_type if target else None
+
+
+def infer_target_os_info(
+    variables: Optional[Dict[str, Any]],
+) -> Optional[TargetOs]:
     """Infer the target OS from image-related runbook variables.
 
     Checks common image variable keys (marketplace, gallery, vhd) and
@@ -185,7 +285,10 @@ def infer_target_os(
                     f"target_os inferred as '{cls.__name__}' "
                     f"(source: variable '{key}'='{value}')"
                 )
-                return cls
+                version = _infer_ubuntu_release(value) if cls is Ubuntu else None
+                if version is not None:
+                    _log.info(f"target Ubuntu release inferred as '{version}'")
+                return TargetOs(cls, version)
 
     # Nothing to go on.
     return None

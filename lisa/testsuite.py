@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
 from time import sleep
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Type, Union
 
 from func_timeout import FunctionTimedOut, func_timeout
 from retry import retry
@@ -20,7 +20,7 @@ from lisa.environment import Environment, EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.features import SerialConsole
 from lisa.messages import TestResultMessage, TestStatus, _is_completed_status
-from lisa.operating_system import OperatingSystem, Windows
+from lisa.operating_system import OperatingSystem, Ubuntu, Windows
 from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
@@ -39,6 +39,11 @@ from lisa.util.logger import (
     create_file_handler,
     get_logger,
     remove_handler,
+)
+from lisa.util.os_requirement import (
+    OsRequirement,
+    OsRequirementEntry,
+    matches_os_requirement,
 )
 from lisa.util.perf_timer import Timer, create_timer
 
@@ -219,20 +224,31 @@ class TestResult:
                     is_allow_set=True, items=type(node.os).__mro__
                 )
                 os_result = search_space.ResultReason()
+                version = None
+                if isinstance(node.os, Ubuntu) and any(
+                    isinstance(entry, OsRequirement) and entry.has_version
+                    for entry in requirement.os_type
+                ):
+                    version = node.os.information.version
+                matching_os = [
+                    entry
+                    for entry in requirement.os_type
+                    if matches_os_requirement(entry, type(node.os), version) is True
+                ]
                 if requirement.os_type.is_allow_set:
-                    supported_os = set(requirement.os_type)
-                    node_os_types = set(node_os_capability)
-                    if not supported_os.intersection(node_os_types):
+                    if not matching_os:
                         os_result.add_reason(
                             f"requires [{requirement.os_type}] "
-                            f"but VM supports [{node_os_capability}]"
+                            f"but VM supports [{node_os_capability}], version={version}"
                         )
                 else:
-                    excluded_os = set(requirement.os_type).intersection(
-                        node_os_capability
-                    )
-                    if excluded_os:
-                        names = sorted(os_type.__name__ for os_type in excluded_os)
+                    if matching_os:
+                        names = sorted(
+                            str(entry)
+                            if isinstance(entry, OsRequirement)
+                            else entry.__name__
+                            for entry in matching_os
+                        )
                         os_result.add_reason(
                             f"requirements excludes {', '.join(names)}"
                         )
@@ -411,15 +427,15 @@ class TestCaseRequirement:
     environment: Optional[EnvironmentSpace] = None
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected
     platform_type: Optional[search_space.SetSpace[str]] = None
-    os_type: Optional[search_space.SetSpace[Type[OperatingSystem]]] = None
+    os_type: Optional[search_space.SetSpace[OsRequirementEntry]] = None
 
 
 def _create_test_case_requirement(
     node: schema.NodeSpace,
     supported_platform_type: Optional[List[str]] = None,
     unsupported_platform_type: Optional[List[str]] = None,
-    supported_os: Optional[List[Type[OperatingSystem]]] = None,
-    unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
+    supported_os: Optional[Sequence[OsRequirementEntry]] = None,
+    unsupported_os: Optional[Sequence[OsRequirementEntry]] = None,
     supported_features: Optional[
         List[Union[Type[Feature], schema.FeatureSettings, str]]
     ] = None,
@@ -460,8 +476,8 @@ def node_requirement(
     node: schema.NodeSpace,
     supported_platform_type: Optional[List[str]] = None,
     unsupported_platform_type: Optional[List[str]] = None,
-    supported_os: Optional[List[Type[OperatingSystem]]] = None,
-    unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
+    supported_os: Optional[Sequence[OsRequirementEntry]] = None,
+    unsupported_os: Optional[Sequence[OsRequirementEntry]] = None,
     supported_features: Optional[
         List[Union[Type[Feature], schema.FeatureSettings, str]]
     ] = None,
@@ -494,8 +510,8 @@ def simple_requirement(
     network_interface: Optional[schema.NetworkInterfaceOptionSettings] = None,
     supported_platform_type: Optional[List[str]] = None,
     unsupported_platform_type: Optional[List[str]] = None,
-    supported_os: Optional[List[Type[OperatingSystem]]] = None,
-    unsupported_os: Optional[List[Type[OperatingSystem]]] = None,
+    supported_os: Optional[Sequence[OsRequirementEntry]] = None,
+    unsupported_os: Optional[Sequence[OsRequirementEntry]] = None,
     supported_features: Optional[
         List[Union[Type[Feature], schema.FeatureSettings, str]]
     ] = None,

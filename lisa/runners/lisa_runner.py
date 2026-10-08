@@ -37,7 +37,7 @@ from lisa.util import (
     deep_update_dict,
     is_unittest,
 )
-from lisa.util.os_resolver import infer_target_os
+from lisa.util.os_resolver import resolve_target_os
 from lisa.util.parallel import Task, check_cancelled
 from lisa.variable import VariableEntry
 
@@ -57,15 +57,8 @@ def _resolve_target_os(
         raw = variables
     else:
         raw = {}
-    # Check for the gate variable.  Treat missing / empty as "false".
-    gate = raw.get("enable_distro_pre_filtering")
-    if gate is None:
-        return None
-    # VariableEntry wraps the real value in .data; plain dicts don't.
-    val = getattr(gate, "data", gate)
-    if str(val).lower() not in ("true", "1", "yes"):
-        return None
-    return infer_target_os(variables)
+    target = resolve_target_os(raw)
+    return target.os_type if target else None
 
 
 def _resolve_target_platforms(runbook: schema.Runbook) -> List[str]:
@@ -98,11 +91,12 @@ class LisaRunner(BaseRunner):
         variables_pool = (
             getattr(self._runbook_builder, "variables", None) or self._case_variables
         )
-        target_os = _resolve_target_os(variables_pool)
+        target = resolve_target_os(variables_pool)
         target_platforms = _resolve_target_platforms(self._runbook)
         selected_test_cases = select_testcases(
             filters=self._runbook.testcase,
-            target_os=target_os,
+            target_os=target.os_type if target else None,
+            target_os_version=target.version if target else None,
             target_platforms=target_platforms,
         )
 

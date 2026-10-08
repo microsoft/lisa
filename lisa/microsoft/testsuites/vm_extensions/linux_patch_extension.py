@@ -9,6 +9,7 @@ from lisa import (
     Environment,
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -343,6 +344,15 @@ class LinuxPatchExtensionBVT(TestSuite):
         """,
         priority=1,
         timeout=600,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+            # Exact releases, architecture and VM generation are checked at runtime.
+            unsupported_os=[
+                BSD,
+                OsRequirement(Ubuntu, min_version="22.10"),
+                OsRequirement(Ubuntu, max_version="16.04"),
+            ],
+        ),
     )
     def verify_vm_assess_patches(
         self, node: Node, environment: Environment, log: Logger

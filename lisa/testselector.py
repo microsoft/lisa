@@ -16,16 +16,23 @@ from typing import (
     cast,
 )
 
+from semver import VersionInfo
+
 from lisa import schema
 from lisa.operating_system import OperatingSystem
 from lisa.testsuite import TestCaseMetadata, TestCaseRuntimeData, get_cases_metadata
 from lisa.util import LisaException, constants, set_filtered_fields
 from lisa.util.logger import get_logger
+from lisa.util.os_requirement import is_os_supported
 
 _get_logger = partial(get_logger, "init", "selector")
 
 
-def _is_os_compatible(case: TestCaseMetadata, target_os: Type[OperatingSystem]) -> bool:
+def _is_os_compatible(
+    case: TestCaseMetadata,
+    target_os: Type[OperatingSystem],
+    target_os_version: Optional[VersionInfo] = None,
+) -> bool:
     """Return True if the case's declared OS requirement is compatible with
     the target OS class. The check uses bidirectional ``issubclass`` so that
     a case requiring a broad family (e.g. ``Linux``) accepts a specific
@@ -39,24 +46,19 @@ def _is_os_compatible(case: TestCaseMetadata, target_os: Type[OperatingSystem]) 
     if not os_type or len(os_type) == 0:
         return True
 
-    matched = False
-    for allowed in os_type:
-        # Skip non-class entries defensively; SetSpace items should always be
-        # OperatingSystem subclasses but we don't want a stray value to crash
-        # the entire selection.
-        if not isinstance(allowed, type):
-            continue
-        if issubclass(target_os, allowed) or issubclass(allowed, target_os):
-            matched = True
-            break
-
-    if os_type.is_allow_set:
-        return matched
-    return not matched
+    return is_os_supported(
+        list(os_type),
+        os_type.is_allow_set,
+        target_os,
+        target_os_version,
+        prefilter=True,
+    )
 
 
 def _prefilter_by_target_os(
-    full_list: Dict[str, TestCaseMetadata], target_os: Type[OperatingSystem]
+    full_list: Dict[str, TestCaseMetadata],
+    target_os: Type[OperatingSystem],
+    target_os_version: Optional[VersionInfo] = None,
 ) -> Dict[str, TestCaseMetadata]:
     """Drop cases from ``full_list`` whose ``requirement.os_type`` declares
     they cannot run on ``target_os``. Logs a one-line summary so partners
@@ -66,14 +68,15 @@ def _prefilter_by_target_os(
     kept: Dict[str, TestCaseMetadata] = {}
     dropped_names: List[str] = []
     for name, metadata in full_list.items():
-        if _is_os_compatible(metadata, target_os):
+        if _is_os_compatible(metadata, target_os, target_os_version):
             kept[name] = metadata
         else:
             dropped_names.append(name)
+            log.debug(f"pre-filter dropped {name}: {metadata.requirement.os_type}")
     if dropped_names:
         log.info(
             f"pre-filter: dropped {len(dropped_names)} case(s) incompatible "
-            f"with target_os={target_os.__name__}"
+            f"with target_os={target_os.__name__}, version={target_os_version}"
         )
         log.debug(f"pre-filter dropped cases: {dropped_names}")
     return kept
@@ -121,6 +124,7 @@ def select_testcases(  # noqa: C901
     target_os: Optional[Type[OperatingSystem]] = None,
     target_platforms: Optional[List[str]] = None,
     apply_stable_gate: bool = True,
+    target_os_version: Optional[VersionInfo] = None,
 ) -> List[TestCaseRuntimeData]:
     """
     Select test cases based on filters. When ``apply_stable_gate`` is True
@@ -142,7 +146,7 @@ def select_testcases(  # noqa: C901
     else:
         full_list = get_cases_metadata()
     if target_os is not None:
-        full_list = _prefilter_by_target_os(full_list, target_os)
+        full_list = _prefilter_by_target_os(full_list, target_os, target_os_version)
     if target_platforms:
         full_list = _prefilter_by_target_platforms(full_list, target_platforms)
     if filters:

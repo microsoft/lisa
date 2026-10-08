@@ -32,6 +32,179 @@ Goals
 -  Gracefully fall back to the existing runtime mechanism when the
    target OS cannot be determined.
 
+Ubuntu Release Requirements
+---------------------------
+
+``supported_os`` and ``unsupported_os`` accept OS classes as before, and
+``OsRequirement`` entries with optional Ubuntu release bounds:
+
+.. code-block:: python
+
+   from lisa import OsRequirement, simple_requirement
+   from lisa.operating_system import Oracle, Ubuntu
+
+   requirement = simple_requirement(
+       unsupported_os=[
+           OsRequirement(Ubuntu, max_version="22.04"),
+           Oracle,
+       ],
+   )
+
+This excludes Ubuntu releases older than 22.04 and every Oracle release.
+``min_version`` is inclusive and ``max_version`` is exclusive. For example,
+``OsRequirement(Ubuntu, min_version="22.04", max_version="24.04")`` matches
+Ubuntu releases from 22.04 up to, but not including, 24.04. In a supported
+list it allows that range; in an unsupported list it excludes that range.
+Entries in each list are alternatives. Both lists cannot be nonempty.
+
+Bounds must use ``YY.MM`` format. Comparison uses the Ubuntu major/minor
+release, so Ubuntu 22.04.5 belongs to the 22.04 release. Point releases,
+kernel versions and image publication versions are not supported bounds.
+Malformed bounds, empty/reversed ranges and bounds on a non-Ubuntu OS
+raise a configuration error. Class-only requirements retain their existing
+inheritance behavior; Ubuntu release numbers are never compared against
+Debian or another distro's release numbers.
+
+Version pre-filtering uses the existing ``enable_distro_pre_filtering``
+switch and is implemented only for Ubuntu. It recognizes:
+
+* Marketplace SKU releases such as ``16.04-LTS``, ``22_04-lts-gen2`` and
+  ``pro-fips-22_04-arm64``.
+* Marketplace offers such as ``ubuntu-24_04-lts`` and ``ubuntu-25_10``.
+* Ubuntu codenames xenial (16.04), bionic (18.04), focal (20.04), jammy
+  (22.04), noble (24.04), questing (25.10) and resolute (26.04).
+* Clearly identified Ubuntu release/codename tokens in gallery image
+  names and VHD filenames.
+
+Gen1/Gen2, ARM64, FIPS and CVM variants share the same release rules.
+Marketplace publication versions (the fourth field), gallery publication
+versions, URL query strings and kernel versions are not used as releases.
+The OS and release must come from the same image variable.
+
+Unknown or conflicting release hints retain the test for runtime checking;
+an unknown release must not turn a versioned exclusion into an exclusion of
+all Ubuntu versions. Non-Ubuntu targets keep the existing distro-only
+filtering, without version checks. Debug logs explain unrecognized or
+conflicting Ubuntu release hints and show the requirements of dropped cases.
+Both ``lisa run`` and ``lisa list`` use the same gated target resolution.
+As with distro-only filtering, ``list --all`` does not bypass the pre-filter.
+
+The actual connected Ubuntu guest's release is checked against the same
+requirements at runtime, even when pre-filtering is disabled. Existing
+runtime guards remain useful for conditions not expressed by this metadata.
+
+Examples of existing tests using these requirements include SGX and
+Secure/Measured Boot (Ubuntu 18.04 minimum), PTP time sync (Ubuntu 19.10
+minimum), and the Azure Security Pack and Performance Diagnostics
+extensions (discrete supported Ubuntu major versions). Major-version
+allowlists use January boundaries to preserve the whole supported release
+year, rather than restricting support to LTS releases. Architecture,
+generation and kernel-dependent guards remain runtime checks.
+
+SIG Image Naming for Ubuntu Release Inference
+--------------------------------------------
+
+For Shared Image Gallery (SIG/Azure Compute Gallery) images, include
+``ubuntu`` and a recognizable release or codename in the **image definition
+name**. Do not rely on the gallery name or image publication version to
+identify the Ubuntu release.
+
+The recommended naming convention is
+``ubuntu-<YY.MM>-<architecture>-<generation>``, for example:
+
+.. code-block:: text
+
+   ubuntu-22.04-x64-gen2
+   ubuntu-24.04-arm64-gen2
+   ubuntu_22_04_x64_gen1
+   ubuntu_26_04_arm64_gen2
+
+Numeric release names follow the pattern ``ubuntu[-_]YY[._]MM``:
+
+* Use a hyphen or underscore between ``ubuntu`` and the release.
+* Use a dot or underscore between the two-digit year and two-digit month.
+  For example, use ``22.04`` or ``22_04``, not ``22.4`` or ``22-04``.
+* Put ``ubuntu`` at the start of the name or after a separator. Separate
+  trailing labels such as ``arm64`` or ``gen2`` with a hyphen or underscore.
+* Matching is case-insensitive. Architecture, generation, FIPS and CVM
+  labels do not change the inferred release.
+
+Alternatively, include a supported codename as a separate token:
+
+.. code-block:: text
+
+   ubuntu-jammy-gen2
+   ubuntu_noble_arm64
+   ubuntu-resolute-x64-gen2
+
+.. list-table:: Supported Ubuntu codenames
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Codename
+     - Release
+   * - xenial
+     - 16.04
+   * - bionic
+     - 18.04
+   * - focal
+     - 20.04
+   * - jammy
+     - 22.04
+   * - noble
+     - 24.04
+   * - questing
+     - 25.10
+   * - resolute
+     - 26.04
+
+Include ``ubuntu`` as well as the codename: ``jammy-gen2`` alone does not
+identify the OS. A custom image definition such as
+``ubuntu_jammy_linux-azure_6.8.0-1071.79.22.04.1_x64_gen1`` resolves to
+Ubuntu 22.04 through ``jammy``, not through the embedded kernel version.
+
+Example runbook variables:
+
+.. code-block:: yaml
+
+   variable:
+     - name: enable_distro_pre_filtering
+       value: true
+     - name: shared_gallery
+       value: "<subscription>/<resource-group>/<gallery>/ubuntu-22.04-gen2/1.0.0"
+
+Wire ``$(shared_gallery)`` to the Azure node requirement's ``shared_gallery``
+field as usual. The resolver reads the variable named ``shared_gallery``.
+In this example, ``1.0.0`` is the SIG publication version and is ignored for
+Ubuntu release inference. For a full Azure resource ID, the resolver uses
+the image definition name after ``/images/``, not the value after
+``/versions/``.
+
+.. list-table:: Image definition patterns to avoid
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Image definition name
+     - Current inference
+   * - ``ubuntu-server-22.04-gen2``
+     - Ubuntu detected, release unknown: the numeric release must immediately
+       follow ``ubuntu-`` or ``ubuntu_``.
+   * - ``ubuntu-22-04-gen2``
+     - Release unknown: a hyphen is not a supported year/month separator.
+   * - ``ubuntu-22.04.5-gen2``
+     - Release unknown: point-release syntax is not recognized for image names.
+   * - ``jammy-gen2``
+     - OS not identified from this name alone.
+   * - ``ubuntu-jammy-ubuntu-24.04``
+     - Conflicting recognized releases: version pre-filtering is deferred.
+   * - ``ubuntu-jammy-24.04``
+     - Resolves to 22.04 through ``jammy``; the standalone ``24.04`` is not
+       recognized as an Ubuntu numeric release pattern.
+
+Avoid inconsistent labels even when only one label is recognized.
+Unknown releases and conflicting recognized releases retain cases for
+runtime validation rather than dropping them through version pre-filtering.
+
 How It Works
 ------------
 

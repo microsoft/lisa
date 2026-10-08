@@ -6,9 +6,16 @@ from unittest import TestCase
 
 from assertpy import assert_that
 
-from lisa import LisaException, PassedException, SkippedException, constants, schema
+from lisa import (
+    LisaException,
+    OsRequirement,
+    PassedException,
+    SkippedException,
+    constants,
+    schema,
+)
 from lisa.environment import EnvironmentStatus, load_environments
-from lisa.operating_system import Posix, Windows
+from lisa.operating_system import OsInformation, Posix, Ubuntu, Windows
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import parse_testcase_filters
 from lisa.testselector import select_testcases
@@ -24,6 +31,7 @@ from lisa.testsuite import (
     node_requirement,
     simple_requirement,
 )
+from lisa.util import parse_version
 from lisa.util.logger import Logger
 from selftests.test_environment import generate_runbook
 
@@ -335,6 +343,58 @@ class TestSuiteTestCase(TestCase):
         result = self.case_results[1]
         self.assertEqual(TestStatus.PASSED, result.status)
         self.assertEqual("", result.message)
+
+    def test_result_check_env_ubuntu_version(self) -> None:
+        _ = self.generate_suite_instance()
+        assert self.default_env
+        self.default_env.status = EnvironmentStatus.Connected
+        self.default_env._is_initialized = True
+        result = self.case_results[0]
+        nodes = list(self.default_env.nodes.list())
+        for allow in (True, False):
+            entries = [OsRequirement(Ubuntu, min_version="22.04", max_version="24.04")]
+            result.runtime_data.metadata.requirement = simple_requirement(
+                min_count=2,
+                supported_os=entries if allow else None,
+                unsupported_os=None if allow else entries,
+            )
+            for releases in (
+                ("22.04.5", "22.04"),
+                ("22.04", "20.04"),
+                ("24.04", "24.04"),
+            ):
+                with self.subTest(allow=allow, releases=releases):
+                    for node, release in zip(nodes, releases):
+                        node.os = Ubuntu(node)
+                        node.os._information = OsInformation(
+                            version=parse_version(release),
+                            vendor="Canonical",
+                            release=release,
+                        )
+                    expected = all(
+                        (release.startswith("22.04")) == allow for release in releases
+                    )
+                    if expected:
+                        self.assertTrue(result.check_environment(self.default_env))
+                    else:
+                        with self.assertRaisesRegex(
+                            SkippedException, "OS type mismatch"
+                        ):
+                            result.check_environment(self.default_env)
+
+    def test_result_check_env_non_ubuntu_skips_version(self) -> None:
+        _ = self.generate_suite_instance()
+        assert self.default_env
+        self.default_env.status = EnvironmentStatus.Connected
+        self.default_env._is_initialized = True
+        result = self.case_results[0]
+        result.runtime_data.metadata.requirement = simple_requirement(
+            min_count=2, unsupported_os=[OsRequirement(Ubuntu, max_version="22.04")]
+        )
+        for node in self.default_env.nodes.list():
+            node.os = Posix(node)
+        # No OS information is populated: this must not try to query the node.
+        self.assertTrue(result.check_environment(self.default_env))
 
     def test_result_check_env_not_ready_os_type(self) -> None:
         _ = self.generate_suite_instance()
