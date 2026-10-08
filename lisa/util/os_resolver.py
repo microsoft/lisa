@@ -122,6 +122,12 @@ def _infer_ubuntu_release(image: str) -> Optional[VersionInfo]:
                 else segments[-1]
             )
 
+    if "ubuntu" not in text:
+        _log.debug(
+            "Ubuntu version pre-filter deferred: image name does not identify Ubuntu"
+        )
+        return None
+
     releases = set()
     for codename, release in _UBUNTU_RELEASES.items():
         if re.search(rf"(?:^|[^a-z0-9]){codename}(?:$|[^a-z0-9])", text):
