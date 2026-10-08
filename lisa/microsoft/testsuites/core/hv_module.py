@@ -65,6 +65,10 @@ class HvModule(TestSuite):
            to the kernel are skipped)
         """,
         priority=2,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, HYPERV, READY],
+            supported_os=[Redhat],
+        ),
     )
     def verify_lis_modules_version(self, node: Node) -> None:
         if not isinstance(node.os, Redhat):

@@ -65,6 +65,7 @@ class Dom0SecureBootTestSuite(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
+            supported_os=[CBLMariner],
             supported_features=[SecureBootEnabled()],
             supported_platform_type=[AZURE],
         ),
