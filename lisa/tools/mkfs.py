@@ -20,6 +20,7 @@ FileSystem = Enum(
         "debugfs",
         "hugetlbfs",
         "nfs",
+        "aznfs",
         "tracefs",
         "ufs",
     ],
