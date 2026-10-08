@@ -37,3 +37,11 @@ dist
 notes
 
 selftests/test_runbook.yml
+
+# MCP local/temp files
+mcp/tmp/
+mcp/.env
+mcp/**/*.log
+# ...but the log-analysis tests ship sample runs as fixtures.
+!mcp/tests/fixtures/*.log
+mcp/test-results/

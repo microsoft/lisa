@@ -263,7 +263,7 @@ class AzSecPack(TestSuite):
             ).is_equal_to(True)
             log.info(f"{mdsd_service} is running successfully")
 
-    @retry(tries=5, delay=10)  # type:ignore
+    @retry(tries=5, delay=10)  # type: ignore
     def _check_azsec_services_status(self, node: Node, log: Logger) -> None:
         service = node.tools[Service]
         azsec_services = ["azsecd", "azsecmond", "auoms"]
@@ -273,7 +273,7 @@ class AzSecPack(TestSuite):
             ).is_equal_to(True)
             log.info(f"{azsec_service} is running successfully")
 
-    @retry(tries=20, delay=30)  # type:ignore
+    @retry(tries=20, delay=30)  # type: ignore
     def _check_azsecd_status(self, node: Node, log: Logger) -> None:
         azsecd = node.tools[Azsecd]
         output = azsecd.run(
@@ -302,7 +302,7 @@ class AzSecPack(TestSuite):
                 )
         log.info("Azsecd status is checked successfully")
 
-    @retry(tries=5, delay=10)  # type:ignore
+    @retry(tries=5, delay=10)  # type: ignore
     def _check_azsecd_scanners(self, node: Node, log: Logger) -> None:
         azsecd = node.tools[Azsecd]
         scanners = ["heartbeat", "time", "certsinuse"]
@@ -314,7 +314,7 @@ class AzSecPack(TestSuite):
                     " Please check if azsecd scanner is running successfully."
                 )
 
-    @retry(tries=5, delay=10)  # type:ignore
+    @retry(tries=5, delay=10)  # type: ignore
     def _check_journalctl_logs(self, node: Node, log: Logger) -> None:
         journalctl = node.tools[Journalctl]
         output = journalctl.logs_for_unit("azsecmond", sudo=True)
@@ -350,7 +350,7 @@ class AzSecPack(TestSuite):
             CentOs: [7],
             Oracle: [8, 9],
             Debian: [10, 11, 12],
-            Ubuntu: [20, 22, 18, 24],
+            Ubuntu: [18, 20, 22, 24, 26],
             SLES: [15],
             AlmaLinux: [8],
             CBLMariner: [2, 3],
@@ -359,7 +359,7 @@ class AzSecPack(TestSuite):
             Redhat: [8, 9],
             CentOs: [7],
             Debian: [11],
-            Ubuntu: [20, 22, 24],
+            Ubuntu: [20, 22, 24, 26],
             CBLMariner: [2, 3],
         }
 

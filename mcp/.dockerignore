@@ -1,0 +1,22 @@
+# Build / packaging artifacts
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.egg-info
+build/
+dist/
+
+# Virtualenvs and editor state
+.venv/
+venv/
+.env
+.env.*
+.vscode/
+.idea/
+
+# Internal / local-only scripts and scratch files (gitignored)
+tmp/
+
+# Tests are still copied (used by smoke tests in CI), but exclude fixtures
+# generated locally:
+tests/__pycache__/
