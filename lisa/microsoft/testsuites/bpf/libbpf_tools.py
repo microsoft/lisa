@@ -227,7 +227,6 @@ class LibbpfToolsSuite(TestSuite):
         Starts a CPU workload, profiles it for 3s, checks output has stacks.
         """,
         priority=2,
-        requirement=simple_requirement(),
     )
     def verify_bpf_profile_captures_stacks(self, node: Node, log: Logger) -> None:
         tool = self._ensure_profile_tool(node)
@@ -262,7 +261,6 @@ class LibbpfToolsSuite(TestSuite):
         presence/absence of kernel frames.
         """,
         priority=3,
-        requirement=simple_requirement(),
     )
     def verify_bpf_profile_stack_filtering(self, node: Node, log: Logger) -> None:
         tool = self._ensure_profile_tool(node)
@@ -305,7 +303,6 @@ class LibbpfToolsSuite(TestSuite):
         Profiles a workload 5 times and checks BPF program count is stable.
         """,
         priority=3,
-        requirement=simple_requirement(),
     )
     def verify_bpf_profile_no_resource_leak(self, node: Node, log: Logger) -> None:
         tool = self._ensure_profile_tool(node)
@@ -367,7 +364,6 @@ class LibbpfToolsSuite(TestSuite):
         Tests non-existent PID and target dying mid-profile.
         """,
         priority=3,
-        requirement=simple_requirement(),
     )
     def verify_bpf_profile_handles_edge_cases(self, node: Node, log: Logger) -> None:
         tool = self._ensure_profile_tool(node)
