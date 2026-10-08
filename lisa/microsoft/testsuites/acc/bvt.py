@@ -3,13 +3,14 @@ from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
     simple_requirement,
 )
 from lisa.features import acc
-from lisa.operating_system import Ubuntu
+from lisa.operating_system import Ubuntu, Windows
 from lisa.tools import Dmesg, Lscpu, Make, Wget, Whoami
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import (
@@ -44,6 +45,7 @@ class ACCBasicTest(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[acc.ACC],
+            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="18.04")],
         ),
     )
     def verify_sgx(self, log: Logger, node: Node) -> None:

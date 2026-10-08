@@ -5,12 +5,13 @@ from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import CBLMariner, Debian, Posix, Ubuntu
+from lisa.operating_system import CBLMariner, Debian, Posix, Ubuntu, Windows
 from lisa.sut_orchestrator import AZURE, READY
 from lisa.tools import Sed, Service
 from lisa.util import SkippedException, UnsupportedDistroException
@@ -32,7 +33,15 @@ class MetricsExtension(TestSuite):
         """,
         priority=1,
         use_new_environment=True,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY],
+            # The runtime guard still requires the exact supported releases.
+            unsupported_os=[
+                Windows,
+                OsRequirement(Ubuntu, min_version="20.10"),
+                OsRequirement(Ubuntu, max_version="18.04"),
+            ],
+        ),
     )
     def verify_metricsextension(self, node: Node, log: Logger) -> None:
         package = "metricsext2"

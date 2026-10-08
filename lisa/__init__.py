@@ -30,6 +30,7 @@ from lisa.util import (
     constants,
 )
 from lisa.util.logger import Logger, init_logger
+from lisa.util.os_requirement import OsRequirement
 from lisa.util.parallel import run_in_parallel
 from lisa.util.perf_timer import create_timer
 
@@ -43,6 +44,7 @@ __all__ = [
     "Logger",
     "Node",
     "NotEnoughMemoryException",
+    "OsRequirement",
     "PassedException",
     "RemoteNode",
     "ResourceAwaitableException",
