@@ -542,8 +542,6 @@ class InferTargetOsTestCase(TestCase):
     def test_unwraps_variable_entry_objects(self) -> None:
         # Runners pass ``Dict[str, VariableEntry]``; the resolver must read
         # the wrapped ``data`` attribute, not the entry object itself.
-        from lisa.variable import VariableEntry
-
         variables: Dict[str, Any] = {
             "marketplace_image": VariableEntry(
                 name="marketplace_image",
