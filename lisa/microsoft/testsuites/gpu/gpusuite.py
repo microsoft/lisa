@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Any, List
 
@@ -321,12 +322,14 @@ class GpuTestSuite(TestSuite):
         # Populated as services are stopped so a failure midway still restores
         # the ones already stopped.
         stopped_services: List[str] = []
+        restore_failures: List[str] = []
         try:
             self._release_gpu_holders(node, log, stopped_services)
 
             # Errors already in dmesg, including any logged while unloading the
-            # nvidia modules, are not caused by the reset.
-            baseline_errors = set(
+            # nvidia modules, are not caused by the reset. A Counter keeps
+            # repeated identical lines, which a set would collapse.
+            baseline_errors = Counter(
                 dmesg.check_kernel_errors(
                     force_run=True, throw_error=False
                 ).splitlines()
@@ -354,14 +357,14 @@ class GpuTestSuite(TestSuite):
                 log.debug(f"gpu reset iteration {iteration} output: {result.stdout}")
 
                 new_errors = (
-                    set(
+                    Counter(
                         dmesg.check_kernel_errors(
                             force_run=True, throw_error=False
                         ).splitlines()
                     )
                     - baseline_errors
                 )
-                assert_that(sorted(new_errors)).described_as(
+                assert_that(sorted(new_errors.elements())).described_as(
                     "new kernel errors appeared in dmesg after gpu reset iteration "
                     f"{iteration}; resetting a GPU must not hang or destabilize the "
                     "guest kernel"
@@ -370,12 +373,14 @@ class GpuTestSuite(TestSuite):
             service = node.tools[Service]
             for name in stopped_services:
                 # Restoring must not mask the reset failure that got us here.
-                # start_service asserts on the exit code, so a failed restart
-                # surfaces as an AssertionError.
+                # restart_service is used because the SysV backend has no
+                # start_service, and it asserts on the exit code, so a failed
+                # restart surfaces as an AssertionError.
                 try:
-                    service.start_service(name)
+                    service.restart_service(name)
                 except (LisaException, AssertionError) as identifier:
                     log.info(f"could not restart '{name}' after reset: {identifier}")
+                    restore_failures.append(f"{name}: {identifier}")
 
         actual_count = gpu.get_gpu_count_with_lspci()
         assert_that(actual_count).described_as(
@@ -384,6 +389,13 @@ class GpuTestSuite(TestSuite):
         ).is_equal_to(expected_count)
 
         _check_driver_installed(node, log)
+
+        # Only reached when the reset itself passed, so this cannot mask it.
+        if restore_failures:
+            raise LisaException(
+                "GPU reset passed, but failed to restore services: "
+                f"{'; '.join(restore_failures)}"
+            )
 
     def _release_gpu_holders(
         self, node: Node, log: Logger, stopped_services: List[str]
