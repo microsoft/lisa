@@ -11,7 +11,9 @@ from lisa import (
     UnsupportedOperationException,
 )
 from lisa.executable import Tool
+from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.operating_system import AlmaLinux, CentOs, Debian, Fedora
+from lisa.testsuite import TestResult
 from lisa.tools import Ethtool, Git, Make
 from lisa.tools.ethtool import DeviceGroLroSettings
 from lisa.util import find_groups_in_lines
@@ -57,9 +59,9 @@ class XdpTool(Tool):
     def can_install(self) -> bool:
         return can_install(self.node)
 
-    def run_full_test(self) -> None:
+    def run_full_test(self, test_result: TestResult) -> None:
         """
-        run full test of xdp tools repo
+        Run the full xdp-tools suite and report each subtest before failing the parent.
         """
         result = self.node.execute(
             "make test", sudo=True, cwd=self._code_path, timeout=800
@@ -69,8 +71,19 @@ class XdpTool(Tool):
         for item in find_groups_in_lines(
             result.stdout, pattern=self._xdp_test_result_pattern
         ):
-            if item["result"] not in ["PASS", "SKIPPED"]:
+            if item["result"] == "PASS":
+                status = TestStatus.PASSED
+            elif item["result"] == "SKIPPED":
+                status = TestStatus.SKIPPED
+            else:
+                status = TestStatus.FAILED
                 abnormal_results[item["name"]] = item["result"]
+            send_sub_test_result_message(
+                test_result=test_result,
+                test_case_name=item["name"],
+                test_status=status,
+                test_message=item["result"],
+            )
         if abnormal_results:
             raise LisaException(f"found failed tests: {abnormal_results}")
         result.assert_exit_code(

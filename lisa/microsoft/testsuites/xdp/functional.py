@@ -23,6 +23,7 @@ from lisa import (
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
 from lisa.operating_system import BSD, Linux, Windows
+from lisa.testsuite import TestResult
 from lisa.tools import Firewall, Ip, Kill, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
 from lisa.util import get_matched_str
@@ -444,12 +445,12 @@ class XdpFunctional(TestSuite):
         """,
         priority=3,
     )
-    def verify_xdp_community_test(self, node: Node) -> None:
+    def verify_xdp_community_test(self, node: Node, result: TestResult) -> None:
         try:
             xdptool: XdpTool = node.tools[XdpTool]
         except UnsupportedDistroException as e:
             raise SkippedException(e)
-        xdptool.run_full_test()
+        xdptool.run_full_test(result)
 
     def _test_with_build_type(
         self,
