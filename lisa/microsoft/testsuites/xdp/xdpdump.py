@@ -245,8 +245,9 @@ class XdpDump(Tool):
         kernel_source = f"{self._code_path}/xdpdump_kern.c"
         redirect_block = (
             "#ifdef __ACTION_REDIRECT__\\n"
-            "    if (pkt.l3_proto == ETH_P_IP && pkt.l4_proto == IPPROTO_ICMP)\\n"
-            "        return bpf_redirect(XDP_REDIRECT_TARGET_IFINDEX, 0);\\n"
+            "    if (pkt.l3_proto == ETH_P_IP)\\n"
+            "        if (pkt.l4_proto == IPPROTO_ICMP)\\n"
+            "            return bpf_redirect(XDP_REDIRECT_TARGET_IFINDEX, 0);\\n"
             "#endif\\n"
             "#ifdef __PERF_DROP__"
         )
