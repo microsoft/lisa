@@ -226,7 +226,11 @@ function New-NvmeRecoveryState {
     }
 
     $accessPaths = @(
-        Get-Partition -DiskNumber $disk.Number -ErrorAction Stop |
+        Get-CimInstance `
+            -Namespace ROOT/Microsoft/Windows/Storage `
+            -ClassName MSFT_Partition `
+            -Filter "DiskNumber = $($disk.Number)" `
+            -ErrorAction Stop |
             ForEach-Object { @($_.AccessPaths) } |
             Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     )
