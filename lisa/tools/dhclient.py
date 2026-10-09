@@ -14,6 +14,8 @@ from .ls import Ls
 class Dhclient(Tool):
     # timeout 300;
     _debian_pattern = re.compile(r"^(?P<default>#?)timeout (?P<number>\d+);$")
+    # timeout 300
+    _dhcpcd_pattern = re.compile(r"^timeout (?P<number>\d+)$")
     # ipv4.dhcp-timeout=300
     _fedora_pattern = re.compile(r"^ipv4\.dhcp-timeout=+(?P<number>\d+)$")
 
@@ -44,7 +46,19 @@ class Dhclient(Tool):
 
     def get_timeout(self) -> int:
         is_default_value: bool = True
-        if (
+        if self._command == "dhcpcd":
+            config_path = "/etc/dhcpcd.conf"
+            if not self.node.tools[Ls].path_exists(config_path, sudo=True):
+                raise LisaException(f"Configuration file for {self._command} not found")
+
+            # dhcpcd defaults to 30 seconds when timeout isn't configured.
+            value = 30
+            output = self.node.tools[Cat].read(config_path, sudo=True)
+            group = find_group_in_lines(output, self._dhcpcd_pattern)
+            if group:
+                value = int(group["number"])
+                is_default_value = False
+        elif (
             isinstance(self.node.os, Debian)
             or isinstance(self.node.os, Suse)
             or isinstance(self.node.os, Redhat)
@@ -72,8 +86,8 @@ class Dhclient(Tool):
                 value = int(group["number"])
                 is_default_value = False
         elif isinstance(self.node.os, (Fedora, CBLMariner)):
-            # Fedora and AZL4+ use NetworkManager for DHCP; default timeout is 300.
-            # CBLMariner < 4 is not supported here and raises below.
+            # Fedora and AZL4+ images with dhclient use NetworkManager for DHCP;
+            # default timeout is 300. CBLMariner < 4 is not supported here.
             if isinstance(self.node.os, CBLMariner) and (
                 self.node.os.information.version.major < 4
             ):
