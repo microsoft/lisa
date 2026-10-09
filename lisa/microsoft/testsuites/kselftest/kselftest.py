@@ -2,7 +2,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from assertpy import assert_that
 
@@ -53,6 +53,23 @@ _MARINER_OS_PACKAGES = [
     "binutils",
     "kernel-headers",
 ]
+
+_KNOWN_HANGING_TESTS = {
+    "5.4.0-1022-azure-fips": ["ptrace:vmaccess"],
+}
+
+
+def _merge_known_hanging_tests(
+    kernel_version: str, skip_tests: Optional[List[str]]
+) -> Tuple[List[str], List[str]]:
+    merged_skip_tests = list(skip_tests or [])
+    additional_skip_tests = [
+        test
+        for test in _KNOWN_HANGING_TESTS.get(kernel_version, [])
+        if test not in merged_skip_tests
+    ]
+    merged_skip_tests.extend(additional_skip_tests)
+    return merged_skip_tests, additional_skip_tests
 
 
 @dataclass
@@ -221,6 +238,17 @@ class Kselftest(Tool):
         skip_tests: Optional[List[str]] = None,
     ) -> List[KselftestResult]:
         # Executing kselftest as root may cause VM to hang
+        kernel_version = (
+            self.node.tools[Uname].get_linux_information().kernel_version_raw
+        )
+        skip_tests, additional_skip_tests = _merge_known_hanging_tests(
+            kernel_version, skip_tests
+        )
+        if additional_skip_tests:
+            self._log.warning(
+                f"Skipping kselftests {additional_skip_tests} on kernel "
+                f"{kernel_version} because they are known to hang."
+            )
 
         # get username
         username = self.node.tools[Whoami].get_username()
