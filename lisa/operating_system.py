@@ -2320,6 +2320,17 @@ class CBLMariner(RPMDistro):
         keys_location: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> None:
+        if keys_location:
+            for key in keys_location:
+                key_name = Path(key).name
+                key_path = self._node.tools[Wget].get(
+                    key,
+                    filename=key_name,
+                    file_path=str(self._node.get_working_path()),
+                )
+                self._node.execute(f"rpm --import {key_path}", sudo=True, shell=True)
+            no_gpgcheck = False
+
         parsed_url = urlparse(repo)
         if parsed_url.scheme and parsed_url.netloc:
             self._node.tools[YumConfigManager].add_repository(repo, no_gpgcheck)
