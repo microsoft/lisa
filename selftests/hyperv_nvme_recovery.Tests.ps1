@@ -15,7 +15,6 @@ Describe "Hyper-V NVMe recovery" {
         function Get-PhysicalDisk { throw "Get-PhysicalDisk must be mocked." }
         function Get-CimInstance { throw "Get-CimInstance must be mocked." }
         function Get-Disk { throw "Get-Disk must be mocked." }
-        function Get-Partition { throw "Get-Partition must be mocked." }
         function Mount-VMHostAssignableDevice {
             throw "Mount-VMHostAssignableDevice must be mocked."
         }
@@ -39,10 +38,9 @@ Describe "Hyper-V NVMe recovery" {
         Mock Get-VMAssignableDevice { @() }
         Mock Get-StoragePool { @() }
         Mock Get-PhysicalDisk { @() }
-        Mock Get-Partition { @() }
     }
 
-    It "auto-discovers one safe controller and preserves recovery state" {
+    It "auto-discovers one safe raw disk and preserves recovery state" {
         $statePath = Join-Path $TestDrive "nvme-state.json"
         $diskState = @{ IsOffline = $false }
         $diskIdentity = @{
@@ -71,6 +69,13 @@ Describe "Hyper-V NVMe recovery" {
             }
         }
         Mock Get-CimInstance {
+            param($ClassName, $Namespace, $Filter)
+
+            if ($Namespace -eq "ROOT/Microsoft/Windows/Storage") {
+                $ClassName | Should -Be "MSFT_Partition"
+                $Filter | Should -Be "DiskNumber = 4"
+                return @()
+            }
             [PSCustomObject]@{ PNPDeviceID = $diskId; Index = 4 }
         }
         Mock Get-Disk {
@@ -124,7 +129,16 @@ Describe "Hyper-V NVMe recovery" {
         $diskIdentity.SerialNumber = "disk-serial"
 
         $failedStatePath = Join-Path $TestDrive "partition-query-failed.json"
-        Mock Get-Partition { throw "partition inventory unavailable" }
+        Mock Get-CimInstance {
+            param($ClassName, $Namespace, $Filter)
+
+            if ($Namespace -eq "ROOT/Microsoft/Windows/Storage") {
+                $ClassName | Should -Be "MSFT_Partition"
+                $Filter | Should -Be "DiskNumber = 4"
+                throw "partition inventory unavailable"
+            }
+            [PSCustomObject]@{ PNPDeviceID = $diskId; Index = 4 }
+        }
         {
             & $scriptPath -ValidateOnly -StatePath $failedStatePath
         } | Should -Throw -ExpectedMessage "*found 0*partition inventory unavailable*"
@@ -160,6 +174,21 @@ Describe "Hyper-V NVMe recovery" {
             }
         }
         Mock Get-CimInstance {
+            param($ClassName, $Namespace, $Filter)
+
+            if ($Namespace -eq "ROOT/Microsoft/Windows/Storage") {
+                $ClassName | Should -Be "MSFT_Partition"
+                $Filter | Should -Be "DiskNumber = 4"
+                if ($diskState.AccessPaths.Count -eq 0) {
+                    return @()
+                }
+                return @(
+                    [PSCustomObject]@{ AccessPaths = @() },
+                    [PSCustomObject]@{
+                        AccessPaths = @($diskState.AccessPaths)
+                    }
+                )
+            }
             [PSCustomObject]@{ PNPDeviceID = $diskId; Index = 4 }
         }
         Mock Get-Disk {
@@ -172,9 +201,6 @@ Describe "Hyper-V NVMe recovery" {
                 IsSystem = $diskState.IsSystem
                 IsOffline = $false
             }
-        }
-        Mock Get-Partition {
-            [PSCustomObject]@{ AccessPaths = @($diskState.AccessPaths) }
         }
         Mock Get-PhysicalDisk {
             [PSCustomObject]@{
@@ -290,6 +316,13 @@ Describe "Hyper-V NVMe recovery" {
             }
         }
         Mock Get-CimInstance {
+            param($ClassName, $Namespace, $Filter)
+
+            if ($Namespace -eq "ROOT/Microsoft/Windows/Storage") {
+                $ClassName | Should -Be "MSFT_Partition"
+                $Filter | Should -BeIn @("DiskNumber = 4", "DiskNumber = 5")
+                return @()
+            }
             @(
                 [PSCustomObject]@{ PNPDeviceID = $diskId; Index = 4 },
                 [PSCustomObject]@{ PNPDeviceID = $secondDiskId; Index = 5 }
