@@ -13,7 +13,6 @@ from lisa.util import SkippedException, UnsupportedDistroException
 
 from .kernel_config import KernelConfig
 
-
 _IPV6_ADDRESS_PATTERN = re.compile(r"[0-9a-fA-F:.%]+")
 
 
