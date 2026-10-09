@@ -89,7 +89,7 @@ class CloudHypervisorPlatformTestCase(TestCase):
         platform.restart_domain_and_attach_logger.assert_called_once_with(node)
         self.assertEqual(50, get_ip_address.call_args_list[0].args[3])
         self.assertEqual(340, get_ip_address.call_args_list[1].args[3])
-        log.warning.assert_called_once()
+        log.debug.assert_called_once()
 
     def test_limits_passthrough_boot_restarts(self) -> None:
         ch_platform_module = _load_ch_platform_module()

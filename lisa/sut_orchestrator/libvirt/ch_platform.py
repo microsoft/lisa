@@ -330,7 +330,9 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 "failed its bounded stop and cannot be safely reused."
             )
 
-        assert node_context.domain is not None
+        assert (
+            node_context.domain is not None
+        ), f"Cloud Hypervisor domain {node_context.vm_name} is not initialized"
         process_id = self._find_domain_process_id(node_context.vm_name)
 
         stop_result = self._run_bounded_domain_stop(node_context.vm_name)
@@ -505,7 +507,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
         )
         if len(output) > 32768:
             output = output[-32768:]
-        log.warning(
+        log.debug(
             f"Cloud Hypervisor stop diagnostics for {vm_name}:\n"
             f"{output or '<no diagnostics returned>'}"
         )
@@ -586,7 +588,7 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                     raise
 
             restart_count += 1
-            log.warning(
+            log.debug(
                 f"VM {node_context.vm_name} did not acquire an IP address before "
                 "the boot timeout; restarting the Cloud Hypervisor passthrough "
                 f"domain (attempt {restart_count} of "
