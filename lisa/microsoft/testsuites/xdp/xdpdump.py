@@ -6,11 +6,11 @@ from typing import Any, Dict, Optional
 from assertpy import assert_that
 from microsoft.testsuites.xdp.xdptools import can_install
 
-from lisa import Node, UnsupportedDistroException
+from lisa import LisaException, Node, UnsupportedDistroException
 from lisa.executable import ExecutableResult, Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import CBLMariner, Fedora, Ubuntu
-from lisa.tools import Ethtool, Git, Make, Ping, Sed
+from lisa.tools import Cat, Ethtool, Git, Make, Ping, Sed
 from lisa.tools.ethtool import DeviceGroLroSettings
 from lisa.util.process import Process
 
@@ -19,6 +19,7 @@ class BuildType(str, Enum):
     ACTION_TX = "ACTION_TX"
     ACTION_DROP = "ACTION_DROP"
     ACTION_ABORTED = "ACTION_ABORTED"
+    ACTION_REDIRECT = "ACTION_REDIRECT"
     TX_FWD = "TX_FWD"
     PERF_DROP = "PERF_DROP"
     PERF = "PERF"
@@ -145,10 +146,14 @@ class XdpDump(Tool):
         process = self.start_async(nic_name=nic_name, timeout=timeout)
         return self.wait_result(nic_name=nic_name, process=process)
 
-    def wait_result(self, nic_name: str, process: Process) -> ExecutableResult:
+    def wait_result(
+        self, nic_name: str, process: Process, timeout: float = 600
+    ) -> ExecutableResult:
         try:
-            result = process.wait_result()
+            result = process.wait_result(timeout=timeout)
         finally:
+            if process.is_running():
+                process.kill()
             self._restore_lro(nic_name)
         return result
 
@@ -196,8 +201,11 @@ class XdpDump(Tool):
 
         return result.stdout
 
-    def make_by_build_type(self, build_type: Optional[BuildType] = None) -> None:
+    def make_by_build_type(
+        self, build_type: Optional[BuildType] = None, extra_cflags: str = ""
+    ) -> None:
         env_variables: Dict[str, str] = {}
+        cflags = ""
 
         # if no build type specified, rebuild it with default behavior.
         if build_type:
@@ -206,6 +214,11 @@ class XdpDump(Tool):
             # no output log to improve perf with high volume data.
             if build_type in [BuildType.PERF_DROP, BuildType.TX_FWD, BuildType.PERF]:
                 cflags = f"{cflags} -D __PERF__"
+
+        if extra_cflags:
+            cflags = f"{cflags} {extra_cflags}".strip()
+
+        if cflags:
             env_variables["CFLAGS"] = cflags
 
         # Fix Makefile compilation rule
@@ -227,6 +240,35 @@ class XdpDump(Tool):
         # the forwarder role.
         git = self.node.tools[Git]
         git.discard_local_changes(cwd=self._code_path)
+
+    def make_on_redirect_role(self, target_ifindex: int) -> None:
+        kernel_source = f"{self._code_path}/xdpdump_kern.c"
+        redirect_block = (
+            "#ifdef __ACTION_REDIRECT__\\n"
+            "    if (pkt.l3_proto == ETH_P_IP)\\n"
+            "        if (pkt.l4_proto == IPPROTO_ICMP)\\n"
+            "            return bpf_redirect(XDP_REDIRECT_TARGET_IFINDEX, 0);\\n"
+            "#endif\\n"
+            "#ifdef __PERF_DROP__"
+        )
+        self.node.tools[Sed].substitute(
+            regexp="#ifdef __PERF_DROP__",
+            replacement=redirect_block,
+            file=kernel_source,
+        )
+        if "__ACTION_REDIRECT__" not in self.node.tools[Cat].read(
+            kernel_source, force_run=True
+        ):
+            raise LisaException(
+                "Failed to add XDP_REDIRECT support to xdpdump_kern.c. Verify "
+                "that the LIS/bpf-samples source still contains the PERF_DROP "
+                "action block."
+            )
+
+        self.make_by_build_type(
+            build_type=BuildType.ACTION_REDIRECT,
+            extra_cflags=f"-D XDP_REDIRECT_TARGET_IFINDEX={target_ifindex}",
+        )
 
     def make_on_forwarder_role(
         self,

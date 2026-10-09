@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from typing import Any, List, cast
+from typing import Any, Dict, List, cast
 
 from assertpy import assert_that
+from microsoft.testsuites.network.common import initialize_nic_info
 from microsoft.testsuites.xdp.common import get_dropped_count, get_xdpdump
 from microsoft.testsuites.xdp.xdpdump import BuildType
 from microsoft.testsuites.xdp.xdptools import XdpTool
@@ -23,9 +24,9 @@ from lisa import (
 )
 from lisa.features import NetworkInterface, Sriov, Synthetic
 from lisa.operating_system import BSD, Linux, Windows
-from lisa.tools import Firewall, Ip, Kill, TcpDump
+from lisa.tools import Cat, Ethtool, Firewall, Ip, Kill, Ping, TcpDump
 from lisa.tools.ping import INTERNET_PING_ADDRESS
-from lisa.util import get_matched_str
+from lisa.util import UnsupportedOperationException, get_matched_str
 from lisa.util.constants import SIGINT
 
 
@@ -38,6 +39,12 @@ from lisa.util.constants import SIGINT
     requirement=simple_requirement(supported_os=[Linux]),
 )
 class XdpFunctional(TestSuite):
+    XDP_INJECTED_FRAMES = 100  # Stable sample size for the percentage threshold.
+    XDP_MINIMUM_TRANSMIT_PERCENT = 90  # Tolerate transient VM packet loss.
+    XDP_FRAME_INTERVAL_SECONDS = 0.01  # Avoid saturating virtual NIC queues.
+    XDP_PROCESS_STOP_TIMEOUT = 10  # Allow the XDP program to unload after SIGINT.
+    _XDP_XMIT_TOTAL_COUNTER = "tx_xdp_xmit"
+    _XDP_XMIT_QUEUE_COUNTER_PATTERN = re.compile(r"^tx_?\d+_xdp_xmit$")
     # sample output:
     # 2458.952901 IP 20.83.220.172:unloading xdp program...
     # unloading xdp program...
@@ -144,6 +151,142 @@ class XdpFunctional(TestSuite):
             output = xdpdump.test_by_ping(nic_name=nic_info.name)
 
             self._verify_xdpdump_result(output)
+
+    @TestCaseMetadata(
+        description="""
+        This case verifies that an SR-IOV VF driver transmits frames redirected
+        to it by an XDP program attached to a second SR-IOV VF.
+
+        Steps,
+        1. Get two SR-IOV VFs on the device under test and verify the target VF
+           exposes XDP transmit counters.
+        2. Verify a second VM can reach the device under test's secondary NIC.
+        3. Attach an XDP program to the secondary VF that redirects every ICMP
+           frame it receives to the primary VF.
+        4. Record the primary VF's XDP transmit counters immediately before
+           sending controlled traffic from the second VM.
+        5. Verify the counters advance by at least 90 percent of the injected
+           frames.
+        6. Detach the XDP program.
+        """,
+        priority=2,
+        maturity="preview",
+        timeout=1800,
+        requirement=simple_requirement(
+            min_nic_count=2,
+            min_count=2,
+            network_interface=Sriov(),
+        ),
+        tags=["ai-generated"],
+    )
+    def verify_xdp_redirect_to_vf(self, environment: Environment, log: Logger) -> None:
+        sender_node = cast(RemoteNode, environment.nodes[0])
+        dut_node = cast(RemoteNode, environment.nodes[1])
+        initialize_nic_info(environment, is_sriov=False)
+        for node in (sender_node, dut_node):
+            if len(node.nics.get_nic_names()) < 2:
+                raise SkippedException(
+                    f"{node.name} has fewer than two NICs. Provision both VMs "
+                    "with two SR-IOV NICs before running this preview test."
+                )
+
+        sender_nic = sender_node.nics.get_secondary_nic()
+        ingress_nic = dut_node.nics.get_secondary_nic()
+        target_nic = dut_node.nics.get_primary_nic()
+        for role, nic in (
+            ("sender", sender_nic),
+            ("XDP ingress", ingress_nic),
+            ("XDP redirect target", target_nic),
+        ):
+            if (
+                nic.is_infiniband
+                or not nic.pci_device_name
+                or (role != "XDP redirect target" and not nic.ip_addr)
+            ):
+                raise SkippedException(
+                    f"The {role} NIC is missing an IPv4 address or paired SR-IOV VF. "
+                    "Provision both VMs with two SR-IOV NICs before running this "
+                    "preview test."
+                )
+
+        ethtool = dut_node.tools[Ethtool]
+        target_vf = target_nic.pci_device_name
+        available_counters = self._get_xdp_xmit_counters(ethtool, target_vf)
+        if not available_counters:
+            raise SkippedException(
+                f"{target_vf} exposes no XDP transmit counter, so redirected "
+                "frames cannot be observed. Verify that the VF driver accounts "
+                "frames transmitted for XDP."
+            )
+        log.debug(f"{target_vf} XDP transmit counters: {sorted(available_counters)}")
+
+        assert_that(
+            sender_node.tools[Ping].ping(
+                target=ingress_nic.ip_addr,
+                nic_name=sender_nic.name,
+                count=1,
+            )
+        ).described_as(
+            f"{sender_nic.name} on {sender_node.name} must reach "
+            f"{ingress_nic.name} on {dut_node.name} before XDP is attached."
+        ).is_true()
+
+        ifindex_path = dut_node.get_pure_path(f"/sys/class/net/{target_vf}/ifindex")
+        target_ifindex = int(
+            dut_node.tools[Cat]
+            .read(dut_node.get_str_path(ifindex_path), force_run=True)
+            .strip()
+        )
+        log.info(
+            f"Redirecting ICMP frames received on {ingress_nic.pci_device_name} "
+            f"to {target_vf}, interface index {target_ifindex}."
+        )
+        xdpdump = get_xdpdump(dut_node)
+        target_gro_lro_settings = ethtool.get_device_gro_lro_settings(
+            target_vf, force_run=True
+        )
+        try:
+            if target_gro_lro_settings.lro_setting:
+                # mlx5 disables XDP transmit while LRO packet merging is active.
+                ethtool.change_device_gro_lro_settings(
+                    target_vf,
+                    gro_setting=target_gro_lro_settings.gro_setting,
+                    lro_setting=False,
+                )
+            xdpdump.make_on_redirect_role(target_ifindex)
+            xdpdump_process = xdpdump.start_async(
+                nic_name=ingress_nic.pci_device_name, timeout=0
+            )
+            try:
+                baseline = self._get_xdp_xmit_counters(ethtool, target_vf)
+                self._inject_xdp_frames(
+                    sender_node, sender_nic.name, ingress_nic.ip_addr, log
+                )
+                self._verify_xdp_xmit_advanced(ethtool, target_vf, baseline, log)
+            finally:
+                try:
+                    dut_node.tools[Kill].by_name(
+                        "xdpdump", signum=SIGINT, ignore_not_exist=True
+                    )
+                finally:
+                    xdpdump.wait_result(
+                        nic_name=ingress_nic.pci_device_name,
+                        process=xdpdump_process,
+                        timeout=self.XDP_PROCESS_STOP_TIMEOUT,
+                    )
+        finally:
+            current_gro_lro_settings = ethtool.get_device_gro_lro_settings(
+                target_vf, force_run=True
+            )
+            if (
+                current_gro_lro_settings.lro_setting
+                != target_gro_lro_settings.lro_setting
+            ):
+                ethtool.change_device_gro_lro_settings(
+                    target_vf,
+                    gro_setting=target_gro_lro_settings.gro_setting,
+                    lro_setting=target_gro_lro_settings.lro_setting,
+                )
 
     @TestCaseMetadata(
         description="""
@@ -450,6 +593,65 @@ class XdpFunctional(TestSuite):
         except UnsupportedDistroException as e:
             raise SkippedException(e)
         xdptool.run_full_test()
+
+    def _get_xdp_xmit_counters(self, ethtool: Ethtool, vf_nic: str) -> Dict[str, int]:
+        try:
+            statistics = ethtool.get_device_statistics(vf_nic, force_run=True)
+        except UnsupportedOperationException as identifier:
+            raise SkippedException(identifier) from identifier
+
+        if self._XDP_XMIT_TOTAL_COUNTER in statistics.counters:
+            return {
+                self._XDP_XMIT_TOTAL_COUNTER: statistics.counters[
+                    self._XDP_XMIT_TOTAL_COUNTER
+                ]
+            }
+
+        return {
+            name: value
+            for name, value in statistics.counters.items()
+            if name and self._XDP_XMIT_QUEUE_COUNTER_PATTERN.fullmatch(name)
+        }
+
+    def _inject_xdp_frames(
+        self, sender_node: Node, sender_nic: str, target_ip: str, log: Logger
+    ) -> None:
+        log.info(
+            f"Sending {self.XDP_INJECTED_FRAMES} frames from {sender_nic} to "
+            f"{target_ip}."
+        )
+        sender_node.tools[Ping].ping(
+            target=target_ip,
+            nic_name=sender_nic,
+            count=self.XDP_INJECTED_FRAMES,
+            interval=self.XDP_FRAME_INTERVAL_SECONDS,
+            ignore_error=True,
+            sudo=True,
+        )
+
+    def _verify_xdp_xmit_advanced(
+        self, ethtool: Ethtool, vf_nic: str, baseline: Dict[str, int], log: Logger
+    ) -> None:
+        current = self._get_xdp_xmit_counters(ethtool, vf_nic)
+        delta = sum(value - baseline.get(name, 0) for name, value in current.items())
+        minimum_transmits = (
+            self.XDP_INJECTED_FRAMES * self.XDP_MINIMUM_TRANSMIT_PERCENT // 100
+        )
+        log.debug(
+            f"{vf_nic} XDP transmit counter delta: {delta}; required: "
+            f"{minimum_transmits}"
+        )
+
+        assert_that(delta).described_as(
+            f"{vf_nic} accounted {delta} XDP transmits after injecting "
+            f"{self.XDP_INJECTED_FRAMES} frames; at least {minimum_transmits} "
+            "must reach the VF transmit path. Check memory pressure and the "
+            "VF driver's XDP_REDIRECT transmit errors."
+        ).is_greater_than_or_equal_to(minimum_transmits)
+        log.info(
+            f"{vf_nic} accounted {delta} redirected XDP frames, meeting the "
+            f"minimum of {minimum_transmits}."
+        )
 
     def _test_with_build_type(
         self,
