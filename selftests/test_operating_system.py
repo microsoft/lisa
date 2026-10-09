@@ -115,6 +115,7 @@ class OperatingSystemTestCase(TestCase):
         mariner, node = self._create_mariner_for_replace_boot_kernel()
         working_path = PurePosixPath("/tmp/working")
         node.get_working_path.return_value = working_path
+        node.tools[Wget].get.return_value = "/tmp/working/RPM-GPG-KEY-mariner"
 
         key_url = "https://example.com/RPM-GPG-KEY-mariner"
         mariner.add_repository("https://example.com/repo", keys_location=[key_url])
@@ -122,7 +123,7 @@ class OperatingSystemTestCase(TestCase):
         node.tools[Wget].get.assert_called_once_with(
             key_url,
             filename="RPM-GPG-KEY-mariner",
-            save_path=working_path,
+            file_path="/tmp/working",
         )
         node.execute.assert_called_once_with(
             "rpm --import /tmp/working/RPM-GPG-KEY-mariner", sudo=True, shell=True
