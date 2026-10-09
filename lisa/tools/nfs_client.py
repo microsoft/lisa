@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import ipaddress
+import re
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Redhat, Suse
@@ -11,6 +12,18 @@ from lisa.tools.rm import Rm
 from lisa.util import SkippedException, UnsupportedDistroException
 
 from .kernel_config import KernelConfig
+
+
+_IPV6_ADDRESS_PATTERN = re.compile(r"[0-9a-fA-F:.%]+")
+
+
+def _is_ipv6_address(address: str) -> bool:
+    if ":" not in address or not _IPV6_ADDRESS_PATTERN.fullmatch(address):
+        return False
+    try:
+        return ipaddress.ip_address(address).version == 6
+    except ValueError:
+        return False
 
 
 class NFSClient(Tool):
@@ -42,7 +55,7 @@ class NFSClient(Tool):
         self.node.tools[Firewall].stop()
 
         # mount server shared directory
-        if ipaddress.ip_address(server_ip).version == 6:
+        if _is_ipv6_address(server_ip):
             # NFS source syntax brackets IPv6 literals, e.g.
             # 2001:db8::5:/share becomes [2001:db8::5]:/share.
             server_address = f"[{server_ip}]"
