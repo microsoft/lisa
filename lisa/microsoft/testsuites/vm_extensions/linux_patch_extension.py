@@ -1,9 +1,10 @@
 # Copyright (c) Microsoft Corporation. Licensed under the MIT license.
 
-from typing import Any
+from typing import Any, Dict
 
 from assertpy.assertpy import assert_that
 from azure.core.exceptions import HttpResponseError
+from microsoft.testsuites.vm_extensions.vm_extension_base import VmExtensionTestBase
 
 from lisa import (
     Environment,
@@ -22,6 +23,7 @@ from lisa.sut_orchestrator.azure.common import (
     get_node_context,
     wait_operation,
 )
+from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.util import SkippedException, UnsupportedDistroException, parse_version
@@ -397,4 +399,56 @@ class LinuxPatchExtensionBVT(TestSuite):
             vm_name,
             self.TIMEOUT,
             install_patches_input,
+        )
+
+
+@TestSuiteMetadata(
+    area="vm_extension",
+    category="functional",
+    description="""
+    This test suite validates the Linux Patch VM extension
+    (Microsoft.CPlat.Core.LinuxPatchExtension).
+
+    Coverage is boot validation: install the extension with empty settings,
+    confirm provisioning succeeds, confirm the requested version was installed,
+    confirm the VM is still reachable over SSH, then remove the extension.
+    """,
+    tags=["VM_Extension", "LinuxPatchExtension"],
+    requirement=simple_requirement(
+        supported_features=[AzureExtension],
+        supported_platform_type=[AZURE],
+        unsupported_os=[BSD],
+    ),
+)
+class LinuxPatchExtensionBootValidation(VmExtensionTestBase):  # type: ignore[misc]
+    PUBLISHER = "Microsoft.CPlat.Core"
+    EXTENSION_TYPE = "LinuxPatchExtension"
+    EXTENSION_KEY = "linux_patch_extension"
+
+    @TestCaseMetadata(
+        description="""
+        Basic boot validation for the Linux Patch VM extension.
+
+        Installs the explicitly requested candidate version with empty public
+        settings and no protected settings. Verifies that extension provisioning
+        succeeds, the installed patch version matches when a full version is
+        supplied, and the VM remains reachable before removing the extension.
+
+        The candidate version is read from the 'extension_version' or
+        'linux_patch_extension_version' runbook variable; the test is skipped
+        if neither is set. The deployed extension is named
+        '<publisher>_<extension_type>_boot_validation_test'.
+        """,
+        priority=5,
+        tags=["microsoft.cplat.core.linuxpatchextension"],
+        maturity="preview",
+    )
+    def microsoft_cplat_core_linuxpatchextension_boot_validation_test(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        self._boot_validation(
+            node=node,
+            log=log,
+            variables=variables,
+            settings={},
         )
