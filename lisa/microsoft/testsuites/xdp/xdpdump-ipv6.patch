@@ -1,0 +1,100 @@
+diff --git a/xdpdump/xdpdump_kern.c b/xdpdump/xdpdump_kern.c
+index 3683e63..bca8628 100644
+--- a/xdpdump/xdpdump_kern.c
++++ b/xdpdump/xdpdump_kern.c
+@@ -5,6 +5,7 @@
+ #include <stddef.h>
+ #include <linux/bpf.h>
+ #include <linux/if_ether.h>
++#include <linux/icmpv6.h>
+ #include <linux/in.h>
+ #include <linux/ip.h>
+ #include <linux/ipv6.h>
+@@ -87,6 +88,20 @@ static __always_inline bool parse_ip6(void *data, __u64 off, void *data_end,
+ 	return true;
+ }
+ 
++#if defined(__ACTION_DROP__) || defined(__ACTION_ABORTED__)
++static __always_inline bool is_echo6(void *data, __u32 off, void *data_end)
++{
++	struct icmp6hdr *icmp6h = data + off;
++
++	if (icmp6h + 1 > data_end)
++		return false;
++
++	return icmp6h->icmp6_code == 0 &&
++	       (icmp6h->icmp6_type == ICMPV6_ECHO_REQUEST ||
++		icmp6h->icmp6_type == ICMPV6_ECHO_REPLY);
++}
++#endif
++
+ #if defined(__ACTION_TX__) || defined(__TX_FWD__)
+ static __always_inline void ip_csum(struct iphdr *iph)
+ {
+@@ -155,6 +170,41 @@ static __always_inline int ping_reply(struct xdp_md *ctx)
+ 
+ 	return XDP_TX;
+ }
++
++static __always_inline int ping_reply6(struct xdp_md *ctx)
++{
++	void *data_end = (void *)(long)ctx->data_end;
++	void *data = (void *)(long)ctx->data;
++	struct ethhdr *eth = data;
++	struct ipv6hdr *ip6h = (struct ipv6hdr *)(eth + 1);
++	struct icmp6hdr *icmp6h = (struct icmp6hdr *)(ip6h + 1);
++	__u32 checksum;
++	__u16 payload_len;
++
++	if (eth + 1 > data_end || ip6h + 1 > data_end ||
++	    icmp6h + 1 > data_end)
++		return XDP_PASS;
++
++	payload_len = bpf_ntohs(ip6h->payload_len);
++	if (ip6h->version != 6 || ip6h->nexthdr != IPPROTO_ICMPV6 ||
++	    payload_len < sizeof(*icmp6h) ||
++	    payload_len > data_end - (void *)icmp6h ||
++	    icmp6h->icmp6_type != ICMPV6_ECHO_REQUEST || icmp6h->icmp6_code != 0)
++		return XDP_PASS;
++
++	checksum = (~bpf_ntohs(icmp6h->icmp6_cksum) & 0xffff) +
++		   (~(ICMPV6_ECHO_REQUEST << 8) & 0xffff) +
++		   (ICMPV6_ECHO_REPLY << 8);
++	checksum = (checksum & 0xffff) + (checksum >> 16);
++	checksum = (checksum & 0xffff) + (checksum >> 16);
++
++	swap_mem(eth->h_dest, eth->h_source, ETH_ALEN);
++	swap_mem(&ip6h->saddr, &ip6h->daddr, sizeof(ip6h->saddr));
++	icmp6h->icmp6_type = ICMPV6_ECHO_REPLY;
++	icmp6h->icmp6_cksum = bpf_htons((__u16)~checksum);
++
++	return XDP_TX;
++}
+ #endif
+ #ifdef __TX_FWD__
+ static __always_inline int udp_forward(struct xdp_md *ctx)
+@@ -250,16 +300,22 @@ int process_packet(struct xdp_md *ctx)
+ 		return XDP_DROP;
+ 	#endif
+ 	#ifdef __ACTION_DROP__
+-	if (pkt.l3_proto == ETH_P_IP && pkt.l4_proto == IPPROTO_ICMP)
++	if ((pkt.l3_proto == ETH_P_IP && pkt.l4_proto == IPPROTO_ICMP) ||
++	    (pkt.l3_proto == ETH_P_IPV6 && pkt.l4_proto == IPPROTO_ICMPV6 &&
++	     is_echo6(data, off, data_end)))
+ 		return XDP_DROP;
+ 	#endif
+ 	#ifdef __ACTION_ABORTED__
+-	if (pkt.l3_proto == ETH_P_IP && pkt.l4_proto == IPPROTO_ICMP)
++	if ((pkt.l3_proto == ETH_P_IP && pkt.l4_proto == IPPROTO_ICMP) ||
++	    (pkt.l3_proto == ETH_P_IPV6 && pkt.l4_proto == IPPROTO_ICMPV6 &&
++	     is_echo6(data, off, data_end)))
+ 		return XDP_ABORTED;
+ 	#endif
+ 	#ifdef __ACTION_TX__
+ 	if (pkt.l3_proto == ETH_P_IP && pkt.l4_proto == IPPROTO_ICMP)
+ 		return ping_reply(ctx);
++	if (pkt.l3_proto == ETH_P_IPV6 && pkt.l4_proto == IPPROTO_ICMPV6)
++		return ping_reply6(ctx);
+ 	#endif
+ 	#ifdef __TX_FWD__
+ 	if (pkt.l3_proto == ETH_P_IP && pkt.l4_proto == IPPROTO_UDP)

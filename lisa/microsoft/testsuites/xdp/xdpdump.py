@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 from enum import Enum
+from pathlib import PurePath
 from typing import Any, Dict, Optional
 
 from assertpy import assert_that
@@ -51,6 +52,15 @@ class XdpDump(Tool):
     def _check_exists(self) -> bool:
         return self.node.shell.exists(self._code_path)
 
+    def _apply_ipv6_patch(self) -> None:
+        local_patch = PurePath(__file__).parent / "xdpdump-ipv6.patch"
+        remote_patch = self._code_path.parent / local_patch.name
+        self.node.shell.copy(local_patch, remote_patch)
+        self.node.tools[Git].apply_patch(
+            cwd=self._code_path.parent,
+            patch=remote_patch,
+        )
+
     def _install(self) -> bool:
         # install dependencies
         if isinstance(self.node.os, Ubuntu):
@@ -82,7 +92,8 @@ class XdpDump(Tool):
 
         git = self.node.tools[Git]
         code_path = git.clone(
-            self._bpf_samples_repo, cwd=self.get_tool_path(use_global=True)
+            self._bpf_samples_repo,
+            cwd=self.get_tool_path(use_global=True),
         )
         assert_that(code_path).described_as(
             "xdpdump cloned path is inconsistent with pre-configured"
@@ -110,6 +121,7 @@ class XdpDump(Tool):
         )
 
         # create a default version for exists checking.
+        self._apply_ipv6_patch()
         make = self.node.tools[Make]
         make.make(
             arguments="",
@@ -196,7 +208,10 @@ class XdpDump(Tool):
 
         return result.stdout
 
-    def make_by_build_type(self, build_type: Optional[BuildType] = None) -> None:
+    def make_by_build_type(
+        self, build_type: Optional[BuildType] = None, reset_code: bool = True
+    ) -> None:
+        """Build with LISA patches; disable reset to preserve other source edits."""
         env_variables: Dict[str, str] = {}
 
         # if no build type specified, rebuild it with default behavior.
@@ -208,6 +223,7 @@ class XdpDump(Tool):
                 cflags = f"{cflags} -D __PERF__"
             env_variables["CFLAGS"] = cflags
 
+        self._apply_ipv6_patch()
         # Fix Makefile compilation rule
         self.node.tools[Sed].substitute(
             "-O2 -emit-llvm -c -g \\$<",
@@ -216,17 +232,17 @@ class XdpDump(Tool):
             sudo=True,
         )
         make = self.node.tools[Make]
-        make.make(
-            arguments="",
-            cwd=self._code_path,
-            is_clean=True,
-            update_envs=env_variables,
-        )
-
-        # discard local changes after built, it's used to cleanup changes from
-        # the forwarder role.
-        git = self.node.tools[Git]
-        git.discard_local_changes(cwd=self._code_path)
+        try:
+            make.make(
+                arguments="",
+                cwd=self._code_path,
+                is_clean=True,
+                update_envs=env_variables,
+            )
+        finally:
+            if reset_code:
+                self.node.tools[Git].discard_local_changes(cwd=self._code_path)
+                self._apply_ipv6_patch()
 
     def make_on_forwarder_role(
         self,

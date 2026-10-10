@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from pathlib import PurePath
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from lisa import (
     LisaException,
@@ -81,6 +81,7 @@ class XdpTool(Tool):
         super()._initialize(*args, **kwargs)
         self._command: PurePath = PurePath(self._default_command)
         self._gro_lro_settings: Dict[str, DeviceGroLroSettings] = {}
+        self._build_envs: Dict[str, str] = {}
         # v1.6.3 is the first release that builds against glibc 2.43 and
         # gcc 15 (Ubuntu 26.04). Older tags fail on missing <limits.h> and
         # _GNU_SOURCE declarations. It also needs clang-11 or later.
@@ -180,7 +181,9 @@ class XdpTool(Tool):
         git = self.node.tools[Git]
         # use super() to prevent duplicate build.
         code_root_path = git.clone(
-            self._xdp_tools_repo, cwd=super().get_tool_path(), ref=self._xdp_tools_tag
+            self._xdp_tools_repo,
+            cwd=super().get_tool_path(),
+            ref=self._xdp_tools_tag,
         )
         self._code_path = code_root_path
         # use xdpdump to detect if the tool is installed or not.
@@ -198,7 +201,6 @@ class XdpTool(Tool):
             expected_exit_code_failure_message="failed on configure xdp "
             "tools before make.",
         )
-        make = self.node.tools[Make]
         # Errors happen if built with multi-threads. The program may not be
         # ready for concurrent build, but our make tool use multi-thread by
         # default. So set thread count to 1.
@@ -215,14 +217,29 @@ class XdpTool(Tool):
         # diagnostics as warnings. The BPF programs are unaffected and still
         # built with "-Werror", because the clang rules don't use CPPFLAGS.
         update_envs["CPPFLAGS"] = "-Wno-error"
-        make.make(
-            arguments="",
-            cwd=self._code_path,
-            update_envs=update_envs,
-            thread_count=1,
-        )
+        self._build_envs = update_envs
+        self.build()
 
         return self._check_exists()
+
+    def build(
+        self,
+        update_envs: Optional[Dict[str, str]] = None,
+        reset_code: bool = True,
+    ) -> None:
+        """Build xdp-tools, optionally preserving local source edits."""
+        try:
+            self.node.tools[Make].make(
+                arguments="",
+                cwd=self._code_path,
+                update_envs=(
+                    update_envs if update_envs is not None else self._build_envs
+                ),
+                thread_count=1,
+            )
+        finally:
+            if reset_code:
+                self.node.tools[Git].discard_local_changes(cwd=self._code_path)
 
     def _install_fedora_test_dependencies(self, os: Fedora) -> None:
         # Extra tools required by the xdp-tools test runner. They are
