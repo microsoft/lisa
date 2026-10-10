@@ -77,7 +77,7 @@ class Provisioning(TestSuite):
                 data_disk_type=schema.DiskType.StandardSSDLRS,
                 os_disk_type=schema.DiskType.StandardSSDLRS,
                 data_disk_iops=search_space.IntRange(min=6000),
-                data_disk_count=search_space.IntRange(min=16),
+                data_disk_count=search_space.IntRange(min=32),
             ),
         ),
     )
