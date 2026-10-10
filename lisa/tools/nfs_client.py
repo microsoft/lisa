@@ -1,6 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import ipaddress
+import re
+
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Redhat, Suse
 from lisa.tools.firewall import Firewall
@@ -10,6 +13,17 @@ from lisa.tools.rm import Rm
 from lisa.util import SkippedException, UnsupportedDistroException
 
 from .kernel_config import KernelConfig
+
+_IPV6_ADDRESS_PATTERN = re.compile(r"[0-9a-fA-F:.%]+")
+
+
+def _is_ipv6_address(address: str) -> bool:
+    if ":" not in address or not _IPV6_ADDRESS_PATTERN.fullmatch(address):
+        return False
+    try:
+        return ipaddress.ip_address(address).version == 6
+    except ValueError:
+        return False
 
 
 class NFSClient(Tool):
@@ -41,8 +55,33 @@ class NFSClient(Tool):
         self.node.tools[Firewall].stop()
 
         # mount server shared directory
+        if _is_ipv6_address(server_ip):
+            # NFS source syntax brackets IPv6 literals, e.g.
+            # 2001:db8::5:/share becomes [2001:db8::5]:/share.
+            server_address = f"[{server_ip}]"
+            option_items = options.split(",") if options else []
+            protocol = "tcp6"
+            for index, option in enumerate(option_items):
+                name, separator, value = option.partition("=")
+                if name in ("proto", "mountproto") and separator:
+                    if value in ("tcp", "udp"):
+                        # Select the IPv6 netid: proto=tcp becomes proto=tcp6.
+                        value = f"{value}6"
+                    if name == "proto":
+                        protocol = value
+                    option_items[index] = f"{name}={value}"
+            if not any(item.startswith("proto=") for item in option_items):
+                option_items.append(f"proto={protocol}")
+            # NFSv3 uses a separate mountd connection; NFSv4 does not.
+            if "vers=3" in option_items and not any(
+                item.startswith("mountproto=") for item in option_items
+            ):
+                option_items.append(f"mountproto={protocol}")
+            options = ",".join(option_items)
+        else:
+            server_address = server_ip
         self.node.tools[Mount].mount(
-            name=f"{server_ip}:{server_shared_dir}",
+            name=f"{server_address}:{server_shared_dir}",
             point=mount_dir,
             fs_type=FileSystem.nfs,
             options=options,
