@@ -1,8 +1,9 @@
+import fnmatch
 import os
 import re
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from assertpy import assert_that
 
@@ -60,6 +61,40 @@ class KselftestResult:
     name: str = ""
     status: TestStatus = TestStatus.QUEUED
     exit_value: int = 0
+
+
+def _has_glob_chars(value: str) -> bool:
+    return any(ch in value for ch in "*?[")
+
+
+def build_skip_predicate(skip_tests: Optional[List[str]]) -> Callable[[str], bool]:
+    """
+    Build a predicate that returns True when a kselftest test name (in
+    "collection:test" form, e.g. "net:altnames.sh") should be skipped.
+
+    Skip entries in `skip_tests` may be:
+    - the full "collection:test" name (e.g. "net:altnames.sh")
+    - a bare test name without a collection (e.g. "altnames.sh"), which
+      matches that test in any collection
+    - a glob pattern containing "*", "?", or "[" (e.g. "crypto:*"),
+      matched against either the full name or the bare name using
+      case-sensitive glob semantics, regardless of the controller OS.
+    """
+    skip_set = set(skip_tests or [])
+    exact_skips = {entry for entry in skip_set if not _has_glob_chars(entry)}
+    pattern_skips = [entry for entry in skip_set if _has_glob_chars(entry)]
+
+    def _is_skipped(test: str) -> bool:
+        bare_name = test.split(":", 1)[1] if ":" in test else test
+        if test in exact_skips or bare_name in exact_skips:
+            return True
+        return any(
+            fnmatch.fnmatchcase(test, pattern)
+            or fnmatch.fnmatchcase(bare_name, pattern)
+            for pattern in pattern_skips
+        )
+
+    return _is_skipped
 
 
 class Kselftest(Tool):
@@ -367,18 +402,11 @@ class Kselftest(Tool):
 
         # Exclude tests based on skip_tests. run_kselftest.sh -l lists tests as
         # "collection:test" (e.g. "net:altnames.sh"), but a skip entry may be
-        # either the full "collection:test" or just the bare test name (e.g.
-        # "altnames.sh"). Match on both so a bare name skips that test in any
-        # collection.
-        skip_set = set(skip_tests or [])
-
-        def _is_skipped(test: str) -> bool:
-            if test in skip_set:
-                return True
-            bare_name = test.split(":", 1)[1] if ":" in test else test
-            return bare_name in skip_set
-
-        tests_to_run = [test for test in filtered_tests if not _is_skipped(test)]
+        # the full "collection:test" name, a bare test name (e.g.
+        # "altnames.sh", matching that test in any collection), or a glob
+        # pattern such as "crypto:*" to skip an entire collection.
+        is_skipped = build_skip_predicate(skip_tests)
+        tests_to_run = [test for test in filtered_tests if not is_skipped(test)]
         if not tests_to_run:
             raise LisaException(
                 "No kselftests selected after applying"
