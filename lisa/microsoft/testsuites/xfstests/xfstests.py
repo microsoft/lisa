@@ -687,6 +687,7 @@ class Xfstests(Tool):
         "libattr-devel",
         "libbtrfs-devel",
         "libcap",
+        "libcap2",
         "libcap-devel",
         "libtool",
         "liburing-devel",
