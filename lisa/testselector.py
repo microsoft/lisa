@@ -71,8 +71,7 @@ def _prefilter_by_target_os(
         if _is_os_compatible(metadata, target_os, target_os_version):
             kept[name] = metadata
         else:
-            dropped_names.append(name)
-            log.debug(f"pre-filter dropped {name}: {metadata.requirement.os_type}")
+            dropped_names.append(f"{name} ({metadata.requirement.os_type})")
     if dropped_names:
         log.info(
             f"pre-filter: dropped {len(dropped_names)} case(s) incompatible "

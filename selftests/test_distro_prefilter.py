@@ -271,6 +271,26 @@ class UbuntuVersionPrefilterTestCase(TestCase):
                 unsupported_os=[OsRequirement(Ubuntu, max_version="22.04")],
             )
 
+    def test_requirement_repr(self) -> None:
+        cases = [
+            (OsRequirement(Ubuntu), "Ubuntu"),
+            (OsRequirement(Ubuntu, min_version="20.04"), "Ubuntu[>=20.04)"),
+            (OsRequirement(Ubuntu, max_version="24.04"), "Ubuntu[<24.04)"),
+            (
+                OsRequirement(Ubuntu, min_version="20.04", max_version="24.04"),
+                "Ubuntu[>=20.04,<24.04)",
+            ),
+        ]
+        for entry, expected in cases:
+            with self.subTest(expected=expected):
+                self.assertEqual(expected, repr(entry))
+                self.assertEqual(expected, str(entry))
+        # Skip reasons render the os_type SetSpace, which uses each item's repr.
+        requirement = simple_requirement(
+            supported_os=[OsRequirement(Ubuntu, min_version="20.04")]
+        )
+        self.assertIn("Ubuntu[>=20.04)", str(requirement.os_type))
+
     def test_requirement_helpers_and_inheritance(self) -> None:
         entry = OsRequirement(Ubuntu, min_version="22.04")
         for requirement in (

@@ -52,6 +52,16 @@ class OsRequirement:
         object.__setattr__(self, "_minimum", minimum)
         object.__setattr__(self, "_maximum", maximum)
 
+    def __repr__(self) -> str:
+        # Compact form for skip reasons and logs, e.g. Ubuntu[>=20.04,<24.04)
+        bounds = []
+        if self.min_version is not None:
+            bounds.append(f">={self.min_version}")
+        if self.max_version is not None:
+            bounds.append(f"<{self.max_version}")
+        suffix = f"[{','.join(bounds)})" if bounds else ""
+        return f"{self.os_type.__name__}{suffix}"
+
     @property
     def has_version(self) -> bool:
         return self.min_version is not None or self.max_version is not None
