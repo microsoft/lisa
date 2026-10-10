@@ -1,0 +1,88 @@
+name: mana
+# Runbook for the MANA (Microsoft Azure Network Adapter) test suite.
+#
+# It selects the `mana` test area (lisa/microsoft/testsuites/network/mana.py)
+# and, by default, provisions a MANA-capable VM size so the platform attaches a
+# MANA VF (1414:00ba) to the guest. Without a MANA-backed SKU both cases
+# self-skip.
+#
+# Example:
+#   lisa -r ./lisa/microsoft/runbook/mana.yml \
+#     -v subscription_id:<sub> \
+#     -v admin_private_key_file:<path-to-private-key> \
+#     -v "marketplace_image:microsoftcblmariner azure-linux-3 azure-linux-3-gen2 latest"  # noqa: E501
+#
+# For the Windows case, pass a Windows marketplace image, e.g.:
+#   -v "marketplace_image:MicrosoftWindowsServer WindowsServer 2022-datacenter-g2 latest"  # noqa: E501
+extension:
+  - ../testsuites
+variable:
+  - name: location
+    value: "westus3"
+  - name: keep_environment
+    value: "no"
+  - name: resource_group_name
+    value: ""
+  # MANA is exposed on newer AccelNet-capable SKUs (e.g. Dsv6/Esv6/Lsv4).
+  # ICM 809802825 was observed on Standard_L32s_v4.
+  - name: vm_size
+    value: "Standard_D8s_v6"
+  - name: marketplace_image
+    value: ""
+  - name: shared_gallery
+    value: ""
+  - name: community_gallery_image
+    value: ""
+  - name: vhd
+    value: ""
+  - name: deploy
+    value: true
+  - name: wait_delete
+    value: false
+  - name: concurrency
+    value: 1
+  - name: auth_type
+    value: "default"
+  - name: admin_private_key_file
+    value: ""
+    is_secret: true
+  - name: admin_password
+    value: ""
+    is_secret: true
+  - name: azure_arm_access_token
+    value: ""
+    is_secret: true
+  - name: subscription_id
+    value: ""
+concurrency: $(concurrency)
+notifier:
+  - type: html
+  - type: env_stats
+platform:
+  - type: azure
+    admin_private_key_file: $(admin_private_key_file)
+    admin_password: $(admin_password)
+    keep_environment: $(keep_environment)
+    azure:
+      credential:
+        type: $(auth_type)
+        token: $(azure_arm_access_token)
+      resource_group_name: $(resource_group_name)
+      deploy: $(deploy)
+      subscription_id: $(subscription_id)
+      wait_delete: $(wait_delete)
+    requirement:
+      core_count:
+        min: 2
+      network_interface:
+        data_path: Sriov
+      azure:
+        marketplace: $(marketplace_image)
+        shared_gallery: $(shared_gallery)
+        community_gallery_image: $(community_gallery_image)
+        vhd: $(vhd)
+        location: $(location)
+        vm_size: $(vm_size)
+testcase:
+  - criteria:
+      area: mana
