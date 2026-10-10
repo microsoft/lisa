@@ -16,6 +16,7 @@ FEATURE_NAME_SECURITY_PROFILE = "Security_Profile"
 
 class SecurityProfileType(str, Enum):
     Standard = constants.SECURITY_PROFILE_NONE
+    LvbsProdUnsigned = constants.SECURITY_PROFILE_LVBS_PROD_UNSIGNED
     CVM = constants.SECURITY_PROFILE_CVM
     Stateless = constants.SECURITY_PROFILE_STATELESS
     SecureBoot = constants.SECURITY_PROFILE_BOOT
@@ -23,6 +24,7 @@ class SecurityProfileType(str, Enum):
 
 security_profile_priority: List[SecurityProfileType] = [
     SecurityProfileType.Standard,
+    SecurityProfileType.LvbsProdUnsigned,
     SecurityProfileType.SecureBoot,
     SecurityProfileType.CVM,
     SecurityProfileType.Stateless,
@@ -42,6 +44,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
             search_space.SetSpace,
             items=[
                 SecurityProfileType.Standard,
+                SecurityProfileType.LvbsProdUnsigned,
                 SecurityProfileType.SecureBoot,
                 SecurityProfileType.CVM,
                 SecurityProfileType.Stateless,
@@ -53,6 +56,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
                 base_type=SecurityProfileType,
                 default_values=[
                     SecurityProfileType.Standard,
+                    SecurityProfileType.LvbsProdUnsigned,
                     SecurityProfileType.SecureBoot,
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
@@ -156,7 +160,12 @@ CvmEnabled = partial(
 CvmDisabled = partial(
     SecurityProfileSettings,
     security_profile=search_space.SetSpace(
-        True, [SecurityProfileType.Standard, SecurityProfileType.SecureBoot]
+        True,
+        [
+            SecurityProfileType.Standard,
+            SecurityProfileType.LvbsProdUnsigned,
+            SecurityProfileType.SecureBoot,
+        ],
     ),
     encrypt_disk=search_space.SetSpace(True, [False]),
 )
