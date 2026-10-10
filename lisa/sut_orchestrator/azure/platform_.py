@@ -648,7 +648,8 @@ class AzurePlatform(Platform):
                 )
             else:
                 error_message = (
-                    "; ".join(errors)
+                    # Locations often report identical reasons.
+                    "; ".join(dict.fromkeys(errors))
                     if errors
                     else (
                         "no eligible VM configuration found" f" in {allowed_locations}"
