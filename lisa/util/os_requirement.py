@@ -45,7 +45,10 @@ class OsRequirement:
             _parse_release(self.max_version) if self.max_version is not None else None
         )
         if minimum is not None and maximum is not None and minimum >= maximum:
-            raise LisaException("OS min_version must be less than max_version")
+            raise LisaException(
+                "OS min_version must be less than max_version: "
+                f"min_version={self.min_version}, max_version={self.max_version}"
+            )
         object.__setattr__(self, "_minimum", minimum)
         object.__setattr__(self, "_maximum", maximum)
 
