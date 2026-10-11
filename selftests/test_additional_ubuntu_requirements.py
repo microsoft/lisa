@@ -44,9 +44,9 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
     ]
     # AzSecPack excludes only pre-18 Ubuntu in metadata; its runtime guard has a
     # different signature, so it isn't part of minimum_cases.
-    metadata_minimum_cases: List[Tuple[TestCaseMetadata, Tuple[int, int]]] = (
-        minimum_cases + [(_AZSECPACK, (18, 1))]
-    )
+    metadata_minimum_cases: List[
+        Tuple[TestCaseMetadata, Tuple[int, int]]
+    ] = minimum_cases + [(_AZSECPACK, (18, 1))]
     major_cases: List[Tuple[TestCaseMetadata, Tuple[int, ...]]] = [
         (
             _CASES[
