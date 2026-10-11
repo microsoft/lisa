@@ -32,6 +32,7 @@ from lisa.util import SkippedException, parse_version
 from lisa.util.os_resolver import resolve_target_os
 
 _CASES = get_cases_metadata()
+_AZSECPACK = _CASES[f"{AzSecPack.__name__}.verify_azsecpack"]
 
 
 class AdditionalUbuntuRequirementTestCase(TestCase):
@@ -41,8 +42,12 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
         (_CASES[f"{TvmTest.__name__}.verify_secureboot_compatibility"], (18, 4)),
         (_CASES[f"{TvmTest.__name__}.verify_measuredboot_compatibility"], (18, 4)),
     ]
+    # AzSecPack excludes only pre-18 Ubuntu in metadata; its runtime guard has a
+    # different signature, so it isn't part of minimum_cases.
+    metadata_minimum_cases: List[Tuple[TestCaseMetadata, Tuple[int, int]]] = (
+        minimum_cases + [(_AZSECPACK, (18, 1))]
+    )
     major_cases: List[Tuple[TestCaseMetadata, Tuple[int, ...]]] = [
-        (_CASES[f"{AzSecPack.__name__}.verify_azsecpack"], (18, 20, 22, 24, 26)),
         (
             _CASES[
                 f"{AzurePerformanceDiagnostics.__name__}."
@@ -53,7 +58,7 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
     ]
 
     def test_minimum_release_boundaries(self) -> None:
-        for case, minimum in self.minimum_cases:
+        for case, minimum in self.metadata_minimum_cases:
             for major in range(14, 27):
                 for month in range(1, 13):
                     with self.subTest(case=case.name, major=major, month=month):
@@ -77,14 +82,14 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
                         )
 
     def test_non_ubuntu_and_other_requirements_are_preserved(self) -> None:
-        cases = [case for case, _ in self.minimum_cases] + [
+        cases = [case for case, _ in self.metadata_minimum_cases] + [
             case for case, _ in self.major_cases
         ]
         for case in cases:
             self.assertTrue(_is_os_compatible(case, Ubuntu))
             for distro in (Debian, Redhat, Suse, CBLMariner):
                 self.assertTrue(_is_os_compatible(case, distro, parse_version("1.0")))
-            is_azsecpack = case is self.major_cases[0][0]
+            is_azsecpack = case is _AZSECPACK
             self.assertEqual(is_azsecpack, _is_os_compatible(case, Windows))
             self.assertEqual(not is_azsecpack, _is_os_compatible(case, BSD))
             requirement = case.requirement
@@ -99,7 +104,7 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
                 self.assertTrue(features)
 
     def test_marketplace_selection_and_gate(self) -> None:
-        cases = [case for case, _ in self.minimum_cases] + [
+        cases = [case for case, _ in self.metadata_minimum_cases] + [
             case for case, _ in self.major_cases
         ]
         for enabled in (False, True):
@@ -124,7 +129,7 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
                     version = parse_version(release)
                     expected = {
                         case.full_name
-                        for case, minimum in self.minimum_cases
+                        for case, minimum in self.metadata_minimum_cases
                         if not enabled or (version.major, version.minor) >= minimum
                     } | {
                         case.full_name
@@ -166,7 +171,7 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
                 node.execute.assert_not_called()
 
     def test_security_pack_arm64_restriction_remains_runtime_only(self) -> None:
-        case = self.major_cases[0][0]
+        case = _AZSECPACK
         suite = case.suite.test_class(case.suite)
         node = Mock()
         node.os = Ubuntu(node)
@@ -183,7 +188,7 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
         node.execute.assert_not_called()
 
     def test_performance_diagnostics_runtime_major_version_check(self) -> None:
-        case = self.major_cases[1][0]
+        case = self.major_cases[0][0]
         suite = case.suite.test_class(case.suite)
         for major in range(12, 27):
             with self.subTest(major=major):
