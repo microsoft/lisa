@@ -36,7 +36,10 @@ def _get_openvmm_tests_type() -> Any:
     description="""
     This suite runs the upstream OpenVMM vmm_tests from the Linux OpenVMM host.
     """,
-    requirement=simple_requirement(supported_os=[CBLMariner]),
+    requirement=simple_requirement(
+        supported_os=[CBLMariner],
+        supported_host_capabilities=["mshv"],
+    ),
     maturity="preview",
 )
 class OpenVmmUpstreamTestSuite(TestSuite):
@@ -96,6 +99,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_os=[CBLMariner],
+            supported_host_capabilities=["mshv"],
         ),
     )
     def verify_openvmm_upstream_vmm_tests(

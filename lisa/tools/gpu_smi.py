@@ -2,10 +2,11 @@
 # Licensed under the MIT license.
 
 import re
-from typing import List, Type
+from typing import List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.util import LisaException, find_groups_in_lines
+from lisa.util.process import ExecutableResult
 
 
 class GpuSmi(Tool):
@@ -30,6 +31,10 @@ class NvidiaSmi(GpuSmi):
         ("A10-8Q", "3e810200", 0),
     )
 
+    # A reset re-initializes every GPU in turn, which is slow on
+    # multi-GPU SKUs.
+    RESET_TIMEOUT = 900
+
     @property
     def command(self) -> str:
         return "nvidia-smi"
@@ -39,9 +44,11 @@ class NvidiaSmi(GpuSmi):
         return False
 
     def get_gpu_count(self) -> int:
-        result = self.run("-L")
+        # The GPU count changes with the device state, so a cached result of a
+        # previous query must never be reused.
+        result = self.run("-L", force_run=True)
         if result.exit_code != 0 or (result.exit_code == 0 and result.stdout == ""):
-            result = self.run("-L", sudo=True)
+            result = self.run("-L", sudo=True, force_run=True)
             if result.exit_code != 0 or (result.exit_code == 0 and result.stdout == ""):
                 raise LisaException(
                     f"nvidia-smi command exited with exit_code {result.exit_code}"
@@ -52,6 +59,24 @@ class NvidiaSmi(GpuSmi):
             device_count += result.stdout.count(gpu_type)
 
         return device_count
+
+    def reset(self, gpu_index: Optional[int] = None) -> ExecutableResult:
+        """
+        Reset all GPUs, or a single GPU when gpu_index is given.
+
+        The raw result is returned so callers can tell an unsupported reset
+        apart from a real failure.
+        """
+        parameters = "-r"
+        if gpu_index is not None:
+            parameters += f" -i {gpu_index}"
+        return self.run(
+            parameters,
+            sudo=True,
+            force_run=True,
+            no_error_log=True,
+            timeout=self.RESET_TIMEOUT,
+        )
 
 
 class AmdSmi(GpuSmi):

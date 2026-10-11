@@ -428,6 +428,10 @@ class TestCaseRequirement:
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected
     platform_type: Optional[search_space.SetSpace[str]] = None
     os_type: Optional[search_space.SetSpace[OsRequirementEntry]] = None
+    # Host capabilities the case needs (e.g. "mshv"). Selection-time metadata
+    # only, like platform_type; no platform advertises it. Used by the
+    # capability pre-filter to drop cases before deployment.
+    host_capabilities: Optional[search_space.SetSpace[str]] = None
 
 
 def _create_test_case_requirement(
@@ -443,6 +447,8 @@ def _create_test_case_requirement(
         List[Union[Type[Feature], schema.FeatureSettings, str]]
     ] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
+    supported_host_capabilities: Optional[List[str]] = None,
+    unsupported_host_capabilities: Optional[List[str]] = None,
 ) -> TestCaseRequirement:
     if supported_features:
         node.features = search_space.SetSpace[schema.FeatureSettings](
@@ -464,10 +470,17 @@ def _create_test_case_requirement(
         unsupported_os = [Windows]
     os = search_space.create_set_space(supported_os, unsupported_os, "operating system")
 
+    host_capabilities = search_space.create_set_space(
+        supported_host_capabilities,
+        unsupported_host_capabilities,
+        "host capability",
+    )
+
     return TestCaseRequirement(
         environment=EnvironmentSpace(nodes=nodes),
         platform_type=platform_types,
         os_type=os,
+        host_capabilities=host_capabilities,
         environment_status=environment_status,
     )
 
@@ -485,6 +498,8 @@ def node_requirement(
         List[Union[Type[Feature], schema.FeatureSettings, str]]
     ] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
+    supported_host_capabilities: Optional[List[str]] = None,
+    unsupported_host_capabilities: Optional[List[str]] = None,
 ) -> TestCaseRequirement:
     return _create_test_case_requirement(
         node,
@@ -495,6 +510,8 @@ def node_requirement(
         supported_features,
         unsupported_features,
         environment_status,
+        supported_host_capabilities=supported_host_capabilities,
+        unsupported_host_capabilities=unsupported_host_capabilities,
     )
 
 
@@ -519,6 +536,8 @@ def simple_requirement(
         List[Union[Type[Feature], schema.FeatureSettings, str]]
     ] = None,
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
+    supported_host_capabilities: Optional[List[str]] = None,
+    unsupported_host_capabilities: Optional[List[str]] = None,
 ) -> TestCaseRequirement:
     """
     define a simple requirement to support most test cases.
@@ -555,6 +574,8 @@ def simple_requirement(
         supported_features,
         unsupported_features,
         environment_status,
+        supported_host_capabilities=supported_host_capabilities,
+        unsupported_host_capabilities=unsupported_host_capabilities,
     )
 
 

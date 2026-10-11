@@ -34,7 +34,6 @@ _UBUNTU_OS_PACKAGES = [
 _MARINER_OS_PACKAGES = [
     "bison",
     "flex",
-    "build-essential",
     "openssl-devel",
     "bc",
     "dwarves",
@@ -162,7 +161,13 @@ class Kselftest(Tool):
                 self.node.os.install_packages(_UBUNTU_OS_PACKAGES)
             elif isinstance(self.node.os, CBLMariner):
                 # clone kernel, build kernel, then build kselftests
-                self.node.os.install_packages(_MARINER_OS_PACKAGES)
+                packages = list(_MARINER_OS_PACKAGES)
+                if self.node.os.information.version >= "4.0.0":
+                    # build-essential not available on Azure Linux 4.0
+                    packages.extend(["gcc", "make"])
+                else:
+                    packages.append("build-essential")
+                self.node.os.install_packages(packages)
 
             uname = self.node.tools[Uname]
             uname_result = uname.get_linux_information(force_run=False)

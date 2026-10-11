@@ -47,6 +47,7 @@ class ACCBasicTest(TestSuite):
             supported_features=[acc.ACC],
             unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="18.04")],
         ),
+        maturity="deprecated",
     )
     def verify_sgx(self, log: Logger, node: Node) -> None:
         node_arch = node.tools[Lscpu].get_architecture()

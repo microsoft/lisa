@@ -7,6 +7,8 @@ from typing import Any, Dict, cast
 from microsoft.testsuites.nested.common import (
     HYPERV_NAT_NAME,
     NESTED_VM_REQUIRED_DISK_SIZE_IN_GB,
+    _is_ipv6_address,
+    _wait_nested_ssh_via_host,
     hyperv_connect_nested_vm,
     hyperv_remove_nested_vm,
     parse_nested_image_variables,
@@ -49,7 +51,6 @@ from lisa.tools import (
     StartConfiguration,
     Sysctl,
 )
-from lisa.util import constants
 from lisa.util.logger import Logger
 from lisa.util.shell import try_connect
 
@@ -628,16 +629,22 @@ class KVMPerformance(TestSuite):  # noqa
         )
 
         # wait till nested vm is up
-        try_connect(
-            schema.ConnectionInfo(
-                address=node.connection_info[
-                    constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
-                ],
-                port=guest_port,
-                username=guest_username,
-                password=guest_password,
+        host_connection = schema.ConnectionInfo(**node.connection_info)
+        if _is_ipv6_address(host_connection.address):
+            _wait_nested_ssh_via_host(
+                host_connection,
+                schema.ConnectionInfo(**nested_vm.connection_info),
+                guest_port,
             )
-        )
+        else:
+            try_connect(
+                schema.ConnectionInfo(
+                    address=host_connection.address,
+                    port=guest_port,
+                    username=guest_username,
+                    password=guest_password,
+                )
+            )
 
         # set default nic interfaces on l2 vm
         nested_vm.internal_address = node_eth1_ip
