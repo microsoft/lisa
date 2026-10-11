@@ -84,7 +84,8 @@ class AzSecPack(TestSuite):
                 OsRequirement(Ubuntu, min_version="19.01", max_version="20.01"),
                 OsRequirement(Ubuntu, min_version="21.01", max_version="22.01"),
                 OsRequirement(Ubuntu, min_version="23.01", max_version="24.01"),
-                OsRequirement(Ubuntu, min_version="25.01"),
+                OsRequirement(Ubuntu, min_version="25.01", max_version="26.01"),
+                OsRequirement(Ubuntu, min_version="27.01"),
             ],
         ),
     )

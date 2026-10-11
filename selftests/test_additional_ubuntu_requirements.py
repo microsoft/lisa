@@ -42,7 +42,7 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
         (_CASES[f"{TvmTest.__name__}.verify_measuredboot_compatibility"], (18, 4)),
     ]
     major_cases: List[Tuple[TestCaseMetadata, Tuple[int, ...]]] = [
-        (_CASES[f"{AzSecPack.__name__}.verify_azsecpack"], (18, 20, 22, 24)),
+        (_CASES[f"{AzSecPack.__name__}.verify_azsecpack"], (18, 20, 22, 24, 26)),
         (
             _CASES[
                 f"{AzurePerformanceDiagnostics.__name__}."
@@ -135,6 +135,9 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
                         init_cases=cases,
                         target_os=target.os_type if target else None,
                         target_os_version=target.version if target else None,
+                        # Isolate OS prefiltering from the maturity gate;
+                        # verify_sgx is deprecated.
+                        apply_stable_gate=False,
                     )
                     self.assertEqual(
                         expected, {case.metadata.full_name for case in selected}
