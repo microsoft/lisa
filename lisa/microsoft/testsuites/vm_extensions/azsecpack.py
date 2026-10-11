@@ -77,15 +77,10 @@ class AzSecPack(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
-            # Retain all supported major versions; runtime checks ARM64 separately.
+            # Exclude only pre-18 releases; runtime checks other majors and ARM64.
             unsupported_os=[
                 BSD,
                 OsRequirement(Ubuntu, max_version="18.01"),
-                OsRequirement(Ubuntu, min_version="19.01", max_version="20.01"),
-                OsRequirement(Ubuntu, min_version="21.01", max_version="22.01"),
-                OsRequirement(Ubuntu, min_version="23.01", max_version="24.01"),
-                OsRequirement(Ubuntu, min_version="25.01", max_version="26.01"),
-                OsRequirement(Ubuntu, min_version="27.01"),
             ],
         ),
     )
