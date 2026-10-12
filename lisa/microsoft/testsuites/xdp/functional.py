@@ -171,7 +171,7 @@ class XdpFunctional(TestSuite):
         """,
         priority=2,
         maturity="preview",
-        timeout=1800,
+        timeout=1800,  # Allow dependency installation and XDP source compilation.
         requirement=simple_requirement(
             min_nic_count=2,
             min_count=2,
@@ -249,9 +249,9 @@ class XdpFunctional(TestSuite):
             target_vf, force_run=True
         )
         try:
+            dut_node.mark_dirty()
             if target_gro_lro_settings.lro_setting:
                 # mlx5 disables XDP transmit while LRO packet merging is active.
-                dut_node.mark_dirty()
                 ethtool.change_device_gro_lro_settings(
                     target_vf,
                     gro_setting=target_gro_lro_settings.gro_setting,
@@ -259,7 +259,8 @@ class XdpFunctional(TestSuite):
                 )
             xdpdump.make_on_redirect_role(target_ifindex)
             xdpdump_process = xdpdump.start_async(
-                nic_name=ingress_nic.pci_device_name, timeout=0
+                nic_name=ingress_nic.pci_device_name,
+                timeout=0,  # Keep XDP attached until bounded SIGINT cleanup.
             )
             try:
                 baseline = self._get_xdp_xmit_counters(ethtool, target_vf)
