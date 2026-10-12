@@ -32,6 +32,7 @@ class HyperVNvmeRecoveryTransformer(DeploymentTransformer):
     CAPTURE = "capture"
     RECOVER = "recover"
     LOCATION_PATH = "location_path"
+    VM_NAME = "vm_name"
 
     @classmethod
     def type_name(cls) -> str:
@@ -43,7 +44,7 @@ class HyperVNvmeRecoveryTransformer(DeploymentTransformer):
 
     @property
     def _output_names(self) -> List[str]:
-        return [self.LOCATION_PATH]
+        return [self.LOCATION_PATH, self.VM_NAME]
 
     def _internal_run(self) -> Dict[str, Any]:
         runbook = cast(HyperVNvmeRecoveryTransformerSchema, self.runbook)
@@ -62,6 +63,7 @@ class HyperVNvmeRecoveryTransformer(DeploymentTransformer):
             log=self._log,
         )
         state: HyperVNvmeRecoveryState
+        vm_name = runbook.vm_name.strip()
         if action == self.CAPTURE:
             captured_state = pool.capture_nvme_recovery_state(runbook.location_path)
             existing_state = self._read_state(state_path, required=False)
@@ -78,9 +80,9 @@ class HyperVNvmeRecoveryTransformer(DeploymentTransformer):
                     f"Hyper-V NVMe recovery state at '{state_path}' is empty"
                 )
             state = loaded_state
-            pool.recover_nvme_device(state, runbook.vm_name)
+            vm_name = pool.recover_nvme_device(state, vm_name)
 
-        return {self.LOCATION_PATH: state.location_path}
+        return {self.LOCATION_PATH: state.location_path, self.VM_NAME: vm_name}
 
     def _read_state(
         self, state_path: str, required: bool

@@ -297,6 +297,22 @@ class HyperVDevicePoolTestCase(TestCase):
             )
         )
 
+    def test_recovery_rejects_multiple_assigned_vms_without_hint(self) -> None:
+        state = self._create_recovery_state()
+        powershell = MagicMock()
+        powershell.run_cmdlet.return_value = "vm1\r\nvm2"
+        pool = self._create_pool(powershell)
+
+        with self.assertRaisesRegex(LisaException, "multiple VMs"):
+            pool.recover_nvme_device(state, "")
+
+        self.assertFalse(
+            any(
+                "Remove-VMAssignableDevice" in call.kwargs.get("cmdlet", "")
+                for call in powershell.run_cmdlet.call_args_list
+            )
+        )
+
     def test_recovery_fails_closed_when_assignment_inventory_fails(self) -> None:
         state = self._create_recovery_state()
         powershell = MagicMock()
@@ -308,14 +324,34 @@ class HyperVDevicePoolTestCase(TestCase):
 
         self.assertEqual(1, powershell.run_cmdlet.call_count)
 
-    def test_recovery_requires_vm_name_before_querying_assignment(self) -> None:
+    @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
+    def test_recovery_discovers_single_assigned_vm(
+        self, assignable_devices_type: MagicMock
+    ) -> None:
+        state = self._create_recovery_state()
         powershell = MagicMock()
+        powershell.run_cmdlet.side_effect = ["vm1", "", "", "", "", ""]
+        powershell.run_cmdlet_async.return_value = MagicMock()
+        powershell.wait_result.return_value = SimpleNamespace(exit_code=0, stdout="")
+        assignable_devices_type.return_value.get_pnp_device_by_location_path.return_value = SimpleNamespace(  # noqa: E501
+            instance_id=state.instance_id,
+            config_manager_error_code="22",
+        )
         pool = self._create_pool(powershell)
 
-        with self.assertRaisesRegex(LisaException, "VM name is required"):
-            pool.recover_nvme_device(self._create_recovery_state(), " ")
+        with patch.object(pool, "_wait_for_pnp_device_enabled"):
+            with patch.object(pool, "_restore_nvme_disk_state"):
+                recovered_vm_name = pool.recover_nvme_device(state, " ")
 
-        powershell.run_cmdlet.assert_not_called()
+        self.assertEqual("vm1", recovered_vm_name)
+        commands = [
+            call.kwargs.get("cmdlet", call.args[0] if call.args else "")
+            for call in powershell.run_cmdlet.call_args_list
+        ]
+        self.assertIn("Stop-VM", commands[1])
+        self.assertIn("$vmName = 'vm1'", commands[1])
+        self.assertIn("Remove-VMAssignableDevice", commands[2])
+        self.assertIn("-VMName 'vm1'", commands[2])
 
     def test_recovery_does_not_detach_until_vm_is_off(self) -> None:
         state = self._create_recovery_state()

@@ -174,22 +174,21 @@ class HyperVDevicePool(BaseDevicePool):
         self,
         recovery_state: HyperVNvmeRecoveryState,
         vm_name: str,
-    ) -> None:
+    ) -> str:
         state = HyperVNvmeRecoveryState.from_json(recovery_state.to_json())
         if not self.NVME_LOCATION_PATH_PATTERN.fullmatch(state.location_path):
             raise LisaException(
                 f"Invalid Hyper-V NVMe PCI location path '{state.location_path}'"
             )
         normalized_vm_name = vm_name.strip()
-        if not normalized_vm_name:
-            raise LisaException("A VM name is required for Hyper-V NVMe recovery")
-
         assigned_vm_names = self._get_assigned_vm_names(state.location_path)
         if len(assigned_vm_names) > 1:
             raise LisaException(
                 f"Hyper-V NVMe device '{state.location_path}' is assigned to "
                 f"multiple VMs: {', '.join(sorted(assigned_vm_names))}"
             )
+        if not normalized_vm_name and assigned_vm_names:
+            normalized_vm_name = assigned_vm_names[0]
         if assigned_vm_names and (
             assigned_vm_names[0].casefold() != normalized_vm_name.casefold()
         ):
@@ -257,6 +256,7 @@ class HyperVDevicePool(BaseDevicePool):
             require_healthy=True,
         )
         self._restore_nvme_disk_state(state.disk)
+        return normalized_vm_name
 
     def _stop_vm_for_nvme_recovery(self, vm_name: str) -> None:
         escaped_vm_name = vm_name.replace("'", "''")

@@ -55,6 +55,7 @@ class HyperVNvmeRecoveryTransformerTestCase(TestCase):
         encoded_state = base64.b64encode(self.state.to_json().encode()).decode()
         powershell = MagicMock()
         powershell.run_cmdlet.return_value = encoded_state
+        pool_type.return_value.recover_nvme_device.return_value = "vm1"
         transformer = self._create_transformer("recover", powershell)
 
         result = transformer._internal_run()
@@ -63,6 +64,22 @@ class HyperVNvmeRecoveryTransformerTestCase(TestCase):
             self.state, "vm1"
         )
         self.assertEqual(self.state.location_path, result["location_path"])
+        self.assertEqual("vm1", result["vm_name"])
+
+    @patch("lisa.transformers.hyperv_nvme_recovery.HyperVDevicePool")
+    def test_recover_returns_discovered_vm_name(self, pool_type: MagicMock) -> None:
+        encoded_state = base64.b64encode(self.state.to_json().encode()).decode()
+        powershell = MagicMock()
+        powershell.run_cmdlet.return_value = encoded_state
+        pool_type.return_value.recover_nvme_device.return_value = "discovered-vm"
+        transformer = self._create_transformer("recover", powershell, vm_name="")
+
+        result = transformer._internal_run()
+
+        pool_type.return_value.recover_nvme_device.assert_called_once_with(
+            self.state, ""
+        )
+        self.assertEqual("discovered-vm", result["vm_name"])
 
     @patch("lisa.transformers.hyperv_nvme_recovery.HyperVDevicePool")
     def test_recover_rejects_incomplete_state_before_pool_call(
@@ -150,14 +167,14 @@ class HyperVNvmeRecoveryTransformerTestCase(TestCase):
         powershell.run_cmdlet.assert_not_called()
 
     def _create_transformer(
-        self, action: str, powershell: MagicMock
+        self, action: str, powershell: MagicMock, vm_name: str = "vm1"
     ) -> HyperVNvmeRecoveryTransformer:
         node = cast(Node, SimpleNamespace(tools={PowerShell: powershell}))
         runbook = HyperVNvmeRecoveryTransformerSchema(
             name="nvme_recovery",
             action=action,
             state_path="C:\\lisa\\nvme-recovery.json",
-            vm_name="vm1",
+            vm_name=vm_name,
         )
         return HyperVNvmeRecoveryTransformer(
             runbook=runbook,
