@@ -853,16 +853,14 @@ class Sriov(TestSuite):
                     ethtool, vf_nic, parameter, target, log
                 )
             finally:
-                active = ethtool.get_device_coalesce_settings(vf_nic, force_run=True)
-                if active.settings.get(parameter) != original_value:
-                    log.info(f"Restoring {vf_nic} {parameter} to {original_value}")
-                    ethtool.set_device_coalesce_setting(
-                        vf_nic, parameter, original_value
-                    ).assert_exit_code(
-                        message=f"Couldn't restore {vf_nic} {parameter} to "
-                        f"{original_value}. Inspect the driver and ethtool error "
-                        "output."
-                    )
+                log.info(f"Restoring {vf_nic} {parameter} to {original_value}")
+                ethtool.set_device_coalesce_setting(
+                    vf_nic, parameter, original_value
+                ).assert_exit_code(
+                    message=f"Couldn't restore {vf_nic} {parameter} to "
+                    f"{original_value}. Inspect the driver and ethtool error "
+                    "output."
+                )
 
             restored = ethtool.get_device_coalesce_settings(vf_nic, force_run=True)
             assert_that(restored.settings[parameter]).described_as(
