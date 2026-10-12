@@ -794,15 +794,22 @@ def perf_iperf(
     )
     test_case_name = inspect.stack()[1][3]
     iperf3_messages_list: List[Any] = []
-    # iperf3 is invoked with ip_version="4"; on a dual-stack (use_ipv6)
-    # environment internal_address is IPv6, so resolve the server's internal
-    # IPv4 to use as the client target / bind interface.
-    server_comm_ip = server.nics.get_internal_ipv4_address()
+    is_ipv6_enabled = server.nics.is_internal_address_ipv6()
+    ip_version = "6" if is_ipv6_enabled else "4"
+    server_comm_ip = (
+        server.internal_address
+        if is_ipv6_enabled
+        else server.nics.get_internal_ipv4_address()
+    )
     server_interface_ip = ""
     client_interface_ip = ""
     if run_with_internal_address:
         server_interface_ip = server_comm_ip
-        client_interface_ip = client.nics.get_internal_ipv4_address()
+        client_interface_ip = (
+            client.internal_address
+            if is_ipv6_enabled
+            else client.nics.get_internal_ipv4_address()
+        )
         assert server_interface_ip, "Server Node: internal address is not set"
         assert client_interface_ip, "Client Node: internal address is not set"
 
@@ -856,7 +863,7 @@ def perf_iperf(
                         buffer_length=buffer_length,
                         run_time_seconds=10,
                         parallel_number=num_threads_p,
-                        ip_version="4",
+                        ip_version=ip_version,
                         udp_mode=udp_mode,
                         client_ip=client_interface_ip,
                         no_debug_log=True,
