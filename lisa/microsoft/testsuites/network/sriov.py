@@ -665,6 +665,7 @@ class Sriov(TestSuite):
             "the VF and makes the rest of this validation meaningless."
         ).is_empty()
 
+        node.mark_dirty()
         for candidate in bw_candidates:
             result = net_shaper.set_shaper(
                 vf_nic,
