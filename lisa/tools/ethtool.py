@@ -836,17 +836,28 @@ class Ethtool(Tool):
         interface: str,
         channel_count: int,
     ) -> DeviceChannel:
+        self.set_device_channels_info(interface, channel_count)
+        return self.get_device_channels_info(interface, force_run=True)
+
+    def set_device_channels_info(
+        self, interface: str, channel_count: int
+    ) -> ExecutableResult:
         change_result = self.run(
-            f"-L {interface} combined {channel_count}",
+            f"-L {shlex.quote(interface)} combined {channel_count}",
             sudo=True,
             shell=True,
             force_run=True,
         )
+        if change_result.exit_code != 0 and _is_unsupported(change_result):
+            raise UnsupportedOperationException(
+                f"ethtool -L {interface} operation not supported. "
+                "Verify the VF driver supports changing channel counts."
+            )
         change_result.assert_exit_code(
             message=f" Couldn't change device {interface} channels count."
         )
-
-        return self.get_device_channels_info(interface, force_run=True)
+        self._get_or_create_device_setting(interface).device_channel = None
+        return change_result
 
     def get_device_enabled_features(
         self, interface: str, force_run: bool = False
@@ -1059,8 +1070,14 @@ class Ethtool(Tool):
     def change_device_rss_hash_key(
         self, interface: str, hash_key: str
     ) -> DeviceRssHashKey:
+        self.set_device_rss_hash_key(interface, hash_key)
+        return self.get_device_rss_hash_key(interface, force_run=True)
+
+    def set_device_rss_hash_key(
+        self, interface: str, hash_key: str
+    ) -> ExecutableResult:
         result = self.run(
-            f"-X {interface} hkey {hash_key}",
+            f"-X {shlex.quote(interface)} hkey {shlex.quote(hash_key)}",
             sudo=True,
             force_run=True,
             shell=True,
@@ -1073,7 +1090,8 @@ class Ethtool(Tool):
             message=f" Couldn't change device {interface} hash key."
         )
 
-        return self.get_device_rss_hash_key(interface, force_run=True)
+        self._get_or_create_device_setting(interface).device_rss_hash_key = None
+        return result
 
     def get_device_rss_indirection_table(
         self, interface: str, force_run: bool = False

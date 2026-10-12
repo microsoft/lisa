@@ -571,15 +571,22 @@ class Sriov(TestSuite):
 
             new_key = self._get_alternate_hash_key(key_bytes)
             log.info(f"Setting {vf_nic} RSS hash key to {new_key}")
+            restore_required = True
             try:
-                changed = ethtool.change_device_rss_hash_key(vf_nic, new_key)
+                try:
+                    ethtool.set_device_rss_hash_key(vf_nic, new_key)
+                except UnsupportedOperationException as identifier:
+                    restore_required = False
+                    raise SkippedException(identifier) from identifier
+                changed = ethtool.get_device_rss_hash_key(vf_nic, force_run=True)
                 assert_that(changed.rss_hash_key.lower()).described_as(
                     f"{vf_nic} did not apply the RSS hash key exactly as written, "
                     "the key does not round-trip through the driver."
                 ).is_equal_to(new_key)
             finally:
-                log.info(f"Restoring {vf_nic} RSS hash key to {original_key}")
-                restored = ethtool.change_device_rss_hash_key(vf_nic, original_key)
+                if restore_required:
+                    log.info(f"Restoring {vf_nic} RSS hash key to {original_key}")
+                    restored = ethtool.change_device_rss_hash_key(vf_nic, original_key)
 
             assert_that(restored.rss_hash_key.lower()).described_as(
                 f"{vf_nic} RSS hash key was not restored to its original value."
@@ -1005,6 +1012,7 @@ class Sriov(TestSuite):
                     original.current_channels,
                     original.max_channels,
                     log,
+                    original_counts,
                 )
             # The rebuilt datapath has to keep carrying traffic on every VF.
             vm_nics = initialize_nic_info(environment)
@@ -1033,10 +1041,10 @@ class Sriov(TestSuite):
                     log.error(message)
                     restoration_failures.append(message)
 
-        assert_that(restoration_failures).described_as(
-            "One or more SR-IOV VFs retained a modified channel count after "
-            "all restoration attempts."
-        ).is_empty()
+            assert_that(restoration_failures).described_as(
+                "One or more SR-IOV VFs retained a modified channel count after "
+                "all restoration attempts."
+            ).is_empty()
         log.info(f"Channel configuration of {vf_nics} validated and restored.")
 
     def _verify_vf_channel_counts(
@@ -1046,6 +1054,7 @@ class Sriov(TestSuite):
         current: int,
         effective_maximum: int,
         log: Logger,
+        original_counts: Dict[str, int],
     ) -> None:
         # Ethtool caps max_channels at the node's vCPU count, so it is an
         # effective ceiling rather than the driver's raw advertised maximum.
@@ -1064,6 +1073,7 @@ class Sriov(TestSuite):
         ).is_less_than_or_equal_to(effective_maximum)
 
         if effective_maximum <= 1:
+            original_counts.pop(vf_nic, None)
             raise SkippedException(
                 f"{vf_nic} has an effective maximum of {effective_maximum} "
                 "combined channel, so there is no alternate count to validate."
@@ -1071,7 +1081,14 @@ class Sriov(TestSuite):
 
         for new_channels in range(1, effective_maximum + 1):
             log.info(f"Setting {vf_nic} combined channels to {new_channels}")
-            changed = ethtool.change_device_channels_info(vf_nic, new_channels)
+            try:
+                ethtool.set_device_channels_info(vf_nic, new_channels)
+            except UnsupportedOperationException as identifier:
+                if new_channels == 1:
+                    original_counts.pop(vf_nic, None)
+                    raise SkippedException(identifier) from identifier
+                raise
+            changed = ethtool.get_device_channels_info(vf_nic, force_run=True)
             assert_that(changed.current_channels).described_as(
                 f"{vf_nic} did not apply combined channel count {new_channels}."
             ).is_equal_to(new_channels)
