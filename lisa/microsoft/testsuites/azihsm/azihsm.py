@@ -67,9 +67,7 @@ _STATE_LOCK = Lock()
 )
 class AziHsm(TestSuite):
     @staticmethod
-    def _new_dmesg_lines(
-        pre_lines: List[str], post_lines: List[str]
-    ) -> List[str]:
+    def _new_dmesg_lines(pre_lines: List[str], post_lines: List[str]) -> List[str]:
         # Return the dmesg lines appended since the "pre" snapshot was
         # captured. A ring buffer only ever drops lines from its front and
         # appends lines at its end, so "post" must be some suffix of "pre"
@@ -131,9 +129,7 @@ class AziHsm(TestSuite):
             # by a single azihsm test run, so the full module/device log
             # trail leading up to the failure is captured without pulling in
             # an excessive amount of unrelated kernel log history.
-            dmesg_output = node.tools[Dmesg].get_output(
-                force_run=True, tail_lines=200
-            )
+            dmesg_output = node.tools[Dmesg].get_output(force_run=True, tail_lines=200)
             log.info(f"[dmesg tail]:\n{dmesg_output}")
         except LisaException as e:
             log.error(f"Failed to collect dmesg output: {e}")
@@ -473,9 +469,7 @@ class AziHsm(TestSuite):
         # code alone is not sufficient evidence of a clean result; stdout
         # must also be empty.
         verify_stdout = verify_result.stdout.strip()
-        assert_that(
-            verify_result.exit_code == 0 and not verify_stdout
-        ).described_as(
+        assert_that(verify_result.exit_code == 0 and not verify_stdout).described_as(
             f"{verify_cmd} reported discrepancies for {driver_package_name}: "
             f"exit code {verify_result.exit_code}, stdout: {verify_stdout}"
         ).is_true()
@@ -578,9 +572,9 @@ class AziHsm(TestSuite):
             # inspects lines newly appended by this load - not stale
             # messages left over from earlier test cases (e.g. driver/SDK
             # resiliency tests that deliberately exercise abort paths).
-            pre_load_dmesg_lines = node.tools[Dmesg].get_output(
-                force_run=True
-            ).splitlines()
+            pre_load_dmesg_lines = (
+                node.tools[Dmesg].get_output(force_run=True).splitlines()
+            )
 
             #
             # Test 7 -  modprobe loads module
@@ -596,9 +590,9 @@ class AziHsm(TestSuite):
 
             #
             # Test 9 -  No dmesg errors from the module
-            post_load_dmesg_lines = node.tools[Dmesg].get_output(
-                force_run=True
-            ).splitlines()
+            post_load_dmesg_lines = (
+                node.tools[Dmesg].get_output(force_run=True).splitlines()
+            )
             new_dmesg_lines = self._new_dmesg_lines(
                 pre_load_dmesg_lines, post_load_dmesg_lines
             )
@@ -752,11 +746,8 @@ class AziHsm(TestSuite):
         manifest_result = node.execute(manifest_cmd, sudo=True, shell=True)
         owned_files = [
             path
-            for path in (
-                line.strip() for line in manifest_result.stdout.splitlines()
-            )
-            if path.startswith("/")
-            and not node.shell.is_dir(node.get_pure_path(path))
+            for path in (line.strip() for line in manifest_result.stdout.splitlines())
+            if path.startswith("/") and not node.shell.is_dir(node.get_pure_path(path))
         ]
 
         #
@@ -944,8 +935,10 @@ class AziHsm(TestSuite):
         try:
             result = node.execute(
                 f"{node.get_pure_path(AZIHSM_BIN_DIR) / test}",
-                update_envs={"AZIHSM_USE_TPM": "1",
-                             "AZIHSM_DISABLE_MULTI_PROCESS_TESTS": "1"},
+                update_envs={
+                    "AZIHSM_USE_TPM": "1",
+                    "AZIHSM_DISABLE_MULTI_PROCESS_TESTS": "1",
+                },
                 timeout=1800,
                 expected_exit_code=None,
                 no_info_log=False,
@@ -1023,18 +1016,13 @@ class AziHsm(TestSuite):
                 "Failed to query the OpenSSL modules directory"
             ),
         )
-        modules_dir_match = re.search(
-            r'MODULESDIR:\s*"([^"]+)"', version_result.stdout
-        )
+        modules_dir_match = re.search(r'MODULESDIR:\s*"([^"]+)"', version_result.stdout)
         assert_that(modules_dir_match).described_as(
-            "Unexpected `openssl version -m` output: "
-            f"{version_result.stdout}"
+            "Unexpected `openssl version -m` output: " f"{version_result.stdout}"
         ).is_not_none()
         modules_dir_match = cast(re.Match[str], modules_dir_match)
         provider_so = f"{modules_dir_match.group(1)}/azihsm_provider.so"
-        assert_that(
-            node.shell.exists(node.get_pure_path(provider_so))
-        ).described_as(
+        assert_that(node.shell.exists(node.get_pure_path(provider_so))).described_as(
             f"azihsm OpenSSL provider module not found at {provider_so}"
         ).is_true()
 
@@ -1081,13 +1069,10 @@ class AziHsm(TestSuite):
                 force_run=True,
                 update_envs={"OPENSSL_CONF": str(openssl_cnf_path)},
                 expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Failed to list OpenSSL providers"
-                ),
+                expected_exit_code_failure_message=("Failed to list OpenSSL providers"),
             )
             assert_that(list_result.stdout).described_as(
-                "azihsm provider was not loaded by OpenSSL: "
-                f"{list_result.stdout}"
+                "azihsm provider was not loaded by OpenSSL: " f"{list_result.stdout}"
             ).contains("azihsm")
         finally:
             node.tools[Rm].remove_directory(str(work_dir), sudo=True)
