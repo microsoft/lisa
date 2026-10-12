@@ -639,8 +639,15 @@ class AziHsm(TestSuite):
             ).described_as("Module must not appear in lsmod after removal").is_false()
 
         finally:
-            # Clean up
-            modprobe.remove([AZIHSM_NAME], ignore_error=True)
+            # Clean up. modprobe.remove() does not suppress rmmod failures
+            # via ignore_error, so only attempt removal if the module is
+            # still loaded - the normal successful path above already
+            # unloads it, and calling remove() again would raise and mask
+            # the test result.
+            if modprobe.is_module_loaded(
+                AZIHSM_NAME, force_run=True, no_error_log=True
+            ):
+                modprobe.remove([AZIHSM_NAME], ignore_error=True)
             cast(Posix, node.os).uninstall_packages(driver_package_name)
 
     #
@@ -706,8 +713,15 @@ class AziHsm(TestSuite):
             log.info(f"{cycles} load/unload cycles completed successfully")
 
         finally:
-            # Clean up
-            modprobe.remove([AZIHSM_NAME], ignore_error=True)
+            # Clean up. modprobe.remove() does not suppress rmmod failures
+            # via ignore_error, so only attempt removal if the module is
+            # still loaded - the normal successful path above already
+            # unloads it, and calling remove() again would raise and mask
+            # the test result.
+            if modprobe.is_module_loaded(
+                AZIHSM_NAME, force_run=True, no_error_log=True
+            ):
+                modprobe.remove([AZIHSM_NAME], ignore_error=True)
             cast(Posix, node.os).uninstall_packages(driver_package_name)
 
     @TestCaseMetadata(
