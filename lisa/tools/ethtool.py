@@ -1021,7 +1021,7 @@ class Ethtool(Tool):
         self, interface: str, rx: int, tx: int
     ) -> ExecutableResult:
         change_result = self.run(
-            f"-G {interface} rx {rx} tx {tx}",
+            f"-G {shlex.quote(interface)} rx {rx} tx {tx}",
             sudo=True,
             force_run=True,
             shell=True,
