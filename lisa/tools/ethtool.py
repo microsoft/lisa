@@ -1014,17 +1014,28 @@ class Ethtool(Tool):
     def change_device_ring_buffer_settings(
         self, interface: str, rx: int, tx: int
     ) -> DeviceRingBufferSettings:
+        self.set_device_ring_buffer_settings(interface, rx, tx)
+        return self.get_device_ring_buffer_settings(interface, force_run=True)
+
+    def set_device_ring_buffer_settings(
+        self, interface: str, rx: int, tx: int
+    ) -> ExecutableResult:
         change_result = self.run(
             f"-G {interface} rx {rx} tx {tx}",
             sudo=True,
             force_run=True,
             shell=True,
         )
+        if change_result.exit_code != 0 and _is_unsupported(change_result):
+            raise UnsupportedOperationException(
+                f"ethtool -G {interface} operation not supported. "
+                "Verify the VF driver supports changing ring buffer sizes."
+            )
         change_result.assert_exit_code(
             message=f" Couldn't change device {interface} ring buffer settings."
         )
-
-        return self.get_device_ring_buffer_settings(interface, force_run=True)
+        self._get_or_create_device_setting(interface).device_ringbuffer_settings = None
+        return change_result
 
     def get_device_rss_hash_key(
         self, interface: str, force_run: bool = False

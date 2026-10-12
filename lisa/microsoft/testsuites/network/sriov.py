@@ -399,9 +399,17 @@ class Sriov(TestSuite):
             expected_tx = self._get_supported_ring_size(original_tx, max_tx)
 
             node.mark_dirty()
+            restore_required = True
             try:
-                actual_settings = ethtool.change_device_ring_buffer_settings(
-                    vf_nic, expected_rx, expected_tx
+                try:
+                    ethtool.set_device_ring_buffer_settings(
+                        vf_nic, expected_rx, expected_tx
+                    )
+                except UnsupportedOperationException as identifier:
+                    restore_required = False
+                    raise SkippedException(identifier) from identifier
+                actual_settings = ethtool.get_device_ring_buffer_settings(
+                    vf_nic, force_run=True
                 )
                 # A VF driver reports back the ring size it was given, so
                 # this is an equality check rather than a range.
@@ -422,9 +430,10 @@ class Sriov(TestSuite):
             finally:
                 # Restore even when the checks above fail, so a failure does
                 # not hand a resized ring to the cases that follow.
-                reverted_settings = ethtool.change_device_ring_buffer_settings(
-                    vf_nic, original_rx, original_tx
-                )
+                if restore_required:
+                    reverted_settings = ethtool.change_device_ring_buffer_settings(
+                        vf_nic, original_rx, original_tx
+                    )
 
             assert_that(
                 int(reverted_settings.current_ring_buffer_settings["RX"])
@@ -1108,6 +1117,8 @@ class Sriov(TestSuite):
             for vf_nic in vf_nics
         }
 
+        for affected_node in environment.nodes.list():
+            affected_node.mark_dirty()
         vm_nics = initialize_nic_info(environment)
         for vf_nic in vf_nics:
             self._send_vf_statistics_traffic(environment, vm_nics, vf_nic)
