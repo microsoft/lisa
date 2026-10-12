@@ -296,6 +296,13 @@ class Nics(InitializableMixin):
     def get_primary_nic(self) -> NicInfo:
         return self.get_nic_by_index(0)
 
+    def is_internal_address_ipv6(self) -> bool:
+        address: str = getattr(self._node, "internal_address", "") or ""
+        try:
+            return ipaddress.ip_address(address).version == 6
+        except ValueError:
+            return False
+
     def get_internal_ipv4_address(self) -> str:
         # Return an IPv4 address usable for intra-VM communication. Prefer the
         # node's internal_address when it is a valid IPv4. On a dual-stack
