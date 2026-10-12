@@ -18,6 +18,7 @@ class _PciDeviceLocationRecord:
     friendly_name: str
     instance_id: str
     location_paths: List[str]
+    compatible_ids: List[str]
     config_manager_error_code: str = ""
 
 
@@ -116,6 +117,28 @@ class HypervAssignableDevices:
 
         return devices
 
+    def get_assignable_nvme_devices(self) -> List[DeviceAddressSchema]:
+        devices: List[DeviceAddressSchema] = []
+        for rec in self.__get_present_pci_devices_with_location_paths():
+            if not any(
+                re.search(r"CC_010802(?:&|$)", compatible_id, re.IGNORECASE)
+                for compatible_id in rec.compatible_ids
+            ):
+                continue
+
+            if not rec.instance_id or not rec.location_paths:
+                continue
+
+            device = self.__get_dda_properties(device_id=rec.instance_id)
+            if not device:
+                continue
+
+            device.location_path = rec.location_paths[0]
+            device.friendly_name = rec.friendly_name
+            devices.append(device)
+
+        return devices
+
     def get_pnp_devices_by_location_paths(
         self,
         location_paths: List[str],
@@ -158,6 +181,7 @@ Where-Object {$_.InstanceId -like 'PCI\\*'} |
 ForEach-Object {
     $instanceId = $_.InstanceId
     $locationPaths = $null
+    $compatibleIds = $null
     try {
         $locationPathProperty = Get-PnpDeviceProperty `
             -InstanceId $instanceId `
@@ -167,6 +191,19 @@ ForEach-Object {
     } catch {
         Write-Verbose (
             "Failed to read DEVPKEY_Device_LocationPaths for device '{0}': {1}" -f
+                $instanceId, $_.Exception.Message
+        )
+    }
+    try {
+        $compatibleIds = (
+            Get-PnpDeviceProperty `
+                -InstanceId $instanceId `
+                -KeyName 'DEVPKEY_Device_CompatibleIds' `
+                -ErrorAction Stop
+        ).Data
+    } catch {
+        Write-Verbose (
+            "Failed to read DEVPKEY_Device_CompatibleIds for device '{0}': {1}" -f
                 $instanceId, $_.Exception.Message
         )
     }
@@ -183,6 +220,7 @@ ForEach-Object {
         InstanceId = $instanceId
         LocationPath = $locationPath
         LocationPaths = $locationPaths
+        CompatibleIds = $compatibleIds
         ConfigManagerErrorCode = $_.ConfigManagerErrorCode
     }
 }
@@ -208,12 +246,14 @@ ForEach-Object {
             location_paths = self.__normalize_location_paths(
                 rec.get("LocationPaths", rec.get("LocationPath"))
             )
+            compatible_ids = self.__normalize_string_list(rec.get("CompatibleIds"))
 
             result.append(
                 _PciDeviceLocationRecord(
                     friendly_name=str(rec.get("FriendlyName", "") or "").strip(),
                     instance_id=str(rec.get("InstanceId", "") or "").strip(),
                     location_paths=location_paths,
+                    compatible_ids=compatible_ids,
                     config_manager_error_code=str(
                         rec.get("ConfigManagerErrorCode", "") or ""
                     ).strip(),
@@ -281,18 +321,21 @@ ForEach-Object {
         return str(output.strip())
 
     def __normalize_location_paths(self, raw_location_paths: Any) -> List[str]:
-        if raw_location_paths is None:
+        return self.__normalize_string_list(raw_location_paths)
+
+    def __normalize_string_list(self, value: Any) -> List[str]:
+        if value is None:
             return []
 
-        if isinstance(raw_location_paths, list):
-            location_paths = raw_location_paths
+        if isinstance(value, list):
+            entries = value
         else:
-            location_paths = str(raw_location_paths).splitlines()
+            entries = str(value).splitlines()
 
         return [
-            location_path
-            for location_path in (str(entry).strip() for entry in location_paths)
-            if location_path
+            normalized_entry
+            for normalized_entry in (str(entry).strip() for entry in entries)
+            if normalized_entry
         ]
 
     def __load_pnp_allocated_resources(self) -> List[Dict[str, str]]:
