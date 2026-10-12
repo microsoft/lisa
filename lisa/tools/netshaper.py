@@ -40,7 +40,7 @@ class NetShaper(Tool):
 
     @property
     def command(self) -> str:
-        return str(self.get_tool_path() / "iproute2" / "netshaper" / "netshaper")
+        return "netshaper"
 
     @property
     def can_install(self) -> bool:
@@ -101,14 +101,20 @@ class NetShaper(Tool):
         arguments = "PREFIX=/usr/local SBINDIR=/usr/local/sbin"
         make.make(arguments, cwd=source, is_clean=True)
         self.node.execute(
-            f"{quote(self.command)} -V",
+            f"{quote(str(source / 'netshaper' / 'netshaper'))} -V",
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "netshaper was not built; check libmnl configure output."
             ),
         )
+        self.node.mark_dirty()
         make.make(f"install {arguments}", cwd=source, sudo=True)
         self._built = True
+        if not self._check_exists():
+            raise LisaException(
+                "Installed netshaper is not available on PATH. Add "
+                "/usr/local/sbin to the user or sudo PATH and retry."
+            )
         self._log.info(
             self.run("-V", force_run=True, expected_exit_code=0).stdout.strip()
         )
