@@ -211,7 +211,10 @@ class XdpFunctional(TestSuite):
 
         ethtool = dut_node.tools[Ethtool]
         target_vf = target_nic.pci_device_name
-        available_counters = self._get_xdp_xmit_counters(ethtool, target_vf)
+        try:
+            available_counters = self._get_xdp_xmit_counters(ethtool, target_vf)
+        except UnsupportedOperationException as identifier:
+            raise SkippedException(identifier) from identifier
         if not available_counters:
             raise SkippedException(
                 f"{target_vf} exposes no XDP transmit counter, so redirected "
@@ -248,6 +251,7 @@ class XdpFunctional(TestSuite):
         try:
             if target_gro_lro_settings.lro_setting:
                 # mlx5 disables XDP transmit while LRO packet merging is active.
+                dut_node.mark_dirty()
                 ethtool.change_device_gro_lro_settings(
                     target_vf,
                     gro_setting=target_gro_lro_settings.gro_setting,
@@ -595,10 +599,7 @@ class XdpFunctional(TestSuite):
         xdptool.run_full_test()
 
     def _get_xdp_xmit_counters(self, ethtool: Ethtool, vf_nic: str) -> Dict[str, int]:
-        try:
-            statistics = ethtool.get_device_statistics(vf_nic, force_run=True)
-        except UnsupportedOperationException as identifier:
-            raise SkippedException(identifier) from identifier
+        statistics = ethtool.get_device_statistics(vf_nic, force_run=True)
 
         if self._XDP_XMIT_TOTAL_COUNTER in statistics.counters:
             return {
