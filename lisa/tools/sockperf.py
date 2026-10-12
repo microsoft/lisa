@@ -7,6 +7,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Type, Union, cast
 
 from assertpy import assert_that
+from semver import VersionInfo
 
 from lisa import notifier
 from lisa.executable import Tool
@@ -17,7 +18,7 @@ from lisa.messages import (
     send_unified_perf_message,
 )
 from lisa.operating_system import BSD, CBLMariner, Posix, Ubuntu
-from lisa.util import constants
+from lisa.util import constants, parse_version
 from lisa.util.process import Process
 
 from .firewall import Firewall
@@ -31,9 +32,13 @@ if TYPE_CHECKING:
 
 SOCKPERF_TCP = "tcp"
 SOCKPERF_UDP = "udp"
+SOCKPERF_IPV6_MIN_VERSION = "3.8.0"
+SOCKPERF_STABLE_VERSION = "3.10"
 
 
 class Sockperf(Tool):
+    _version_pattern = re.compile(r"(?P<version>\d+\.\d+(?:\.\d+)?)")
+
     @property
     def command(self) -> str:
         return "sockperf"
@@ -96,59 +101,73 @@ class Sockperf(Tool):
         posix_os: Posix = cast(Posix, self.node.os)
         if not isinstance(posix_os, BSD) and posix_os.is_package_in_repo("sockperf"):
             posix_os.install_packages("sockperf")
-        else:
-            packages: List[Union[Type[Tool], str]] = [
-                Git,
-                Make,
-                "automake",
-                "m4",
-                "autoconf",
-                "libtool",
-            ]
-
-            if not isinstance(posix_os, BSD):
-                # perl already provided by automake for BSD
-                packages.append("perl")
-                # bsd ships with clang, don't use gcc
-                packages.append(Gcc)
-
-            # mariner needs headers and -dev packages
-            if isinstance(posix_os, CBLMariner):
-                if posix_os.information.version >= "4.0.0":
-                    # build-essential not available on Azure Linux 4.0
-                    packages.extend(["kernel-headers", "binutils", "glibc-devel"])
-                else:
-                    packages.append("build-essential")
-
-            # install and pick build dir
-            posix_os.install_packages(packages)
-
-            # bsd ships with clang++, don't use g++
-            if not isinstance(posix_os, BSD):
-                self.node.tools[Gcc].install_cpp_compiler()
-
-            tool_path = self.get_tool_path()
-
-            git = self.node.tools[Git]
-            git.clone(self._sockperf_repo, tool_path)
-            code_path = tool_path.joinpath("sockperf")
-            # try latest, if fails, try stable
-            # seems to work best for BSD+Linux compat for now
-            try:
-                self.run_build_install(code_path)
-            except AssertionError:  # catch build failures
-                self.node.tools[Make].run("clean", cwd=code_path, force_run=True)
-                # try and older stable tag
-                git.checkout(cwd=code_path, ref="3.10")
-                self.node.log.debug(
-                    "Latest build failed, re-running with stable version 3.10."
+            installed_version = self._get_version()
+            if (
+                self.node.nics.is_internal_address_ipv6()
+                and installed_version < parse_version(SOCKPERF_IPV6_MIN_VERSION)
+            ):
+                self.node.log.info(
+                    f"Sockperf {installed_version} doesn't support IPv6. "
+                    f"Installing version {SOCKPERF_STABLE_VERSION} from source."
                 )
-                self.run_build_install(code_path)
+                posix_os.uninstall_packages("sockperf")
+                self._install_from_source(posix_os, SOCKPERF_STABLE_VERSION)
+        else:
+            self._install_from_source(posix_os)
 
         # disable any firewalls running which might mess with the test
         self.node.tools[Firewall].stop()
 
         return self._check_exists()
+
+    def _get_version(self) -> VersionInfo:
+        result = self.run("--version", force_run=True)
+        output = f"{result.stdout}\n{result.stderr}"
+        matched = self._version_pattern.search(output)
+        assert matched, f"cannot parse sockperf version from: {output}"
+        return parse_version(matched.group("version"))
+
+    def _install_from_source(self, posix_os: Posix, version: str = "") -> None:
+        packages: List[Union[Type[Tool], str]] = [
+            Git,
+            Make,
+            "automake",
+            "m4",
+            "autoconf",
+            "libtool",
+        ]
+
+        if not isinstance(posix_os, BSD):
+            packages.extend(["perl", Gcc])
+
+        if isinstance(posix_os, CBLMariner):
+            if posix_os.information.version >= "4.0.0":
+                packages.extend(["kernel-headers", "binutils", "glibc-devel"])
+            else:
+                packages.append("build-essential")
+
+        posix_os.install_packages(packages)
+        if not isinstance(posix_os, BSD):
+            self.node.tools[Gcc].install_cpp_compiler()
+
+        tool_path = self.get_tool_path()
+        git = self.node.tools[Git]
+        git.clone(self._sockperf_repo, tool_path)
+        code_path = tool_path.joinpath("sockperf")
+        if version:
+            git.checkout(cwd=code_path, ref=version)
+            self.run_build_install(code_path)
+            return
+
+        try:
+            self.run_build_install(code_path)
+        except AssertionError:
+            self.node.tools[Make].run("clean", cwd=code_path, force_run=True)
+            git.checkout(cwd=code_path, ref=SOCKPERF_STABLE_VERSION)
+            self.node.log.debug(
+                "Latest build failed, re-running with stable version 3.10."
+            )
+            self.run_build_install(code_path)
 
     def run_build_install(self, code_path: pathlib.PurePath) -> None:
         make = self.node.tools[Make]
