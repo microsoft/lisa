@@ -177,6 +177,66 @@ Each publisher suite **must** include both ``"VM_Extension"`` (shared) and an
 extension-specific tag (typically the ``EXTENSION_TYPE`` value) in its
 ``@TestSuiteMetadata(tags=...)``.
 
+Windows Runtime Extension Boot Validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Windows runtime suites require Azure, ``AzureExtension``, and a Windows
+guest. They are preview, priority-5 installation smoke tests, not VM reboot
+tests. The shared ``_boot_validation()`` helper verifies provisioning, checks
+the installed candidate version when a full version is requested, checks VM
+reachability, and removes the extension even when validation fails.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 40 35
+
+   * - Extension
+     - Test method
+     - Scoped candidate version variable
+   * - ``Microsoft.Compute.CustomScriptExtension``
+     - ``microsoft_compute_customscriptextension_boot_validation_test``
+     - ``custom_script_windows_version``
+   * - ``Microsoft.Compute.VMAccessAgent``
+     - ``microsoft_compute_vmaccessagent_boot_validation_test``
+     - ``vmaccess_windows_version``
+   * - ``Microsoft.CPlat.Core.RunCommandWindows``
+     - ``microsoft_cplat_core_runcommandwindows_boot_validation_test``
+     - ``run_command_windows_version``
+
+Set the scoped variable for each selected suite, or use ``extension_version``
+to override it. Boot validation requires an explicit two-, three-, or four-part
+version and never uses a code-level default. Supply a three- or four-part
+version to require the exact candidate; a two-part version lets Azure choose
+the patch. Filter by the exact test name or the case's lowercase
+``publisher.type`` tag to avoid selecting Linux counterparts.
+
+Azure may publish and report a full candidate using three components. A
+four-part input with a zero revision (for example, ``1.10.24.0``) matches the
+equivalent reported ``1.10.24``. The shared version comparison ignores trailing
+zero components, but rejects a different patch or nonzero revision.
+
+Custom Script executes a harmless inline PowerShell command using
+``commandToExecute``. Run Command executes a harmless PowerShell command using
+the Windows handler's public ``script`` array; this is action Run Command,
+not ``RunCommandHandlerWindows`` (Managed Run Command). Neither case needs a
+storage account, script download, or protected settings.
+
+RunCommandWindows requires an SSH-ready VM whose preparation has not already
+established an incompatible action Run Command handler. When a Windows VM's
+SSH port is closed, LISA's Azure platform invokes ``RunPowerShellScript`` through
+action Run Command to configure OpenSSH before test execution. This can establish
+an implicit RunCommandWindows handler whose requested version conflicts with the
+test's requested ``major.minor`` version. A fresh VM alone does not prevent this;
+use an image with SSH already configured or bootstrap SSH without action Run
+Command. The Linux platform path skips this Windows-specific bootstrap.
+
+VMAccess uses empty public settings for the documented RDP configuration reset.
+It does not reset user credentials. Use a non-domain-controller Windows VM with
+the Windows Defender Firewall service running. The node is marked dirty before
+installation because removing the extension does not restore the previous RDP
+and firewall configuration. Do not run these tests on production VMs or VMs
+already using another instance of the same extension handler.
+
 Onboarding Checklist
 ~~~~~~~~~~~~~~~~~~~~
 
