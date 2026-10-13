@@ -142,10 +142,12 @@ try {{
         -ErrorAction Stop
 }}
 finally {{
-    Remove-Item `
-        -LiteralPath $temporaryStatePath `
-        -Force `
-        -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $temporaryStatePath -PathType Leaf) {{
+        Remove-Item `
+            -LiteralPath $temporaryStatePath `
+            -Force `
+            -ErrorAction Stop
+    }}
 }}
 """,
             force_run=True,

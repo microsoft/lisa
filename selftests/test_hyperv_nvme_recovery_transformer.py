@@ -49,6 +49,11 @@ class HyperVNvmeRecoveryTransformerTestCase(TestCase):
         self.assertIn("WriteAllBytes", write_command)
         self.assertIn("Move-Item", write_command)
         self.assertIn("finally", write_command)
+        self.assertIn(
+            "Test-Path -LiteralPath $temporaryStatePath -PathType Leaf",
+            write_command,
+        )
+        self.assertNotIn("-ErrorAction SilentlyContinue", write_command)
 
     @patch("lisa.transformers.hyperv_nvme_recovery.HyperVDevicePool")
     def test_recover_reads_state_and_calls_pool(self, pool_type: MagicMock) -> None:
