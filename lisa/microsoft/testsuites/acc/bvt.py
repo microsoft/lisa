@@ -45,6 +45,7 @@ class ACCBasicTest(TestSuite):
         requirement=simple_requirement(
             supported_features=[acc.ACC],
         ),
+        maturity="deprecated",
     )
     def verify_sgx(self, log: Logger, node: Node) -> None:
         node_arch = node.tools[Lscpu].get_architecture()

@@ -296,7 +296,7 @@ class HypervPlatform(Platform):
 
             self._server.tools[Cp].copy(self._source_vhd, vhd_path)
 
-            self._resize_vhd_if_needed(vhd_path, node_runbook)
+            is_vhd_resized = self._resize_vhd_if_needed(vhd_path, node_runbook)
 
             assert isinstance(node.capability.core_count, int)
             assert isinstance(node.capability.memory_mb, int)
@@ -381,10 +381,11 @@ class HypervPlatform(Platform):
                     public_port=port,
                 )
 
-                # In some cases, we observe that resize vhd resizes the entire disk
-                # but fails to expand the partition size.
-                resize = node.tools[ResizePartition]
-                resize.expand_os_partition()
+                if is_vhd_resized:
+                    # In some cases, Resize-VHD resizes the entire disk but fails
+                    # to expand the guest partition size.
+                    resize = node.tools[ResizePartition]
+                    resize.expand_os_partition()
             except Exception as ex:
                 # avoid stale VMs; delete the VM before raising exception
                 self._delete_node(node_context, wait_delete=False, log=log)
@@ -392,7 +393,7 @@ class HypervPlatform(Platform):
 
     def _resize_vhd_if_needed(
         self, vhd_path: PurePath, node_runbook: HypervNodeSchema
-    ) -> None:
+    ) -> bool:
         pwsh = self._server.tools[PowerShell]
         vhd_size = int(pwsh.run_cmdlet(f"(Get-VHD -Path {vhd_path}).Size"))
         if vhd_size < node_runbook.osdisk_size_in_gb * 1024 * 1024 * 1024:
@@ -400,6 +401,8 @@ class HypervPlatform(Platform):
                 f"Resize-VHD -Path {vhd_path} "
                 f"-SizeBytes {node_runbook.osdisk_size_in_gb * 1024 * 1024 * 1024}"
             )
+            return True
+        return False
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self._delete_nodes(environment, log)

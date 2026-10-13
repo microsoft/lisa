@@ -16,7 +16,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.base_tools import Cat
-from lisa.operating_system import BSD, CBLMariner, Windows
+from lisa.operating_system import CBLMariner
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.tools import Echo, Lsmod, Mkfs, Modprobe, Mount
 from lisa.tools.mkfs import FileSystem
@@ -35,7 +35,7 @@ from lisa.util import UnsupportedDistroException
     """,
     requirement=simple_requirement(
         supported_platform_type=[AZURE, HYPERV, READY],
-        unsupported_os=[BSD, Windows],
+        supported_os=[CBLMariner],
     ),
 )
 class ZramCompression(TestSuite):

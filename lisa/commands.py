@@ -9,6 +9,7 @@ from typing import Iterable, Optional, cast
 from lisa import messages, notifier, schema
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import RootRunner
+from lisa.runners.lisa_runner import _resolve_target_capabilities
 from lisa.testselector import select_testcases
 from lisa.testsuite import TestCaseRuntimeData
 from lisa.util import LisaException, constants, hookspec, plugin_manager
@@ -84,14 +85,21 @@ def list_start(args: Namespace) -> int:
             target_os = infer_target_os(case_variables)
         else:
             target_os = None
+        target_capabilities = _resolve_target_capabilities(case_variables)
         if list_all:
             cases: Iterable[TestCaseRuntimeData] = select_testcases(
-                target_os=target_os, apply_stable_gate=False
+                target_os=target_os,
+                target_capabilities=target_capabilities,
+                apply_stable_gate=False,
             )
         else:
             criteria_dict = builder.partial_resolve(constants.TESTCASE)
             criteria = schema.load_by_type_many(schema.TestCase, criteria_dict)
-            cases = select_testcases(criteria, target_os=target_os)
+            cases = select_testcases(
+                criteria,
+                target_os=target_os,
+                target_capabilities=target_capabilities,
+            )
         for case_data in cases:
             log.info(
                 f"case: {case_data.name}, suite: {case_data.metadata.suite.name}, "

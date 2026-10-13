@@ -14,6 +14,8 @@ Run tests on different platforms
 
 -  `Run on Linux and QEMU <#run-on-linux-and-qemu>`__
 
+-  `OpenVMM NIC passthrough <#openvmm-nic-passthrough>`__
+
 -  `Run on AWS <#run-on-aws>`__
 
 -  `Run on WSL <#run-on-wsl>`__
@@ -370,6 +372,35 @@ For CBL-Mariner:
    .. code:: bash
 
       ./lisa.sh  -r ./microsoft/runbook/qemu/CBL-Mariner.yml -v "admin_private_key_file:<private key file>" -v "qcow2:<qcow2 file>"
+
+OpenVMM NIC passthrough
+----------------------
+
+OpenVMM guests on the same host share a device pool. When NIC passthrough is
+configured, OpenVMM enables the pool's IPv4 SSH return-route guard before devices
+are detached. On a multi-NIC host, the interface owning the SSH server address
+may differ from the interface carrying SSH replies. If the return route uses an
+eligible passthrough NIC, LISA temporarily pins traffic to the SSH peer through
+the management interface.
+
+The temporary route remains while any passthrough NIC is allocated. Cleanup
+restores the original device drivers before releasing devices and removes the
+route after the last NIC is released. If driver restoration fails, the allocation
+and route are retained; resolve the host connectivity or driver problem and retry
+cleanup. The pool checks the actual return route before every NIC allocation,
+even when a previous route still has pending cleanup, and verifies a newly
+pinned route before allowing allocation.
+
+Each pool uses a distinct route metric to identify its temporary peer routes.
+Cleanup intent is recorded before adding a route, so a lost SSH acknowledgement
+does not orphan a route or cause cleanup to remove an operator-owned route.
+Cleanup retains failed removals for retry and tracks routes to multiple SSH peers.
+If shared-pool initialization fails, OpenVMM attempts route cleanup and retains
+the uninitialized pool for later cleanup or initialization retry. Retry
+initialization with the same ``device_pools`` configuration.
+
+The guard requires an IPv4 SSH session with ``SSH_CONNECTION`` available. It does
+not protect IPv6 management routing.
 
 Run on AWS
 ------------

@@ -12,10 +12,11 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Type, cast
 from assertpy.assertpy import assert_that, fail
 
 from lisa import Node
+from lisa.base_tools import Dpkg, Rpm
 from lisa.executable import ExecutableResult, Tool
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
-from lisa.operating_system import CBLMariner, Posix, Ubuntu
+from lisa.operating_system import CBLMariner, CpuArchitecture, Posix, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import (
     Cat,
@@ -30,8 +31,10 @@ from lisa.tools import (
     Mkdir,
     Modprobe,
     Sed,
+    Uname,
     Whoami,
 )
+from lisa.tools.grep import Grep
 from lisa.util import (
     LisaException,
     SkippedException,
@@ -1437,6 +1440,103 @@ exit $ec
         if "MIGRATABLE_VERSION" in os.environ:
             self.env_vars["MIGRATABLE_VERSION"] = os.environ["MIGRATABLE_VERSION"]
 
+    def _log_custom_kernel_metadata(self, kernel_path: str) -> None:
+        metadata = [f"[uvm-kernel] path={kernel_path}"]
+        quoted_path = shlex.quote(str(self.node.get_pure_path(kernel_path)))
+        try:
+            result = self.node.execute(f"test -r {quoted_path}", no_error_log=True)
+            if result.exit_code != 0:
+                metadata.append("[uvm-kernel] readable=false")
+                return
+
+            embedded_pattern = (
+                r"(Linux version )?[0-9]+\.[0-9]+\.[0-9]+"
+                r"[^[:space:][:cntrl:]]* \([^[:cntrl:]]+\)"
+            )
+            result = self.node.tools[Grep].run(
+                f"-a -o -E -m 1 {shlex.quote(embedded_pattern)} -- {quoted_path}",
+                force_run=True,
+                update_envs={"LC_ALL": "C"},
+                no_error_log=True,
+            )
+            embedded_build = ""
+            if result.exit_code == 0 and result.stdout.strip():
+                embedded_build = result.stdout.strip().splitlines()[0]
+            if not embedded_build:
+                result = self.node.execute(
+                    f"strings -a -- {quoted_path}",
+                    no_error_log=True,
+                    no_debug_log=True,
+                )
+                if result.exit_code == 0:
+                    match = re.search(
+                        r"^(Linux version )?[0-9]+\.[0-9]+\.[0-9]+[^\s]* \([^\r\n]*",
+                        result.stdout,
+                        re.MULTILINE,
+                    )
+                    if match:
+                        embedded_build = match.group(0)
+            metadata.append(
+                f"[uvm-kernel] embedded-build={embedded_build or 'unavailable'}"
+            )
+
+            for name, command in (
+                ("sha256", f"sha256sum -- {quoted_path}"),
+                ("file", f"file -b -- {quoted_path}"),
+            ):
+                result = self.node.execute(command, no_error_log=True)
+                output = result.stdout.strip()
+                if result.exit_code == 0 and output:
+                    if name == "sha256":
+                        output = output.split()[0]
+                    metadata.append(f"[uvm-kernel] {name}={output}")
+
+            package_format = shlex.quote(r"%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n")
+            package_queries: Tuple[Tuple[Type[Tool], str], ...] = (
+                (Rpm, f"-qf --qf {package_format} -- {quoted_path}"),
+                (Dpkg, f"-S -- {quoted_path}"),
+            )
+            for package_type, arguments in package_queries:
+                package_tool = package_type(self.node)
+                if not package_tool.exists:
+                    continue
+                result = package_tool.run(arguments, force_run=True, no_error_log=True)
+                if result.exit_code == 0 and result.stdout.strip():
+                    package = result.stdout.strip().splitlines()[0]
+                    metadata.append(f"[uvm-kernel] package={package}")
+                break
+        except LisaException as error:
+            self._log.debug(
+                f"Failed to inspect selected UVM kernel '{kernel_path}': {error}"
+            )
+        finally:
+            metadata_text = "\n".join(metadata)
+            self._log.info(f"Selected UVM kernel metadata:\n{metadata_text}")
+
+    def _set_ms_kernel_environment(self) -> None:
+        if self.use_ms_guest_kernel:
+            self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
+        if self.use_ms_bz_image:
+            self.env_vars["USE_MS_BZ_IMAGE"] = self.use_ms_bz_image
+
+        architecture = self.node.tools[Uname].get_machine_architecture()
+        kernel_path = ""
+        if architecture == CpuArchitecture.ARM64:
+            if self.use_ms_guest_kernel:
+                kernel_path = "/usr/share/cloud-hypervisor/Image"
+                self.env_vars["CH_CUSTOM_KERNEL"] = kernel_path
+            if self.use_ms_bz_image:
+                self.env_vars[
+                    "CH_CUSTOM_BZIMAGE"
+                ] = "/usr/share/cloud-hypervisor/bzImage"
+        else:
+            kernel_path = "/usr/share/cloud-hypervisor/vmlinux.bin"
+            self.env_vars["CH_CUSTOM_KERNEL"] = kernel_path
+            self.env_vars["CH_CUSTOM_BZIMAGE"] = "/usr/share/cloud-hypervisor/bzImage"
+
+        if kernel_path:
+            self._log_custom_kernel_metadata(kernel_path)
+
     def _install(self) -> bool:
         git = self.node.tools[Git]
         clone_path = self.get_tool_path(use_global=True)
@@ -1447,14 +1547,18 @@ exit $ec
                 auth_token=self.ms_access_token,
             )
             self.env_vars["GUEST_VM_TYPE"] = self.clh_guest_vm_type
-            if self.use_ms_guest_kernel:
-                self.env_vars["USE_MS_GUEST_KERNEL"] = self.use_ms_guest_kernel
+            if self.use_ms_guest_kernel or self.use_ms_bz_image:
+                self._set_ms_kernel_environment()
             if self.use_ms_hypervisor_fw:
                 self.env_vars["USE_MS_HV_FW"] = self.use_ms_hypervisor_fw
+                self.env_vars[
+                    "CH_CUSTOM_FIRMWARE"
+                ] = "/usr/share/cloud-hypervisor/hypervisor-fw"
             if self.use_ms_ovmf_fw:
                 self.env_vars["USE_MS_OVMF_FW"] = self.use_ms_ovmf_fw
-            if self.use_ms_bz_image:
-                self.env_vars["USE_MS_BZ_IMAGE"] = self.use_ms_bz_image
+                self.env_vars[
+                    "CH_CUSTOM_OVMF"
+                ] = "/usr/share/cloud-hypervisor/CLOUDHV_EFI.fd"
 
             if self.use_pmem:
                 self.env_vars["USE_DATADISK"] = self.use_pmem

@@ -19,36 +19,45 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-2025]
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
         nox-session: [test, example]
 
         include:
-
           - os: ubuntu-latest
-            python-version: ''
-            nox-session: ''
+            python-version: ""
+            nox-session: ""
             task: shellcheck
 
           - os: ubuntu-latest
-            python-version: '3.12'
+            python-version: "3.12"
             nox-session: flake8
 
           - os: ubuntu-latest
-            python-version: '3.12'
+            python-version: "3.12"
             nox-session: pylint
             additional-sys-deps: libvirt-dev
 
           - os: ubuntu-latest
-            python-version: '3.12'
+            python-version: "3.12"
             nox-session: mypy
 
           - os: ubuntu-latest
-            python-version: '3.12'
+            python-version: "3.12"
             nox-session: docs
 
           - os: ubuntu-latest
-            python-version: '3.12'
+            python-version: "3.12"
             nox-session: coverage
+
+          # Both OSes: the log-archive extraction and path-containment code
+          # takes different branches on Windows than on POSIX.
+          - os: ubuntu-latest
+            python-version: "3.12"
+            nox-session: mcp
+
+          - os: windows-2025
+            python-version: "3.12"
+            nox-session: mcp
 
     env:
       NOXSESSION: ${{ matrix.nox-session }}

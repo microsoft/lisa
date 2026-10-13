@@ -93,6 +93,7 @@ class RunCommandV1Tests(VmExtensionTestBase):  # type: ignore[misc]
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_script_run(
         self,
@@ -132,6 +133,7 @@ class RunCommandV1Tests(VmExtensionTestBase):  # type: ignore[misc]
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_second_public_script_run(
         self,
@@ -226,6 +228,7 @@ class RunCommandV1Tests(VmExtensionTestBase):  # type: ignore[misc]
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_script_protected_settings_run(
         self,
@@ -334,6 +337,7 @@ class RunCommandV1Tests(VmExtensionTestBase):  # type: ignore[misc]
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_script_with_base64_script_run(
         self,
@@ -375,6 +379,7 @@ class RunCommandV1Tests(VmExtensionTestBase):  # type: ignore[misc]
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_script_with_gzip_base64_script_run(
         self,
@@ -548,6 +553,7 @@ class RunCommandV1Tests(VmExtensionTestBase):  # type: ignore[misc]
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_python_script_run(
         self,

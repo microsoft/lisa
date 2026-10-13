@@ -10,7 +10,7 @@ from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.messages import TestStatus, send_sub_test_result_message
-from lisa.testsuite import TestResult
+from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import (
     Cp,
     Free,
@@ -36,6 +36,7 @@ from lisa.util import SkippedException
     This test suite contains tests that are meant to be run on the
     Microsoft Hypervisor (MSHV) root partition.
     """,
+    requirement=simple_requirement(supported_host_capabilities=["mshv"]),
 )
 class MshvHostStressTestSuite(TestSuite):
     IGVM_PATH_VARIABLE = "igvm_path"

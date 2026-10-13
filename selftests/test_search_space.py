@@ -78,6 +78,44 @@ class SearchSpaceTestCase(unittest.TestCase):
             ],
         )
 
+    def test_int_range_check_rejection_reasons(self) -> None:
+        requirement = IntRange(min=10, max=15, max_inclusive=False)
+        cases = [
+            (None, "capability shouldn't be None"),
+            (IntRange(min=1, max=9), "smaller than requirement min(10)"),
+            (
+                IntRange(min=1, max=10, max_inclusive=False),
+                "capability is not max_inclusive",
+            ),
+            (IntRange(min=16, max=20), "bigger than requirement max(15)"),
+            (IntRange(min=15, max=20), "requirement is not max_inclusive"),
+            (9, "smaller than requirement min(10)"),
+            (16, "bigger than requirement max(15)"),
+            (15, "requirement is not max_inclusive"),
+            ([9, 16], "no capability matches requirement"),
+        ]
+        for capability, expected_reason in cases:
+            with self.subTest(capability=capability):
+                result = requirement.check(capability)
+                self.assertFalse(result.result)
+                self.assertEqual(1, len(result.reasons))
+                self.assertIn(expected_reason, result.reasons[0])
+
+    def test_countspace_check_rejection_reasons(self) -> None:
+        cases = [
+            (10, None, "capability shouldn't be None"),
+            (10, 11, "capability should be exact much"),
+            (10, IntRange(min=11, max=15), "capability should include it"),
+            (10, [11, 12], "no capability matched"),
+            ([IntRange(min=10, max=15)], 20, "no capability matches requirement"),
+        ]
+        for requirement, capability, expected_reason in cases:
+            with self.subTest(requirement=requirement, capability=capability):
+                result = check_countspace(requirement, capability)
+                self.assertFalse(result.result)
+                self.assertEqual(1, len(result.reasons))
+                self.assertIn(expected_reason, result.reasons[0])
+
     def test_supported_countspace(self) -> None:
         expected_meet = [
             [True, True, True, True, True, True, True, True, True, True, True],

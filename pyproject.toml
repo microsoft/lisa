@@ -105,7 +105,7 @@ legacy = [
 ]
 
 libvirt = [
-    "libvirt-python ~= 9.3.0; platform_system != 'Windows'",
+    "libvirt-python ~= 11.9.0; platform_system != 'Windows'",
     "pycdlib ~= 1.12.0; platform_system != 'Windows'",
 ]
 
@@ -194,6 +194,12 @@ use_parentheses = true
 ensure_newline_before_comments = true
 line_length = 88
 extend_skip_glob = [".nox/*", ".venv*/*"]
+# Pin classification so local (editable-installed `lisa_mcp`) and CI
+# (no install) agree on import grouping. Without this, isort treats
+# `lisa_mcp` as first-party locally but third-party in CI, which
+# flips I003/I004 between environments.
+known_first_party = ["lisa", "lisa_mcp"]
+known_third_party = ["mcp"]
 
 
 [tool.mypy]

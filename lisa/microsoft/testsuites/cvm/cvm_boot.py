@@ -92,6 +92,7 @@ class CVMBootTestSuite(TestSuite):
         priority=1,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Connected,
+            supported_os=[CBLMariner],
             supported_features=[CvmEnabled()],
             supported_platform_type=[AZURE],
         ),

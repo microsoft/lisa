@@ -3478,7 +3478,8 @@ class Nfs(AzureFeatureMixin, features.Nfs):
 class AzureExtension(AzureFeatureMixin, Feature):
     RESOURCE_NOT_FOUND = re.compile(r"ResourceNotFound", re.M)
     _TYPE_HANDLER_VERSION_PATTERN = re.compile(
-        r"^(?P<major>\d+)\.(?P<minor>\d+)(?:\.(?P<patch>\d+))?$"
+        r"^(?P<major>\d+)\.(?P<minor>\d+)"
+        r"(?:\.(?P<patch>\d+)(?:\.(?P<revision>\d+))?)?$"
     )
 
     @classmethod
@@ -3508,19 +3509,44 @@ class AzureExtension(AzureFeatureMixin, Feature):
         Returns:
             Tuple[str, bool]:
             - normalized Major.Minor version for installation
-            - True if the original version was Major.Minor.Patch
+            - True if the original version included a patch component
         """
         requested_version = version.strip()
         matched = self._TYPE_HANDLER_VERSION_PATTERN.fullmatch(requested_version)
         if not matched:
             raise LisaException(
                 "Invalid extension_version format. Expected 'Major.Minor' "
-                f"or 'Major.Minor.Patch', got '{version}'."
+                "'Major.Minor.Patch', or 'Major.Minor.Patch.Revision', "
+                f"got '{version}'."
             )
 
         normalized_version = f"{matched.group('major')}.{matched.group('minor')}"
         is_patch_version = matched.group("patch") is not None
         return normalized_version, is_patch_version
+
+    @staticmethod
+    def are_type_handler_versions_equal(
+        expected_version: str, actual_version: str
+    ) -> bool:
+        """
+        Compare extension versions while ignoring trailing zero components.
+
+        Some Windows extensions report a four-part version such as ``1.45.0.0``
+        even when the requested candidate version is ``1.45.0``.
+        """
+
+        def _normalize(version: str) -> Optional[Tuple[int, ...]]:
+            parts = version.strip().split(".")
+            if not parts or any(not part.isdigit() for part in parts):
+                return None
+            normalized = [int(part) for part in parts]
+            while normalized and normalized[-1] == 0:
+                normalized.pop()
+            return tuple(normalized)
+
+        expected = _normalize(expected_version)
+        actual = _normalize(actual_version)
+        return expected is not None and expected == actual
 
     def get_installed_type_handler_version(self, name: str) -> str:
         extension_obj = self.get(name=name)

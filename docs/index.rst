@@ -45,11 +45,13 @@ Why LISA
 
    Introduction <quick_start>
    Installation & Update <install>
+   LISA MCP server <mcp_server>
    Run tests <run_test/run>
    Write tests <write_test/write>
    Test Maturity Model <test_maturity_model>
    VM Extension Test Onboarding Strategy <vm_extension_validation_framework>
    Distro Pre-Filter <distro_pre_filter>
+   Host Capability Pre-Filter <host_capability_pre_filter>
    Contributing <contributing>
    Troubleshooting <troubleshooting>
 

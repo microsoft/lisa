@@ -46,6 +46,26 @@ def example(session: nox.Session) -> None:
     session.run("lisa", "--debug")
 
 
+@nox.session(python=CURRENT_PYTHON, tags=["test", "all"])  # type: ignore
+def mcp(session: nox.Session) -> None:
+    """Run the MCP server tests"""
+    if sys.version_info < (3, 10):
+        session.skip("lisa-mcp requires Python 3.10 or newer")
+    # Editable: the tools locate the repo from the installed package path, so
+    # a regular install would leave them unable to find the test suites.
+    # The `sse` extra pulls starlette/uvicorn, without which the transport
+    # tests skip themselves and stop guarding the hosted server.
+    session.install("--editable", "./mcp[sse]")
+    # Nox inherits the caller's environment. Pin the opt-in switches off so
+    # the run is the same everywhere: both need things this session does not
+    # provide (LISA itself, and a running container).
+    session.run(
+        "python",
+        "mcp/run_tests.py",
+        env={"LISA_MCP_RUN_TESTS": "0", "LISA_MCP_CONTAINER_URL": ""},
+    )
+
+
 @nox.session(python=CURRENT_PYTHON, tags=["all"])  # type: ignore
 def coverage(session: nox.Session) -> None:
     """Check test coverage"""

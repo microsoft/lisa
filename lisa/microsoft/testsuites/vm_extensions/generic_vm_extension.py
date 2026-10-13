@@ -88,13 +88,15 @@ class GenericVmExtension(TestSuite):
 
         installed_version = extension.get_installed_type_handler_version(extension_name)
         if is_patch_version:
-            assert_that(installed_version).described_as(
+            assert_that(
+                extension.are_type_handler_versions_equal(version, installed_version)
+            ).described_as(
                 f"Installed extension '{extension_name}' version mismatch: expected "
                 f"'{version}', actual '{installed_version}'. Verify which patch "
                 f"version Azure delivers for the requested major.minor version and "
                 f"check whether this extension version is published in the current "
                 f"region."
-            ).is_equal_to(version)
+            ).is_true()
 
         log.info(f"Installed extension '{extension_name}' version: {installed_version}")
 
