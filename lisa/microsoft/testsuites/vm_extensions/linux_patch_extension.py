@@ -366,6 +366,7 @@ class LinuxPatchExtensionBVT(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        tags=["microsoft.cplat.core.linuxpatchextension"],
     )
     def verify_vm_install_patches(
         self, node: Node, environment: Environment, log: Logger
