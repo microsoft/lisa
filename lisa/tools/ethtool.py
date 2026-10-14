@@ -99,8 +99,7 @@ class DeviceChannel:
     #   Other:          n/a
     #   Combined:       16
     _channel_count_param_pattern = re.compile(
-        r"(?P<param>Combined):[ \t]*(?P<value>\d+)[ \t]*\r?$",
-        re.MULTILINE,
+        r"(?P<param>Combined):[ \t]*(?P<value>.*)$", re.MULTILINE
     )
 
     def __init__(self, interface: str, device_channel_raw: str) -> None:
