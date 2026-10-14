@@ -196,9 +196,6 @@ reachability, and removes the extension even when validation fails.
    * - ``Microsoft.Compute.CustomScriptExtension``
      - ``microsoft_compute_customscriptextension_boot_validation_test``
      - ``custom_script_windows_version``
-   * - ``Microsoft.Compute.VMAccessAgent``
-     - ``microsoft_compute_vmaccessagent_boot_validation_test``
-     - ``vmaccess_windows_version``
    * - ``Microsoft.CPlat.Core.RunCommandWindows``
      - ``microsoft_cplat_core_runcommandwindows_boot_validation_test``
      - ``run_command_windows_version``
@@ -229,13 +226,6 @@ an implicit RunCommandWindows handler whose requested version conflicts with the
 test's requested ``major.minor`` version. A fresh VM alone does not prevent this;
 use an image with SSH already configured or bootstrap SSH without action Run
 Command. The Linux platform path skips this Windows-specific bootstrap.
-
-VMAccess uses empty public settings for the documented RDP configuration reset.
-It does not reset user credentials. Use a non-domain-controller Windows VM with
-the Windows Defender Firewall service running. The node is marked dirty before
-installation because removing the extension does not restore the previous RDP
-and firewall configuration. Do not run these tests on production VMs or VMs
-already using another instance of the same extension handler.
 
 Onboarding Checklist
 ~~~~~~~~~~~~~~~~~~~~
