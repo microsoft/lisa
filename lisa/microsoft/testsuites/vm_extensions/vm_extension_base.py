@@ -165,9 +165,11 @@ class VmExtensionTestBase(TestSuite):
 
         ``name`` defaults to ``self.extension_name`` and ``version`` to the
         resolved runbook/DEFAULT_VERSION value; callers (e.g. boot validation)
-        may override both. Any pre-existing instance with the same name is
-        deleted first, unless the extension cannot be deleted normally
-        (``SUPPORTS_DELETE`` is False, e.g. CRP-managed extensions).
+        may override both. Any pre-existing instance of the same handler
+        (publisher + type) is deleted first, even when it was provisioned
+        under a different resource name, unless the extension cannot be
+        deleted normally (``SUPPORTS_DELETE`` is False, e.g. CRP-managed
+        extensions).
         """
         publisher = self._resolve_publisher(variables)
         type_ = self._resolve_type(variables)
@@ -176,6 +178,14 @@ class VmExtensionTestBase(TestSuite):
         name = name or self.extension_name
         extension = node.features[AzureExtension]
         if self.SUPPORTS_DELETE:
+            # Remove any pre-existing instance of the same handler
+            # (publisher + type), even under a different resource name, so
+            # platform/policy pre-provisioned handlers (e.g. Microsoft
+            # Defender's AzureSecurityLinuxAgent) do not conflict with this
+            # install. Azure rejects create_or_update with OperationNotAllowed
+            # when two extensions share a handler but differ in version or
+            # autoUpgradeMinorVersion.
+            self._cleanup_existing_extensions(extension, publisher, type_, node.log)
             extension.delete(name=name, ignore_not_found=True)
         result: Dict[str, Any] = extension.create_or_update(
             name=name,
@@ -187,6 +197,37 @@ class VmExtensionTestBase(TestSuite):
             protected_settings=protected_settings or {},
         )
         return result
+
+    @retry(tries=3, delay=10)  # type: ignore
+    def _cleanup_existing_extensions(
+        self,
+        extension: AzureExtension,
+        publisher: str,
+        type_: str,
+        log: Logger,
+    ) -> None:
+        """
+        Remove any pre-existing extension that shares the same handler
+        (``publisher`` + ``type_``) but may have a different resource name.
+
+        Azure forbids two extensions with the same publisher+type but a
+        different version or autoUpgradeMinorVersion on the same VM. Platform
+        or policy driven processes (e.g. Microsoft Defender installing the
+        AzureSecurityLinuxAgent) can pre-provision a handler before the test
+        runs, which makes the subsequent install fail with
+        OperationNotAllowed. Clearing those conflicting handlers first keeps
+        extension installs reliable across all VM extension test suites.
+        """
+        for ext in extension.list_all():
+            if (
+                getattr(ext, "publisher", None) == publisher
+                and getattr(ext, "type_properties_type", None) == type_
+            ):
+                log.info(
+                    f"Deleting pre-existing extension '{ext.name}' "
+                    f"with same handler type '{publisher}.{type_}'."
+                )
+                extension.delete(name=ext.name, ignore_not_found=True)
 
     def _assert_provisioned(
         self, result: Dict[str, Any], variables: Optional[Dict[str, Any]] = None
