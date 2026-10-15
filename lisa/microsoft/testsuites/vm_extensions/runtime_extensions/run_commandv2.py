@@ -262,6 +262,7 @@ class RunCommandV2Tests(VmExtensionTestBase):  # type: ignore[misc]
         which is restricted for security reasons.
         """,
         priority=5,
+        maturity="preview",
     )
     def verify_public_uri_script_run(
         self,

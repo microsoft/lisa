@@ -177,6 +177,56 @@ Each publisher suite **must** include both ``"VM_Extension"`` (shared) and an
 extension-specific tag (typically the ``EXTENSION_TYPE`` value) in its
 ``@TestSuiteMetadata(tags=...)``.
 
+Windows Runtime Extension Boot Validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Windows runtime suites require Azure, ``AzureExtension``, and a Windows
+guest. They are preview, priority-5 installation smoke tests, not VM reboot
+tests. The shared ``_boot_validation()`` helper verifies provisioning, checks
+the installed candidate version when a full version is requested, checks VM
+reachability, and removes the extension even when validation fails.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 40 35
+
+   * - Extension
+     - Test method
+     - Scoped candidate version variable
+   * - ``Microsoft.Compute.CustomScriptExtension``
+     - ``microsoft_compute_customscriptextension_boot_validation_test``
+     - ``custom_script_windows_version``
+   * - ``Microsoft.CPlat.Core.RunCommandWindows``
+     - ``microsoft_cplat_core_runcommandwindows_boot_validation_test``
+     - ``run_command_windows_version``
+
+Set the scoped variable for each selected suite, or use ``extension_version``
+to override it. Boot validation requires an explicit two-, three-, or four-part
+version and never uses a code-level default. Supply a three- or four-part
+version to require the exact candidate; a two-part version lets Azure choose
+the patch. Filter by the exact test name or the case's lowercase
+``publisher.type`` tag to avoid selecting Linux counterparts.
+
+Azure may publish and report a full candidate using three components. A
+four-part input with a zero revision (for example, ``1.10.24.0``) matches the
+equivalent reported ``1.10.24``. The shared version comparison ignores trailing
+zero components, but rejects a different patch or nonzero revision.
+
+Custom Script executes a harmless inline PowerShell command using
+``commandToExecute``. Run Command executes a harmless PowerShell command using
+the Windows handler's public ``script`` array; this is action Run Command,
+not ``RunCommandHandlerWindows`` (Managed Run Command). Neither case needs a
+storage account, script download, or protected settings.
+
+RunCommandWindows requires an SSH-ready VM whose preparation has not already
+established an incompatible action Run Command handler. When a Windows VM's
+SSH port is closed, LISA's Azure platform invokes ``RunPowerShellScript`` through
+action Run Command to configure OpenSSH before test execution. This can establish
+an implicit RunCommandWindows handler whose requested version conflicts with the
+test's requested ``major.minor`` version. A fresh VM alone does not prevent this;
+use an image with SSH already configured or bootstrap SSH without action Run
+Command. The Linux platform path skips this Windows-specific bootstrap.
+
 Onboarding Checklist
 ~~~~~~~~~~~~~~~~~~~~
 
@@ -206,6 +256,132 @@ Rule for New Test Cases
    behavior beyond basic lifecycle (e.g., output validation, specific
    settings, error scenarios, multi-extension interaction). If it's just
    install → assert provisioned → delete, call ``_full_lifecycle()``.
+
+Windows GenevaMonitoring Boot Validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``GenevaMonitoringWindowsTests`` validates
+``Microsoft.Azure.Geneva.GenevaMonitoring`` using the shared
+``_boot_validation()`` lifecycle with standby-readiness checks.
+
+- Case: ``microsoft_azure_geneva_genevamonitoring_boot_validation_test``
+- Suite and case tag: ``microsoft.azure.geneva.genevamonitoring``
+- Required candidate: ``geneva_monitoring_windows_version`` or a complete
+  generic ``extension_*`` specification. There is no default version.
+- Empty public and protected settings: do not configure a telemetry tenant
+  or supply placeholder accounts, namespaces or credentials.
+- Verify provisioning, installed handler version for a full candidate
+  version, and SSH connectivity before inspecting guest readiness.
+- Require running ``MonAgentManager.exe`` and ``MonAgentHost.exe`` processes
+  under the actually installed candidate directory. A process from another
+  version or a similarly prefixed directory does not satisfy the check.
+- Read machine-scoped ``MonAgentClientLocation`` and verify its
+  ``MonAgentClient.exe`` exists under the same candidate. Do not hardcode a
+  client subdirectory or rely on a stale SSH-session environment.
+- Read ``JsonDropDirectory`` from
+  ``HKLM\SOFTWARE\Microsoft\Geneva\MonitoringAgent\MultiTenant`` and verify
+  that the registered directory exists. All guest checks are read-only.
+- Retry readiness and command-exit assertions six times, ten seconds apart.
+  Malformed output and non-assertion execution errors fail directly.
+- Skip Windows kernels older than 6.3 (the Windows Server 2012 R2 baseline).
+- Require an isolated environment and use shared pre-install cleanup to
+  remove existing matching publisher/type installations, including handlers
+  installed under another resource name. Mark the node dirty before
+  installation because the extension manages machine-wide monitoring state.
+
+This case validates installation and standby startup only. It does not
+launch a telemetry tenant or require ``MonAgentCore.exe`` and other
+tenant-specific collection processes. It does not submit configuration
+files, validate telemetry ingestion, or test reboot survival. Normal cleanup
+removes the test extension; it is not a restoration of previous monitoring
+configuration, including any pre-existing handler removed before installation.
+Use an isolated disposable VM.
+
+Public Azure API references:
+
+- `Service Fabric node type create/update
+  <https://learn.microsoft.com/rest/api/servicefabric/managedclusters/node-types/create-or-update>`_
+  includes a ``GenevaMonitoring`` extension example with empty settings.
+- `Azure VM extension features for Windows
+  <https://learn.microsoft.com/azure/virtual-machines/extensions/features-windows>`_
+  describes extension lifecycle and instance-view status inspection.
+
+Windows IaaSAntimalware Boot Validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``IaaSAntimalwareWindowsTests`` validates
+``Microsoft.Azure.Security.IaaSAntimalware`` using the shared
+``_boot_validation()`` lifecycle and a Defender readiness check.
+
+- Case: ``microsoft_azure_security_iaasantimalware_boot_validation_test``
+- Suite and case tag: ``microsoft.azure.security.iaasantimalware``
+- Required version: ``iaas_antimalware_windows_version`` or overriding
+  ``extension_version``. There is no default candidate version.
+- Public settings: ``AntimalwareEnabled=true`` and
+  ``RealtimeProtectionEnabled=true``. No exclusions or protected settings.
+- After provisioning, handler-version and SSH checks, poll
+  ``Get-MpComputerStatus`` for ``AMServiceEnabled``, ``AntivirusEnabled`` and
+  ``RealTimeProtectionEnabled``. Each must be a JSON boolean ``true``.
+  Retry readiness and command-exit assertions six times, ten seconds apart.
+  Malformed output and non-assertion execution errors fail directly.
+- Skip legacy Windows kernels (major version below 10) and any pre-existing
+  matching publisher/type, regardless of extension resource name.
+- Require a new environment and mark the VM dirty before installation.
+  Extension configuration replaces existing Defender settings, including
+  exclusions; deleting the extension must not be treated as restoring those
+  settings. Use an isolated disposable VM, not a user-owned environment.
+
+On Windows Server 2016 and later the extension configures built-in Defender;
+it does not install a separate antivirus service. Consequently, the test does
+not look for a candidate-owned antivirus executable or compare Defender's
+engine version with the extension handler version. This is startup/readiness
+validation, not malware detection, scan execution, signature freshness or
+reboot survival. No protection is disabled and no test malware is introduced.
+
+Official references:
+
+- `Microsoft Antimalware extension for Windows
+  <https://learn.microsoft.com/azure/virtual-machines/extensions/iaas-antimalware-windows>`_
+  describes the settings, supported platforms and network prerequisites.
+- `Microsoft Antimalware code samples
+  <https://learn.microsoft.com/azure/security/fundamentals/antimalware-code-samples>`_
+  documents the configuration and warning about replacing existing policies.
+- `Get-MpComputerStatus
+  <https://learn.microsoft.com/powershell/module/defender/get-mpcomputerstatus>`_
+  documents the runtime status query and readiness properties.
+
+Windows Network Watcher Boot Validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``NetworkWatcherAgentWindowsTests`` validates
+``Microsoft.Azure.NetworkWatcher.NetworkWatcherAgentWindows`` using the shared
+``_boot_validation()`` lifecycle and a candidate-specific process check.
+
+- Case: ``microsoft_azure_networkwatcher_networkwatcheragentwindows_boot_validation_test``
+- Suite and case tag: ``microsoft.azure.networkwatcher.networkwatcheragentwindows``
+- Required version: ``network_watcher_agent_windows_version`` or the overriding
+  ``extension_version`` variable. There is no default candidate version.
+- Empty public settings and no protected settings: the extension does not
+  support user-supplied configuration.
+- After provisioning and SSH checks, poll for ``NetworkWatcherAgent.exe``
+  running from the actually installed handler's directory under
+  ``C:\Packages\Plugins``. Do not substitute the executable's file version for
+  the extension handler version.
+- Skip if the requested publisher/type is already installed, regardless of
+  resource name, rather than replacing a policy-managed or user-owned agent.
+  Use a fresh VM without a pre-existing Network Watcher extension.
+
+This validates initial agent startup, not reboot survival, packet capture,
+connection monitoring, or successful communication with the Network Watcher
+service. It does not create a storage account, restart the agent, or change
+firewall rules. The VM must allow the documented Azure platform connections:
+TCP port 80 to ``169.254.169.254`` and TCP port 8037 to ``168.63.129.16``.
+Windows Server 2025 is listed among the supported operating systems.
+
+See `Manage Network Watcher Agent virtual machine extension
+<https://learn.microsoft.com/azure/network-watcher/network-watcher-agent-manage>`_
+for the supported operating systems, default-settings contract, and network
+prerequisites.
 
 Extension-Specific Test Cases
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

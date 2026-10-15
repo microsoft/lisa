@@ -60,6 +60,7 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         requirement=simple_requirement(
             supported_features=[AzureExtension, CvmDisabled()]
         ),
+        tags=["microsoft.azure.recoveryservices.vmsnapshotlinux"],
     )
     def verify_vmsnapshot_extension(
         self, log: Logger, node: Node, environment: Environment

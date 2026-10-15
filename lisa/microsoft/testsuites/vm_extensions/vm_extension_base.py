@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import hashlib
 from typing import Any, Callable, Dict, Optional
 
 from assertpy import assert_that
@@ -10,6 +11,18 @@ from retry import retry
 from lisa import Logger, Node, TestSuite
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import LisaException, SkippedException
+
+_MAX_EXTENSION_NAME_LENGTH = 80
+
+
+def _get_boot_validation_extension_name(publisher: str, extension_type: str) -> str:
+    name = f"{publisher}_{extension_type}_boot_validation_test"
+    if len(name) <= _MAX_EXTENSION_NAME_LENGTH:
+        return name
+
+    digest = hashlib.sha256(name.encode()).hexdigest()[:8]
+    prefix_length = _MAX_EXTENSION_NAME_LENGTH - len(digest) - 1
+    return f"{name[:prefix_length]}_{digest}"
 
 
 class VmExtensionTestBase(TestSuite):
@@ -152,9 +165,11 @@ class VmExtensionTestBase(TestSuite):
 
         ``name`` defaults to ``self.extension_name`` and ``version`` to the
         resolved runbook/DEFAULT_VERSION value; callers (e.g. boot validation)
-        may override both. Any pre-existing instance with the same name is
-        deleted first, unless the extension cannot be deleted normally
-        (``SUPPORTS_DELETE`` is False, e.g. CRP-managed extensions).
+        may override both. Any pre-existing instance of the same handler
+        (publisher + type) is deleted first, even when it was provisioned
+        under a different resource name, unless the extension cannot be
+        deleted normally (``SUPPORTS_DELETE`` is False, e.g. CRP-managed
+        extensions).
         """
         publisher = self._resolve_publisher(variables)
         type_ = self._resolve_type(variables)
@@ -163,6 +178,14 @@ class VmExtensionTestBase(TestSuite):
         name = name or self.extension_name
         extension = node.features[AzureExtension]
         if self.SUPPORTS_DELETE:
+            # Remove any pre-existing instance of the same handler
+            # (publisher + type), even under a different resource name, so
+            # platform/policy pre-provisioned handlers (e.g. Microsoft
+            # Defender's AzureSecurityLinuxAgent) do not conflict with this
+            # install. Azure rejects create_or_update with OperationNotAllowed
+            # when two extensions share a handler but differ in version or
+            # autoUpgradeMinorVersion.
+            self._cleanup_existing_extensions(extension, publisher, type_, node.log)
             extension.delete(name=name, ignore_not_found=True)
         result: Dict[str, Any] = extension.create_or_update(
             name=name,
@@ -174,6 +197,37 @@ class VmExtensionTestBase(TestSuite):
             protected_settings=protected_settings or {},
         )
         return result
+
+    @retry(tries=3, delay=10)  # type: ignore
+    def _cleanup_existing_extensions(
+        self,
+        extension: AzureExtension,
+        publisher: str,
+        type_: str,
+        log: Logger,
+    ) -> None:
+        """
+        Remove any pre-existing extension that shares the same handler
+        (``publisher`` + ``type_``) but may have a different resource name.
+
+        Azure forbids two extensions with the same publisher+type but a
+        different version or autoUpgradeMinorVersion on the same VM. Platform
+        or policy driven processes (e.g. Microsoft Defender installing the
+        AzureSecurityLinuxAgent) can pre-provision a handler before the test
+        runs, which makes the subsequent install fail with
+        OperationNotAllowed. Clearing those conflicting handlers first keeps
+        extension installs reliable across all VM extension test suites.
+        """
+        for ext in extension.list_all():
+            if (
+                getattr(ext, "publisher", None) == publisher
+                and getattr(ext, "type_properties_type", None) == type_
+            ):
+                log.info(
+                    f"Deleting pre-existing extension '{ext.name}' "
+                    f"with same handler type '{publisher}.{type_}'."
+                )
+                extension.delete(name=ext.name, ignore_not_found=True)
 
     def _assert_provisioned(
         self, result: Dict[str, Any], variables: Optional[Dict[str, Any]] = None
@@ -244,26 +298,32 @@ class VmExtensionTestBase(TestSuite):
         variables: Dict[str, Any],
         settings: Dict[str, Any],
         post_provision: Optional[Callable[[Node], None]] = None,
+        mark_dirty_before_install: bool = False,
+        protected_settings: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Shared boot-validation flow for VM extensions.
 
-        Installs the extension with the provided inline settings, asserts that
-        provisioning succeeds, and removes it when the extension supports a
-        normal delete (SUPPORTS_DELETE). CRP-managed extensions (e.g. RunCommand
-        v2 / RunCommandHandlerLinux) set SUPPORTS_DELETE=False and rely on
-        resource group teardown for cleanup instead.
+        Installs the extension with the provided inline settings (and optional
+        ``protected_settings``, passed through unchanged to ``_install``),
+        asserts that provisioning succeeds, and removes it when the extension
+        supports a normal delete (SUPPORTS_DELETE). CRP-managed extensions (e.g.
+        RunCommand v2 / RunCommandHandlerLinux) set SUPPORTS_DELETE=False and
+        rely on resource group teardown for cleanup instead.
 
         Publisher and type come from the 'extension_publisher' /
         'extension_type' runbook variables, falling back to the suite's
         PUBLISHER / EXTENSION_TYPE. The version is required (no DEFAULT_VERSION
         fallback) and must be a 'Major.Minor', 'Major.Minor.Patch', or
         'Major.Minor.Patch.Revision' value; the case is skipped otherwise. When
+        mark_dirty_before_install is set, the node is marked dirty after this
+        validation and immediately before the extension lifecycle begins. When
         a full three- or four-part version is requested, the actually-installed
         version is verified to match. After provisioning succeeds the VM is
-        checked for SSH reachability. The deployed extension is named
-        '<publisher>_<extension_type>_boot_validation_test'. Install/cleanup
-        reuse the shared ``_install`` / ``_uninstall`` helpers.
+        checked for SSH reachability. The deployed extension uses
+        '<publisher>_<extension_type>_boot_validation_test', shortened with a
+        stable hash suffix when needed to satisfy Azure's 80-character limit.
+        Install/cleanup reuse the shared ``_install`` / ``_uninstall`` helpers.
 
         ``post_provision`` is an optional hook invoked with the node while the
         extension is still installed (after provisioning and the reachability
@@ -293,13 +353,16 @@ class VmExtensionTestBase(TestSuite):
 
         publisher = self._resolve_publisher(variables)
         type_ = self._resolve_type(variables)
-        extension_name = f"{publisher}_{type_}_boot_validation_test"
+        extension_name = _get_boot_validation_extension_name(publisher, type_)
         log.info(f"Installing extension '{extension_name}'...")
+        if mark_dirty_before_install:
+            node.mark_dirty()
         try:
             result = self._install(
                 node,
                 variables,
                 settings=settings,
+                protected_settings=protected_settings,
                 name=extension_name,
                 version=install_version,
             )

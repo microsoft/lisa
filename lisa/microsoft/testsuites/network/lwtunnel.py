@@ -34,7 +34,7 @@ from lisa.util import UnsupportedDistroException
     """,
     requirement=simple_requirement(
         supported_platform_type=[AZURE, READY, HYPERV],
-        supported_os=[Linux],
+        supported_os=[CBLMariner],
     ),
 )
 class LwtunnelSuite(TestSuite):

@@ -6,6 +6,7 @@ from typing import Any, Dict
 from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa.testsuite import simple_requirement
 from lisa.tools import Cp, Ls, Reboot
 from lisa.util import SkippedException
 
@@ -17,6 +18,7 @@ from lisa.util import SkippedException
     This test suite is to test VM working well after updating Microsoft Hyper-V on VM
     and rebooting.
     """,
+    requirement=simple_requirement(supported_host_capabilities=["mshv"]),
 )
 class MshvHostInstallSuite(TestSuite):
     CONFIG_BINPATH = "mshv_binpath"
