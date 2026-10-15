@@ -302,10 +302,11 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
         self.dpdk_build_path = node.tools[Meson].setup(
             args=sample_apps, build_dir="build", cwd=self.asset_path
         )
-        install_result = node.tools[Ninja].run(
+        install_result = node.execute(
+            "ninja",
             cwd=self.dpdk_build_path,
             shell=True,
-            timeout=1800,
+            timeout=600,
         )
         # there are enough known installation failures to make
         # raising each as a seperate useful message annoying.

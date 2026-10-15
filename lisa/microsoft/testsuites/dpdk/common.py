@@ -239,7 +239,7 @@ class Installer:
             f"Test bug: Installer source path {asset_path} was set to working path "
             f"'{working_path}' during attempted cleanup!"
         ).is_not_equal_to(working_path)
-        self._node.shell.remove(asset_path, recursive=True)
+        self._node.execute(f"rm -rf {asset_path}", shell=True)
         delattr(self, "asset_path")
 
     def _rollback_installation(self) -> None:

@@ -280,6 +280,8 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
         node_nics_by_subnet: Dict[str, NicInfo] = {}
         ip_tool = node.tools[Ip]
         for nic in node.nics.nics.values():
+            if not nic.ip_addr:
+                continue
             subnet = str(
                 ipaddress.ip_network(ip_tool.get_subnet_address(nic.name), strict=False)
             )
