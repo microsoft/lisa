@@ -86,7 +86,10 @@ class AADSSHLoginForLinuxTests(VmExtensionTestBase):  # type: ignore[misc]
         self, node: Node, environment: Environment, log: Logger
     ) -> None:
         platform = environment.platform
-        assert isinstance(platform, AzurePlatform)
+        assert isinstance(platform, AzurePlatform), (
+            "AADSSHLoginForLinux boot validation requires the Azure platform to "
+            f"assign a VM identity, but got '{type(platform).__name__}'."
+        )
         node_context = get_node_context(node)
         add_system_assign_identity(
             platform=platform,

@@ -123,7 +123,11 @@ class AzureDiskEncryptionForLinuxTests(VmExtensionTestBase):  # type: ignore[mis
         variables: Dict[str, Any],
     ) -> None:
         platform = environment.platform
-        assert isinstance(platform, AzurePlatform)
+        assert isinstance(platform, AzurePlatform), (
+            "AzureDiskEncryptionForLinux boot validation requires the Azure "
+            "platform to provision its key vault, but got "
+            f"'{type(platform).__name__}'."
+        )
 
         self._boot_validation(
             node=node,
