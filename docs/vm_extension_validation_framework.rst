@@ -257,6 +257,55 @@ Rule for New Test Cases
    settings, error scenarios, multi-extension interaction). If it's just
    install → assert provisioned → delete, call ``_full_lifecycle()``.
 
+Windows GenevaMonitoring Boot Validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``GenevaMonitoringWindowsTests`` validates
+``Microsoft.Azure.Geneva.GenevaMonitoring`` using the shared
+``_boot_validation()`` lifecycle with standby-readiness checks.
+
+- Case: ``microsoft_azure_geneva_genevamonitoring_boot_validation_test``
+- Suite and case tag: ``microsoft.azure.geneva.genevamonitoring``
+- Required candidate: ``geneva_monitoring_windows_version`` or a complete
+  generic ``extension_*`` specification. There is no default version.
+- Empty public and protected settings: do not configure a telemetry tenant
+  or supply placeholder accounts, namespaces or credentials.
+- Verify provisioning, installed handler version for a full candidate
+  version, and SSH connectivity before inspecting guest readiness.
+- Require running ``MonAgentManager.exe`` and ``MonAgentHost.exe`` processes
+  under the actually installed candidate directory. A process from another
+  version or a similarly prefixed directory does not satisfy the check.
+- Read machine-scoped ``MonAgentClientLocation`` and verify its
+  ``MonAgentClient.exe`` exists under the same candidate. Do not hardcode a
+  client subdirectory or rely on a stale SSH-session environment.
+- Read ``JsonDropDirectory`` from
+  ``HKLM\SOFTWARE\Microsoft\Geneva\MonitoringAgent\MultiTenant`` and verify
+  that the registered directory exists. All guest checks are read-only.
+- Retry readiness and command-exit assertions six times, ten seconds apart.
+  Malformed output and non-assertion execution errors fail directly.
+- Skip Windows kernels older than 6.3 (the Windows Server 2012 R2 baseline).
+- Require an isolated environment and use shared pre-install cleanup to
+  remove existing matching publisher/type installations, including handlers
+  installed under another resource name. Mark the node dirty before
+  installation because the extension manages machine-wide monitoring state.
+
+This case validates installation and standby startup only. It does not
+launch a telemetry tenant or require ``MonAgentCore.exe`` and other
+tenant-specific collection processes. It does not submit configuration
+files, validate telemetry ingestion, or test reboot survival. Normal cleanup
+removes the test extension; it is not a restoration of previous monitoring
+configuration, including any pre-existing handler removed before installation.
+Use an isolated disposable VM.
+
+Public Azure API references:
+
+- `Service Fabric node type create/update
+  <https://learn.microsoft.com/rest/api/servicefabric/managedclusters/node-types/create-or-update>`_
+  includes a ``GenevaMonitoring`` extension example with empty settings.
+- `Azure VM extension features for Windows
+  <https://learn.microsoft.com/azure/virtual-machines/extensions/features-windows>`_
+  describes extension lifecycle and instance-view status inspection.
+
 Extension-Specific Test Cases
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
