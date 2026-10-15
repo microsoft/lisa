@@ -1,6 +1,7 @@
 from typing import Any, Dict
 
 from assertpy import assert_that
+from microsoft.testsuites.vm_extensions.vm_extension_base import VmExtensionTestBase
 from retry import retry
 
 from lisa import (
@@ -8,7 +9,6 @@ from lisa import (
     Node,
     SkippedException,
     TestCaseMetadata,
-    TestSuite,
     TestSuiteMetadata,
     simple_requirement,
 )
@@ -24,7 +24,12 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
     ),
     tags=["VM_Extension"],
 )
-class GenericVmExtension(TestSuite):
+# mypy resolves the cross-namespace base class (microsoft.*) as ``Any`` for this
+# module due to a namespace-package discovery-order quirk, which trips
+# ``disallow_subclassing_any`` under strict mode. The base class is valid at
+# runtime and resolves correctly for sibling suites, so the subclass check is
+# suppressed here.
+class GenericVmExtension(VmExtensionTestBase):  # type: ignore[misc]
     @TestCaseMetadata(
         description="""
         Generic test case that installs a VM extension specified via runbook
@@ -116,25 +121,6 @@ class GenericVmExtension(TestSuite):
         assert_that(node.test_connection()).described_as(
             "Expected VM to be reachable via SSH after extension uninstallation"
         ).is_true()
-
-    @retry(tries=3, delay=10)  # type: ignore
-    def _cleanup_existing_extensions(
-        self,
-        extension: AzureExtension,
-        publisher: str,
-        type_: str,
-        log: Logger,
-    ) -> None:
-        for ext in extension.list_all():
-            if (
-                getattr(ext, "publisher", None) == publisher
-                and getattr(ext, "type_properties_type", None) == type_
-            ):
-                log.info(
-                    f"Deleting pre-existing extension '{ext.name}' "
-                    f"with same handler type '{publisher}.{type_}'."
-                )
-                extension.delete(name=ext.name)
 
     @retry(tries=3, delay=10)  # type: ignore
     def _install_extension(
