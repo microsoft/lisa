@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 
 from assertpy import assert_that
 from azure.core.exceptions import HttpResponseError
@@ -124,11 +124,17 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
                 else:
                     version_list = supported_major_versions_x86_64.get(distro)
 
-                if (
-                    version_list is not None
-                    and node.os.information.version.major in version_list
+                if version_list is not None and self._is_supported_version(
+                    node.os.information.version.major, version_list
                 ):
                     return True
                 else:
                     return False
         return False
+
+    def _is_supported_version(
+        self, major_version: int, supported_versions: List[int]
+    ) -> bool:
+        return major_version in supported_versions or major_version > max(
+            supported_versions
+        )
