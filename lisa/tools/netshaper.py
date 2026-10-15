@@ -54,7 +54,16 @@ class NetShaper(Tool):
         self._built = False
 
     def _check_exists(self) -> bool:
-        return self._built and super()._check_exists()
+        return (
+            self._built
+            and self.node.execute(
+                f"command -v {self.command}",
+                shell=True,
+                sudo=True,
+                no_info_log=True,
+            ).exit_code
+            == 0
+        )
 
     def _install(self) -> bool:
         if not isinstance(self.node.os, Linux):
@@ -112,11 +121,13 @@ class NetShaper(Tool):
         self._built = True
         if not self._check_exists():
             raise LisaException(
-                "Installed netshaper is not available on PATH. Add "
-                "/usr/local/sbin to the user or sudo PATH and retry."
+                "Installed netshaper is not available on sudo's PATH. Add "
+                "/usr/local/sbin to sudo's secure_path or root PATH and retry."
             )
         self._log.info(
-            self.run("-V", force_run=True, expected_exit_code=0).stdout.strip()
+            self.run(
+                "-V", sudo=True, force_run=True, expected_exit_code=0
+            ).stdout.strip()
         )
         return self._check_exists()
 
