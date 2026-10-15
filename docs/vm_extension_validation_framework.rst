@@ -301,6 +301,39 @@ Official references:
   <https://learn.microsoft.com/powershell/module/defender/get-mpcomputerstatus>`_
   documents the runtime status query and readiness properties.
 
+Windows Network Watcher Boot Validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``NetworkWatcherAgentWindowsTests`` validates
+``Microsoft.Azure.NetworkWatcher.NetworkWatcherAgentWindows`` using the shared
+``_boot_validation()`` lifecycle and a candidate-specific process check.
+
+- Case: ``microsoft_azure_networkwatcher_networkwatcheragentwindows_boot_validation_test``
+- Suite and case tag: ``microsoft.azure.networkwatcher.networkwatcheragentwindows``
+- Required version: ``network_watcher_agent_windows_version`` or the overriding
+  ``extension_version`` variable. There is no default candidate version.
+- Empty public settings and no protected settings: the extension does not
+  support user-supplied configuration.
+- After provisioning and SSH checks, poll for ``NetworkWatcherAgent.exe``
+  running from the actually installed handler's directory under
+  ``C:\Packages\Plugins``. Do not substitute the executable's file version for
+  the extension handler version.
+- Skip if the requested publisher/type is already installed, regardless of
+  resource name, rather than replacing a policy-managed or user-owned agent.
+  Use a fresh VM without a pre-existing Network Watcher extension.
+
+This validates initial agent startup, not reboot survival, packet capture,
+connection monitoring, or successful communication with the Network Watcher
+service. It does not create a storage account, restart the agent, or change
+firewall rules. The VM must allow the documented Azure platform connections:
+TCP port 80 to ``169.254.169.254`` and TCP port 8037 to ``168.63.129.16``.
+Windows Server 2025 is listed among the supported operating systems.
+
+See `Manage Network Watcher Agent virtual machine extension
+<https://learn.microsoft.com/azure/network-watcher/network-watcher-agent-manage>`_
+for the supported operating systems, default-settings contract, and network
+prerequisites.
+
 Extension-Specific Test Cases
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
