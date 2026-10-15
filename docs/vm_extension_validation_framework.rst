@@ -257,6 +257,59 @@ Rule for New Test Cases
    settings, error scenarios, multi-extension interaction). If it's just
    install → assert provisioned → delete, call ``_full_lifecycle()``.
 
+Windows Application Health Boot Validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``ApplicationHealthWindowsTests`` validates
+``Microsoft.ManagedServices.ApplicationHealthWindows`` using the shared
+``_boot_validation()`` lifecycle with an explicit TCP health probe.
+
+- Case: ``microsoft_managedservices_applicationhealthwindows_boot_validation_test``
+- Suite and case tag: ``microsoft.managedservices.applicationhealthwindows``
+- Required candidate: ``application_health_windows_version`` or the overriding
+  ``extension_version`` variable. There is no default version.
+- Verify a successful TCP handshake to ``localhost`` on the guest SSH port
+  before installation. Use the guest port, not a public/NAT-forwarded port.
+  Do not install IIS, download a sample application, modify SSH, open firewall
+  ports, or substitute an unrelated always-healthy endpoint.
+- Configure ``protocol=tcp``, the verified guest port,
+  ``intervalInSeconds=5`` and ``numberOfProbes=2``. Omit ``requestPath`` and
+  protected settings. TCP probing is supported by binary and rich health
+  handlers; the candidate version remains an explicit runbook input.
+- Check provisioning, the installed handler version for a full candidate,
+  and SSH connectivity using the shared lifecycle.
+- While the candidate is installed, verify the TCP endpoint again and capture
+  a UTC watermark from the guest clock. Poll Azure VM instance view for
+  ``vmHealth.status.code == HealthState/healthy`` with a timezone-aware
+  ``status.time`` at or after that watermark. A historical Healthy result,
+  missing timestamp, or missing health object does not pass.
+- Retry health assertions 31 times, ten seconds apart (up to five minutes
+  of polling delays, plus API request time). API errors and malformed guest
+  responses fail directly. Log every observed health code and timestamp.
+- Require a fresh isolated environment and mark the node dirty before
+  installation. Use shared install cleanup; where another resource already
+  owns the same handler, the shared same-publisher/type cleanup is required
+  before this test can replace it.
+
+This validates initial candidate enablement, TCP probing and fresh application
+health reporting. It does not test HTTP/HTTPS response bodies, negative health
+transitions, reboot survival, VMSS orchestration, or automatic repairs.
+Normal cleanup removes the test extension; it does not restore previously
+configured health monitoring. A retained local validation must suppress only
+final uninstall, not pre-install cleanup or any assertions.
+
+Official references:
+
+- `Application Health extension for Azure VMs
+  <https://learn.microsoft.com/azure/virtual-machines/extensions/health-extension>`_
+  documents TCP settings, ``vmHealth`` inspection and Windows diagnostics.
+- `Application Health extension for VM scale sets
+  <https://learn.microsoft.com/azure/virtual-machine-scale-sets/virtual-machine-scale-sets-health-extension>`_
+  describes binary/rich health semantics and local probe prerequisites.
+- `Virtual Machines - Instance View
+  <https://learn.microsoft.com/rest/api/compute/virtual-machines/instance-view>`_
+  documents the API used to read application health.
+
 Windows GenevaMonitoring Boot Validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
