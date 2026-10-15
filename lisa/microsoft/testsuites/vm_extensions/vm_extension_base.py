@@ -258,15 +258,17 @@ class VmExtensionTestBase(TestSuite):
         settings: Dict[str, Any],
         post_provision: Optional[Callable[[Node], None]] = None,
         mark_dirty_before_install: bool = False,
+        protected_settings: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Shared boot-validation flow for VM extensions.
 
-        Installs the extension with the provided inline settings, asserts that
-        provisioning succeeds, and removes it when the extension supports a
-        normal delete (SUPPORTS_DELETE). CRP-managed extensions (e.g. RunCommand
-        v2 / RunCommandHandlerLinux) set SUPPORTS_DELETE=False and rely on
-        resource group teardown for cleanup instead.
+        Installs the extension with the provided inline settings (and optional
+        ``protected_settings``, passed through unchanged to ``_install``),
+        asserts that provisioning succeeds, and removes it when the extension
+        supports a normal delete (SUPPORTS_DELETE). CRP-managed extensions (e.g.
+        RunCommand v2 / RunCommandHandlerLinux) set SUPPORTS_DELETE=False and
+        rely on resource group teardown for cleanup instead.
 
         Publisher and type come from the 'extension_publisher' /
         'extension_type' runbook variables, falling back to the suite's
@@ -319,6 +321,7 @@ class VmExtensionTestBase(TestSuite):
                 node,
                 variables,
                 settings=settings,
+                protected_settings=protected_settings,
                 name=extension_name,
                 version=install_version,
             )
