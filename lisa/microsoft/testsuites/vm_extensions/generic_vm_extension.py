@@ -24,7 +24,12 @@ from lisa.sut_orchestrator.azure.features import AzureExtension
     ),
     tags=["VM_Extension"],
 )
-class GenericVmExtension(VmExtensionTestBase):
+# mypy resolves the cross-namespace base class (microsoft.*) as ``Any`` for this
+# module due to a namespace-package discovery-order quirk, which trips
+# ``disallow_subclassing_any`` under strict mode. The base class is valid at
+# runtime and resolves correctly for sibling suites, so the subclass check is
+# suppressed here.
+class GenericVmExtension(VmExtensionTestBase):  # type: ignore[misc]
     @TestCaseMetadata(
         description="""
         Generic test case that installs a VM extension specified via runbook
