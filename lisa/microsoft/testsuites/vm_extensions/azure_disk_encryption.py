@@ -10,9 +10,16 @@ from azure.mgmt.keyvault.models import AccessPolicyEntry, Permissions
 from azure.mgmt.keyvault.models import Sku as KeyVaultSku
 from azure.mgmt.keyvault.models import VaultProperties
 
-from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
+from lisa import (
+    Logger,
+    Node,
+    OsRequirement,
+    TestCaseMetadata,
+    TestSuite,
+    TestSuiteMetadata,
+)
 from lisa.features.security_profile import CvmDisabled
-from lisa.operating_system import CBLMariner, CentOs, Oracle, Redhat, Ubuntu
+from lisa.operating_system import CBLMariner, CentOs, Oracle, Redhat, Ubuntu, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
@@ -83,6 +90,12 @@ class AzureDiskEncryption(TestSuite):
             supported_features=[AzureExtension, CvmDisabled()],
             supported_platform_type=[AZURE],
             min_core_count=4,
+            # Minor-version restrictions remain in the runtime distro check.
+            unsupported_os=[
+                Windows,
+                OsRequirement(Ubuntu, min_version="22.10"),
+                OsRequirement(Ubuntu, max_version="18.04"),
+            ],
         ),
     )
     def verify_azure_disk_encryption_enabled(

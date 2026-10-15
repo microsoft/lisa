@@ -6,6 +6,7 @@ from azure.core.exceptions import HttpResponseError
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -21,6 +22,7 @@ from lisa.operating_system import (
     Redhat,
     Suse,
     Ubuntu,
+    Windows,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
@@ -48,6 +50,12 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
+            # Exact major versions and architecture are checked in before_case.
+            unsupported_os=[
+                Windows,
+                OsRequirement(Ubuntu, min_version="22.04"),
+                OsRequirement(Ubuntu, max_version="16.04"),
+            ],
         ),
     )
     def verify_azuremonitoragent_linux(self, log: Logger, node: Node) -> None:

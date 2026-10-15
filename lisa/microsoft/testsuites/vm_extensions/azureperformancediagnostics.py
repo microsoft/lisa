@@ -7,6 +7,7 @@ from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -22,6 +23,7 @@ from lisa.operating_system import (
     Redhat,
     Suse,
     Ubuntu,
+    Windows,
 )
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
@@ -64,6 +66,15 @@ class AzurePerformanceDiagnostics(TestSuite):
         priority=5,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
+            # January boundaries preserve the runtime major-version allowlist.
+            unsupported_os=[
+                Windows,
+                OsRequirement(Ubuntu, max_version="14.01"),
+                OsRequirement(Ubuntu, min_version="15.01", max_version="16.01"),
+                OsRequirement(Ubuntu, min_version="17.01", max_version="18.01"),
+                OsRequirement(Ubuntu, min_version="19.01", max_version="20.01"),
+                OsRequirement(Ubuntu, min_version="21.01"),
+            ],
         ),
     )
     def verify_azure_performance_diagnostics(

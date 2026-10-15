@@ -5,6 +5,7 @@ from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -19,6 +20,7 @@ from lisa.operating_system import (
     Redhat,
     Suse,
     Ubuntu,
+    Windows,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
@@ -47,6 +49,11 @@ class NetworkWatcherExtension(TestSuite):
         tags=["microsoft.azure.networkwatcher.networkwatcheragentlinux"],
         requirement=simple_requirement(
             supported_features=[AzureExtension],
+            unsupported_os=[
+                Windows,
+                OsRequirement(Ubuntu, min_version="22.10"),
+                OsRequirement(Ubuntu, max_version="16.04"),
+            ],
         ),
     )
     def verify_azure_network_watcher(self, log: Logger, node: Node) -> None:
