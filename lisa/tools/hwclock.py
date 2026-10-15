@@ -34,7 +34,12 @@ class Hwclock(Tool):
         return self._check_exists()
 
     def set_rtc_clock_to_system_time(self) -> None:
-        cmd_result = self.run("--systohc", shell=True, sudo=True)
+        cmd_result = self.run(
+            "--systohc",
+            force_run=True,
+            shell=True,
+            sudo=True,
+        )
         cmd_result.assert_exit_code()
 
     def set_datetime(
