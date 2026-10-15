@@ -257,6 +257,50 @@ Rule for New Test Cases
    settings, error scenarios, multi-extension interaction). If it's just
    install → assert provisioned → delete, call ``_full_lifecycle()``.
 
+Windows IaaSAntimalware Boot Validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``IaaSAntimalwareWindowsTests`` validates
+``Microsoft.Azure.Security.IaaSAntimalware`` using the shared
+``_boot_validation()`` lifecycle and a Defender readiness check.
+
+- Case: ``microsoft_azure_security_iaasantimalware_boot_validation_test``
+- Suite and case tag: ``microsoft.azure.security.iaasantimalware``
+- Required version: ``iaas_antimalware_windows_version`` or overriding
+  ``extension_version``. There is no default candidate version.
+- Public settings: ``AntimalwareEnabled=true`` and
+  ``RealtimeProtectionEnabled=true``. No exclusions or protected settings.
+- After provisioning, handler-version and SSH checks, poll
+  ``Get-MpComputerStatus`` for ``AMServiceEnabled``, ``AntivirusEnabled`` and
+  ``RealTimeProtectionEnabled``. Each must be a JSON boolean ``true``.
+  Retry readiness and command-exit assertions six times, ten seconds apart.
+  Malformed output and non-assertion execution errors fail directly.
+- Skip legacy Windows kernels (major version below 10) and any pre-existing
+  matching publisher/type, regardless of extension resource name.
+- Require a new environment and mark the VM dirty before installation.
+  Extension configuration replaces existing Defender settings, including
+  exclusions; deleting the extension must not be treated as restoring those
+  settings. Use an isolated disposable VM, not a user-owned environment.
+
+On Windows Server 2016 and later the extension configures built-in Defender;
+it does not install a separate antivirus service. Consequently, the test does
+not look for a candidate-owned antivirus executable or compare Defender's
+engine version with the extension handler version. This is startup/readiness
+validation, not malware detection, scan execution, signature freshness or
+reboot survival. No protection is disabled and no test malware is introduced.
+
+Official references:
+
+- `Microsoft Antimalware extension for Windows
+  <https://learn.microsoft.com/azure/virtual-machines/extensions/iaas-antimalware-windows>`_
+  describes the settings, supported platforms and network prerequisites.
+- `Microsoft Antimalware code samples
+  <https://learn.microsoft.com/azure/security/fundamentals/antimalware-code-samples>`_
+  documents the configuration and warning about replacing existing policies.
+- `Get-MpComputerStatus
+  <https://learn.microsoft.com/powershell/module/defender/get-mpcomputerstatus>`_
+  documents the runtime status query and readiness properties.
+
 Windows Network Watcher Boot Validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
