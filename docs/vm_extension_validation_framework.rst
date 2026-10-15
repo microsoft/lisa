@@ -301,6 +301,35 @@ When writing extension-specific tests, ask:
 4. **Would this test make sense for a different extension?** If yes, it
    probably belongs in the base class, not your suite.
 
+Windows VMAccess Boot Validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Windows VMAccess suite requires Azure, ``AzureExtension``, and a Windows
+guest. It is a preview, priority-5 installation smoke test, not a VM reboot
+test. It uses the shared ``_boot_validation()`` lifecycle to verify provisioning,
+candidate version, and SSH reachability, then removes the extension.
+
+The test method is
+``microsoft_compute_vmaccessagent_boot_validation_test`` for
+``Microsoft.Compute.VMAccessAgent``. Select it by its exact name or the
+``microsoft.compute.vmaccessagent`` tag to avoid selecting Linux counterparts.
+Set ``vmaccess_windows_version``, or override it with ``extension_version``.
+An explicit two-, three-, or four-part version is required; there is no
+code-level default. Three- and four-part inputs enable candidate comparison;
+a two-part input lets Azure choose the patch. Trailing zeros are ignored, so
+``2.4.16.0`` matches a reported ``2.4.16``, but a different patch or nonzero
+revision is rejected.
+
+VMAccess uses empty public settings for the documented RDP configuration reset.
+It does not reset user credentials. Use a non-domain-controller Windows VM with
+the Windows Defender Firewall service running. The node is marked dirty before
+installation because removing the extension does not restore the previous RDP
+and firewall configuration. Do not run this test on production VMs or VMs
+already using another instance of the same extension handler.
+
+The current smoke test does not assert the resulting RDP configuration or
+establish an authenticated RDP session.
+
 Coexistence with GenericVmExtension
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
