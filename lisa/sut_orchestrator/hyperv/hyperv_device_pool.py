@@ -235,7 +235,7 @@ class HyperVDevicePool(BaseDevicePool):
             )
         if mount_result.exit_code != 0:
             mount_output = mount_result.stdout.strip() or "<no output>"
-            self.log.warning(
+            self.log.debug(
                 f"Mount-VMHostAssignableDevice returned exit code "
                 f"{mount_result.exit_code} for '{state.location_path}', but the "
                 f"expected PnP device is present. Output: {mount_output}"
