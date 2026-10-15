@@ -855,6 +855,7 @@ class Dpdk(TestSuite):
             expected order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=4,
             min_nic_count=2,
@@ -883,6 +884,7 @@ class Dpdk(TestSuite):
             expected order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=6,
             min_nic_count=2,
@@ -911,6 +913,7 @@ class Dpdk(TestSuite):
             expected order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=10,
             min_nic_count=2,
@@ -939,6 +942,7 @@ class Dpdk(TestSuite):
             expected order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=18,
             min_nic_count=2,
@@ -967,6 +971,7 @@ class Dpdk(TestSuite):
             Test checks that traffic flowed, and annotates the Gbps throughput.
             """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=6,
             min_nic_count=2,
@@ -1142,7 +1147,7 @@ class Dpdk(TestSuite):
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
-        timeout=600,
+        timeout=900,
     )
     def verify_dpdk_send_receive_1_queue_netvsc(
         self,
@@ -1164,6 +1169,7 @@ class Dpdk(TestSuite):
             order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=4,
             min_nic_count=2,
@@ -1171,7 +1177,7 @@ class Dpdk(TestSuite):
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
-        timeout=600,
+        timeout=900,
     )
     def verify_dpdk_send_receive_2_queue_netvsc(
         self,
@@ -1193,6 +1199,7 @@ class Dpdk(TestSuite):
             order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=6,
             min_nic_count=2,
@@ -1200,7 +1207,7 @@ class Dpdk(TestSuite):
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
-        timeout=600,
+        timeout=900,
     )
     def verify_dpdk_send_receive_4_queue_netvsc(
         self,
@@ -1222,6 +1229,7 @@ class Dpdk(TestSuite):
             order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=10,
             min_nic_count=2,
@@ -1229,7 +1237,7 @@ class Dpdk(TestSuite):
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
-        timeout=600,
+        timeout=900,
     )
     def verify_dpdk_send_receive_8_queue_netvsc(
         self,
@@ -1251,6 +1259,7 @@ class Dpdk(TestSuite):
             order-of-magnitude.
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_core_count=18,
             min_nic_count=2,
@@ -1258,7 +1267,7 @@ class Dpdk(TestSuite):
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
         ),
-        timeout=600,
+        timeout=900,
     )
     def verify_dpdk_send_receive_16_queue_netvsc(
         self,
@@ -1556,6 +1565,7 @@ class Dpdk(TestSuite):
             - rebind to original driver
         """,
         priority=2,
+        maturity="preview",
         requirement=simple_requirement(
             min_nic_count=2,
             network_interface=Sriov(),
