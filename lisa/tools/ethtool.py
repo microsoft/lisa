@@ -110,6 +110,18 @@ class DeviceChannel:
     #   TX:             0
     #   Other:          0
     #   Combined:       1
+    #
+    # Some images print the same values without the two headings
+    # "kinvolk flatcar-container-linux-corevm stable 4593.2.1", e.g. -
+    #   Channel parameters for eth0:
+    #   RX:             n/a
+    #   TX:             n/a
+    #   Other:          n/a
+    #   Combined:       32
+    #   RX:             n/a
+    #   TX:             n/a
+    #   Other:          n/a
+    #   Combined:       16
     _channel_count_param_pattern = re.compile(
         r"(?P<param>Combined):[ \t]*(?P<value>.*)$", re.MULTILINE
     )
@@ -120,26 +132,44 @@ class DeviceChannel:
     def _parse_channel_info(self, interface: str, raw_str: str) -> None:
         current_settings = _current_settings_pattern.search(raw_str)
         max_settings = _max_settings_pattern.search(raw_str)
-        if (not current_settings) or (not max_settings):
+
+        if current_settings and max_settings:
+            current_param = self._channel_count_param_pattern.search(
+                current_settings.group("settings")
+            )
+            max_param = self._channel_count_param_pattern.search(
+                max_settings.group("settings")
+            )
+            if (not current_param) or (not max_param):
+                raise LisaException(
+                    f"Cannot get {interface} channel current and/or max count"
+                )
+            max_channels = int(max_param.group("value"))
+            current_channels = int(current_param.group("value"))
+        elif (not current_settings) and (not max_settings):
+            # Some images (e.g. Flatcar) print "ethtool -l" without the
+            # "Pre-set maximums:" and "Current hardware settings:" headings.
+            # The values are still printed in the same order: maximums first,
+            # then current settings.
+            combined_values = [
+                int(match.group("value"))
+                for match in self._channel_count_param_pattern.finditer(raw_str)
+            ]
+            if len(combined_values) != 2:
+                raise LisaException(
+                    f"Cannot get {interface} device channel current and/or"
+                    " max settings information"
+                )
+            max_channels, current_channels = combined_values
+        else:
             raise LisaException(
                 f"Cannot get {interface} device channel current and/or"
                 " max settings information"
             )
 
-        current_param = self._channel_count_param_pattern.search(
-            current_settings.group("settings")
-        )
-        max_param = self._channel_count_param_pattern.search(
-            max_settings.group("settings")
-        )
-        if (not current_param) or (not max_param):
-            raise LisaException(
-                f"Cannot get {interface} channel current and/or max count"
-            )
-
         self.device_name = interface
-        self.current_channels = int(current_param.group("value"))
-        self.max_channels = int(max_param.group("value"))
+        self.current_channels = current_channels
+        self.max_channels = max_channels
 
 
 class DeviceFeatures:

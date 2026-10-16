@@ -28,6 +28,7 @@ from lisa import (
 )
 from lisa.environment import Environment
 from lisa.node import RemoteNode
+from lisa.operating_system import CoreOs
 from lisa.tools import (
     Ethtool,
     Fio,
@@ -288,8 +289,12 @@ class CPUSuite(TestSuite):
 
             # reset max and current channel count into original ones
             # by reloading hv_netvsc driver if hv_netvsc can be reload
-            # otherwise reboot vm
-            if node.tools[KernelConfig].is_built_as_module("CONFIG_HYPERV_NET"):
+            # otherwise reboot vm.
+            # Flatcar(CoreOs) lacks the DHCP clients required by Modprobe.reload,
+            # therefore, for CoreOs, we reboot the VM.
+            if not isinstance(node.os, CoreOs) and node.tools[
+                KernelConfig
+            ].is_built_as_module("CONFIG_HYPERV_NET"):
                 node.tools[Modprobe].reload("hv_netvsc")
             else:
                 node.tools[Reboot].reboot()
