@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import base64
 import re
 from typing import Any, Dict, List, Optional
 
@@ -101,6 +102,26 @@ class HyperVDevicePool(BaseDevicePool):
             self._validate_nvme_devices(devices)
         self._append_devices_to_pool(pool_type=pool_type, devices=devices)
 
+    def auto_discover_pool(self, pool_type: HostDevicePoolType) -> None:
+        if pool_type != HostDevicePoolType.PCI_NVME:
+            raise LisaException(
+                f"Hyper-V auto-discovery is not supported for pool type "
+                f"'{pool_type.value}'"
+            )
+
+        state = self.capture_nvme_recovery_state()
+        devices = HypervAssignableDevices(
+            host_node=self._server,
+            log=self.log,
+        ).get_assignable_devices_by_location_paths([state.location_path])
+        if len(devices) != 1:
+            raise LisaException(
+                f"Auto-discovered Hyper-V NVMe location path "
+                f"'{state.location_path}' must resolve to exactly one device, "
+                f"found {len(devices)}"
+            )
+        self._append_devices_to_pool(pool_type=pool_type, devices=devices)
+
     def capture_nvme_recovery_state(
         self, location_path: str = ""
     ) -> HyperVNvmeRecoveryState:
@@ -143,6 +164,102 @@ class HyperVDevicePool(BaseDevicePool):
             )
 
         return eligible_states[0]
+
+    def read_nvme_recovery_state(
+        self, state_path: str, required: bool = True
+    ) -> Optional[HyperVNvmeRecoveryState]:
+        escaped_state_path = state_path.replace("'", "''")
+        required_value = "$true" if required else "$false"
+        encoded_state = self._server.tools[PowerShell].run_cmdlet(
+            cmdlet=f"""
+$statePath = '{escaped_state_path}'
+if (-not (Test-Path -LiteralPath $statePath -PathType Leaf)) {{
+    if ({required_value}) {{
+        throw "Hyper-V NVMe recovery state was not found at '$statePath'"
+    }}
+    return
+}}
+[Convert]::ToBase64String([IO.File]::ReadAllBytes($statePath))
+""",
+            force_run=True,
+        )
+        normalized_state = encoded_state.strip()
+        if not normalized_state:
+            return None
+        try:
+            state_json = base64.b64decode(normalized_state, validate=True).decode(
+                "utf-8-sig"
+            )
+        except ValueError as err:
+            raise LisaException(
+                f"Invalid Hyper-V NVMe recovery state encoding at '{state_path}'"
+            ) from err
+        return HyperVNvmeRecoveryState.from_json(state_json)
+
+    def _persist_nvme_recovery_state(
+        self, state_path: str, state: HyperVNvmeRecoveryState
+    ) -> None:
+        existing_state = self.read_nvme_recovery_state(state_path, required=False)
+        if existing_state:
+            self._assert_same_nvme_recovery_identity(existing_state, state)
+            return
+
+        escaped_state_path = state_path.replace("'", "''")
+        encoded_state = base64.b64encode(state.to_json().encode("utf-8")).decode(
+            "ascii"
+        )
+        self._server.tools[PowerShell].run_cmdlet(
+            cmdlet=f"""
+$statePath = [IO.Path]::GetFullPath('{escaped_state_path}')
+$stateDirectory = [IO.Path]::GetDirectoryName($statePath)
+if (-not (Test-Path -LiteralPath $stateDirectory -PathType Container)) {{
+    New-Item `
+        -ItemType Directory `
+        -Path $stateDirectory `
+        -Force `
+        -ErrorAction Stop | Out-Null
+}}
+$temporaryStatePath = "$statePath.$([guid]::NewGuid().ToString('N')).tmp"
+try {{
+    $stateBytes = [Convert]::FromBase64String('{encoded_state}')
+    [IO.File]::WriteAllBytes($temporaryStatePath, $stateBytes)
+    Move-Item `
+        -LiteralPath $temporaryStatePath `
+        -Destination $statePath `
+        -Force `
+        -ErrorAction Stop
+}}
+finally {{
+    if (Test-Path -LiteralPath $temporaryStatePath -PathType Leaf) {{
+        Remove-Item `
+            -LiteralPath $temporaryStatePath `
+            -Force `
+            -ErrorAction Stop
+    }}
+}}
+""",
+            force_run=True,
+        )
+
+    def _assert_same_nvme_recovery_identity(
+        self,
+        expected: HyperVNvmeRecoveryState,
+        actual: HyperVNvmeRecoveryState,
+    ) -> None:
+        identity_pairs = {
+            "location_path": (expected.location_path, actual.location_path),
+            "instance_id": (expected.instance_id, actual.instance_id),
+            "unique_id": (expected.disk.unique_id, actual.disk.unique_id),
+            "serial_number": (
+                expected.disk.serial_number,
+                actual.disk.serial_number,
+            ),
+        }
+        for property_name, (expected_value, actual_value) in identity_pairs.items():
+            if expected_value and expected_value.casefold() != actual_value.casefold():
+                raise LisaException(
+                    "Hyper-V NVMe recovery identity mismatch for " f"'{property_name}'"
+                )
 
     def _capture_nvme_candidate_recovery_state(
         self, device: DeviceAddressSchema
@@ -860,6 +977,25 @@ Get-VM | ForEach-Object {{
         try:
             if pool_type == HostDevicePoolType.PCI_NVME:
                 nvme_disk_states = self._validate_nvme_devices(devices)
+                state_path = self._hyperv_runbook.nvme_recovery_state_path.strip()
+                if state_path:
+                    if len(devices) != 1:
+                        raise LisaException(
+                            "Persisted Hyper-V NVMe recovery supports exactly one "
+                            f"device, found {len(devices)}"
+                        )
+                    device = devices[0]
+                    self._persist_nvme_recovery_state(
+                        state_path,
+                        HyperVNvmeRecoveryState(
+                            schema_version=(
+                                HyperVNvmeRecoveryState.CURRENT_SCHEMA_VERSION
+                            ),
+                            location_path=device.location_path,
+                            instance_id=device.instance_id,
+                            disk=nvme_disk_states[device.instance_id],
+                        ),
+                    )
 
             for device in devices:
                 escaped_instance_id = device.instance_id.replace("'", "''")
