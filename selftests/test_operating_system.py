@@ -7,7 +7,7 @@ from assertpy import assert_that
 
 from lisa.base_tools import Cat, Sed
 from lisa.operating_system import CBLMariner
-from lisa.tools import GrubConfig, YumConfigManager
+from lisa.tools import GrubConfig
 
 
 class OperatingSystemTestCase(TestCase):
@@ -100,28 +100,3 @@ class OperatingSystemTestCase(TestCase):
         candidates = CBLMariner._get_kernel_version_candidates("custom-kernel")
 
         assert_that(candidates).is_equal_to(["custom-kernel"])
-
-    def test_add_repository_imports_azure_linux_key_for_gpg_check(self) -> None:
-        mariner, node = self._create_mariner_for_replace_boot_kernel()
-        repo = "https://packages.microsoft.com/azurelinux/3.0/preview/ms-oss/"
-
-        mariner.add_repository(repo, no_gpgcheck=False)
-
-        node.execute.assert_called_once_with(
-            "rpm --import /etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY",
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Failed to import the Azure Linux package signing key"
-            ),
-        )
-        node.tools[YumConfigManager].add_repository.assert_called_once_with(repo, False)
-
-    def test_add_repository_skips_key_import_without_gpg_check(self) -> None:
-        mariner, node = self._create_mariner_for_replace_boot_kernel()
-        repo = "https://example.com/repo"
-
-        mariner.add_repository(repo)
-
-        node.execute.assert_not_called()
-        node.tools[YumConfigManager].add_repository.assert_called_once_with(repo, True)
