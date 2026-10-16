@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 
 from assertpy import assert_that
 from azure.core.exceptions import HttpResponseError
@@ -13,6 +13,7 @@ from lisa import (
 )
 from lisa.operating_system import (
     SLES,
+    AlmaLinux,
     CBLMariner,
     CentOs,
     CpuArchitecture,
@@ -93,23 +94,25 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
 
     def _is_supported_linux_distro(self, node: Node) -> bool:
         supported_major_versions_x86_64 = {
-            Redhat: [7, 8, 9],
-            CentOs: [7, 8],
-            Oracle: [7, 8, 9],
-            Debian: [9, 10, 11],
-            Ubuntu: [16, 18, 20],
-            Suse: [12, 15],
-            SLES: [12, 15],
-            CBLMariner: [2, 3],
+            AlmaLinux: [8, 9, 10],
+            Redhat: [7, 8, 9, 10],
+            CentOs: [8],
+            Oracle: [7, 8, 9, 10],
+            Debian: [9, 10, 11, 12, 13],
+            Ubuntu: [16, 18, 20, 22, 24, 26],
+            Suse: [12, 15, 16],
+            SLES: [12, 15, 16],
+            CBLMariner: [2, 3, 4],
         }
 
         supported_major_versions_arm64 = {
-            Redhat: [8],
-            CentOs: [7],
-            Debian: [11],
-            Ubuntu: [18, 20],
-            SLES: [15],
-            CBLMariner: [2, 3],
+            AlmaLinux: [8, 10],
+            Redhat: [8, 9, 10],
+            Oracle: [10],
+            Debian: [11, 12, 13],
+            Ubuntu: [18, 20, 22, 24, 26],
+            SLES: [15, 16],
+            CBLMariner: [2, 3, 4],
         }
 
         for distro in supported_major_versions_x86_64:
@@ -121,11 +124,17 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
                 else:
                     version_list = supported_major_versions_x86_64.get(distro)
 
-                if (
-                    version_list is not None
-                    and node.os.information.version.major in version_list
+                if version_list is not None and self._is_supported_version(
+                    node.os.information.version.major, version_list
                 ):
                     return True
                 else:
                     return False
         return False
+
+    def _is_supported_version(
+        self, major_version: int, supported_versions: List[int]
+    ) -> bool:
+        return major_version in supported_versions or major_version > max(
+            supported_versions
+        )
