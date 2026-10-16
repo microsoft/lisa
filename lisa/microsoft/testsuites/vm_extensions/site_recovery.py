@@ -57,10 +57,10 @@ def _settings(command: str) -> Dict[str, str]:
     This test suite validates Azure Site Recovery VM extensions.
 
     The common Linux extension runs GetOsDetails. Distro-specific Linux and
-    Windows extensions run the public-only Install command, which installs the
-    embedded Mobility Service package without configuring replication.
-    Production extension identities and selected test-namespace identities are
-    covered.
+    Windows extensions run the Install command without protected-settings
+    content, which installs the embedded Mobility Service package without
+    configuring replication. Production extension identities and selected
+    test-namespace identities are covered.
     """,
     tags=["VM_Extension"],
     requirement=simple_requirement(
