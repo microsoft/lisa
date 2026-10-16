@@ -33,6 +33,7 @@ A LISA test case is a **declarative validation** of a Linux capability, run in a
 - **One class per file**, PascalCase, inherits `TestSuite`, named after the feature
 - **Methods**: Prefix `verify_` or `test_`, name describes the scenario
 - **Type hints required**: At minimum `node: Node` and `-> None`. Also use `log: Logger`, `log_path: Path`, `environment: Environment` as needed.
+- **Self-test scope**: Do not add self-test files (including files under `selftests/`) for TestSuite, Tool, or Feature changes. Add self-test files only when the change modifies framework-level behavior.
 
 ---
 
@@ -58,6 +59,7 @@ A LISA test case is a **declarative validation** of a Linux capability, run in a
 ## Step 6: Logging
 
 - **INFO**: High-level progress milestones. **DEBUG**: Command output, parsed values. **ERROR**: What failed + how to fix.
+- **Do not use `log.warning()` or other warning-level logging** (including `log.warn()`). Use INFO or DEBUG for non-failing diagnostics; raise `SkippedException` for unmet preconditions and fail explicitly for validation failures.
 - Logging is not a substitute for assertions.
 
 ---
@@ -190,7 +192,8 @@ CI runs `black`, `isort`, `flake8`, `mypy`, `pylint`, `unittest discover` on eve
 - Don't over-broadly catch `Exception` unless re-raising or wrapping in `LisaException`.
 
 **Test infrastructure**
-- File must be `unittest`-discoverable (real LISA test, not script). Don't add `if __name__ == "__main__":`.
+- TestSuite files must use LISA test discovery (`TestSuite` and metadata decorators), not `unittest` discovery. Don't add `if __name__ == "__main__":`.
+- Running existing self-tests does not require adding new self-test files. Add self-test files only for framework-level changes, not for TestSuite, Tool, or Feature changes.
 - All `time.sleep(...)` calls → `check_till_timeout()` / `retry_without_exceptions()` (CI doesn't ban it directly, but reviewers will).
 
 ### Local commands the agent must run before reporting done
@@ -216,8 +219,8 @@ If any command fails:
 
 - [ ] Class inherits `TestSuite`; method has `@TestCaseMetadata`
 - [ ] All params and return type are annotated
-- [ ] No `time.sleep`, no bare `except:`, no `print()`
+- [ ] No `time.sleep`, no bare `except:`, no `print()`, no warning-level logging
+- [ ] No new self-test files unless framework-level behavior is modified
 - [ ] Imports grouped & sorted (stdlib / third-party / `lisa` / `microsoft`)
 - [ ] Line length ≤ 88
 - [ ] `black --check`, `isort --check`, `flake8`, `mypy`, `pylint` all pass on the new file
-
