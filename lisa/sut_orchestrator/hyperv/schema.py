@@ -59,6 +59,7 @@ class HypervPlatformSchema:
     extra_args: List[ExtraArgs] = field(default_factory=list)
     wait_delete: bool = False
     device_pools: Optional[List[HostDevicePoolSchema]] = None
+    nvme_recovery_state_path: str = ""
     # Optional default switch name for all VMs.
     # Can be overridden per-node in HypervNodeSchema.
     switch_name: Optional[str] = None

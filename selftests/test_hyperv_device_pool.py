@@ -9,9 +9,11 @@ from unittest.mock import MagicMock, patch
 
 from lisa.sut_orchestrator.hyperv.context import (
     DevicePassthroughContext,
+    HyperVNvmeRecoveryState,
     NodeContext,
     NvmeDiskState,
 )
+from lisa.sut_orchestrator.hyperv.get_assignable_devices import HypervAssignableDevices
 from lisa.sut_orchestrator.hyperv.hyperv_device_pool import HyperVDevicePool
 from lisa.sut_orchestrator.hyperv.schema import (
     DeviceAddressSchema,
@@ -28,6 +30,558 @@ from lisa.util import LisaException
 
 
 class HyperVDevicePoolTestCase(TestCase):
+    def test_nvme_discovery_filters_pci_compatible_ids(self) -> None:
+        powershell = MagicMock()
+        powershell.run_cmdlet.return_value = ""
+        node = SimpleNamespace(tools={PowerShell: powershell})
+        assignable_devices = HypervAssignableDevices(
+            host_node=cast(Any, node),
+            log=MagicMock(),
+        )
+        nvme_record = SimpleNamespace(
+            instance_id="PCI\\NVME",
+            friendly_name="NVMe controller",
+            location_paths=["PCIROOT(1)#PCI(0000)"],
+            compatible_ids=["PCI\\CC_010802"],
+        )
+        other_record = SimpleNamespace(
+            instance_id="PCI\\OTHER",
+            friendly_name="Other controller",
+            location_paths=["PCIROOT(2)#PCI(0000)"],
+            compatible_ids=["PCI\\CC_0108020"],
+        )
+        discovered_device = DeviceAddressSchema(instance_id=nvme_record.instance_id)
+
+        with patch.object(
+            assignable_devices,
+            "_HypervAssignableDevices__get_present_pci_devices_with_location_paths",
+            return_value=[other_record, nvme_record],
+        ):
+            with patch.object(
+                assignable_devices,
+                "_HypervAssignableDevices__get_dda_properties",
+                return_value=discovered_device,
+            ) as get_dda_properties:
+                devices = assignable_devices.get_assignable_nvme_devices()
+
+        self.assertEqual([discovered_device], devices)
+        self.assertEqual(nvme_record.location_paths[0], devices[0].location_path)
+        self.assertEqual(nvme_record.friendly_name, devices[0].friendly_name)
+        get_dda_properties.assert_called_once_with(device_id=nvme_record.instance_id)
+
+    @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
+    def test_auto_discovers_one_safe_nvme_recovery_candidate(
+        self, assignable_devices_type: MagicMock
+    ) -> None:
+        unsafe_device = DeviceAddressSchema(
+            instance_id="PCI\\UNSAFE",
+            location_path="PCIROOT(1)#PCI(0000)",
+        )
+        safe_device = DeviceAddressSchema(
+            instance_id="PCI\\SAFE",
+            location_path="PCIROOT(2)#PCI(0000)",
+        )
+        get_nvme_devices = (
+            assignable_devices_type.return_value.get_assignable_nvme_devices
+        )
+        get_nvme_devices.return_value = [
+            unsafe_device,
+            safe_device,
+        ]
+        powershell = MagicMock()
+        powershell.run_cmdlet.side_effect = [
+            "other-vm",
+            "",
+            3,
+            {
+                "Number": 3,
+                "UniqueId": "disk-unique-id",
+                "SerialNumber": "disk-serial",
+                "BusType": "NVMe",
+                "IsBoot": False,
+                "IsSystem": False,
+                "IsOffline": False,
+                "IsMounted": False,
+                "PhysicalDiskCount": 1,
+                "IsStoragePoolMember": False,
+                "StoragePoolNames": "",
+            },
+        ]
+        node = SimpleNamespace(tools={PowerShell: powershell})
+        pool = HyperVDevicePool(
+            node=cast(Any, node),
+            runbook=HypervPlatformSchema(),
+            log=MagicMock(),
+        )
+
+        state = pool.capture_nvme_recovery_state()
+
+        self.assertEqual(safe_device.location_path, state.location_path)
+        self.assertEqual(safe_device.instance_id, state.instance_id)
+
+    @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
+    def test_rejects_ambiguous_safe_nvme_recovery_candidates(
+        self, assignable_devices_type: MagicMock
+    ) -> None:
+        devices = [
+            DeviceAddressSchema(
+                instance_id=f"PCI\\SAFE_{index}",
+                location_path=f"PCIROOT({index + 1})#PCI(0000)",
+            )
+            for index in range(2)
+        ]
+        get_nvme_devices = (
+            assignable_devices_type.return_value.get_assignable_nvme_devices
+        )
+        get_nvme_devices.return_value = devices
+        disk_record = {
+            "Number": 3,
+            "UniqueId": "disk-unique-id",
+            "SerialNumber": "disk-serial",
+            "BusType": "NVMe",
+            "IsBoot": False,
+            "IsSystem": False,
+            "IsOffline": False,
+            "IsMounted": False,
+            "PhysicalDiskCount": 1,
+            "IsStoragePoolMember": False,
+            "StoragePoolNames": "",
+        }
+        powershell = MagicMock()
+        powershell.run_cmdlet.side_effect = [
+            "",
+            3,
+            disk_record,
+            "",
+            4,
+            {**disk_record, "Number": 4, "UniqueId": "other-disk"},
+        ]
+        node = SimpleNamespace(tools={PowerShell: powershell})
+        pool = HyperVDevicePool(
+            node=cast(Any, node),
+            runbook=HypervPlatformSchema(),
+            log=MagicMock(),
+        )
+
+        with self.assertRaisesRegex(LisaException, "exactly one safe"):
+            pool.capture_nvme_recovery_state()
+
+    @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
+    def test_auto_discovers_safe_pci_nvme_pool(
+        self, assignable_devices_type: MagicMock
+    ) -> None:
+        state = self._create_recovery_state()
+        device = DeviceAddressSchema(
+            instance_id=state.instance_id,
+            location_path=state.location_path,
+        )
+        assignable_devices_type.return_value.get_assignable_devices_by_location_paths.return_value = [  # noqa: E501
+            device
+        ]
+        pool = self._create_pool(MagicMock())
+
+        with patch.object(pool, "capture_nvme_recovery_state", return_value=state):
+            pool.auto_discover_pool(HostDevicePoolType.PCI_NVME)
+
+        self.assertEqual(
+            [device], pool.available_host_devices[HostDevicePoolType.PCI_NVME]
+        )
+
+    def test_persists_nvme_recovery_state_before_offline(self) -> None:
+        state_path = "C:/ProgramData/LISA/state/nvme.json"
+        device = DeviceAddressSchema(
+            instance_id="PCI\\VEN_144D&DEV_A80A",
+            location_path="PCIROOT(1)#PCI(0000)",
+        )
+        disk_state = NvmeDiskState(
+            number=3,
+            unique_id="disk-unique-id",
+            serial_number="disk-serial",
+            was_offline=False,
+        )
+        powershell = MagicMock()
+        pool = HyperVDevicePool(
+            node=cast(Any, SimpleNamespace(tools={PowerShell: powershell})),
+            runbook=HypervPlatformSchema(nvme_recovery_state_path=state_path),
+            log=MagicMock(),
+        )
+        calls = MagicMock()
+        persist = MagicMock()
+        offline = MagicMock()
+        calls.attach_mock(persist, "persist")
+        calls.attach_mock(offline, "offline")
+
+        with patch.object(
+            pool,
+            "_validate_nvme_devices",
+            return_value={device.instance_id: disk_state},
+        ):
+            with patch.object(pool, "_persist_nvme_recovery_state", persist):
+                with patch.object(pool, "_set_nvme_disk_offline", offline):
+                    pool._assign_devices_to_vm(
+                        vm_name="vm1",
+                        pool_type=HostDevicePoolType.PCI_NVME,
+                        devices=[device],
+                    )
+
+        self.assertEqual(["persist", "offline"], [item[0] for item in calls.mock_calls])
+        persisted_state = persist.call_args.args[1]
+        self.assertEqual(state_path, persist.call_args.args[0])
+        self.assertEqual(device.location_path, persisted_state.location_path)
+        self.assertEqual(disk_state, persisted_state.disk)
+
+    def test_state_persistence_failure_prevents_nvme_assignment(self) -> None:
+        device = DeviceAddressSchema(
+            instance_id="PCI\\VEN_144D&DEV_A80A",
+            location_path="PCIROOT(1)#PCI(0000)",
+        )
+        disk_state = NvmeDiskState(
+            number=3,
+            unique_id="disk-unique-id",
+            serial_number="disk-serial",
+            was_offline=False,
+        )
+        powershell = MagicMock()
+        pool = HyperVDevicePool(
+            node=cast(Any, SimpleNamespace(tools={PowerShell: powershell})),
+            runbook=HypervPlatformSchema(
+                nvme_recovery_state_path="C:/ProgramData/LISA/state/nvme.json"
+            ),
+            log=MagicMock(),
+        )
+
+        with patch.object(
+            pool,
+            "_validate_nvme_devices",
+            return_value={device.instance_id: disk_state},
+        ):
+            with patch.object(
+                pool,
+                "_persist_nvme_recovery_state",
+                side_effect=LisaException("state write failed"),
+            ):
+                with self.assertRaisesRegex(LisaException, "state write failed"):
+                    pool._assign_devices_to_vm(
+                        vm_name="vm1",
+                        pool_type=HostDevicePoolType.PCI_NVME,
+                        devices=[device],
+                    )
+
+        powershell.run_cmdlet.assert_not_called()
+
+    def test_rejects_changed_existing_nvme_recovery_state(self) -> None:
+        expected = self._create_recovery_state()
+        actual = HyperVNvmeRecoveryState(
+            schema_version=expected.schema_version,
+            location_path="PCIROOT(2)#PCI(0000)",
+            instance_id=expected.instance_id,
+            disk=expected.disk,
+        )
+        pool = self._create_pool(MagicMock())
+
+        with patch.object(pool, "read_nvme_recovery_state", return_value=expected):
+            with self.assertRaisesRegex(LisaException, "identity mismatch"):
+                pool._persist_nvme_recovery_state("state.json", actual)
+
+    def test_nvme_recovery_state_json_round_trip_and_validation(self) -> None:
+        state = HyperVNvmeRecoveryState(
+            schema_version=1,
+            location_path="PCIROOT(1)#PCI(0000)",
+            instance_id="PCI\\VEN_144D&DEV_A80A",
+            disk=NvmeDiskState(
+                number=3,
+                unique_id="disk-unique-id",
+                serial_number="disk-serial",
+                was_offline=False,
+            ),
+        )
+
+        self.assertEqual(state, HyperVNvmeRecoveryState.from_json(state.to_json()))
+        with self.assertRaisesRegex(LisaException, "schema version"):
+            HyperVNvmeRecoveryState.from_json(
+                state.to_json().replace('"schema_version": 1', '"schema_version": 2')
+            )
+        with self.assertRaisesRegex(LisaException, "was_offline"):
+            HyperVNvmeRecoveryState.from_json(
+                state.to_json().replace('"was_offline": false', '"was_offline": 0')
+            )
+
+    @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
+    def test_recovers_nvme_device_with_identity_checks(
+        self, assignable_devices_type: MagicMock
+    ) -> None:
+        state = HyperVNvmeRecoveryState(
+            schema_version=1,
+            location_path="PCIROOT(1)#PCI(0000)",
+            instance_id="PCI\\VEN_144D&DEV_A80A",
+            disk=NvmeDiskState(
+                number=3,
+                unique_id="disk-unique-id",
+                serial_number="disk-serial",
+                was_offline=False,
+            ),
+        )
+        powershell = MagicMock()
+        powershell.run_cmdlet.side_effect = ["vm1", "", "", "", "", ""]
+        powershell.run_cmdlet_async.return_value = MagicMock()
+        powershell.wait_result.return_value = SimpleNamespace(exit_code=0, stdout="")
+        get_pnp_device = (
+            assignable_devices_type.return_value.get_pnp_device_by_location_path
+        )
+        get_pnp_device.return_value = SimpleNamespace(
+            instance_id=state.instance_id, config_manager_error_code="22"
+        )
+        node = SimpleNamespace(tools={PowerShell: powershell})
+        pool = HyperVDevicePool(
+            node=cast(Any, node),
+            runbook=HypervPlatformSchema(),
+            log=MagicMock(),
+        )
+
+        with patch.object(pool, "_wait_for_pnp_device_enabled") as wait_enabled:
+            with patch.object(pool, "_restore_nvme_disk_state") as restore_disk:
+                pool.recover_nvme_device(state, "vm1")
+
+        commands = [
+            call.kwargs.get("cmdlet", call.args[0] if call.args else "")
+            for call in powershell.run_cmdlet.call_args_list
+        ]
+        self.assertIn("Stop-VM", commands[1])
+        self.assertIn("Remove-VMAssignableDevice", commands[2])
+        self.assertIn("Enable-PnpDevice", commands[5])
+        wait_enabled.assert_called_once_with(
+            state.instance_id,
+            state.location_path,
+            require_healthy=True,
+        )
+        restore_disk.assert_called_once_with(state.disk)
+
+    @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
+    def test_recovery_rejects_changed_nvme_controller_identity(
+        self, assignable_devices_type: MagicMock
+    ) -> None:
+        state = HyperVNvmeRecoveryState(
+            schema_version=1,
+            location_path="PCIROOT(1)#PCI(0000)",
+            instance_id="PCI\\EXPECTED",
+            disk=NvmeDiskState(
+                number=3,
+                unique_id="disk-unique-id",
+                serial_number="",
+                was_offline=False,
+            ),
+        )
+        powershell = MagicMock()
+        powershell.run_cmdlet.return_value = ""
+        powershell.run_cmdlet_async.return_value = MagicMock()
+        powershell.wait_result.return_value = SimpleNamespace(exit_code=0, stdout="")
+        get_pnp_device = (
+            assignable_devices_type.return_value.get_pnp_device_by_location_path
+        )
+        get_pnp_device.return_value = SimpleNamespace(
+            instance_id="PCI\\DIFFERENT", config_manager_error_code="22"
+        )
+        node = SimpleNamespace(tools={PowerShell: powershell})
+        pool = HyperVDevicePool(
+            node=cast(Any, node),
+            runbook=HypervPlatformSchema(),
+            log=MagicMock(),
+        )
+
+        with self.assertRaisesRegex(LisaException, "controller identity changed"):
+            pool.recover_nvme_device(state, "vm1")
+
+        self.assertFalse(
+            any(
+                "Enable-PnpDevice" in call.kwargs.get("cmdlet", "")
+                for call in powershell.run_cmdlet.call_args_list
+            )
+        )
+
+    def test_recovery_rejects_unexpected_assigned_vm_before_detach(self) -> None:
+        state = self._create_recovery_state()
+        powershell = MagicMock()
+        powershell.run_cmdlet.return_value = "unexpected-vm"
+        pool = self._create_pool(powershell)
+
+        with self.assertRaisesRegex(LisaException, "unexpected VM"):
+            pool.recover_nvme_device(state, "expected-vm")
+
+        self.assertFalse(
+            any(
+                "Remove-VMAssignableDevice" in call.kwargs.get("cmdlet", "")
+                for call in powershell.run_cmdlet.call_args_list
+            )
+        )
+
+    def test_recovery_rejects_multiple_assigned_vms_without_hint(self) -> None:
+        state = self._create_recovery_state()
+        powershell = MagicMock()
+        powershell.run_cmdlet.return_value = "vm1\r\nvm2"
+        pool = self._create_pool(powershell)
+
+        with self.assertRaisesRegex(LisaException, "multiple VMs"):
+            pool.recover_nvme_device(state, "")
+
+        self.assertFalse(
+            any(
+                "Remove-VMAssignableDevice" in call.kwargs.get("cmdlet", "")
+                for call in powershell.run_cmdlet.call_args_list
+            )
+        )
+
+    def test_recovery_fails_closed_when_assignment_inventory_fails(self) -> None:
+        state = self._create_recovery_state()
+        powershell = MagicMock()
+        powershell.run_cmdlet.side_effect = LisaException("inventory failed")
+        pool = self._create_pool(powershell)
+
+        with self.assertRaisesRegex(LisaException, "inventory failed"):
+            pool.recover_nvme_device(state, "vm1")
+
+        self.assertEqual(1, powershell.run_cmdlet.call_count)
+
+    @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
+    def test_recovery_discovers_single_assigned_vm(
+        self, assignable_devices_type: MagicMock
+    ) -> None:
+        state = self._create_recovery_state()
+        powershell = MagicMock()
+        powershell.run_cmdlet.side_effect = ["vm1", "", "", "", "", ""]
+        powershell.run_cmdlet_async.return_value = MagicMock()
+        powershell.wait_result.return_value = SimpleNamespace(exit_code=0, stdout="")
+        assignable_devices_type.return_value.get_pnp_device_by_location_path.return_value = SimpleNamespace(  # noqa: E501
+            instance_id=state.instance_id,
+            config_manager_error_code="22",
+        )
+        pool = self._create_pool(powershell)
+
+        with patch.object(pool, "_wait_for_pnp_device_enabled"):
+            with patch.object(pool, "_restore_nvme_disk_state"):
+                recovered_vm_name = pool.recover_nvme_device(state, " ")
+
+        self.assertEqual("vm1", recovered_vm_name)
+        commands = [
+            call.kwargs.get("cmdlet", call.args[0] if call.args else "")
+            for call in powershell.run_cmdlet.call_args_list
+        ]
+        self.assertIn("Stop-VM", commands[1])
+        self.assertIn("$vmName = 'vm1'", commands[1])
+        self.assertIn("Remove-VMAssignableDevice", commands[2])
+        self.assertIn("-VMName 'vm1'", commands[2])
+
+    def test_recovery_does_not_detach_until_vm_is_off(self) -> None:
+        state = self._create_recovery_state()
+        powershell = MagicMock()
+        powershell.run_cmdlet.side_effect = [
+            "vm1",
+            LisaException("VM did not stop"),
+        ]
+        pool = self._create_pool(powershell)
+
+        with self.assertRaisesRegex(LisaException, "did not stop"):
+            pool.recover_nvme_device(state, "vm1")
+
+        commands = [
+            call.kwargs["cmdlet"] for call in powershell.run_cmdlet.call_args_list
+        ]
+        self.assertTrue(any("Stop-VM" in command for command in commands))
+        self.assertFalse(
+            any("Remove-VMAssignableDevice" in command for command in commands)
+        )
+
+    def test_recovery_does_not_mount_device_still_assigned_after_removal(
+        self,
+    ) -> None:
+        state = self._create_recovery_state()
+        powershell = MagicMock()
+        powershell.run_cmdlet.side_effect = ["vm1", "", "", "vm1"]
+        pool = self._create_pool(powershell)
+
+        with self.assertRaisesRegex(LisaException, "still assigned"):
+            pool.recover_nvme_device(state, "vm1")
+
+        powershell.run_cmdlet_async.assert_not_called()
+
+    def _create_recovery_state(self) -> HyperVNvmeRecoveryState:
+        return HyperVNvmeRecoveryState(
+            schema_version=1,
+            location_path="PCIROOT(1)#PCI(0000)",
+            instance_id="PCI\\VEN_144D&DEV_A80A",
+            disk=NvmeDiskState(
+                number=3,
+                unique_id="disk-unique-id",
+                serial_number="disk-serial",
+                was_offline=False,
+            ),
+        )
+
+    def _create_pool(self, powershell: MagicMock) -> HyperVDevicePool:
+        node = SimpleNamespace(tools={PowerShell: powershell})
+        return HyperVDevicePool(
+            node=cast(Any, node),
+            runbook=HypervPlatformSchema(),
+            log=MagicMock(),
+        )
+
+    @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
+    def test_capture_nvme_recovery_state_reuses_safety_validation(
+        self, assignable_devices_type: MagicMock
+    ) -> None:
+        location_path = "PCIROOT(1)#PCI(0000)"
+        device = DeviceAddressSchema(
+            instance_id="PCI\\VEN_144D&DEV_A80A",
+            location_path=location_path,
+        )
+        assignable_devices = assignable_devices_type.return_value
+        get_by_location_path = (
+            assignable_devices.get_assignable_devices_by_location_paths
+        )
+        get_by_location_path.return_value = [device]
+        powershell = MagicMock()
+        powershell.run_cmdlet.side_effect = [
+            "",
+            3,
+            {
+                "Number": 3,
+                "UniqueId": "disk-unique-id",
+                "SerialNumber": "disk-serial",
+                "FriendlyName": "NVMe data disk",
+                "BusType": "NVMe",
+                "IsBoot": False,
+                "IsSystem": False,
+                "IsOffline": False,
+                "IsMounted": False,
+                "PhysicalDiskCount": 1,
+                "IsStoragePoolMember": False,
+                "StoragePoolNames": "",
+            },
+        ]
+        node = SimpleNamespace(tools={PowerShell: powershell})
+        pool = HyperVDevicePool(
+            node=cast(Any, node),
+            runbook=HypervPlatformSchema(),
+            log=MagicMock(),
+        )
+
+        state = pool.capture_nvme_recovery_state(location_path)
+
+        self.assertEqual(
+            HyperVNvmeRecoveryState(
+                schema_version=1,
+                location_path=location_path,
+                instance_id=device.instance_id,
+                disk=NvmeDiskState(
+                    number=3,
+                    unique_id="disk-unique-id",
+                    serial_number="disk-serial",
+                    was_offline=False,
+                ),
+            ),
+            state,
+        )
+        get_by_location_path.assert_called_once_with([location_path])
+
     @patch("lisa.sut_orchestrator.hyperv.hyperv_device_pool.HypervAssignableDevices")
     def test_configure_pci_nvme_pool_from_vendor_device_id(
         self, assignable_devices_type: MagicMock
