@@ -26,15 +26,12 @@ class StartStop(features.StartStop):
         domain = node_context.domain
         assert domain
 
-        if not domain.isActive():
-            # VM is already shutdown.
-            return
-
         if wait:
-            domain.destroy()
-
+            assert isinstance(self._platform, IBaseLibvirtPlatform)
+            self._platform.stop_domain(self._node)
         else:
-            domain.shutdown()
+            if domain.isActive():
+                domain.shutdown()
 
     def _start(self, wait: bool = True) -> None:
         assert isinstance(self._platform, IBaseLibvirtPlatform)
@@ -46,12 +43,8 @@ class StartStop(features.StartStop):
         assert domain
 
         if wait:
-            if domain.isActive():
-                # Shutdown VM.
-                domain.destroy()
-
-            # Boot up VM and ensure console logger reattaches.
             assert isinstance(self._platform, IBaseLibvirtPlatform)
+            self._platform.stop_domain(self._node)
             self._platform.restart_domain_and_attach_logger(self._node)
 
         else:
