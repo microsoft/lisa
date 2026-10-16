@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, List, Optional, TypeVar
 
+from lisa.schema import DiskControllerType, NetworkDataPath
 from lisa.search_space import (
     CountSpace,
     IntRange,
@@ -15,8 +16,10 @@ from lisa.search_space import (
     SetSpace,
     check,
     check_countspace,
+    check_setspace,
     choose_value,
     choose_value_countspace,
+    intersect_setspace_by_priority,
 )
 from lisa.util import LisaException
 from lisa.util.logger import get_logger
@@ -206,6 +209,49 @@ class SearchSpaceTestCase(unittest.TestCase):
         with self.assertRaises(expected_exception=LisaException) as cm:
             requirement.choose_value(capability)
         self.assertIn("doesn't support", str(cm.exception))
+
+    def test_check_setspace_reason_lists_required_items(self) -> None:
+        # Default SetSpace has is_allow_set=False, but check_setspace treats it
+        # as "any of", so the reason must not render it as "not(...)".
+        cases = [
+            (
+                SetSpace[DiskControllerType](items=[DiskControllerType.NVME]),
+                SetSpace[DiskControllerType](
+                    is_allow_set=True, items=[DiskControllerType.SCSI]
+                ),
+                "requires [NVMe] but VM supports [SCSI]",
+            ),
+            (
+                DiskControllerType.NVME,
+                DiskControllerType.SCSI,
+                "requires [NVMe] but VM supports [SCSI]",
+            ),
+            (
+                SetSpace[str](is_allow_set=True, items=["aa"]),
+                SetSpace[str](items=["bb"]),
+                "requires [aa] but VM supports [bb]",
+            ),
+            (
+                # A merged requirement, e.g. Sriov() intersected with the
+                # default {Synthetic, Sriov}, is returned with is_allow_set=False.
+                intersect_setspace_by_priority(
+                    NetworkDataPath.Sriov,
+                    SetSpace[NetworkDataPath](
+                        items=[NetworkDataPath.Synthetic, NetworkDataPath.Sriov]
+                    ),
+                    [NetworkDataPath.Sriov],
+                ),
+                SetSpace[NetworkDataPath](
+                    is_allow_set=True, items=[NetworkDataPath.Synthetic]
+                ),
+                "requires [Sriov] but VM supports [Synthetic]",
+            ),
+        ]
+        for requirement, capability, expected_reason in cases:
+            with self.subTest(requirement=requirement, capability=capability):
+                result = check_setspace(requirement, capability)
+                self.assertFalse(result.result)
+                self.assertEqual([expected_reason], result.reasons)
 
     def test_int_range_validation(self) -> None:
         with self.assertRaises(expected_exception=LisaException) as cm:

@@ -4,6 +4,7 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.case import TestCase
+from unittest.mock import patch
 
 from azure.mgmt.compute.models import ResourceSku  # type: ignore
 
@@ -155,6 +156,22 @@ class AzurePrepareTestCase(TestCase):
             "previous: eastus, found: westus3"
         )
         self.assertEqual(message, str(cm.exception)[0 : len(message)])
+
+    def test_duplicate_location_errors_are_deduplicated(self) -> None:
+        env = self.load_environment(node_req_count=1)
+        self.set_node_runbook(env, 0, location="westus3,eastus")
+        error = "the same requirement mismatch"
+
+        with patch.object(
+            self._platform,
+            "_get_azure_capabilities",
+            return_value=([], error),
+        ) as get_capabilities:
+            with self.assertRaises(NotMeetRequirementException) as cm:
+                self._platform._prepare_environment(env, self._log)
+
+        self.assertEqual(2, get_capabilities.call_count)
+        self.assertEqual(error, str(cm.exception))
 
     def test_no_predefined_location_use_default_locations(self) -> None:
         # no predefined location found, use default location list

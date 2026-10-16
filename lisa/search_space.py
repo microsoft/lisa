@@ -546,10 +546,17 @@ def check_setspace(
                     has_met_check = True
                     break
             if not has_met_check:
+                # check_setspace matches any requirement item regardless of
+                # is_allow_set, so don't render SetSpace's "not(...)" notation.
                 result.add_reason(
-                    f"requires [{requirement}]" f" but VM supports [{capability}]"
+                    f"requires [{_format_setspace_items(requirement)}]"
+                    f" but VM supports [{_format_setspace_items(capability)}]"
                 )
     return result
+
+
+def _format_setspace_items(value: SetSpace[Any]) -> str:
+    return ", ".join(x.value if isinstance(x, Enum) else str(x) for x in value)
 
 
 def choose_value_setspace_by_priority(
