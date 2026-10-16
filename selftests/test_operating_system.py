@@ -1,4 +1,5 @@
 import shlex
+from pathlib import PurePosixPath
 from typing import Tuple
 from unittest import TestCase
 from unittest.mock import MagicMock
@@ -7,7 +8,7 @@ from assertpy import assert_that
 
 from lisa.base_tools import Cat, Sed
 from lisa.operating_system import CBLMariner
-from lisa.tools import GrubConfig
+from lisa.tools import GrubConfig, Wget, YumConfigManager
 
 
 class OperatingSystemTestCase(TestCase):
@@ -100,3 +101,33 @@ class OperatingSystemTestCase(TestCase):
         candidates = CBLMariner._get_kernel_version_candidates("custom-kernel")
 
         assert_that(candidates).is_equal_to(["custom-kernel"])
+
+    def test_cbl_mariner_add_repository_without_keys_location(self) -> None:
+        mariner, node = self._create_mariner_for_replace_boot_kernel()
+
+        mariner.add_repository("https://example.com/repo")
+
+        node.tools[YumConfigManager].add_repository.assert_called_once_with(
+            "https://example.com/repo", True
+        )
+
+    def test_cbl_mariner_add_repository_with_keys_location(self) -> None:
+        mariner, node = self._create_mariner_for_replace_boot_kernel()
+        working_path = PurePosixPath("/tmp/working")
+        node.get_working_path.return_value = working_path
+        node.tools[Wget].get.return_value = "/tmp/working/RPM-GPG-KEY-mariner"
+
+        key_url = "https://example.com/RPM-GPG-KEY-mariner"
+        mariner.add_repository("https://example.com/repo", keys_location=[key_url])
+
+        node.tools[Wget].get.assert_called_once_with(
+            key_url,
+            filename="RPM-GPG-KEY-mariner",
+            file_path="/tmp/working",
+        )
+        node.execute.assert_called_once_with(
+            "rpm --import /tmp/working/RPM-GPG-KEY-mariner", sudo=True, shell=True
+        )
+        node.tools[YumConfigManager].add_repository.assert_called_once_with(
+            "https://example.com/repo", False
+        )
