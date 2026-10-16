@@ -2264,6 +2264,7 @@ class OpenEuler(RPMDistro):
 # (VBS-enabled) kernels to boot their secure kernel (VTL1); without it the
 # secure kernel panics with "No memory reserved in cmdline for secure kernel".
 _LVBS_SECUREKERNEL_ARG = "128M@0x8000000"
+_AZURE_LINUX_GPG_KEY = "/etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY"
 
 
 class CBLMariner(RPMDistro):
@@ -2322,6 +2323,15 @@ class CBLMariner(RPMDistro):
     ) -> None:
         parsed_url = urlparse(repo)
         if parsed_url.scheme and parsed_url.netloc:
+            if not no_gpgcheck:
+                self._node.execute(
+                    f"rpm --import {_AZURE_LINUX_GPG_KEY}",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "Failed to import the Azure Linux package signing key"
+                    ),
+                )
             self._node.tools[YumConfigManager].add_repository(repo, no_gpgcheck)
         else:
             self._create_local_repo(Path(repo))
