@@ -467,46 +467,6 @@ class DpdkTestpmd(Tool):
         # black doesn't like to direct return VersionInfo comparison
         return bool(self.get_dpdk_version() >= "19.11.0")
 
-    def has_flag(self, flag: str) -> bool:
-        """Return whether this testpmd build lists ``flag`` in its help output.
-        Checks both EAL options (ex: --allow) and testpmd options (ex: --rss-udp).
-        """
-        pattern = rf"(?<![\w-]){re.escape(flag)}(?![\w-])"
-        return bool(re.search(pattern, self._get_help_text()))
-
-    def _get_help_text(self) -> str:
-        # keyed by path since the install path can change after (re)install
-        command = self.command
-        if command not in self._help_text:
-            # 'testpmd --help' exits in EAL and only prints EAL options.
-            # testpmd's own options need EAL init to succeed first, so use
-            # a minimal EAL config with its own file prefix to avoid
-            # clashing with any running testpmd instance.
-            eal_help = self.node.execute(
-                f"{command} --help",
-                sudo=True,
-                timeout=60,
-                no_debug_log=True,
-                no_info_log=True,
-            )
-            app_help = self.node.execute(
-                f"{command} -l 0 --no-huge --no-pci "
-                "--file-prefix=lisa_flag_check -- --help",
-                sudo=True,
-                timeout=60,
-                no_debug_log=True,
-                no_info_log=True,
-            )
-            self._help_text[command] = "\n".join(
-                [
-                    eal_help.stdout,
-                    eal_help.stderr,
-                    app_help.stdout,
-                    app_help.stderr,
-                ]
-            )
-        return self._help_text[command]
-
     def use_package_manager_install(self) -> bool:
         assert_that(hasattr(self, "_dpdk_source")).described_as(
             self._error_message(
@@ -563,7 +523,11 @@ class DpdkTestpmd(Tool):
         # there is 1 shared bus address (MANA)
         # NOTE: I keep running into weird special cases of this.
         # 21.11 on ubuntu has -a even though 20.11+ shouldn't...
-        if self.has_flag("--allow"):
+        help_output = self.node.execute(
+            f"{self.command} --help", no_debug_log=True, no_info_log=True
+        )
+        allow_flag = "-a, --allow" in (help_output.stderr + help_output.stdout)
+        if allow_flag:
             include_flag = "-a"
         else:
             include_flag = "-w"
@@ -706,7 +670,7 @@ class DpdkTestpmd(Tool):
             # default RSS hashes on IP only, landing every flow on one queue.
             # --rss-udp replaces (not extends) the hash types, so only use it
             # for rxonly, which only ever receives txonly's UDP traffic.
-            if mode == "rxonly" and self.has_flag("--rss-udp"):
+            if mode == "rxonly":
                 extra_args += " --rss-udp"
 
         if mtu:
@@ -1057,7 +1021,6 @@ cores=1-4
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
-        self._help_text: Dict[str, str] = {}
         self._expected_install_path = ""
         self._determine_network_hardware()
         if self.use_package_manager_install():
