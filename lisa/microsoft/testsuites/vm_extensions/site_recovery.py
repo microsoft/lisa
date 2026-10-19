@@ -16,6 +16,7 @@ from lisa.operating_system import (
     Oracle,
     Redhat,
     Ubuntu,
+    Windows,
 )
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.features import AzureExtension
@@ -55,16 +56,17 @@ def _settings(command: str) -> Dict[str, str]:
     description="""
     This test suite validates Azure Site Recovery VM extensions.
 
-    The common Linux extension runs GetOsDetails. Distro-specific extensions
-    run the public-only Install command, which installs the embedded Mobility
-    Service package without configuring replication. Production extension
-    identities and selected test-namespace identities are covered.
+    The common Linux extension runs GetOsDetails. Distro-specific Linux and
+    Windows extensions run the Install command without protected-settings
+    content, which installs the embedded Mobility Service package without
+    configuring replication. Production extension identities and selected
+    test-namespace identities are covered.
     """,
     tags=["VM_Extension"],
     requirement=simple_requirement(
         supported_features=[AzureExtension],
         supported_platform_type=[AZURE],
-        supported_os=[Linux],
+        supported_os=[Linux, Windows],
     ),
 )
 class SiteRecoveryTests(VmExtensionTestBase):  # type: ignore[misc]
@@ -82,13 +84,18 @@ class SiteRecoveryTests(VmExtensionTestBase):  # type: ignore[misc]
     ) -> None:
         if expected_os is not None:
             actual_major_version = node.os.information.version.major
-            if (
-                type(node.os) is not expected_os
-                or actual_major_version != expected_major_version
+            if type(node.os) is not expected_os or (
+                expected_major_version is not None
+                and actual_major_version != expected_major_version
             ):
+                expected_version = (
+                    f" {expected_major_version}"
+                    if expected_major_version is not None
+                    else ""
+                )
                 raise SkippedException(
                     f"{publisher}.{extension_type} requires "
-                    f"{expected_os.__name__} {expected_major_version}, but the "
+                    f"{expected_os.__name__}{expected_version}, but the "
                     f"node is {type(node.os).__name__} {actual_major_version}."
                 )
 
@@ -153,6 +160,27 @@ class SiteRecoveryTests(VmExtensionTestBase):  # type: ignore[misc]
             "Install",
             Redhat,
             7,
+        )
+
+    @TestCaseMetadata(
+        description="Validates the production Site Recovery Windows package.",
+        priority=5,
+        tags=["microsoft.azure.recoveryservices.siterecovery.windows"],
+        maturity="preview",
+        requirement=_extension_requirement(Windows),
+    )
+    def microsoft_azure_recoveryservices_siterecovery_windows_boot_validation_test(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        self._validate_extension(
+            node,
+            log,
+            variables,
+            _SITE_RECOVERY_PUBLISHER,
+            "Windows",
+            "site_recovery_windows",
+            "Install",
+            Windows,
         )
 
     @TestCaseMetadata(
@@ -506,6 +534,27 @@ class SiteRecoveryTests(VmExtensionTestBase):  # type: ignore[misc]
             "Linux",
             "site_recovery_test_linux",
             "GetOsDetails",
+        )
+
+    @TestCaseMetadata(
+        description="Validates the test-namespace Site Recovery Windows package.",
+        priority=5,
+        tags=["microsoft.azure.siterecovery.test.windowstest"],
+        maturity="preview",
+        requirement=_extension_requirement(Windows),
+    )
+    def microsoft_azure_siterecovery_test_windowstest_boot_validation_test(
+        self, log: Logger, node: Node, variables: Dict[str, Any]
+    ) -> None:
+        self._validate_extension(
+            node,
+            log,
+            variables,
+            _SITE_RECOVERY_TEST_PUBLISHER,
+            "WindowsTest",
+            "site_recovery_test_windows",
+            "Install",
+            Windows,
         )
 
     @TestCaseMetadata(
