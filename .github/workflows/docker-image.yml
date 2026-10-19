@@ -14,6 +14,29 @@ jobs:
         - name: Checkout code
           uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+        - name: Ensure Docker Engine is running
+          shell: pwsh
+          run: |
+            $dockerService = Get-Service docker -ErrorAction Stop
+            if ($dockerService.Status -ne "Running") {
+              Start-Service docker
+            }
+
+            $dockerReady = $false
+            for ($attempt = 0; $attempt -lt 30; $attempt++) {
+              docker info *> $null
+              if ($LASTEXITCODE -eq 0) {
+                $dockerReady = $true
+                break
+              }
+              Start-Sleep -Seconds 2
+            }
+
+            if (-not $dockerReady) {
+              throw "Docker Engine did not become available."
+            }
+            docker version
+
         - name: Log in to Azure Container Registry
           run: |
             echo ${{ secrets.ACR_PASSWORD }} | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
