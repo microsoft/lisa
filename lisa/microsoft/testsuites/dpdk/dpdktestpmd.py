@@ -467,6 +467,46 @@ class DpdkTestpmd(Tool):
         # black doesn't like to direct return VersionInfo comparison
         return bool(self.get_dpdk_version() >= "19.11.0")
 
+    def has_flag(self, flag: str) -> bool:
+        """Return whether this testpmd build lists ``flag`` in its help output.
+        Checks both EAL options (ex: --allow) and testpmd options (ex: --rss-udp).
+        """
+        pattern = rf"(?<![\w-]){re.escape(flag)}(?![\w-])"
+        return bool(re.search(pattern, self._get_help_text()))
+
+    def _get_help_text(self) -> str:
+        # keyed by path since the install path can change after (re)install
+        command = self.command
+        if command not in self._help_text:
+            # 'testpmd --help' exits in EAL and only prints EAL options.
+            # testpmd's own options need EAL init to succeed first, so use
+            # a minimal EAL config with its own file prefix to avoid
+            # clashing with any running testpmd instance.
+            eal_help = self.node.execute(
+                f"{command} --help",
+                sudo=True,
+                timeout=60,
+                no_debug_log=True,
+                no_info_log=True,
+            )
+            app_help = self.node.execute(
+                f"{command} -l 0 --no-huge --no-pci "
+                "--file-prefix=lisa_flag_check -- --help",
+                sudo=True,
+                timeout=60,
+                no_debug_log=True,
+                no_info_log=True,
+            )
+            self._help_text[command] = "\n".join(
+                [
+                    eal_help.stdout,
+                    eal_help.stderr,
+                    app_help.stdout,
+                    app_help.stderr,
+                ]
+            )
+        return self._help_text[command]
+
     def use_package_manager_install(self) -> bool:
         assert_that(hasattr(self, "_dpdk_source")).described_as(
             self._error_message(
@@ -523,11 +563,7 @@ class DpdkTestpmd(Tool):
         # there is 1 shared bus address (MANA)
         # NOTE: I keep running into weird special cases of this.
         # 21.11 on ubuntu has -a even though 20.11+ shouldn't...
-        help_output = self.node.execute(
-            f"{self.command} --help", no_debug_log=True, no_info_log=True
-        )
-        allow_flag = "-a, --allow" in (help_output.stderr + help_output.stdout)
-        if allow_flag:
+        if self.has_flag("--allow"):
             include_flag = "-a"
         else:
             include_flag = "-w"
@@ -666,6 +702,12 @@ class DpdkTestpmd(Tool):
             extra_args += f" --txd={txd} --rxd={txd} --stats 2"
         if queues > 1:
             extra_args += f" --txq={queues} --rxq={queues}"
+            # txonly-multi-flow only varies the UDP src port, but testpmd's
+            # default RSS hashes on IP only, landing every flow on one queue.
+            # --rss-udp replaces (not extends) the hash types, so only use it
+            # for rxonly, which only ever receives txonly's UDP traffic.
+            if mode == "rxonly" and self.has_flag("--rss-udp"):
+                extra_args += " --rss-udp"
 
         if mtu:
             # NOTE: ensure --mbuf-size is set before max-pkt-len and txpkts
@@ -944,29 +986,45 @@ cores=1-4
         self._check_pps_data("TX")
         return min(self.tx_pps_data)
 
-    def check_tx_packet_drops(self) -> None:
+    def check_tx_packet_drops(self, should_assert: bool = True) -> None:
         if self.tx_total_packets == 0:
             raise AssertionError(
                 self._error_message(
                     "Test bug: tx packet data was 0, could not check dropped packets"
                 )
             )
-        self.packet_drop_rate = self.tx_packet_drops / self.tx_total_packets
-        assert_that(self.packet_drop_rate).described_as(
-            self._error_message("More than 33% of the tx packets were dropped!")
-        ).is_close_to(0, 0.33)
+        # TX-packets excludes drops; testpmd's TX-total is packets + dropped.
+        self.packet_drop_rate = self.tx_packet_drops / (
+            self.tx_total_packets + self.tx_packet_drops
+        )
+        if should_assert:
+            assert_that(self.packet_drop_rate).described_as(
+                self._error_message("More than 33% of the tx packets were dropped!")
+            ).is_close_to(0, 0.33)
+        elif self.packet_drop_rate > 0.33:
+            self.node.log.warning(
+                self._error_message("More than 33% of the tx packets were dropped!")
+            )
 
-    def check_rx_packet_drops(self) -> None:
+    def check_rx_packet_drops(self, should_assert: bool = True) -> None:
         if self.rx_total_packets == 0:
             raise AssertionError(
                 self._error_message(
                     "Test bug: rx packet data was 0 could not check dropped packets."
                 )
             )
-        self.packet_drop_rate = self.rx_packet_drops / self.rx_total_packets
-        assert_that(self.packet_drop_rate).described_as(
-            self._error_message("More than 1% of the received packets were dropped!")
-        ).is_close_to(0, 0.01)
+        # RX-packets excludes drops; testpmd's RX-total is packets + dropped.
+        self.packet_drop_rate = self.rx_packet_drops / (
+            self.rx_total_packets + self.rx_packet_drops
+        )
+        if should_assert:
+            assert_that(self.packet_drop_rate).described_as(
+                self._error_message("More than 1% of the received packets were dropped!")
+            ).is_close_to(0, 0.01)
+        elif self.packet_drop_rate > 0.01:
+            self.node.log.warning(
+                self._error_message("More than 1% of the received packets were dropped!")
+            )
 
     def get_mean_tx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
         return self._get_pps_sriov_hotplug(self._tx_pps_key)
@@ -999,6 +1057,7 @@ cores=1-4
         self._sample_apps_to_build = kwargs.pop("sample_apps", [])
         self._dpdk_version_info = VersionInfo(0, 0)
         self._testpmd_install_path: str = ""
+        self._help_text: Dict[str, str] = {}
         self._expected_install_path = ""
         self._determine_network_hardware()
         if self.use_package_manager_install():
