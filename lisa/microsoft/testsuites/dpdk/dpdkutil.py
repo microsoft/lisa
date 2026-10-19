@@ -758,6 +758,7 @@ def initialize_node_resources(
     _set_forced_source_by_distro(node, variables)
     check_pmd_support(node, pmd)
 
+
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
     rdma_source = variables.get("rdma_source", "")
@@ -992,9 +993,25 @@ def verify_dpdk_send_receive(
     check_sender_packet_drops: bool = False,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
-    # helpful to have the public ips labeled for debugging
+
+    should_grade_drops = True
     external_ips = []
     for node in environment.nodes.list():
+        # Skip grading packet drops when testpmd's lcores (one forwarding
+        # core per queue, plus service cores, plus 1 reserved for the OS)
+        # can't each get a dedicated physical core; SMT siblings and
+        # oversubscription cause drops unrelated to the NIC/driver.
+        required_cores = queues + use_service_cores + 1
+        physical_cores = node.tools[Lscpu].get_core_count()
+        if physical_cores < required_cores:
+            log.info(
+                f"{node.name} has {physical_cores} physical core(s), fewer than "
+                f"the {required_cores} needed for {queues} queue(s) and "
+                f"{use_service_cores} service core(s); "
+                "packet drops will be reported but not graded."
+            )
+            should_grade_drops = False
+        # helpful to have the public ips labeled for debugging
         if isinstance(node, RemoteNode):
             external_ips += node.connection_info[
                 constants.ENVIRONMENTS_NODES_REMOTE_ADDRESS
@@ -1108,14 +1125,15 @@ def verify_dpdk_send_receive(
     else:
         pass  # no-op if no grading is required.
 
+
     # sender packet drops are common when network bandwidth is
     # artificially throttled by the sku, so checking sender
     # is optional
     if check_sender_packet_drops:
-        sender.testpmd.check_tx_packet_drops()
+        sender.testpmd.check_tx_packet_drops(should_assert=should_grade_drops)
 
-    # verify receiver didn't drop most of the packets
-    receiver.testpmd.check_rx_packet_drops()
+    # verify receiver didn't drop most of the packets if needed
+    receiver.testpmd.check_rx_packet_drops(should_assert=should_grade_drops)
 
     # annotate the amount of dropped packets on the receiver
     annotate_packet_drops(log, result, receiver)
