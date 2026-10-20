@@ -21,7 +21,15 @@ from lisa import (
     create_timer,
     simple_requirement,
 )
-from lisa.operating_system import BSD, CpuArchitecture, Redhat, Suse, Ubuntu, Windows
+from lisa.operating_system import (
+    BSD,
+    CoreOs,
+    CpuArchitecture,
+    Redhat,
+    Suse,
+    Ubuntu,
+    Windows,
+)
 from lisa.tools import (
     Cat,
     Chmod,
@@ -385,6 +393,7 @@ class TimeSync(TestSuite):
     @TestCaseMetadata(
         description="""
         This test is to check, ntp works properly.
+            Flatcar/CoreOS is not supported by this test.
             1. Stop systemd-timesyncd if this service exists.
             2. Set rtc clock to system time.
             3. Restart Ntp service.
@@ -394,6 +403,7 @@ class TimeSync(TestSuite):
             7. Check local time is synchronised with time server using `ntpstat`.
         """,
         priority=2,
+        requirement=simple_requirement(unsupported_os=[Windows, CoreOs]),
     )
     def verify_timesync_ntp(self, node: Node) -> None:
         # On higher distro version, ntp is replaced by chrony. So skip this test.
@@ -428,6 +438,7 @@ class TimeSync(TestSuite):
     @TestCaseMetadata(
         description="""
         This test is to check chrony works properly.
+            Flatcar/CoreOS is not supported by this test.
             1. Restart chrony service.
             2. Check and set server setting in config file.
             3. Restart chrony service to reload with new config.
@@ -435,6 +446,7 @@ class TimeSync(TestSuite):
             5. Check chrony tracking.
         """,
         priority=2,
+        requirement=simple_requirement(unsupported_os=[Windows, CoreOs]),
     )
     def verify_timesync_chrony(self, node: Node) -> None:
         # On FreeBSD images, Chrony is not enabled by default after installation.
