@@ -270,7 +270,10 @@ class OpenVmmInstallerTransformerTestCase(TestCase):
         self._run_transformer(transformer, installer)
 
         installer.install.assert_called_once_with()
-        transformer._log.warning.assert_called_once()
+        self.assertEqual(
+            [call("/usr/local/bin/openvmm"), call("/usr/local/bin/openvmm"), call()],
+            installer.get_version.call_args_list,
+        )
 
     def test_force_install_reinstalls_existing_configured_binary(self) -> None:
         transformer, installer = self._create_transformer(force_install=True)
