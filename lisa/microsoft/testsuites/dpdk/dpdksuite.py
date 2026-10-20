@@ -52,7 +52,17 @@ from lisa import (
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lscpu, Lsmod, Make, Modprobe
+from lisa.tools import (
+    Echo,
+    Git,
+    Hugepages,
+    Ip,
+    Kill,
+    Lscpu,
+    Lsmod,
+    Make,
+    Modprobe,
+)
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import SIGINT
@@ -305,7 +315,8 @@ class Dpdk(TestSuite):
     def verify_dpdk_ovs_netvsc(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        # initialize DPDK first, OVS requires it built from source before configuring.
+        # initialize DPDK first, OVS requires it built from source before
+        # configuring.
         force_dpdk_default_source(variables)
         run_ovs_test(node, log, variables, Pmd.NETVSC, self._dpdk_cleanup)
 
@@ -328,14 +339,20 @@ class Dpdk(TestSuite):
     ) -> None:
         try:
             nff_go: DpdkNffGo = node.tools[DpdkNffGo]
-        except (UnsupportedDistroException, UnsupportedCpuArchitectureException) as err:
+        except (
+            UnsupportedDistroException,
+            UnsupportedCpuArchitectureException,
+        ) as err:
             raise SkippedException(err)
 
         # hugepages needed for dpdk tests
         hugepages = node.tools[Hugepages]
         try:
             hugepages.init_hugepages(HugePageSize.HUGE_2MB)
-        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        except (
+            NotEnoughMemoryException,
+            UnsupportedOperationException,
+        ) as err:
             raise SkippedException(err)
 
         # run the nff-go tests
@@ -378,17 +395,25 @@ class Dpdk(TestSuite):
                     client_app_name,
                 ],
             )
-        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        except (
+            NotEnoughMemoryException,
+            UnsupportedOperationException,
+        ) as err:
             raise SkippedException(err)
 
         if test_kit.testpmd.is_connect_x3:
             raise SkippedException(
-                "Unsupported Hardware: ConnectX3 does not support secondary process RX"
+                "Unsupported Hardware: ConnectX3 does "
+                "not support secondary process RX"
             )
 
         # setup and run mp_server application
-        server_app_path = test_kit.testpmd.get_example_app_path(server_app_name)
-        client_app_path = test_kit.testpmd.get_example_app_path(client_app_name)
+        server_app_path = test_kit.testpmd.get_example_app_path(
+            server_app_name
+        )
+        client_app_path = test_kit.testpmd.get_example_app_path(
+            client_app_name
+        )
         self._dpdk_cleanup.register(
             node,
             partial(
@@ -420,7 +445,8 @@ class Dpdk(TestSuite):
         # APP: -n : client index is 0
         client_result = node.execute(
             (
-                f"timeout -s INT 2 {client_app_path} --proc-type=secondary -l 3 -n 4"
+                f"timeout -s INT 2 {client_app_path} "
+                "--proc-type=secondary -l 3 -n 4"
                 f" -b {node.nics.get_primary_nic().pci_slot} -- -n 0"
             ),
             sudo=True,
@@ -494,7 +520,9 @@ class Dpdk(TestSuite):
         log: Logger,
         variables: Dict[str, Any],
     ) -> None:
-        self.run_testpmd_hotplug_recv_test(environment, log, variables, pmd=Pmd.NETVSC)
+        self.run_testpmd_hotplug_recv_test(
+            environment, log, variables, pmd=Pmd.NETVSC
+        )
 
     @TestCaseMetadata(
         description="""
@@ -513,7 +541,9 @@ class Dpdk(TestSuite):
     def verify_dpdk_testpmd_hotplug_sender_failsafe_pmd(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        self.run_testpmd_hotplug_send_test(node, log, variables, pmd=Pmd.FAILSAFE)
+        self.run_testpmd_hotplug_send_test(
+            node, log, variables, pmd=Pmd.FAILSAFE
+        )
 
     @TestCaseMetadata(
         description="""
@@ -532,7 +562,9 @@ class Dpdk(TestSuite):
     def verify_dpdk_testpmd_hotplug_sender_netvsc_pmd(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        self.run_testpmd_hotplug_send_test(node, log, variables, pmd=Pmd.NETVSC)
+        self.run_testpmd_hotplug_send_test(
+            node, log, variables, pmd=Pmd.NETVSC
+        )
 
     # common testpmd hotplug functions, send only and receiver versions
     # support both netvsc and failsafe pmd
@@ -590,11 +622,16 @@ class Dpdk(TestSuite):
                 HugePageSize.HUGE_2MB,
                 self._dpdk_cleanup,
             )
-        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        except (
+            NotEnoughMemoryException,
+            UnsupportedOperationException,
+        ) as err:
             raise SkippedException(err)
         testpmd = test_kit.testpmd
         test_nic = node.nics.get_nic_by_subnet("10.0.1.0/24")
-        testpmd_cmd = testpmd.generate_testpmd_command([test_nic], 0, "txonly", pmd=pmd)
+        testpmd_cmd = testpmd.generate_testpmd_command(
+            [test_nic], 0, "txonly", pmd=pmd
+        )
         kit_cmd_pairs = {
             test_kit: testpmd_cmd,
         }
@@ -680,13 +717,18 @@ class Dpdk(TestSuite):
                 HugePageSize.HUGE_2MB,
                 self._dpdk_cleanup,
             )
-        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        except (
+            NotEnoughMemoryException,
+            UnsupportedOperationException,
+        ) as err:
             raise SkippedException(err)
         vpp: DpdkVpp = node.tools[DpdkVpp]
         vpp.install()
 
         net = node.nics
-        nics_dict = {key: value for key, value in net.nics.items() if key != "eth0"}
+        nics_dict = {
+            key: value for key, value in net.nics.items() if key != "eth0"
+        }
         pci_slots = []
         # set devices to down and restart vpp service
         ip = node.tools[Ip]
@@ -723,7 +765,8 @@ class Dpdk(TestSuite):
     def verify_dpdk_ring_ping(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        # ring ping requires dpdk source to run, since default is package_manager
+        # ring ping requires dpdk source to run, since default is
+        # package_manager
         # we special case here to use to dpdk-stable as the default.
         force_dpdk_default_source(variables)
         # setup and unwrap the resources for this test
@@ -736,7 +779,10 @@ class Dpdk(TestSuite):
                 HugePageSize.HUGE_2MB,
                 self._dpdk_cleanup,
             )
-        except (NotEnoughMemoryException, UnsupportedOperationException) as err:
+        except (
+            NotEnoughMemoryException,
+            UnsupportedOperationException,
+        ) as err:
             raise SkippedException(err)
         testpmd = test_kit.testpmd
         if isinstance(testpmd.installer, PackageManagerInstall):
@@ -756,16 +802,21 @@ class Dpdk(TestSuite):
             f"export RTE_SDK={str(testpmd.installer.asset_path)}",
         ]
         echo.write_to_file(
-            ";".join(rping_build_env_vars), node.get_pure_path("~/.bashrc"), append=True
+            ";".join(rping_build_env_vars),
+            node.get_pure_path("~/.bashrc"),
+            append=True,
         )
         git_path = git.clone(
-            "https://github.com/shemminger/dpdk-ring-ping.git", cwd=node.working_path
+            "https://github.com/shemminger/dpdk-ring-ping.git",
+            cwd=node.working_path,
         )
         make.run(
             shell=True,
             cwd=git_path,
             expected_exit_code=0,
-            expected_exit_code_failure_message="make could not build rping project.",
+            expected_exit_code_failure_message=(
+                "make could not build rping project."
+            ),
         ).assert_exit_code()
         # run ringping for 30 seconds
         runcmd = "./build/rping -c 0x03 -n 2 --no-pci --no-huge -- -d 5 -t 10"
@@ -774,7 +825,9 @@ class Dpdk(TestSuite):
             shell=True,
             cwd=git_path,
             expected_exit_code=0,
-            expected_exit_code_failure_message="rping program failed to run correctly.",
+            expected_exit_code_failure_message=(
+                "rping program failed to run correctly."
+            ),
         )
         result.assert_exit_code()
         # get the max latency for 99.999 percent of enqueued 'packets'.
@@ -783,7 +836,8 @@ class Dpdk(TestSuite):
             max_ping_measured = int(result_regex.group(1))
             assert_that(max_ping_measured).described_as(
                 (
-                    f"RingPing measured {max_ping_measured} as maximum ping latency,"
+                    f"RingPing measured {max_ping_measured} "
+                    "as maximum ping latency,"
                     f" maximum should be less than {MAX_RING_PING_LIMIT_NS}"
                 )
             ).is_less_than(MAX_RING_PING_LIMIT_NS)
@@ -791,7 +845,8 @@ class Dpdk(TestSuite):
             fail(
                 (
                     "Could not get latency data from rping result. "
-                    f"Search was for 'percentile 99.999 = ([0-9]+)'\n{result.stdout}\n"
+                    "Search was for 'percentile 99.999 "
+                    f"= ([0-9]+)'\n{result.stdout}\n"
                 )
             )
 
@@ -819,7 +874,8 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for default failsafe driver setup
+            Tests a basic sender/receiver setup for default failsafe driver
+            setup
             with 1 rx/tx queue, backed by 1 dedicated forwarding core.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the
@@ -848,7 +904,8 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for default failsafe driver setup
+            Tests a basic sender/receiver setup for default failsafe driver
+            setup
             with 2 rx/tx queues, backed by 2 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the
@@ -877,7 +934,8 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for default failsafe driver setup
+            Tests a basic sender/receiver setup for default failsafe driver
+            setup
             with 4 rx/tx queues, backed by 4 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the
@@ -906,7 +964,8 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for default failsafe driver setup
+            Tests a basic sender/receiver setup for default failsafe driver
+            setup
             with 8 rx/tx queues, backed by 8 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the
@@ -935,7 +994,8 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for default failsafe driver setup
+            Tests a basic sender/receiver setup for default failsafe driver
+            setup
             with 16 rx/tx queues, backed by 16 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
             We check both to make sure the received traffic is within the
@@ -965,8 +1025,10 @@ class Dpdk(TestSuite):
     @TestCaseMetadata(
         description="""
             Tests a basic sender/receiver setup for dpdk netvsc pmd with jumbo
-            frames, using 4 rx/tx queues backed by 4 dedicated forwarding cores.
-            Default is set to request an mtu of 9k, test will skip if it's not possible.
+            frames, using 4 rx/tx queues backed by 4 dedicated forwarding
+            cores.
+            Default is set to request an mtu of 9k, test will skip if it's not
+            possible.
             Sender sends the packets, receiver receives them.
             Test checks that traffic flowed, and annotates the Gbps throughput.
             """,
@@ -1135,7 +1197,8 @@ class Dpdk(TestSuite):
             Tests a basic sender/receiver setup for dpdk netvsc pmd with 1
             rx/tx queue, backed by 1 dedicated forwarding core.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
+            We check both to make sure the received traffic is within the
+            expected
             order-of-magnitude.
         """,
         priority=2,
@@ -1165,7 +1228,8 @@ class Dpdk(TestSuite):
             Tests a basic sender/receiver setup for dpdk netvsc pmd with 2
             rx/tx queues, backed by 2 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
+            We check both to make sure the received traffic is within the
+            expected
             order-of-magnitude.
         """,
         priority=2,
@@ -1195,7 +1259,8 @@ class Dpdk(TestSuite):
             Tests a basic sender/receiver setup for dpdk netvsc pmd with 4
             rx/tx queues, backed by 4 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
+            We check both to make sure the received traffic is within the
+            expected
             order-of-magnitude.
         """,
         priority=2,
@@ -1225,7 +1290,8 @@ class Dpdk(TestSuite):
             Tests a basic sender/receiver setup for dpdk netvsc pmd with 8
             rx/tx queues, backed by 8 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
+            We check both to make sure the received traffic is within the
+            expected
             order-of-magnitude.
         """,
         priority=2,
@@ -1255,7 +1321,8 @@ class Dpdk(TestSuite):
             Tests a basic sender/receiver setup for dpdk netvsc pmd with 16
             rx/tx queues, backed by 16 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
+            We check both to make sure the received traffic is within the
+            expected
             order-of-magnitude.
         """,
         priority=2,
@@ -1282,9 +1349,11 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for default failsafe driver setup.
+            Tests a basic sender/receiver setup for default failsafe driver
+            setup.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
+            We check both to make sure the received traffic is within the
+            expected
             order-of-magnitude.
         """,
         priority=2,
@@ -1319,9 +1388,11 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Tests a basic sender/receiver setup for default failsafe driver setup.
+            Tests a basic sender/receiver setup for default failsafe driver
+            setup.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
+            We check both to make sure the received traffic is within the
+            expected
             order-of-magnitude.
             Test uses 1GB hugepages.
         """,
@@ -1359,7 +1430,8 @@ class Dpdk(TestSuite):
         description="""
             Tests a basic sender/receiver setup for direct netvsc pmd setup.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
+            We check both to make sure the received traffic is within the
+            expected
             order-of-magnitude.
         """,
         priority=2,
@@ -1396,7 +1468,8 @@ class Dpdk(TestSuite):
         description="""
             Tests a basic sender/receiver setup for direct netvsc pmd setup.
             Sender sends the packets, receiver receives them.
-            We check both to make sure the received traffic is within the expected
+            We check both to make sure the received traffic is within the
+            expected
             order-of-magnitude.
             Test uses 1GB hugepages.
         """,
@@ -1431,17 +1504,16 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
 
     @TestCaseMetadata(
-        description=(
-            """
+        description=("""
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
                 subnet_a to a receiver on subnet_b. Without l3fwd,
                 packets will not be able to jump the subnets.  This imitates
-                a network virtual appliance setup, firewall, or other data plane
+                a network virtual appliance setup, firewall, or other data
+                plane
                 tool for managing network traffic with DPDK.
-        """
-        ),
+        """),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
@@ -1473,17 +1545,16 @@ class Dpdk(TestSuite):
         )
 
     @TestCaseMetadata(
-        description=(
-            """
+        description=("""
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
                 subnet_a to a receiver on subnet_b. Without l3fwd,
                 packets will not be able to jump the subnets.  This imitates
-                a network virtual appliance setup, firewall, or other data plane
+                a network virtual appliance setup, firewall, or other data
+                plane
                 tool for managing network traffic with DPDK.
-        """
-        ),
+        """),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
@@ -1522,7 +1593,8 @@ class Dpdk(TestSuite):
                 two NICs on the same VM. It forwards packets from a sender on
                 subnet_a to a receiver on subnet_b. Without l3fwd,
                 packets will not be able to jump the subnets. This imitates
-                a network virtual appliance setup, firewall, or other data plane
+                a network virtual appliance setup, firewall, or other data
+                plane
                 tool for managing network traffic with DPDK.
             """,
         priority=3,
@@ -1595,9 +1667,9 @@ class Dpdk(TestSuite):
                 "/dev/uio0 did not exist after driver bind"
             ),
         )
-        assert_that(lsmod.module_exists("uio_hv_generic", force_run=True)).described_as(
-            "uio_hv_generic was not found after bind"
-        ).is_true()
+        assert_that(
+            lsmod.module_exists("uio_hv_generic", force_run=True)
+        ).described_as("uio_hv_generic was not found after bind").is_true()
 
         node.nics.unbind(nic)
         node.nics.bind(nic, str(original_driver))

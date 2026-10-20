@@ -265,17 +265,16 @@ class DpdkPerformance(TestSuite):
         )
 
     @TestCaseMetadata(
-        description=(
-            """
+        description=("""
                 Run the L3 forwarding perf test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
                 subnet_a to a receiver on subnet_b. Without l3fwd,
                 packets will not be able to jump the subnets.  This imitates
-                a network virtual appliance setup, firewall, or other data plane
+                a network virtual appliance setup, firewall, or other data
+                plane
                 tool for managing network traffic with DPDK.
-        """
-        ),
+        """),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
@@ -315,14 +314,16 @@ class DpdkPerformance(TestSuite):
         self._validate_core_counts_are_equal(test_result)
         try:
             if queues > 1:
-                send_kit, receive_kit = verify_dpdk_send_receive_multi_txrx_queue(
-                    environment,
-                    log,
-                    variables,
-                    pmd,
-                    queues=queues,
-                    cleanup_manager=self._dpdk_cleanup,
-                    result=test_result,
+                send_kit, receive_kit = (
+                    verify_dpdk_send_receive_multi_txrx_queue(
+                        environment,
+                        log,
+                        variables,
+                        pmd,
+                        queues=queues,
+                        cleanup_manager=self._dpdk_cleanup,
+                        result=test_result,
+                    )
                 )
             else:
                 send_kit, receive_kit = verify_dpdk_send_receive(
@@ -358,7 +359,9 @@ class DpdkPerformance(TestSuite):
 
         # shared results fields
         for result_fields in [sender_fields, receiver_fields]:
-            result_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD
+            result_fields["tool"] = (
+                constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD
+            )
             result_fields["test_type"] = "performance"
             result_fields["protocol_type"] = TransportProtocol.Udp
 

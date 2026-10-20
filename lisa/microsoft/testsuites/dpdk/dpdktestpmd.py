@@ -171,7 +171,9 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
 class DpdkPackageManagerInstall(PackageManagerInstall):  # type: ignore[misc]
     def _setup_node(self) -> None:
         if isinstance(self._os, Debian):
-            self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
+            self._package_manager_extra_args = get_debian_backport_repo_args(
+                self._os
+            )
 
         elif isinstance(self._os, Fedora):
             self._os.install_epel()
@@ -229,16 +231,23 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
     def _setup_node(self) -> None:
         super()._setup_node()
         if isinstance(self._os, Debian):
-            self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
-            if isinstance(self._os, Ubuntu) and self._os.information.version < "22.4.0":
+            self._package_manager_extra_args = get_debian_backport_repo_args(
+                self._os
+            )
+            if (
+                isinstance(self._os, Ubuntu)
+                and self._os.information.version < "22.4.0"
+            ):
                 self._os.update_packages("linux-azure")
                 self._node.reboot()
         # install( Tool ) doesn't seem to install the tool until it's used :\
-        # which breaks when another tool checks for it's existence before building...
+        # which breaks when another tool checks for it's existence before
+        # building...
         # like cmake, meson, make, autoconf, etc.
         self._node.tools[Ninja].install()
         # try multiple avenues for installing pyelftools, preferring the
-        # more recent convention of prepending apt/dnf/etc python system packages
+        # more recent convention of prepending apt/dnf/etc python system
+        # packages
         # with python3-...
         if self._os.is_package_in_repo("python3-pyelftools"):
             self._os.install_packages("python3-pyelftools")
@@ -246,7 +255,8 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
         elif self._os.is_package_in_repo("pyelftools"):
             self._os.install_packages("pyelftools")
         else:
-            # otherwise try pip. This can fail to install for the system on ubuntu 24.04
+            # otherwise try pip. This can fail to install for the system on
+            # ubuntu 24.04
             self._node.tools[Pip].install_packages("pyelftools")
 
     def _uninstall(self) -> None:
@@ -284,7 +294,9 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
         # copy devname application into the examples directory
         devname_local_folder = PurePath(__file__).parent.joinpath("devname")
         self._node.shell.mkdir(
-            self.asset_path.joinpath("examples/devname"), parents=False, exist_ok=False
+            self.asset_path.joinpath("examples/devname"),
+            parents=False,
+            exist_ok=False,
         )
         for file in self.__devname_files:
             self._node.shell.copy(
@@ -334,10 +346,13 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
             cwd=self.dpdk_build_path,
             sudo=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="ldconfig failed, check for error spew.",
+            expected_exit_code_failure_message=(
+                "ldconfig failed, check for error spew."
+            ),
         )
         library_bashrc_lines = [
-            "export PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
+            "export "
+            "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
             "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
         ]
         node.tools[Echo].write_to_file(
@@ -368,7 +383,8 @@ class DpdkTestpmd(Tool):
     _instance_id = "testpmd"
 
     # regex to identify sriov re-enable event, example:
-    # EAL: Probe PCI driver: net_mlx4 (15b3:1004) device: e8ef:00:02.0 (socket 0)
+    # EAL: Probe PCI driver: net_mlx4 (15b3:1004) device: e8ef:00:02.0 (socket
+    # 0)
     _search_hotplug_regex = re.compile(
         (
             r"EAL: Probe PCI driver: ([a-z_A-Z0-9\-]+) "
@@ -449,7 +465,9 @@ class DpdkTestpmd(Tool):
         return [Git, Wget, Lscpu]
 
     def get_dpdk_version(self) -> VersionInfo:
-        self.node.log.debug(f"Found DPDK version {str(self._dpdk_version_info)}.")
+        self.node.log.debug(
+            f"Found DPDK version {str(self._dpdk_version_info)}."
+        )
         return self._dpdk_version_info
 
     def has_dpdk_version(self) -> bool:
@@ -513,7 +531,8 @@ class DpdkTestpmd(Tool):
         vdev_id: int,
         pmd: Pmd,
     ) -> str:
-        # MANA and mlnx both don't require these arguments if all VFs are in use.
+        # MANA and mlnx both don't require these arguments if all VFs are in
+        # use.
         # We have a primary nic to exclude in our tests, so we include the
         # test nic by either bus address and mac (MANA)
         # or by interface name (mlnx failsafe)
@@ -542,7 +561,9 @@ class DpdkTestpmd(Tool):
         # build pmd argument
         if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
             pmd_name = "net_failsafe"
-            pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
+            pmd_flags = (
+                f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
+            )
         elif self.is_mana:
             # MANA netvsc mode selects by mac.
             if pmd == Pmd.NETVSC:
@@ -602,7 +623,8 @@ class DpdkTestpmd(Tool):
         # which used to make the actual queue/core count unpredictable.
         assert_that(queues).described_as(
             self._error_message(
-                "queues must be a positive number. Callers must pick an explicit "
+                "queues must be a positive number. "
+                "Callers must pick an explicit "
                 "queue count instead of relying on this tool to infer one."
             )
         ).is_greater_than_or_equal_to(1)
@@ -629,7 +651,8 @@ class DpdkTestpmd(Tool):
         if last <= first:
             raise AssertionError(
                 self._error_message(
-                    f"tool.Lscpu bug: cpu range for numa 0 found as {first}-{last}."
+                    "tool.Lscpu bug: cpu range for "
+                    f"numa 0 found as {first}-{last}."
                 )
             )
         threads_available = last - first + 1
@@ -638,12 +661,14 @@ class DpdkTestpmd(Tool):
         assert_that(available_for_this_process).described_as(
             self._error_message(
                 f"DPDK test requested {queues} queue(s) across "
-                f"{len(nic_to_include)} port(s) ({forwarding_cores} forwarding "
+                f"{len(nic_to_include)} port(s) "
+                f"({forwarding_cores} forwarding "
                 f"core(s)) plus {service_cores} service core(s) = "
                 f"{max_core_index} core(s) on NUMA node 0, but only "
                 f"{available_for_this_process} core(s) are available there "
                 f"(node has {threads_available} total). "
-                "Pick a smaller queue count for this SKU, or run this test on a "
+                "Pick a smaller queue count for "
+                "this SKU, or run this test on a "
                 "bigger one."
             )
         ).is_greater_than_or_equal_to(max_core_index)
@@ -822,7 +847,8 @@ cores=1-4
         self.node.tools[Kill].by_name(
             command_name, signum=SIGINT, ignore_not_exist=True
         )
-        # check if testpmd is running, retry a few times to let it terminate gracefully
+        # check if testpmd is running, retry a few times to let it terminate
+        # gracefully
         if self.check_testpmd_is_running(tries=10, want_dead=True):
             # attempt to SIGKILL instead of SIGINT
             # doesn't give us the same exit data about send/recv/drop stats
@@ -845,7 +871,8 @@ cores=1-4
                 return
 
             self.node.log.debug(
-                "Testpmd is not responding to signals, attempt reload of hv_netvsc."
+                "Testpmd is not responding to signals, "
+                "attempt reload of hv_netvsc."
             )
             # if this somehow didn't kill it, reset netvsc
             self.node.tools[Modprobe].reload("hv_netvsc")
@@ -954,7 +981,8 @@ cores=1-4
         if self.tx_total_packets == 0:
             raise AssertionError(
                 self._error_message(
-                    "Test bug: tx packet data was 0, could not check dropped packets"
+                    "Test bug: tx packet data was 0, "
+                    "could not check dropped packets"
                 )
             )
         # TX-packets excludes drops; testpmd's TX-total is packets + dropped.
@@ -963,18 +991,23 @@ cores=1-4
         )
         if should_assert:
             assert_that(self.packet_drop_rate).described_as(
-                self._error_message("More than 33% of the tx packets were dropped!")
+                self._error_message(
+                    "More than 33% of the tx packets were dropped!"
+                )
             ).is_close_to(0, 0.33)
         elif self.packet_drop_rate > 0.33:
             self.node.log.warning(
-                self._error_message("More than 33% of the tx packets were dropped!")
+                self._error_message(
+                    "More than 33% of the tx packets were dropped!"
+                )
             )
 
     def check_rx_packet_drops(self, should_assert: bool = True) -> None:
         if self.rx_total_packets == 0:
             raise AssertionError(
                 self._error_message(
-                    "Test bug: rx packet data was 0 could not check dropped packets."
+                    "Test bug: rx packet data was 0 "
+                    "could not check dropped packets."
                 )
             )
         # RX-packets excludes drops; testpmd's RX-total is packets + dropped.
@@ -983,11 +1016,15 @@ cores=1-4
         )
         if should_assert:
             assert_that(self.packet_drop_rate).described_as(
-                self._error_message("More than 1% of the received packets were dropped!")
+                self._error_message(
+                    "More than 1% of the received packets were dropped!"
+                )
             ).is_close_to(0, 0.01)
         elif self.packet_drop_rate > 0.01:
             self.node.log.warning(
-                self._error_message("More than 1% of the received packets were dropped!")
+                self._error_message(
+                    "More than 1% of the received packets were dropped!"
+                )
             )
 
     def get_mean_tx_pps_sriov_hotplug(self) -> Tuple[int, int, int]:
@@ -1045,13 +1082,16 @@ cores=1-4
                 )
 
             elif is_url_for_tarball(self._dpdk_source):
-                downloader = TarDownloader(node=self.node, tar_url=self._dpdk_source)
+                downloader = TarDownloader(
+                    node=self.node, tar_url=self._dpdk_source
+                )
             else:
                 raise LisaException(
                     self._error_message(
                         "URL provided for dpdk source did not validate as "
                         f"a tarball or git repo. Found {self._dpdk_source} "
-                        " Expected https://___/___.git or /path/to/tar.tar[.gz] or "
+                        " Expected https://___/___.git "
+                        "or /path/to/tar.tar[.gz] or "
                         "https://__/__.tar[.gz]"
                     )
                 )
@@ -1082,11 +1122,14 @@ cores=1-4
         )
         self.is_mana = any(["Microsoft" in dev.vendor for dev in device_list])
 
-    def _check_data_exists(self, rx_or_tx: str, data_type: str = "pps") -> None:
+    def _check_data_exists(
+        self, rx_or_tx: str, data_type: str = "pps"
+    ) -> None:
         data_attr_name = f"{rx_or_tx.lower()}_{data_type}_data"
         assert_that(hasattr(self, data_attr_name)).described_as(
             self._error_message(
-                f"{data_type} data ({rx_or_tx}) did not exist for testpmd object. "
+                f"{data_type} data ({rx_or_tx}) did "
+                "not exist for testpmd object. "
                 "This indicates either testpmd did not run or the suite is "
                 "missing an assert. Contact the test maintainer."
             )
@@ -1110,7 +1153,8 @@ cores=1-4
         assert_that(any(data_set)).described_as(
             self._error_message(
                 f"any({str(data_set)}) resolved to false. Test data was "
-                f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_pps_data."
+                "empty or all zeroes for "
+                f"dpdktestpmd.{rx_or_tx.lower()}_pps_data."
             )
         ).is_true()
 
@@ -1132,7 +1176,8 @@ cores=1-4
         assert_that(any(data_set)).described_as(
             self._error_message(
                 f"any({str(data_set)}) resolved to false. Test data was "
-                f"empty or all zeroes for dpdktestpmd.{rx_or_tx.lower()}_bps_data."
+                "empty or all zeroes for "
+                f"dpdktestpmd.{rx_or_tx.lower()}_bps_data."
             )
         ).is_true()
 
@@ -1149,13 +1194,18 @@ cores=1-4
         node = self.node
         if not isinstance(node.os, (Debian, Fedora, Suse)):
             return False
-        if isinstance(node.os, Ubuntu) and node.os.information.codename == "bionic":
+        if (
+            isinstance(node.os, Ubuntu)
+            and node.os.information.codename == "bionic"
+        ):
             # bionic needs to update to latest first
             node.os.update_packages("")
         if self.is_mana and not (
             isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)
         ):
-            raise SkippedException("MANA DPDK test is not supported on this OS")
+            raise SkippedException(
+                "MANA DPDK test is not supported on this OS"
+            )
 
         self.installer.do_installation()
         self._dpdk_version_info = self.installer.get_installed_version()
@@ -1164,7 +1214,9 @@ cores=1-4
         return True
 
     def _load_drivers_for_dpdk(self) -> None:
-        self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
+        self.node.log.info(
+            "Loading drivers for infiniband, rdma, and mellanox hw..."
+        )
         if self.is_connect_x3:
             network_drivers = ["mlx4_core", "mlx4_ib"]
         elif self.is_mana:
@@ -1189,18 +1241,22 @@ cores=1-4
             # NOTE: debian buster doesn't include rdma and ib drivers
             # on 5.4 specifically for linux-image-cloud:
             # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1012639
-            # for backports on this release we should update the kernel to latest
+            # for backports on this release we should update the kernel to
+            # latest
             kernel_info = self.node.os.get_kernel_information(force_run=True)
-            # update to at least 5.10 (known good for buster linux-image-cloud-(arch))
+            # update to at least 5.10 (known good for buster
+            # linux-image-cloud-(arch))
             if (
                 self.node.os.information.codename == "buster"
                 and kernel_info.version <= "5.10.0"
             ):
                 self.node.log.debug(
-                    f"Debian (buster) kernel version found: {str(kernel_info.version)} "
+                    "Debian (buster) kernel version "
+                    f"found: {str(kernel_info.version)} "
                     "Updating linux-image-cloud to most recent kernel."
                 )
-                # grab the linux-image package name from kernel version metadata
+                # grab the linux-image package name from kernel version
+                # metadata
                 linux_image_package = "linux-image-cloud-[a-zA-Z0-9]*"
                 self.node.os.install_packages([linux_image_package])
                 self.node.reboot()
@@ -1214,7 +1270,8 @@ cores=1-4
                         ),
                         expected_exit_code=0,
                         expected_exit_code_failure_message=(
-                            "Issue loading mlx and ib_uverb drivers into ramdisk."
+                            "Issue loading mlx and ib_uverb "
+                            "drivers into ramdisk."
                         ),
                         sudo=True,
                     )
@@ -1251,7 +1308,9 @@ cores=1-4
                 self._testpmd_install_path = result.stdout.strip()
                 break
         found_path = PurePosixPath(self._testpmd_install_path)
-        path_check = bool(self._testpmd_install_path) and node.shell.exists(found_path)
+        path_check = bool(self._testpmd_install_path) and node.shell.exists(
+            found_path
+        )
         if assert_on_fail and not path_check:
             fail(
                 self._error_message(
@@ -1284,7 +1343,9 @@ cores=1-4
                 command_dumped = "timeout: the monitored command dumped core"
                 if command_dumped in self._last_run_output:
                     raise LisaException(
-                        self._error_message("Testpmd crashed after device removal.")
+                        self._error_message(
+                            "Testpmd crashed after device removal."
+                        )
                     )
 
         # pick the last match
@@ -1295,7 +1356,8 @@ cores=1-4
             raise LisaException(
                 self._error_message(
                     "Found no vf hotplug events in testpmd output. "
-                    "Check output to verify if PPS drop occurred and port removal "
+                    "Check output to verify if PPS "
+                    "drop occurred and port removal "
                     "event message matches the expected forms."
                 )
             )
@@ -1303,7 +1365,8 @@ cores=1-4
         self.node.log.info(f"Identified hotplug event: {last_match.group(0)}")
 
         before_reenable = after_hotplug[: last_match.start()]
-        after_reenable = after_hotplug[last_match.end() :]
+        match_end = last_match.end()
+        after_reenable = after_hotplug[match_end:]
         self._testpmd_output_during_hotplug = before_reenable
         self._testpmd_output_after_reenable = after_reenable
 

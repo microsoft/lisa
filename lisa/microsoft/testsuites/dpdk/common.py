@@ -69,7 +69,9 @@ class DependencyInstaller:
             if requirement.matcher(os) and requirement.packages:
                 packages += requirement.packages
                 if requirement.requires_reboot:
-                    os.install_packages(packages=packages, extra_args=extra_args)
+                    os.install_packages(
+                        packages=packages, extra_args=extra_args
+                    )
                     packages = []
                     node.reboot()
                 if requirement.stop_on_match:
@@ -218,10 +220,14 @@ class Installer:
 
     # remove an installation
     def _uninstall(self) -> None:
-        raise NotImplementedError(f"_clean_previous_installation {self._err_msg}")
+        raise NotImplementedError(
+            f"_clean_previous_installation {self._err_msg}"
+        )
 
     def _asset_path_exists(self) -> bool:
-        return hasattr(self, "asset_path") and self._node.shell.exists(self.asset_path)
+        return hasattr(self, "asset_path") and self._node.shell.exists(
+            self.asset_path
+        )
 
     def _delete_assets(self) -> None:
         if not self._asset_path_exists():
@@ -229,14 +235,16 @@ class Installer:
         asset_path = self.asset_path
         working_path = str(self._node.get_working_path())
         assert_that(str(asset_path)).described_as(
-            "Test bug: Installer source path was empty during attempted cleanup!"
+            "Test bug: Installer source path "
+            "was empty during attempted cleanup!"
         ).is_not_empty()
         assert_that(str(asset_path)).described_as(
             "Test bug: Installer source path was set to root dir '/' "
             "during attempted cleanup!"
         ).is_not_equal_to("/")
         assert_that(str(asset_path)).described_as(
-            f"Test bug: Installer source path {asset_path} was set to working path "
+            "Test bug: Installer source path "
+            f"{asset_path} was set to working path "
             f"'{working_path}' during attempted cleanup!"
         ).is_not_equal_to(working_path)
         self._node.execute(f"rm -rf {asset_path}", shell=True)
@@ -267,20 +275,26 @@ class Installer:
     def get_installed_version(self) -> VersionInfo:
         raise NotImplementedError(f"get_installed_version {self._err_msg}")
 
-    def _should_install(self, required_version: Optional[VersionInfo] = None) -> bool:
+    def _should_install(
+        self, required_version: Optional[VersionInfo] = None
+    ) -> bool:
         return (not self._check_if_installed()) or (
             required_version is not None
             and required_version > self.get_installed_version()
         )
 
     # run the defined setup and installation steps.
-    def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
+    def do_installation(
+        self, required_version: Optional[VersionInfo] = None
+    ) -> None:
         self._setup_node()
         if self._should_install(required_version=required_version):
             # any issues here could result in a broken installation.
             # If the node is still usable, we don't want to discard it.
-            # So attempt to roll back a broken installation and re-raise the problem.
-            # This avoids re-deployments and ensures a transient issue causing a broken
+            # So attempt to roll back a broken installation and re-raise the
+            # problem.
+            # This avoids re-deployments and ensures a transient issue causing
+            # a broken
             # installation doesn't propagate failures into future tests on
             # that same node.
             try:
@@ -292,7 +306,8 @@ class Installer:
                     self._rollback_installation()
                 except Exception as rollback_error:
                     self._node.log.debug(
-                        "Installation rollback also failed; preserving the original "
+                        "Installation rollback also "
+                        "failed; preserving the original "
                         f"{type(install_error).__name__}: {install_error!r}. "
                         f"Rollback error: {rollback_error!r}"
                     )
@@ -317,7 +332,9 @@ class Installer:
 
 # Base class for package manager installation
 class PackageManagerInstall(Installer):
-    def __init__(self, node: Node, os_dependencies: DependencyInstaller) -> None:
+    def __init__(
+        self, node: Node, os_dependencies: DependencyInstaller
+    ) -> None:
         super().__init__(node, os_dependencies)
 
     # uninstall from the package manager
@@ -326,7 +343,10 @@ class PackageManagerInstall(Installer):
             return
         if self._os_dependencies is not None:
             for os_package_check in self._os_dependencies.requirements:
-                if os_package_check.matcher(self._os) and os_package_check.packages:
+                if (
+                    os_package_check.matcher(self._os)
+                    and os_package_check.packages
+                ):
                     self._os.uninstall_packages(os_package_check.packages)
                     if os_package_check.stop_on_match:
                         break
@@ -339,7 +359,10 @@ class PackageManagerInstall(Installer):
         # This will take too long if it's more than a few packages.
         if self._os_dependencies is not None:
             for os_package_check in self._os_dependencies.requirements:
-                if os_package_check.matcher(self._os) and os_package_check.packages:
+                if (
+                    os_package_check.matcher(self._os)
+                    and os_package_check.packages
+                ):
                     for pkg in os_package_check.packages:
                         if not self._os.package_exists(pkg):
                             return False
@@ -392,10 +415,12 @@ def check_dpdk_support(node: Node) -> None:
         if isinstance(node.os, Ubuntu):
             node.log.debug(
                 "Checking Ubuntu release: "
-                f"is_latest_or_prerelease? ({is_ubuntu_latest_or_prerelease(node.os)})"
+                "is_latest_or_prerelease? "
+                f"({is_ubuntu_latest_or_prerelease(node.os)})"
                 f" is_lts_version? ({is_ubuntu_lts_version(node.os)})"
             )
-            # TODO: undo special casing for 18.04 when it's usage is less common
+            # TODO: undo special casing for 18.04 when it's usage is less
+            # common
             supported = (
                 node.os.information.version == "18.4.0"
                 or is_ubuntu_latest_or_prerelease(node.os)
@@ -410,7 +435,8 @@ def check_dpdk_support(node: Node) -> None:
     else:
         # this OS is not supported
         raise UnsupportedDistroException(
-            node.os, "This OS is not supported by the DPDK test suite for Azure."
+            node.os,
+            "This OS is not supported by the DPDK test suite for Azure.",
         )
     # verify MANA driver is available for the kernel version
     if (
@@ -418,7 +444,8 @@ def check_dpdk_support(node: Node) -> None:
         and node.nics.is_mana_device_present()
     ):
         # NOTE: Kernel backport examples are available for lower kernels.
-        # HOWEVER: these are not suitable for general testing and should be installed
+        # HOWEVER: these are not suitable for general testing and should be
+        # installed
         # in the image _before_ starting the test.
         # ex: make a SIG image first using the kernel build transformer.
         if node.os.get_kernel_information().version < "5.15.0":
@@ -428,7 +455,8 @@ def check_dpdk_support(node: Node) -> None:
             )
     if not supported:
         raise UnsupportedDistroException(
-            node.os, "This OS version is EOL and is not supported for DPDK on Azure"
+            node.os,
+            "This OS version is EOL and is not supported for DPDK on Azure",
         )
 
 
@@ -531,7 +559,8 @@ class Pmd(str, Enum):
 
 
 # set a threshold for an expected PPS minimum with DPDK.
-# this is absolutely arbitrary, synthetic pps is usually less than 1.2m pps (for now)
+# this is absolutely arbitrary, synthetic pps is usually less than 1.2m pps
+# (for now)
 DPDK_PPS_THRESHOLD = 1_200_000
 
 

@@ -36,7 +36,10 @@ from microsoft.testsuites.dpdk.common import (
     is_url_for_tarball,
     update_kernel_from_repo,
 )
-from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
+from microsoft.testsuites.dpdk.dpdktestpmd import (
+    PACKAGE_MANAGER_SOURCE,
+    DpdkTestpmd,
+)
 from microsoft.testsuites.dpdk.rdmacore import (
     RDMA_CORE_MANA_DEFAULT_SOURCE,
     RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES,
@@ -155,7 +158,9 @@ class DpdkCleanupManager:
         with self._lock:
             self._callbacks.setdefault(node, []).append(callback)
 
-    def register_test_resources(self, test_resources: DpdkTestResources) -> None:
+    def register_test_resources(
+        self, test_resources: DpdkTestResources
+    ) -> None:
         self.register(
             test_resources.node,
             partial(
@@ -187,7 +192,9 @@ class DpdkCleanupManager:
                     )
             except Exception as err:
                 cleanup_failed = True
-                node.log.error(f"Failed to restore SR-IOV during DPDK cleanup: {err}")
+                node.log.error(
+                    f"Failed to restore SR-IOV during DPDK cleanup: {err}"
+                )
 
             try:
                 node.reboot()
@@ -203,29 +210,41 @@ class DpdkCleanupManager:
         )
 
 
-def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
+def _set_forced_source_by_distro(
+    node: Node, variables: Dict[str, Any]
+) -> None:
     # DPDK packages 17.11 which is EOL and doesn't have the
     # net_vdev_netvsc pmd used for simple handling of hyper-v
     # guests. Force stable source build on this platform.
     # Default to 20.11 unless another version is provided by the
     # user. 20.11 is the latest dpdk version for 18.04.
     if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
-        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
+        variables["dpdk_source"] = variables.get(
+            "dpdk_source", DPDK_STABLE_GIT_REPO
+        )
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
     else:
         # otherwise just use a new build of DPDK unless another is specified
-        variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
+        variables["dpdk_source"] = variables.get(
+            "dpdk_source", DPDK_STABLE_GIT_REPO
+        )
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v24.11")
 
 
 def get_rdma_core_installer(
-    node: Node, dpdk_source: str, dpdk_branch: str, rdma_source: str, rdma_branch: str
+    node: Node,
+    dpdk_source: str,
+    dpdk_branch: str,
+    rdma_source: str,
+    rdma_branch: str,
 ) -> Installer:
     # set rdma-core installer type.
     if rdma_source:
         if is_url_for_git_repo(rdma_source):
             # else, if we have a user provided rdma-core source, use it
-            downloader: Downloader = GitDownloader(node, rdma_source, rdma_branch)
+            downloader: Downloader = GitDownloader(
+                node, rdma_source, rdma_branch
+            )
         elif is_url_for_tarball(rdma_source):
             downloader = TarDownloader(node, rdma_source)
         else:
@@ -245,7 +264,9 @@ def get_rdma_core_installer(
         )
     # return the installer with the downloader we've picked
     return RdmaCoreSourceInstaller(
-        node, os_dependencies=RDMA_CORE_SOURCE_DEPENDENCIES, downloader=downloader
+        node,
+        os_dependencies=RDMA_CORE_SOURCE_DEPENDENCIES,
+        downloader=downloader,
     )
 
 
@@ -262,7 +283,8 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
             firewall.stop()
         except Exception as ex:
             node.log.debug(
-                f"firewall is not enabled on OS {node.os.name} with exception {ex}"
+                f"firewall is not enabled on OS {node.os.name} "
+                f"with exception {ex}"
             )
 
     expected_nic_count = len(nodes[0].nics)
@@ -271,7 +293,8 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
         if nic_count != expected_nic_count:
             raise LisaException(
                 "DPDK nodes must have the same number of NICs. "
-                f"Expected {expected_nic_count}, but node {node.name} has {nic_count}."
+                f"Expected {expected_nic_count}, "
+                f"but node {node.name} has {nic_count}."
             )
 
     test_nics: Dict[str, Dict[Node, NicInfo]] = {}
@@ -283,7 +306,10 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
             if not nic.ip_addr:
                 continue
             subnet = str(
-                ipaddress.ip_network(ip_tool.get_subnet_address(nic.name), strict=False)
+                ipaddress.ip_network(
+                    ip_tool.get_subnet_address(nic.name),
+                    strict=False,
+                )
             )
             if subnet in node_nics_by_subnet:
                 raise LisaException(
@@ -301,7 +327,8 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
             expected_subnets = node_subnets
         elif node_subnets != expected_subnets:
             raise LisaException(
-                f"Node {node.name} has subnets {sorted(node_subnets)}, expected "
+                f"Node {node.name} has subnets {sorted(node_subnets)}, "
+                "expected "
                 f"{sorted(expected_subnets)}."
             )
 
@@ -314,7 +341,9 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
         for node_a, node_b in itertools.permutations(nodes, 2):
             nic_a, nic_b = test_nics[subnet][node_a], test_nics[subnet][node_b]
             ip_a, ip_b = nic_a.ip_addr, nic_b.ip_addr
-            ping_result = node_a.tools[Ping].ping(target=ip_b, nic_name=nic_a.name)
+            ping_result = node_a.tools[Ping].ping(
+                target=ip_b, nic_name=nic_a.name
+            )
             assert_that(ping_result).described_as(
                 (
                     "VM ping test failed.\n"
@@ -345,7 +374,9 @@ _PCI_DEVICES_PATH = "/sys/bus/pci/devices"
 _PCI_RESCAN_PATH = "/sys/bus/pci/rescan"
 
 
-def get_vf_pci_slots(node: Node, nics: Optional[List[NicInfo]] = None) -> List[str]:
+def get_vf_pci_slots(
+    node: Node, nics: Optional[List[NicInfo]] = None
+) -> List[str]:
     """Get the pci slots of the VF devices attached to the given nics.
 
     Defaults to every nic on the node. Nics without a VF are skipped.
@@ -409,7 +440,10 @@ def switch_sriov_for_nics(node: Node, test_nics: List[NicInfo]) -> None:
     remove_pci_devices(node, pci_slots)
     # wait for uevent listener to see each VF pci device go away
     listener.wait_for_events(
-        [UeventListener.device_criteria(slot, _PCI_REMOVE_TAG) for slot in pci_slots],
+        [
+            UeventListener.device_criteria(slot, _PCI_REMOVE_TAG)
+            for slot in pci_slots
+        ],
         timeout=60,
     )
 
@@ -421,7 +455,10 @@ def switch_sriov_for_nics(node: Node, test_nics: List[NicInfo]) -> None:
     # The VF may be paired with a different netdev after the rescan,
     # seeing the same pci device added back is enough.
     listener.wait_for_events(
-        [UeventListener.device_criteria(slot, _PCI_ADD_TAG) for slot in pci_slots],
+        [
+            UeventListener.device_criteria(slot, _PCI_ADD_TAG)
+            for slot in pci_slots
+        ],
         timeout=60,
     )
 
@@ -465,7 +502,9 @@ def run_testpmd_hotplug(
     all_kits = [sender]
     if receiver:
         all_kits += [receiver]
-        processes[receiver] = testpmd_start_process(receiver, kit_cmd_pairs[receiver])
+        processes[receiver] = testpmd_start_process(
+            receiver, kit_cmd_pairs[receiver]
+        )
 
     processes[sender] = testpmd_start_process(sender, kit_cmd_pairs[sender])
     if hotplug:
@@ -483,7 +522,9 @@ def run_testpmd_hotplug(
         kit.testpmd.kill_previous_testpmd_command()
         sleep(2)
         # allow time for SIGINT/SIGKILL shutdown and stats flush
-        kit.testpmd.process_testpmd_output(processes[kit].wait_result(timeout=120))
+        kit.testpmd.process_testpmd_output(
+            processes[kit].wait_result(timeout=120)
+        )
 
 
 def check_process_for_segfault(process: Process) -> None:
@@ -496,7 +537,10 @@ def check_process_for_segfault(process: Process) -> None:
 def check_result_for_segfault(
     result: Optional[ExecutableResult], label: str = "testpmd"
 ) -> None:
-    if result and "Segmentation fault (core dumped)" in result.stdout + result.stderr:
+    if (
+        result
+        and "Segmentation fault (core dumped)" in result.stdout + result.stderr
+    ):
         raise LisaException(f"Test fail: {label} crashed.")
 
 
@@ -508,13 +552,17 @@ def generate_send_receive_run_info(
     use_service_cores: int = 1,
     set_mtu: int = 0,
 ) -> Dict[DpdkTestResources, str]:
-    snd_nic, rcv_nic = [x.node.nics.get_secondary_nic() for x in [sender, receiver]]
+    snd_nic, rcv_nic = [
+        x.node.nics.get_secondary_nic() for x in [sender, receiver]
+    ]
     # for MTU test: check that we can fetch the max MTU size for the NIC
     if set_mtu:
         check_nic = sender.node.nics.get_primary_nic().lower
         maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
         if not maxmtu:
-            raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
+            raise SkippedException(
+                "Could not verify maxmtu for DPDK max mtu test."
+            )
         maxmtu_int = int(maxmtu)
         if set_mtu > maxmtu_int:
             raise SkippedException(
@@ -586,7 +634,9 @@ def generate_testpmd_multiple_port_command(
             check_nic = sender_nics[sender].lower
             maxmtu = sender.node.tools[Ip].get_detail(check_nic, "maxmtu")
             if not maxmtu:
-                raise SkippedException("Could not verify maxmtu for DPDK max mtu test.")
+                raise SkippedException(
+                    "Could not verify maxmtu for DPDK max mtu test.",
+                )
             maxmtu_int = int(maxmtu)
             if set_mtu > maxmtu_int:
                 raise SkippedException(
@@ -670,7 +720,8 @@ def enable_uio_hv_generic(node: Node) -> None:
             raise UnsupportedKernelException(node.os)
         else:
             raise LisaException(
-                f"The kernel config {config} is not set in kernel version {kversion}."
+                f"The kernel config {config} is not set "
+                f"in kernel version {kversion}."
             )
 
     # enable if it is not already enabled
@@ -685,7 +736,10 @@ def enable_uio_hv_generic(node: Node) -> None:
 
 
 def do_pmd_driver_setup(
-    node: Node, test_nics: List[NicInfo], testpmd: DpdkTestpmd, pmd: Pmd = Pmd.FAILSAFE
+    node: Node,
+    test_nics: List[NicInfo],
+    testpmd: DpdkTestpmd,
+    pmd: Pmd = Pmd.FAILSAFE,
 ) -> None:
     if pmd == Pmd.MANA:
         # the MANA pmd drives the VF directly, so the only setup needed is
@@ -758,12 +812,13 @@ def initialize_node_resources(
     _set_forced_source_by_distro(node, variables)
     check_pmd_support(node, pmd)
 
-
     dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
     dpdk_branch = variables.get("dpdk_branch", "")
     rdma_source = variables.get("rdma_source", "")
     rdma_branch = variables.get("rdma_branch", "")
-    force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
+    force_net_failsafe_pmd = variables.get(
+        "dpdk_force_net_failsafe_pmd", False
+    )
     log.info(
         "Dpdk initialize_node_resources running"
         f"found dpdk_source '{dpdk_source}' and dpdk_branch '{dpdk_branch}'"
@@ -857,7 +912,9 @@ def initialize_node_resources(
     # perform any pmd-specific setup before returning the kit.
     # - mana NIC needs to be set 'down'
     # - netvsc pmd requires uio_hv_generic to be loaded before use.
-    do_pmd_driver_setup(node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd)
+    do_pmd_driver_setup(
+        node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd
+    )
 
     return test_resources
 
@@ -874,7 +931,9 @@ def check_pmd_support(node: Node, pmd: Pmd) -> None:
         )
 
 
-def check_send_receive_compatibility(test_kits: List[DpdkTestResources]) -> None:
+def check_send_receive_compatibility(
+    test_kits: List[DpdkTestResources],
+) -> None:
     for kit in test_kits:
         # MANA nics only support > DPDK 22.11 so will always have the flag
         if not kit.testpmd.has_tx_ip_flag():
@@ -1005,7 +1064,8 @@ def verify_dpdk_send_receive(
         physical_cores = node.tools[Lscpu].get_core_count()
         if physical_cores < required_cores:
             log.info(
-                f"{node.name} has {physical_cores} physical core(s), fewer than "
+                f"{node.name} has {physical_cores} physical core(s), "
+                "fewer than "
                 f"the {required_cores} needed for {queues} queue(s) and "
                 f"{use_service_cores} service core(s); "
                 "packet drops will be reported but not graded."
@@ -1020,7 +1080,9 @@ def verify_dpdk_send_receive(
             raise SkippedException()
         # skip MTU test if not on MANA (for now).
         if set_mtu and not node.nics.is_mana_device_present():
-            raise SkippedException("set mtu test is intended for MANA VMs only.")
+            raise SkippedException(
+                "set mtu test is intended for MANA VMs only."
+            )
     log.debug((f"\nsender:{external_ips[0]}\nreceiver:{external_ips[1]}\n"))
 
     # get test duration variable if set
@@ -1101,7 +1163,8 @@ def verify_dpdk_send_receive(
     sender.dmesg.check_kernel_errors(force_run=True)
     receiver.dmesg.check_kernel_errors(force_run=True)
     if grading_metric == DpdkGradeMetric.PPS:
-        # differences in NIC type throughput can lead to different snd/rcv counts
+        # differences in NIC type throughput can lead to
+        # different snd/rcv counts
         assert_that(rcv_rx_pps).described_as(
             "Throughput for RECEIVE was below the correct order-of-magnitude"
         ).is_greater_than(DPDK_PPS_THRESHOLD)
@@ -1124,7 +1187,6 @@ def verify_dpdk_send_receive(
             result.information["rx_gbps"] = receiver_gbps
     else:
         pass  # no-op if no grading is required.
-
 
     # sender packet drops are common when network bandwidth is
     # artificially throttled by the sku, so checking sender
@@ -1151,7 +1213,9 @@ def annotate_packet_drops(
             result.information["rx_pkt_drop_rate"] = fmt_drop_rate
             log.debug(f"Adding packet drop percentage: {fmt_drop_rate}")
     except AssertionError as err:
-        receiver.node.log.debug(f"Could not add rx packet drop percentage: {str(err)}")
+        receiver.node.log.debug(
+            f"Could not add rx packet drop percentage: {str(err)}"
+        )
 
 
 def verify_dpdk_send_receive_multi_txrx_queue(
@@ -1207,7 +1271,10 @@ def ipv4_to_ipv6_lpm(addr: str) -> str:
     assert_that(parts).described_as(
         "IP address conversion failed, length of split array was unexpected"
     ).is_length(4)
-    return "0000:0000:0000:0000:0000:FFFF:" f"{parts[0]}{parts[1]}:{parts[2]}00/56"
+    return (
+        "0000:0000:0000:0000:0000:FFFF:"
+        f"{parts[0]}{parts[1]}:{parts[2]}00/56"
+    )
 
 
 def get_dpdk_portmask(ports: List[int]) -> str:
@@ -1235,7 +1302,9 @@ def reroute_traffic_and_disable_nic(
         f"new_gateway: {new_gateway_nic} unused: {unused_nic}"
     )
     ip_tool = node.tools[Ip]
-    route_was_present = ip_tool.route_exists(prefix=dst_nic.ip_addr, dev=src_nic.name)
+    route_was_present = ip_tool.route_exists(
+        prefix=dst_nic.ip_addr, dev=src_nic.name
+    )
     cleanup_manager.register(
         node,
         partial(
@@ -1299,7 +1368,9 @@ def undo_reroute_traffic_and_enable_nic(
 
 # calculate amount of tx/rx queues to use for the l3fwd test
 def get_l3fwd_queue_count(
-    available_cores: int, force_single_queue: bool = False, is_mana: bool = False
+    available_cores: int,
+    force_single_queue: bool = False,
+    is_mana: bool = False,
 ) -> int:
     # select queue amount based on size, allow force single queue
     queue_count = 1
@@ -1341,7 +1412,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
 ) -> None:
     # This is currently the most complicated DPDK test. There is a lot that can
     # go wrong, so we restrict the test to netvsc and only a few distros.
-    # Current usage is checking for regressions in the host, not validating all distros.
+    # Current usage is checking for regressions in the host,
+    # not validating all distros.
     #
     # SUMMARY:
     #  The test attempts to change this initial default LISA setup:
@@ -1396,7 +1468,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         and isinstance(forwarder.os, Ubuntu)
         and forwarder.os.information.version >= "22.4.0"
     ):
-        raise SkippedException("l3fwd test not compatible, use X64 Ubuntu >= 22.04")
+        raise SkippedException(
+            "l3fwd test not compatible, use X64 Ubuntu >= 22.04"
+        )
 
     # get core count, quick skip if size is too small.
     available_threads = forwarder.tools[Lscpu].get_thread_count()
@@ -1409,13 +1483,17 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     test_result = environment.source_test_result
     if not test_result:
         log.warning(
-            "LISA environment does not have a pointer to the test result object."
+            "LISA environment does not have a pointer "
+            "to the test result object."
             "performance data reporting for this test will be broken!"
         )
 
     # enable ip forwarding on secondary and tertiary nics
     run_in_parallel(
-        [partial(__enable_ip_forwarding, node) for node in environment.nodes.list()]
+        [
+            partial(__enable_ip_forwarding, node)
+            for node in environment.nodes.list()
+        ]
     )
 
     # organize our nics by subnet.
@@ -1439,14 +1517,16 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     }
 
     # Install ntttcp on sender/receiver BEFORE changing any routes.
-    # Installing it pulls packages (gcc/make) which can upgrade libc; needrestart
-    # then restarts systemd-networkd, which re-applies the netplan config and
-    # silently undoes the reroute below: the unused nic comes back up, its subnet
-    # route returns, and our added route and permanent neighbor are flushed.
+    # Installing it pulls packages (gcc/make) which can upgrade libc;
+    # needrestart then restarts systemd-networkd, which re-applies the
+    # netplan config and silently undoes the reroute below: the unused nic
+    # comes back up, its subnet route returns, and our added route and
+    # permanent neighbor are flushed.
     ntttcp = {sender: sender.tools[Ntttcp], receiver: receiver.tools[Ntttcp]}
 
     # We use ntttcp for snd/rcv which will respect the kernel route table.
-    # SO: remove the unused interfaces and routes which could skip the forwarder
+    # SO: remove the unused interfaces and routes which could skip
+    # the forwarder
     _unused_nics = {
         sender: subnet_b_nics[sender],
         receiver: subnet_a_nics[receiver],
@@ -1510,16 +1590,24 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         raise SkippedException(err)
     fwd_kit.testpmd.set_instance_id("forwarder")
     if result is not None:
-        annotate_dpdk_test_result(test_kit=fwd_kit, test_result=result, log=log)
+        annotate_dpdk_test_result(
+            test_kit=fwd_kit, test_result=result, log=log
+        )
     # NOTE: we're cheating here and not dynamically picking the port IDs
-    # Why? You can't do it with the sdk tools for netvsc without writing your own app.
-    # SOMEONE is supposed to publish an example to MSDN but I haven't yet. -mcgov
+    # Why? You can't do it with the sdk tools for netvsc without writing
+    # your own app.
+    # SOMEONE is supposed to publish an example to MSDN but I haven't yet.
+    # -mcgov
     devname_info = DpdkDevnameInfo(testpmd=fwd_kit.testpmd)
     devname_info.get_port_info(
         [subnet_a_nics[forwarder], subnet_b_nics[forwarder]], expect_ports=2
     )
-    dpdk_port_a = devname_info.port_ids[subnet_a_nics[forwarder].mac_addr.lower()]
-    dpdk_port_b = devname_info.port_ids[subnet_b_nics[forwarder].mac_addr.lower()]
+    dpdk_port_a = devname_info.port_ids[
+        subnet_a_nics[forwarder].mac_addr.lower()
+    ]
+    dpdk_port_b = devname_info.port_ids[
+        subnet_b_nics[forwarder].mac_addr.lower()
+    ]
 
     # SETUP FORWADING RULES
     # Set up DPDK forwarding rules:
@@ -1641,14 +1729,18 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             threads_count=ntttcp_threads_count,
             run_time_seconds=ntttcp_run_time,
         )
-        _receiver_after_result = ntttcp[receiver].wait_server_result(_receiver_after)
+        _receiver_after_result = ntttcp[receiver].wait_server_result(
+            _receiver_after
+        )
 
     # collect, log, and process results
     receiver_result = ntttcp[receiver].wait_server_result(receiver_proc)
     log.debug(f"result: {receiver_result.stdout}")
     log.debug(f"result: {sender_result.stdout}")
     # kill l3fwd on forwarder
-    forwarder.tools[Kill].by_name(l3fwd_app_name, signum=SIGINT, ignore_not_exist=True)
+    forwarder.tools[Kill].by_name(
+        l3fwd_app_name, signum=SIGINT, ignore_not_exist=True
+    )
     forwarder.log.debug(f"Forwarder VM was: {forwarder.name}")
     forwarder.log.debug(f"Ran l3fwd cmd: {fwd_cmd}")
     ntttcp_results = {
@@ -1661,13 +1753,17 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
             receiver: ntttcp[receiver].create_ntttcp_result(
                 _receiver_after_result, role="server"
             ),
-            sender: ntttcp[sender].create_ntttcp_result(_sender_result_after, "client"),
+            sender: ntttcp[sender].create_ntttcp_result(
+                _sender_result_after,
+                "client",
+            ),
         }
         after = _ntttcp_results_after[sender].throughput_in_gbps
         before = ntttcp_results[sender].throughput_in_gbps
         if before == 0 or ((after / before) < 0.8):
             raise LisaException(
-                "Test failed, throughput after hotplug was far below original. "
+                "Test failed, throughput after hotplug was far below "
+                "original. "
                 f"Before {before} Gbps after {after} Gbps"
             )
     # send result to notifier if we found a test result to report with
@@ -1694,7 +1790,8 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
     ).is_greater_than(0)
     assert_that(throughput).described_as(
         f"l3fwd has very low throughput: {throughput}Gbps! "
-        "Verify netvsc was used over failsafe, check netvsc init was succesful "
+        "Verify netvsc was used over failsafe, "
+        "check netvsc init was succesful "
         "and the DPDK port IDs were correct."
     ).is_greater_than(1)
 
@@ -1740,9 +1837,10 @@ def generate_l3fwd_command(
     )
     # prefer the '-l 1,2,3' arg version over '-l 1-4' form to avoid a dpdk bug
     joined_core_list = ",".join(included_cores)
+    portmask = get_dpdk_portmask([dpdk_port_a, dpdk_port_b])
     fwd_cmd = (
         f"{server_app_path} {joined_include} -l {joined_core_list} -- "
-        f" {promiscuous} -p {get_dpdk_portmask([dpdk_port_a,dpdk_port_b])} "
+        f" {promiscuous} -p {portmask} "
         f' --lookup=lpm --config="{joined_configs}" {joined_destinations} '
         "--rule_ipv4=rules_v4  --rule_ipv6=rules_v6 --mode=poll --parse-ptype"
     )
@@ -1856,16 +1954,24 @@ def annotate_dpdk_test_result(
     nic_hw = None
     try:
         dpdk_version = test_kit.testpmd.get_dpdk_version()
-        test_result.information["dpdk_version"] = _format_version_str(dpdk_version)
+        test_result.information["dpdk_version"] = _format_version_str(
+            dpdk_version
+        )
         log.debug(f"Adding dpdk version: {dpdk_version}")
     except AssertionError as err:
-        test_kit.node.log.debug(f"Could not fetch DPDK version info: {str(err)}")
+        test_kit.node.log.debug(
+            f"Could not fetch DPDK version info: {str(err)}"
+        )
     try:
         rdma_version = test_kit.rdma_core.get_installed_version()
-        test_result.information["rdma_version"] = _format_version_str(rdma_version)
+        test_result.information["rdma_version"] = _format_version_str(
+            rdma_version
+        )
         log.debug(f"Adding rdma version: {rdma_version}")
     except AssertionError as err:
-        test_kit.node.log.debug(f"Could not fetch RDMA version info: {str(err)}")
+        test_kit.node.log.debug(
+            f"Could not fetch RDMA version info: {str(err)}"
+        )
     try:
         nic_hw = get_node_nic_short_name(test_kit.node)
         test_result.information["nic_hw"] = nic_hw
@@ -1961,7 +2067,9 @@ UeventCriteria = Mapping[str, Union[str, Pattern[str]]]
 class UeventEntry:
     """One parsed event from the uevent listener output."""
 
-    def __init__(self, timestamp: str, tag: str, properties: Dict[str, str]) -> None:
+    def __init__(
+        self, timestamp: str, tag: str, properties: Dict[str, str]
+    ) -> None:
         self.timestamp = timestamp
         self.tag = tag
         self.properties = properties
@@ -2080,7 +2188,9 @@ class UeventListener:
         expected: Dict[str, Union[str, Pattern[str]]] = dict(criteria or {})
         expected.update(properties)
         if not expected:
-            raise LisaException("wait_for_event requires at least one property")
+            raise LisaException(
+                "wait_for_event requires at least one property"
+            )
 
         matched = self.wait_for_events(
             [expected], timeout=timeout, error_on_missing=error_on_missing
@@ -2102,7 +2212,9 @@ class UeventListener:
         if self._process is None:
             raise LisaException("UeventListener is not running")
         if not criteria_list:
-            raise LisaException("wait_for_events requires at least one criteria")
+            raise LisaException(
+                "wait_for_events requires at least one criteria"
+            )
 
         pending = list(criteria_list)
         matched: List[UeventEntry] = []
@@ -2288,9 +2400,13 @@ def run_dpdk_symmetric_mp(
     # needed to run symmetric_mp on MANA for now.
     _apply_workaround_for_symmetric_mp_main(node)
 
-    symmetric_mp_path = testpmd.get_example_app_path("multi_process/symmetric_mp")
+    symmetric_mp_path = testpmd.get_example_app_path(
+        "multi_process/symmetric_mp"
+    )
     process_name = (
-        symmetric_mp_path.name if symmetric_mp_path.name else str(symmetric_mp_path)
+        symmetric_mp_path.name
+        if symmetric_mp_path.name
+        else str(symmetric_mp_path)
     )
     cleanup_manager.register(
         node,
@@ -2412,7 +2528,9 @@ def run_dpdk_symmetric_mp(
     test_kit.dmesg.check_kernel_errors(force_run=True)
 
     # kill the processes with SIGINT, there's a timeout if this fails
-    node.tools[Kill].by_name(process_name, signum=SIGINT, ignore_not_exist=True)
+    node.tools[Kill].by_name(
+        process_name, signum=SIGINT, ignore_not_exist=True
+    )
 
     # check the exit codes
     primary_result = primary.wait_result()
