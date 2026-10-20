@@ -58,7 +58,7 @@ class OpenVmmInstallerTransformer(DeploymentTransformer):
         )
 
         try:
-            version = installer.get_version()
+            version = installer.get_version(install_path)
             is_installed = True
         except LisaException:
             version = ""
@@ -69,7 +69,9 @@ class OpenVmmInstallerTransformer(DeploymentTransformer):
             version = installer.install()
             self._log.info(f"installed OpenVMM version: {version} to '{install_path}'")
         else:
-            self._log.info(f"OpenVMM already available on PATH. Version: {version}")
+            self._log.info(
+                f"OpenVMM already available at '{install_path}'. Version: {version}"
+            )
 
         verified_version = installer.get_version(install_path)
         self._log.info(
