@@ -36,10 +36,7 @@ from microsoft.testsuites.dpdk.common import (
     is_url_for_tarball,
     update_kernel_from_repo,
 )
-from microsoft.testsuites.dpdk.dpdktestpmd import (
-    PACKAGE_MANAGER_SOURCE,
-    DpdkTestpmd,
-)
+from microsoft.testsuites.dpdk.dpdktestpmd import PACKAGE_MANAGER_SOURCE, DpdkTestpmd
 from microsoft.testsuites.dpdk.rdmacore import (
     RDMA_CORE_MANA_DEFAULT_SOURCE,
     RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES,
