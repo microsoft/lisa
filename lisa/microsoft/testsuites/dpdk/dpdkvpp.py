@@ -62,9 +62,7 @@ class DpdkVpp(Tool):
     def get_start_up_file_content(self, force_run: bool = False) -> str:
         cat = self.node.tools[Cat]
         start_up_conf = ""
-        start_up_conf = cat.read(
-            self.START_UP_FILE, sudo=True, force_run=force_run
-        )
+        start_up_conf = cat.read(self.START_UP_FILE, sudo=True, force_run=force_run)
         return start_up_conf
 
     def set_start_up_file(self, setting: str) -> None:
