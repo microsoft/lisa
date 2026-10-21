@@ -7,10 +7,7 @@ from lisa.executable import Tool
 from lisa.operating_system import Debian, Ubuntu
 from lisa.tools import Echo, Git, Lscpu, Make, Tar, Wget
 from lisa.tools.lscpu import CpuArchitecture
-from lisa.util import (
-    UnsupportedCpuArchitectureException,
-    UnsupportedDistroException,
-)
+from lisa.util import UnsupportedCpuArchitectureException, UnsupportedDistroException
 
 
 class DpdkNffGo(Tool):

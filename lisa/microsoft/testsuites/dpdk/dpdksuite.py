@@ -52,17 +52,7 @@ from lisa import (
 from lisa.features import Gpu, Infiniband, IsolatedResource, Sriov
 from lisa.operating_system import BSD, CBLMariner, Ubuntu, Windows
 from lisa.testsuite import TestResult, simple_requirement
-from lisa.tools import (
-    Echo,
-    Git,
-    Hugepages,
-    Ip,
-    Kill,
-    Lscpu,
-    Lsmod,
-    Make,
-    Modprobe,
-)
+from lisa.tools import Echo, Git, Hugepages, Ip, Kill, Lscpu, Lsmod, Make, Modprobe
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util.constants import SIGINT
