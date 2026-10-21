@@ -2884,6 +2884,10 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
             security_profile_capabilities.append(SecurityProfileType.CVM)
             security_profile_capabilities.append(SecurityProfileType.Stateless)
             encrypt_capability.append(True)
+        if SecurityProfileType.SecureBoot in security_profile_capabilities:
+            security_profile_capabilities.append(
+                SecurityProfileType.TrustedLaunchNoSecureBoot
+            )
         return SecurityProfileSettings(
             security_profile=search_space.SetSpace(True, security_profile_capabilities),
             encrypt_disk=search_space.SetSpace(True, encrypt_capability),
@@ -2936,6 +2940,13 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
             is_vhd = bool(node_parameters.vhd)
             if SecurityProfileType.Standard == settings.security_profile:
                 node_parameters.security_profile["security_type"] = ""
+            elif (
+                SecurityProfileType.TrustedLaunchNoSecureBoot
+                == settings.security_profile
+            ):
+                node_parameters.security_profile["secure_boot"] = False
+                node_parameters.security_profile["security_type"] = "TrustedLaunch"
+                node_parameters.security_profile["encryption_type"] = "TrustedLaunch"
             elif SecurityProfileType.SecureBoot == settings.security_profile:
                 node_parameters.security_profile["secure_boot"] = True
                 node_parameters.security_profile["security_type"] = "TrustedLaunch"
