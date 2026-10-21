@@ -171,9 +171,7 @@ DPDK_SOURCE_INSTALL_PACKAGES = DependencyInstaller(
 class DpdkPackageManagerInstall(PackageManagerInstall):  # type: ignore[misc]
     def _setup_node(self) -> None:
         if isinstance(self._os, Debian):
-            self._package_manager_extra_args = get_debian_backport_repo_args(
-                self._os
-            )
+            self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
 
         elif isinstance(self._os, Fedora):
             self._os.install_epel()
@@ -231,13 +229,8 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
     def _setup_node(self) -> None:
         super()._setup_node()
         if isinstance(self._os, Debian):
-            self._package_manager_extra_args = get_debian_backport_repo_args(
-                self._os
-            )
-            if (
-                isinstance(self._os, Ubuntu)
-                and self._os.information.version < "22.4.0"
-            ):
+            self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
+            if isinstance(self._os, Ubuntu) and self._os.information.version < "22.4.0":
                 self._os.update_packages("linux-azure")
                 self._node.reboot()
         # install( Tool ) doesn't seem to install the tool until it's used :\
@@ -351,8 +344,7 @@ class DpdkSourceInstall(Installer):  # type: ignore[misc]
             ),
         )
         library_bashrc_lines = [
-            "export "
-            "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
+            "export " "PKG_CONFIG_PATH=${PKG_CONFIG_PATH}:/usr/local/lib64/pkgconfig/",
             "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib64/",
         ]
         node.tools[Echo].write_to_file(
@@ -465,9 +457,7 @@ class DpdkTestpmd(Tool):
         return [Git, Wget, Lscpu]
 
     def get_dpdk_version(self) -> VersionInfo:
-        self.node.log.debug(
-            f"Found DPDK version {str(self._dpdk_version_info)}."
-        )
+        self.node.log.debug(f"Found DPDK version {str(self._dpdk_version_info)}.")
         return self._dpdk_version_info
 
     def has_dpdk_version(self) -> bool:
@@ -561,9 +551,7 @@ class DpdkTestpmd(Tool):
         # build pmd argument
         if self.has_dpdk_version() and self.get_dpdk_version() < "18.11.0":
             pmd_name = "net_failsafe"
-            pmd_flags = (
-                f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
-            )
+            pmd_flags = f"dev({node_nic.pci_slot}),dev(iface={node_nic.name},force=1)"
         elif self.is_mana:
             # MANA netvsc mode selects by mac.
             if pmd == Pmd.NETVSC:
@@ -651,8 +639,7 @@ class DpdkTestpmd(Tool):
         if last <= first:
             raise AssertionError(
                 self._error_message(
-                    "tool.Lscpu bug: cpu range for "
-                    f"numa 0 found as {first}-{last}."
+                    "tool.Lscpu bug: cpu range for " f"numa 0 found as {first}-{last}."
                 )
             )
         threads_available = last - first + 1
@@ -871,8 +858,7 @@ cores=1-4
                 return
 
             self.node.log.debug(
-                "Testpmd is not responding to signals, "
-                "attempt reload of hv_netvsc."
+                "Testpmd is not responding to signals, " "attempt reload of hv_netvsc."
             )
             # if this somehow didn't kill it, reset netvsc
             self.node.tools[Modprobe].reload("hv_netvsc")
@@ -981,8 +967,7 @@ cores=1-4
         if self.tx_total_packets == 0:
             raise AssertionError(
                 self._error_message(
-                    "Test bug: tx packet data was 0, "
-                    "could not check dropped packets"
+                    "Test bug: tx packet data was 0, " "could not check dropped packets"
                 )
             )
         # TX-packets excludes drops; testpmd's TX-total is packets + dropped.
@@ -991,23 +976,18 @@ cores=1-4
         )
         if should_assert:
             assert_that(self.packet_drop_rate).described_as(
-                self._error_message(
-                    "More than 33% of the tx packets were dropped!"
-                )
+                self._error_message("More than 33% of the tx packets were dropped!")
             ).is_close_to(0, 0.33)
         elif self.packet_drop_rate > 0.33:
             self.node.log.warning(
-                self._error_message(
-                    "More than 33% of the tx packets were dropped!"
-                )
+                self._error_message("More than 33% of the tx packets were dropped!")
             )
 
     def check_rx_packet_drops(self, should_assert: bool = True) -> None:
         if self.rx_total_packets == 0:
             raise AssertionError(
                 self._error_message(
-                    "Test bug: rx packet data was 0 "
-                    "could not check dropped packets."
+                    "Test bug: rx packet data was 0 " "could not check dropped packets."
                 )
             )
         # RX-packets excludes drops; testpmd's RX-total is packets + dropped.
@@ -1082,9 +1062,7 @@ cores=1-4
                 )
 
             elif is_url_for_tarball(self._dpdk_source):
-                downloader = TarDownloader(
-                    node=self.node, tar_url=self._dpdk_source
-                )
+                downloader = TarDownloader(node=self.node, tar_url=self._dpdk_source)
             else:
                 raise LisaException(
                     self._error_message(
@@ -1122,9 +1100,7 @@ cores=1-4
         )
         self.is_mana = any(["Microsoft" in dev.vendor for dev in device_list])
 
-    def _check_data_exists(
-        self, rx_or_tx: str, data_type: str = "pps"
-    ) -> None:
+    def _check_data_exists(self, rx_or_tx: str, data_type: str = "pps") -> None:
         data_attr_name = f"{rx_or_tx.lower()}_{data_type}_data"
         assert_that(hasattr(self, data_attr_name)).described_as(
             self._error_message(
@@ -1194,18 +1170,13 @@ cores=1-4
         node = self.node
         if not isinstance(node.os, (Debian, Fedora, Suse)):
             return False
-        if (
-            isinstance(node.os, Ubuntu)
-            and node.os.information.codename == "bionic"
-        ):
+        if isinstance(node.os, Ubuntu) and node.os.information.codename == "bionic":
             # bionic needs to update to latest first
             node.os.update_packages("")
         if self.is_mana and not (
             isinstance(node.os, Ubuntu) or isinstance(node.os, Fedora)
         ):
-            raise SkippedException(
-                "MANA DPDK test is not supported on this OS"
-            )
+            raise SkippedException("MANA DPDK test is not supported on this OS")
 
         self.installer.do_installation()
         self._dpdk_version_info = self.installer.get_installed_version()
@@ -1214,9 +1185,7 @@ cores=1-4
         return True
 
     def _load_drivers_for_dpdk(self) -> None:
-        self.node.log.info(
-            "Loading drivers for infiniband, rdma, and mellanox hw..."
-        )
+        self.node.log.info("Loading drivers for infiniband, rdma, and mellanox hw...")
         if self.is_connect_x3:
             network_drivers = ["mlx4_core", "mlx4_ib"]
         elif self.is_mana:
@@ -1270,8 +1239,7 @@ cores=1-4
                         ),
                         expected_exit_code=0,
                         expected_exit_code_failure_message=(
-                            "Issue loading mlx and ib_uverb "
-                            "drivers into ramdisk."
+                            "Issue loading mlx and ib_uverb " "drivers into ramdisk."
                         ),
                         sudo=True,
                     )
@@ -1308,9 +1276,7 @@ cores=1-4
                 self._testpmd_install_path = result.stdout.strip()
                 break
         found_path = PurePosixPath(self._testpmd_install_path)
-        path_check = bool(self._testpmd_install_path) and node.shell.exists(
-            found_path
-        )
+        path_check = bool(self._testpmd_install_path) and node.shell.exists(found_path)
         if assert_on_fail and not path_check:
             fail(
                 self._error_message(
@@ -1343,9 +1309,7 @@ cores=1-4
                 command_dumped = "timeout: the monitored command dumped core"
                 if command_dumped in self._last_run_output:
                     raise LisaException(
-                        self._error_message(
-                            "Testpmd crashed after device removal."
-                        )
+                        self._error_message("Testpmd crashed after device removal.")
                     )
 
         # pick the last match

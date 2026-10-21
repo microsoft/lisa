@@ -314,16 +314,14 @@ class DpdkPerformance(TestSuite):
         self._validate_core_counts_are_equal(test_result)
         try:
             if queues > 1:
-                send_kit, receive_kit = (
-                    verify_dpdk_send_receive_multi_txrx_queue(
-                        environment,
-                        log,
-                        variables,
-                        pmd,
-                        queues=queues,
-                        cleanup_manager=self._dpdk_cleanup,
-                        result=test_result,
-                    )
+                send_kit, receive_kit = verify_dpdk_send_receive_multi_txrx_queue(
+                    environment,
+                    log,
+                    variables,
+                    pmd,
+                    queues=queues,
+                    cleanup_manager=self._dpdk_cleanup,
+                    result=test_result,
                 )
             else:
                 send_kit, receive_kit = verify_dpdk_send_receive(
@@ -359,9 +357,7 @@ class DpdkPerformance(TestSuite):
 
         # shared results fields
         for result_fields in [sender_fields, receiver_fields]:
-            result_fields["tool"] = (
-                constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD
-            )
+            result_fields["tool"] = constants.NETWORK_PERFORMANCE_TOOL_DPDK_TESTPMD
             result_fields["test_type"] = "performance"
             result_fields["protocol_type"] = TransportProtocol.Udp
 

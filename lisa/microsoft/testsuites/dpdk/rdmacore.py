@@ -114,16 +114,12 @@ RDMA_CORE_PACKAGE_MANAGER_DEPENDENCIES = DependencyInstaller(
 )
 
 
-class RdmaCorePackageManagerInstall(
-    PackageManagerInstall  # type: ignore[misc]
-):
+class RdmaCorePackageManagerInstall(PackageManagerInstall):  # type: ignore[misc]
     def _setup_node(self) -> None:
         if isinstance(self._os, Fedora):
             self._os.install_epel()
         if isinstance(self._os, Debian):
-            self._package_manager_extra_args = get_debian_backport_repo_args(
-                self._os
-            )
+            self._package_manager_extra_args = get_debian_backport_repo_args(self._os)
         super()._setup_node()
 
     def get_installed_version(self) -> VersionInfo:
@@ -195,9 +191,7 @@ class RdmaCoreSourceInstaller(Installer):  # type: ignore[misc]
         #
         # We're only using rdma for the ib verbs,
         # so we can safely just mask this service.
-        mask_result = node.execute(
-            "systemctl mask rdma-ndd.service", sudo=True
-        )
+        mask_result = node.execute("systemctl mask rdma-ndd.service", sudo=True)
         if mask_result.exit_code != 0:
             node.log.debug(
                 "Failed to mask rdma-ndd.service "

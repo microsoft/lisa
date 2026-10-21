@@ -7,7 +7,10 @@ from lisa.executable import Tool
 from lisa.operating_system import Debian, Ubuntu
 from lisa.tools import Echo, Git, Lscpu, Make, Tar, Wget
 from lisa.tools.lscpu import CpuArchitecture
-from lisa.util import UnsupportedCpuArchitectureException, UnsupportedDistroException
+from lisa.util import (
+    UnsupportedCpuArchitectureException,
+    UnsupportedDistroException,
+)
 
 
 class DpdkNffGo(Tool):
@@ -35,9 +38,7 @@ class DpdkNffGo(Tool):
     def _check_exists(self) -> bool:
         git_path = self.node.working_path.joinpath(self.REPO_DIR)
         return (
-            self.node.execute(
-                f"test -a {git_path.as_posix()}", shell=True
-            ).exit_code
+            self.node.execute(f"test -a {git_path.as_posix()}", shell=True).exit_code
             == 0
         )
 
@@ -57,9 +58,7 @@ class DpdkNffGo(Tool):
         version = os.information.version
         node_arch = node.tools[Lscpu].get_architecture()
         if node_arch != CpuArchitecture.X64:
-            raise UnsupportedCpuArchitectureException(
-                arch=str(node_arch.value)
-            )
+            raise UnsupportedCpuArchitectureException(arch=str(node_arch.value))
         elif isinstance(os, Ubuntu):
             if version != "18.4.0":
                 raise UnsupportedDistroException(
@@ -86,9 +85,7 @@ class DpdkNffGo(Tool):
             "$PATH",
             shell=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "failure to grab $PATH via echo"
-            ),
+            expected_exit_code_failure_message=("failure to grab $PATH via echo"),
         ).stdout
 
         self.new_path = f"{original_path}:/usr/local/go/bin/"
@@ -162,10 +159,7 @@ class DpdkNffGo(Tool):
 
         # make 'citesting' target
         self.node.execute(
-            (
-                f"PATH={self.new_path} "
-                "NFF_GO_NO_BPF_SUPPORT=1 make citesting"
-            ),
+            (f"PATH={self.new_path} " "NFF_GO_NO_BPF_SUPPORT=1 make citesting"),
             sudo=True,
             shell=True,
             cwd=self.nff_go_path,

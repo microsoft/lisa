@@ -69,9 +69,7 @@ class DependencyInstaller:
             if requirement.matcher(os) and requirement.packages:
                 packages += requirement.packages
                 if requirement.requires_reboot:
-                    os.install_packages(
-                        packages=packages, extra_args=extra_args
-                    )
+                    os.install_packages(packages=packages, extra_args=extra_args)
                     packages = []
                     node.reboot()
                 if requirement.stop_on_match:
@@ -220,14 +218,10 @@ class Installer:
 
     # remove an installation
     def _uninstall(self) -> None:
-        raise NotImplementedError(
-            f"_clean_previous_installation {self._err_msg}"
-        )
+        raise NotImplementedError(f"_clean_previous_installation {self._err_msg}")
 
     def _asset_path_exists(self) -> bool:
-        return hasattr(self, "asset_path") and self._node.shell.exists(
-            self.asset_path
-        )
+        return hasattr(self, "asset_path") and self._node.shell.exists(self.asset_path)
 
     def _delete_assets(self) -> None:
         if not self._asset_path_exists():
@@ -235,8 +229,7 @@ class Installer:
         asset_path = self.asset_path
         working_path = str(self._node.get_working_path())
         assert_that(str(asset_path)).described_as(
-            "Test bug: Installer source path "
-            "was empty during attempted cleanup!"
+            "Test bug: Installer source path " "was empty during attempted cleanup!"
         ).is_not_empty()
         assert_that(str(asset_path)).described_as(
             "Test bug: Installer source path was set to root dir '/' "
@@ -275,18 +268,14 @@ class Installer:
     def get_installed_version(self) -> VersionInfo:
         raise NotImplementedError(f"get_installed_version {self._err_msg}")
 
-    def _should_install(
-        self, required_version: Optional[VersionInfo] = None
-    ) -> bool:
+    def _should_install(self, required_version: Optional[VersionInfo] = None) -> bool:
         return (not self._check_if_installed()) or (
             required_version is not None
             and required_version > self.get_installed_version()
         )
 
     # run the defined setup and installation steps.
-    def do_installation(
-        self, required_version: Optional[VersionInfo] = None
-    ) -> None:
+    def do_installation(self, required_version: Optional[VersionInfo] = None) -> None:
         self._setup_node()
         if self._should_install(required_version=required_version):
             # any issues here could result in a broken installation.
@@ -332,9 +321,7 @@ class Installer:
 
 # Base class for package manager installation
 class PackageManagerInstall(Installer):
-    def __init__(
-        self, node: Node, os_dependencies: DependencyInstaller
-    ) -> None:
+    def __init__(self, node: Node, os_dependencies: DependencyInstaller) -> None:
         super().__init__(node, os_dependencies)
 
     # uninstall from the package manager
@@ -343,10 +330,7 @@ class PackageManagerInstall(Installer):
             return
         if self._os_dependencies is not None:
             for os_package_check in self._os_dependencies.requirements:
-                if (
-                    os_package_check.matcher(self._os)
-                    and os_package_check.packages
-                ):
+                if os_package_check.matcher(self._os) and os_package_check.packages:
                     self._os.uninstall_packages(os_package_check.packages)
                     if os_package_check.stop_on_match:
                         break
@@ -359,10 +343,7 @@ class PackageManagerInstall(Installer):
         # This will take too long if it's more than a few packages.
         if self._os_dependencies is not None:
             for os_package_check in self._os_dependencies.requirements:
-                if (
-                    os_package_check.matcher(self._os)
-                    and os_package_check.packages
-                ):
+                if os_package_check.matcher(self._os) and os_package_check.packages:
                     for pkg in os_package_check.packages:
                         if not self._os.package_exists(pkg):
                             return False
