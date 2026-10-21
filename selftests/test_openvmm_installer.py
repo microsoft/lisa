@@ -5,11 +5,16 @@ from pathlib import PurePosixPath
 from types import SimpleNamespace
 from typing import Any, Dict, List, Type, cast
 from unittest import TestCase
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call, patch
 
 from lisa.sut_orchestrator.openvmm.installer import OpenVmmSourceInstaller
 from lisa.sut_orchestrator.openvmm.schema import OpenVmmSourceInstallerSchema
+from lisa.sut_orchestrator.openvmm.transformers import (
+    OpenVmmInstallerTransformer,
+    OpenVmmInstallerTransformerSchema,
+)
 from lisa.tools import Cargo, Git, Ln, Rm
+from lisa.util import LisaException, subclasses
 
 
 class _ToolMap:
@@ -198,3 +203,83 @@ class OpenVmmInstallerTestCase(TestCase):
             if "xflowey restore-packages" in command["command"]
         ]
         self.assertEqual(1, len(restore_calls))
+
+
+class OpenVmmInstallerTransformerTestCase(TestCase):
+    def _create_transformer(self, force_install: bool = False) -> tuple[Any, MagicMock]:
+        installer_runbook = OpenVmmSourceInstallerSchema(
+            install_path="/usr/local/bin/openvmm",
+            force_install=force_install,
+        )
+        installer = MagicMock()
+        installer.runbook = installer_runbook
+        installer.install.return_value = "openvmm 0.2.0"
+
+        transformer = cast(Any, object.__new__(OpenVmmInstallerTransformer))
+        transformer.runbook = OpenVmmInstallerTransformerSchema(
+            installer=installer_runbook
+        )
+        transformer._node = SimpleNamespace(name="test-host")
+        transformer._log = MagicMock()
+        return transformer, installer
+
+    def _run_transformer(self, transformer: Any, installer: MagicMock) -> None:
+        with patch.object(
+            subclasses.Factory, "create_by_runbook", return_value=installer
+        ):
+            transformer._internal_run()
+
+    def test_installs_when_only_path_command_is_available(self) -> None:
+        transformer, installer = self._create_transformer()
+        installer.get_version.side_effect = [
+            LisaException("configured path is missing"),
+            "openvmm 0.2.0",
+            "openvmm 0.2.0",
+        ]
+
+        self._run_transformer(transformer, installer)
+
+        installer.validate.assert_called_once_with()
+        installer.install.assert_called_once_with()
+        self.assertEqual(
+            [call("/usr/local/bin/openvmm"), call("/usr/local/bin/openvmm"), call()],
+            installer.get_version.call_args_list,
+        )
+
+    def test_skips_install_when_configured_path_is_available(self) -> None:
+        transformer, installer = self._create_transformer()
+        installer.get_version.return_value = "openvmm 0.2.0"
+
+        self._run_transformer(transformer, installer)
+
+        installer.validate.assert_not_called()
+        installer.install.assert_not_called()
+        self.assertEqual(
+            [call("/usr/local/bin/openvmm"), call("/usr/local/bin/openvmm"), call()],
+            installer.get_version.call_args_list,
+        )
+
+    def test_installs_when_configured_path_and_path_are_missing(self) -> None:
+        transformer, installer = self._create_transformer()
+        installer.get_version.side_effect = [
+            LisaException("configured path is missing"),
+            "openvmm 0.2.0",
+            LisaException("PATH command is missing"),
+        ]
+
+        self._run_transformer(transformer, installer)
+
+        installer.install.assert_called_once_with()
+        self.assertEqual(
+            [call("/usr/local/bin/openvmm"), call("/usr/local/bin/openvmm"), call()],
+            installer.get_version.call_args_list,
+        )
+
+    def test_force_install_reinstalls_existing_configured_binary(self) -> None:
+        transformer, installer = self._create_transformer(force_install=True)
+        installer.get_version.return_value = "openvmm 0.2.0"
+
+        self._run_transformer(transformer, installer)
+
+        installer.validate.assert_called_once_with()
+        installer.install.assert_called_once_with()
