@@ -275,15 +275,51 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
     # aren't left with an exhausted iterator after the firewall loop.
     nodes = list(environment.nodes.list())
     for node in nodes:
-        try:
-            firewall = node.tools[Firewall]
-            firewall.stop()
-        except Exception as ex:
-            node.log.debug(
-                f"firewall is not enabled on OS {node.os.name} "
-                f"with exception {ex}"
-            )
+        _stop_node_firewall(node)
 
+    test_nics = _get_test_nics_by_subnet(nodes)
+    for subnet in sorted(test_nics):
+        _ping_nodes_on_subnet(nodes, test_nics[subnet])
+
+
+def _stop_node_firewall(node: Node) -> None:
+    try:
+        firewall = node.tools[Firewall]
+        firewall.stop()
+    except Exception as ex:
+        node.log.debug(
+            f"firewall is not enabled on OS {node.os.name} " f"with exception {ex}"
+        )
+
+
+def _get_node_nics_by_subnet(node: Node) -> Dict[str, NicInfo]:
+    node_nics_by_subnet: Dict[str, NicInfo] = {}
+    ip_tool = node.tools[Ip]
+    for nic in node.nics.nics.values():
+        if not nic.ip_addr:
+            continue
+        subnet = str(
+            ipaddress.ip_network(
+                ip_tool.get_subnet_address(nic.name),
+                strict=False,
+            )
+        )
+        if subnet in node_nics_by_subnet:
+            raise LisaException(
+                f"Node {node.name} has multiple NICs on subnet {subnet}."
+            )
+        node_nics_by_subnet[subnet] = nic
+
+    node_subnets = set(node_nics_by_subnet)
+    if len(node_subnets) != len(node.nics):
+        raise LisaException(
+            f"Node {node.name} has {len(node.nics)} NICs but only "
+            f"{len(node_subnets)} unique subnets."
+        )
+    return node_nics_by_subnet
+
+
+def _get_test_nics_by_subnet(nodes: Sequence[Node]) -> Dict[str, Dict[Node, NicInfo]]:
     expected_nic_count = len(nodes[0].nics)
     for node in nodes:
         nic_count = len(node.nics)
@@ -297,29 +333,8 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
     test_nics: Dict[str, Dict[Node, NicInfo]] = {}
     expected_subnets: Optional[set[str]] = None
     for node in nodes:
-        node_nics_by_subnet: Dict[str, NicInfo] = {}
-        ip_tool = node.tools[Ip]
-        for nic in node.nics.nics.values():
-            if not nic.ip_addr:
-                continue
-            subnet = str(
-                ipaddress.ip_network(
-                    ip_tool.get_subnet_address(nic.name),
-                    strict=False,
-                )
-            )
-            if subnet in node_nics_by_subnet:
-                raise LisaException(
-                    f"Node {node.name} has multiple NICs on subnet {subnet}."
-                )
-            node_nics_by_subnet[subnet] = nic
-
+        node_nics_by_subnet = _get_node_nics_by_subnet(node)
         node_subnets = set(node_nics_by_subnet)
-        if len(node_subnets) != expected_nic_count:
-            raise LisaException(
-                f"Node {node.name} has {expected_nic_count} NICs but only "
-                f"{len(node_subnets)} unique subnets."
-            )
         if expected_subnets is None:
             expected_subnets = node_subnets
         elif node_subnets != expected_subnets:
@@ -331,23 +346,23 @@ def _ping_all_nodes_in_environment(environment: Environment) -> None:
 
         for subnet, nic in node_nics_by_subnet.items():
             test_nics.setdefault(subnet, {})[node] = nic
+    return test_nics
 
+
+def _ping_nodes_on_subnet(nodes: Sequence[Node], nics: Mapping[Node, NicInfo]) -> None:
     # permutations yields both (a, b) and (b, a), so pinging a single
     # direction per pair still covers every direction exactly once.
-    for subnet in sorted(test_nics):
-        for node_a, node_b in itertools.permutations(nodes, 2):
-            nic_a, nic_b = test_nics[subnet][node_a], test_nics[subnet][node_b]
-            ip_a, ip_b = nic_a.ip_addr, nic_b.ip_addr
-            ping_result = node_a.tools[Ping].ping(
-                target=ip_b, nic_name=nic_a.name
+    for node_a, node_b in itertools.permutations(nodes, 2):
+        nic_a, nic_b = nics[node_a], nics[node_b]
+        ip_a, ip_b = nic_a.ip_addr, nic_b.ip_addr
+        ping_result = node_a.tools[Ping].ping(target=ip_b, nic_name=nic_a.name)
+        assert_that(ping_result).described_as(
+            (
+                "VM ping test failed.\n"
+                f"{node_a.name} {nic_a.name} {ip_a} -> "
+                f"{node_b.name} {nic_b.name} {ip_b} : {ping_result}\n"
             )
-            assert_that(ping_result).described_as(
-                (
-                    "VM ping test failed.\n"
-                    f"{node_a.name} {nic_a.name} {ip_a} -> "
-                    f"{node_b.name} {nic_b.name} {ip_b} : {ping_result}\n"
-                )
-            ).is_true()
+        ).is_true()
 
 
 def testpmd_start_process(kit: DpdkTestResources, cmd: str) -> Process:
