@@ -946,6 +946,10 @@ class AziHsm(TestSuite):
         # success instead of matching a Rust-specific "test result: ok." line.
         test = "azihsm_api_cpp_tests"
         log.info(f"Running {test}")
+        # Remove a stale persistence file potentially left behind by a prior
+        # run, so tests that depend on this file starting out absent aren't
+        # affected by leftover state.
+        node.tools[Rm].remove_file("/tmp/azihsm_ecc_persistence_test.bin", sudo=True)
         try:
             result = node.execute(
                 f"{node.get_pure_path(AZIHSM_BIN_DIR) / test}",
