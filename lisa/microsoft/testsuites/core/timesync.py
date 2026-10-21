@@ -72,7 +72,7 @@ def _wait_file_changed(
     """,
 )
 class TimeSync(TestSuite):
-    RTC_WRITE_ITERATIONS = 768
+    RTC_WRITE_ITERATIONS = 1000
     _STALL_PATTERNS = [
         re.compile(pattern, re.IGNORECASE)
         for pattern in [
@@ -395,7 +395,7 @@ class TimeSync(TestSuite):
     @TestCaseMetadata(
         description=(
             "This test case writes system time to the hardware clock, reads it "
-            "back, and waits 3 seconds on each of up to 768 iterations. "
+            "back, and waits 3 seconds on each of up to 1000 iterations. "
             "It ends the loop early after 10 consecutive reads report a "
             "/dev/rtc0 clock tick timeout in stdout. Other read failures are "
             "logged without aborting the loop. It verifies "
@@ -476,12 +476,13 @@ class TimeSync(TestSuite):
                 "Guest is inaccessible after reboot following RTC stress.",
             )
         except (LisaException, AssertionError) as error:
-            log.error(
+            error_message = (
                 "Potential bug: guest failed to reboot or reconnect after "
                 f"{completed_rtc_writes} calls to "
                 f"set_rtc_clock_to_system_time(): {error}"
             )
-            raise
+            log.error(error_message)
+            raise LisaException(error_message) from error
         assert_that(sorted(new_errors.elements())).described_as(
             "RTC writes introduced CPU stalls."
         ).is_empty()
