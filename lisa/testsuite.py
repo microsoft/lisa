@@ -354,6 +354,7 @@ class TestResult:
             "description",
             "priority",
             "owner",
+            "maturity",
         ]
         metadata_information = fields_to_dict(
             src=self.runtime_data.metadata, fields=metadata_fields
