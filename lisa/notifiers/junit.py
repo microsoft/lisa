@@ -323,6 +323,7 @@ class JUnit(Notifier):
         elif (
             message.status == TestStatus.SKIPPED
             or message.status == TestStatus.ATTEMPTED
+            or message.status == TestStatus.EXPUNGED
         ):
             skipped = ET.SubElement(testcase, "skipped")
             skipped.attrib["message"] = message.message
