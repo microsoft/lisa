@@ -5,17 +5,34 @@ import os
 import re
 import shlex
 import xml.etree.ElementTree as ETree  # noqa: N817
+from contextlib import contextmanager
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path, PurePath, PurePosixPath
-from typing import Any, Dict, List, Optional, Set, Tuple, Type, cast
+from tempfile import TemporaryDirectory
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple, Type, cast
+from uuid import uuid4
 
 from assertpy.assertpy import assert_that, fail
+from paramiko.ssh_exception import SSHException
 
 from lisa import Node
 from lisa.base_tools import Dpkg, Rpm
 from lisa.executable import ExecutableResult, Tool
 from lisa.features import SerialConsole
 from lisa.messages import TestStatus, send_sub_test_result_message
+from lisa.microsoft.testsuites.cloud_hypervisor.ch_diagnostic_config import (
+    CARGO_CONFIG_PROBE,
+    create_cargo_config,
+    create_nextest_config,
+    diagnostic_volume,
+)
+from lisa.microsoft.testsuites.cloud_hypervisor.ch_guest_identity import (
+    WORKLOAD_PROVENANCE_PROBE,
+    SourceSnapshot,
+    create_guest_identity_report,
+    snapshot_guest_sources,
+)
 from lisa.operating_system import CBLMariner, CpuArchitecture, Posix, Ubuntu
 from lisa.testsuite import TestResult
 from lisa.tools import (
@@ -86,6 +103,7 @@ class CloudHypervisorTests(Tool):
     use_ms_hypervisor_fw = ""
     use_ms_ovmf_fw = ""
     use_ms_bz_image = ""
+    _custom_kernel_metadata: Optional[Dict[str, str]] = None
 
     # Block perf related env var
     use_datadisk = ""
@@ -186,12 +204,15 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         skip_args: str = "",
         test_script_args: str = "",
+        volumes: str = "",
     ) -> str:
         if test_type == cls.CVM_INTEGRATION_TEST_TYPE:
             command = f"tests --integration-cvm --hypervisor {hypervisor}"
         else:
             command = f"tests --hypervisor {hypervisor} --{test_type}"
 
+        if volumes:
+            command += f" --volumes {shlex.quote(volumes)}"
         if test_script_args:
             return f"{command} -- {test_script_args}"
         if test_type == cls.CVM_INTEGRATION_TEST_TYPE and not skip_args:
@@ -230,9 +251,10 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         only: Optional[List[str]],
         skip: Optional[List[str]],
+        volumes: str = "",
     ) -> Dict[str, Any]:
         """Prepare subtests and skip arguments."""
-        subtests = self._list_subtests(hypervisor, test_type)
+        subtests = self._list_subtests(hypervisor, test_type, volumes)
         # Store the ordered list for diagnostic purposes
         self._ordered_subtests = subtests.copy()
 
@@ -271,8 +293,9 @@ class CloudHypervisorTests(Tool):
         cli_test_filter: str,
         only: Optional[List[str]],
         skip: Optional[List[str]],
+        volumes: str = "",
     ) -> Dict[str, Any]:
-        subtests = self._list_subtests(hypervisor, test_type)
+        subtests = self._list_subtests(hypervisor, test_type, volumes)
         self._ordered_subtests = subtests.copy()
 
         filtered_subtests = [
@@ -547,6 +570,7 @@ class CloudHypervisorTests(Tool):
         only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
         cli_test_filter: Optional[str] = None,
+        capture_diagnostics: bool = False,
     ) -> None:
         self.validate_integration_test_type(test_type, hypervisor)
         if test_type == self.CVM_INTEGRATION_TEST_TYPE:
@@ -555,81 +579,90 @@ class CloudHypervisorTests(Tool):
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
-        if cli_test_filter:
-            subtests = self._prepare_filtered_subtests(
-                test_type,
-                hypervisor,
-                cli_test_filter,
-                only,
-                skip,
-            )
-        else:
-            subtests = self._prepare_subtests(
-                test_type,
-                hypervisor,
-                only,
-                skip,
-            )
-        self._configure_environment_if_needed(hypervisor)
-
-        # Use enhanced diagnostics for better debugging and monitoring
-        skip_args = subtests["skip_args"]
-        test_script_args = ""
-        if cli_test_filter:
-            nextest_filter = self._build_nextest_filterset(
-                cli_test_filter,
-                only,
-                skip,
-            )
-            test_script_args = f"--test-filter {shlex.quote(nextest_filter)}"
-        cmd_args = self._build_tests_command(
-            test_type,
-            hypervisor,
-            skip_args,
-            test_script_args,
-        )
-        # normalize name so artifacts are predictable (no spaces/colons/slashes)
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
         test_name = self._sanitize_name(f"ch_{safe_test_type}_{hypervisor}")
-
-        # Wipe any nextest JUnit output left by a previous run on this node.
-        # The cloud-hypervisor nextest config recreates the directory as
-        # needed. This avoids stale results from a prior invocation being
-        # attributed to the current run. Tolerate non-zero exit silently
-        # since the directory may not exist on first run.
-        self.node.execute(
-            f"rm -rf {self._get_nextest_junit_dir()}",
-            shell=True,
-            no_error_log=True,
-        )
-
-        try:
-            result = self._run_with_enhanced_diagnostics(
-                cmd_args=cmd_args,
-                timeout=self.CMD_TIME_OUT,
-                test_name=test_name,
-                numa_cmd="",
-            )
-        except Exception:
-            # Check for kernel panic before re-raising
-            if self.node.features.is_supported(SerialConsole):
-                self.node.features[SerialConsole].check_panic(
-                    saved_path=log_path, force_run=True, test_result=test_result
+        with self._diagnostic_config(
+            log_path, test_name, capture_diagnostics, nextest=True
+        ) as volumes:
+            if cli_test_filter:
+                subtests = self._prepare_filtered_subtests(
+                    test_type,
+                    hypervisor,
+                    cli_test_filter,
+                    only,
+                    skip,
+                    volumes,
                 )
-            raise
-        finally:
-            # Always copy back artifacts, even on failure/timeout
-            self._copy_back_artifacts(log_path, test_name)
+            else:
+                subtests = self._prepare_subtests(
+                    test_type,
+                    hypervisor,
+                    only,
+                    skip,
+                    volumes,
+                )
+            self._configure_environment_if_needed(hypervisor)
 
-        self._process_test_results(
-            result,
-            test_result,
-            test_type,
-            hypervisor,
-            log_path,
-            subtests["subtest_set"],
-            test_name,
-        )
+            skip_args = subtests["skip_args"]
+            test_script_args = ""
+            if cli_test_filter:
+                nextest_filter = self._build_nextest_filterset(
+                    cli_test_filter,
+                    only,
+                    skip,
+                )
+                test_script_args = f"--test-filter {shlex.quote(nextest_filter)}"
+            cmd_args = self._build_tests_command(
+                test_type,
+                hypervisor,
+                skip_args,
+                test_script_args,
+                volumes,
+            )
+
+            # Remove reports from earlier runs before executing the selected tests.
+            self.node.execute(
+                f"rm -rf {self._get_nextest_junit_dir()}",
+                shell=True,
+                no_error_log=True,
+            )
+
+            run_completed = False
+            try:
+                result = self._run_with_enhanced_diagnostics(
+                    cmd_args=cmd_args,
+                    timeout=self.CMD_TIME_OUT,
+                    test_name=test_name,
+                    numa_cmd="",
+                )
+                run_completed = True
+            except Exception:
+                # Check for kernel panic before re-raising.
+                if self.node.features.is_supported(SerialConsole):
+                    self.node.features[SerialConsole].check_panic(
+                        saved_path=log_path, force_run=True, test_result=test_result
+                    )
+                raise
+            finally:
+                self._copy_back_artifacts(log_path, test_name)
+                if capture_diagnostics and not run_completed:
+                    try:
+                        self._collect_nextest_junit_files(log_path)
+                    except (LisaException, OSError, SSHException) as error:
+                        self._log.warning(
+                            "Cannot collect CH JUnit output after runner error: "
+                            f"{error}"
+                        )
+
+            self._process_test_results(
+                result,
+                test_result,
+                test_type,
+                hypervisor,
+                log_path,
+                subtests["subtest_set"],
+                test_name,
+            )
 
     def run_metrics_tests(
         self,
@@ -640,6 +673,7 @@ class CloudHypervisorTests(Tool):
         only: Optional[str] = None,
         skip: Optional[str] = None,
         subtest_timeout: Optional[int] = None,
+        capture_diagnostics: bool = False,
     ) -> None:
         # Reset per-run state in case this Tool instance is reused across runs.
         self._metrics_disk_device = ""
@@ -656,7 +690,6 @@ class CloudHypervisorTests(Tool):
 
         failed_testcases: List[str] = []
 
-        cmd_args = self._build_metrics_cmd_args(hypervisor, subtest_timeout, only, skip)
         cmd_timeout = self.PERF_CASE_TIME_OUT
         test_name = f"ch_metrics_all_{hypervisor}"
 
@@ -665,15 +698,21 @@ class CloudHypervisorTests(Tool):
             numa_cmd = self._get_numa_prefix()
 
         result = None
-        try:
-            result = self._run_with_enhanced_diagnostics(
-                cmd_args=cmd_args,
-                timeout=cmd_timeout,
-                test_name=test_name,
-                numa_cmd=numa_cmd,
+        with self._diagnostic_config(
+            log_path, test_name, capture_diagnostics, nextest=False
+        ) as volumes:
+            cmd_args = self._build_metrics_cmd_args(
+                hypervisor, subtest_timeout, only, skip, volumes
             )
-        finally:
-            self._copy_back_artifacts(log_path, test_name)
+            try:
+                result = self._run_with_enhanced_diagnostics(
+                    cmd_args=cmd_args,
+                    timeout=cmd_timeout,
+                    test_name=test_name,
+                    numa_cmd=numa_cmd,
+                )
+            finally:
+                self._copy_back_artifacts(log_path, test_name)
 
         # Copy back the JSON report file from the remote node.
         remote_report = self.repo_root / self.METRICS_REPORT_FILE
@@ -840,9 +879,13 @@ class CloudHypervisorTests(Tool):
         subtest_timeout: Optional[int],
         only: Optional[str] = None,
         skip: Optional[str] = None,
+        volumes: str = "",
     ) -> str:
+        command = f"tests --hypervisor {hypervisor} --metrics"
+        if volumes:
+            command += f" --volumes {shlex.quote(volumes)}"
         cmd_args = (
-            f"tests --hypervisor {hypervisor} --metrics -- --"
+            f"{command} -- --"
             " --continue-on-failure"
             f" --report-file /cloud-hypervisor/{self.METRICS_REPORT_FILE}"
         )
@@ -1135,7 +1178,7 @@ class CloudHypervisorTests(Tool):
             {
                 "RUST_BACKTRACE": "full",
                 "RUST_LIB_BACKTRACE": "1",
-                # Tweak if too chatty: e.g., "cloud_hypervisor=debug,virtio=info"
+                # For consumers of RUST_LOG; CH's VMM uses its own -v flags.
                 "RUST_LOG": os.environ.get("RUST_LOG", "debug"),
                 "CH_IDLE_SECS": str(idle_secs),
                 "CH_HANG_KILL_SECS": str(hang_kill_secs),
@@ -1402,6 +1445,244 @@ exit $ec
 
         return result
 
+    @contextmanager
+    def _diagnostic_config(
+        self, log_path: Path, test_name: str, enabled: bool, nextest: bool
+    ) -> Iterator[str]:
+        if not enabled:
+            yield ""
+            return
+
+        name = f"{self._sanitize_name(test_name)}_diagnostics_{uuid4().hex}"
+        artifact_path = log_path / name
+        artifact_path.mkdir(parents=True)
+        remote_path = self.get_tool_path() / name
+        container_path = PurePosixPath("/lisa-ch-diagnostics")
+        preparation_volume = diagnostic_volume(
+            remote_path, container_path, read_only=False
+        )
+        temporary = TemporaryDirectory(prefix="lisa-ch-config-")
+        local_path = Path(temporary.name)
+        remote_created = False
+        prepared = False
+        previous_sources: Optional[SourceSnapshot] = None
+        try:
+            try:
+                previous_sources = snapshot_guest_sources(log_path, test_name, nextest)
+            except OSError as error:
+                self._log.warning(f"Cannot snapshot existing CH output: {error}")
+            self.node.shell.mkdir(remote_path, mode=0o700)
+            remote_created = True
+            result = self._run_diagnostic_probe(
+                CARGO_CONFIG_PROBE,
+                preparation_volume,
+                container_path,
+                artifact_path / "preparation.log",
+                timeout=600,
+            )
+            if result.is_timeout:
+                raise LisaException("CH diagnostic configuration probe timed out")
+            if result.exit_code != 0:
+                raise LisaException(
+                    "CH diagnostics require a working noninteractive dev_cli shell. "
+                    f"Preparation failed with exit code {result.exit_code}; "
+                    f"see {artifact_path / 'preparation.log'}."
+                )
+            for filename in ("cargo-original.toml", "cargo-config-path.json"):
+                self.node.shell.copy_back(remote_path / filename, local_path / filename)
+            cargo_target = json.loads(
+                (local_path / "cargo-config-path.json").read_text(encoding="utf-8")
+            )
+            if not isinstance(cargo_target, str):
+                raise LisaException("CH configuration probe returned an invalid path")
+            cargo_volume = diagnostic_volume(
+                remote_path / "cargo.toml", PurePosixPath(cargo_target)
+            )
+            cargo_config = create_cargo_config(
+                (local_path / "cargo-original.toml").read_text(encoding="utf-8")
+            )
+            (local_path / "cargo.toml").write_text(cargo_config, encoding="utf-8")
+            self.node.shell.copy(local_path / "cargo.toml", remote_path / "cargo.toml")
+            volumes = [cargo_volume]
+            if nextest:
+                self.node.shell.copy_back(
+                    self.repo_root / ".config" / "nextest.toml",
+                    local_path / "nextest-original.toml",
+                )
+                nextest_config = create_nextest_config(
+                    (local_path / "nextest-original.toml").read_text(encoding="utf-8")
+                )
+                (local_path / "nextest.toml").write_text(
+                    nextest_config, encoding="utf-8"
+                )
+                self.node.shell.copy(
+                    local_path / "nextest.toml", remote_path / "nextest.toml"
+                )
+                volumes.append(
+                    diagnostic_volume(
+                        remote_path / "nextest.toml",
+                        PurePosixPath("/cloud-hypervisor/.config/nextest.toml"),
+                    )
+                )
+
+            # Publish only our settings, never merged Cargo config/registry credentials.
+            (artifact_path / "settings.json").write_text(
+                json.dumps(
+                    {
+                        "release": {"debug": 2, "strip": "none"},
+                        "RUST_BACKTRACE": "full",
+                        "RUST_LIB_BACKTRACE": "1",
+                        "cargo_config_target": cargo_target,
+                        "retain_nextest_output": nextest,
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            self._log.info(
+                "CH configuration diagnostics enabled: release debug symbols and "
+                "retained test output. Use for diagnostic runs, "
+                "not performance baselines."
+            )
+            prepared = True
+            yield "#".join(volumes)
+        finally:
+            if prepared:
+                self._collect_guest_identity(
+                    log_path,
+                    artifact_path,
+                    test_name,
+                    nextest,
+                    previous_sources,
+                    remote_path,
+                    local_path,
+                )
+            if remote_created:
+                filenames = (
+                    "cargo-original.toml",
+                    "cargo-config-path.json",
+                    "cargo.toml",
+                    "nextest.toml",
+                    "guest-provenance.json",
+                )
+                files = " ".join(
+                    shlex.quote(str(remote_path / filename)) for filename in filenames
+                )
+                try:
+                    cleanup = self.node.execute(
+                        f"rm -f -- {files} && rmdir -- {shlex.quote(str(remote_path))}",
+                        shell=True,
+                        timeout=30,
+                    )
+                    if cleanup.exit_code != 0 or cleanup.is_timeout:
+                        self._log.warning(
+                            f"Cannot remove private CH configuration at {remote_path}: "
+                            f"exit_code={cleanup.exit_code}, "
+                            f"timeout={cleanup.is_timeout}, "
+                            f"stdout={cleanup.stdout}, stderr={cleanup.stderr}"
+                        )
+                except (LisaException, OSError, SSHException) as error:
+                    self._log.warning(
+                        f"Cannot remove private CH configuration at {remote_path}: "
+                        f"{error}"
+                    )
+            try:
+                temporary.cleanup()
+            except OSError as error:
+                self._log.warning(
+                    "Cannot remove local private CH configuration at "
+                    f"{local_path}: {error}"
+                )
+
+    def _run_diagnostic_probe(
+        self,
+        script: str,
+        volume: str,
+        output: PurePath,
+        log_file: Path,
+        timeout: int,
+    ) -> ExecutableResult:
+        command = f"python3 -c {shlex.quote(script)} {shlex.quote(str(output))}"
+        # shell rejoins its trailing arguments for bash -c; quote the whole command.
+        result = self.run(
+            f"shell --volumes {shlex.quote(volume)} -- {shlex.quote(command)}",
+            force_run=True,
+            shell=True,
+            cwd=self.repo_root,
+            update_envs=self.env_vars,
+            timeout=timeout,
+        )
+        log_file.write_text(
+            f"exit_code={result.exit_code}\nis_timeout={result.is_timeout}\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}\n",
+            encoding="utf-8",
+        )
+        return result
+
+    def _collect_guest_identity(
+        self,
+        log_path: Path,
+        artifact_path: Path,
+        test_name: str,
+        nextest: bool,
+        previous_sources: Optional[SourceSnapshot],
+        remote_path: PurePath,
+        local_path: Path,
+    ) -> None:
+        provenance: Dict[str, Any] = {}
+        try:
+            container_path = PurePosixPath("/lisa-ch-diagnostics")
+            result = self._run_diagnostic_probe(
+                WORKLOAD_PROVENANCE_PROBE,
+                diagnostic_volume(remote_path, container_path, read_only=False),
+                container_path / "guest-provenance.json",
+                artifact_path / "guest_provenance.log",
+                timeout=120,
+            )
+            if result.exit_code != 0 or result.is_timeout:
+                raise LisaException(
+                    f"Provenance probe exit_code={result.exit_code}, "
+                    f"timeout={result.is_timeout}; see guest_provenance.log"
+                )
+            snapshot_file = local_path / "guest-provenance.json"
+            self.node.shell.copy_back(remote_path / snapshot_file.name, snapshot_file)
+            snapshot = json.loads(snapshot_file.read_text(encoding="utf-8"))
+            if (
+                not isinstance(snapshot, dict)
+                or snapshot.get("status") not in ("collected", "partial", "empty")
+                or not isinstance(snapshot.get("files"), list)
+                or not isinstance(snapshot.get("errors"), list)
+                or not all(isinstance(error, str) for error in snapshot["errors"])
+            ):
+                raise LisaException("Invalid CH workload provenance report")
+            provenance = snapshot
+        except (LisaException, OSError, SSHException, ValueError) as error:
+            provenance = {"status": "unavailable", "errors": [str(error)]}
+        for message in provenance["errors"]:
+            self._log.warning(f"CH guest provenance collection: {message}")
+        provenance["requested_overrides"] = {
+            key: self.env_vars[key]
+            for key in (
+                "CH_CUSTOM_KERNEL",
+                "CH_CUSTOM_BZIMAGE",
+                "CH_CUSTOM_FIRMWARE",
+                "CH_CUSTOM_OVMF",
+            )
+            if key in self.env_vars
+        }
+        provenance["selected_custom_kernel_metadata"] = self._custom_kernel_metadata
+        try:
+            report = create_guest_identity_report(
+                log_path, test_name, nextest, previous_sources, provenance
+            )
+            for message in report["errors"]:
+                self._log.warning(f"CH guest console evidence collection: {message}")
+            (artifact_path / "guest_identity.json").write_text(
+                json.dumps(report, indent=2), encoding="utf-8"
+            )
+        except OSError as error:
+            self._log.warning(f"Cannot save CH guest identity evidence: {error}")
+
     def _copy_back_artifacts(self, log_path: Path, test_name: str) -> None:
         """
         Copy diagnostic artifacts from the VM back to the test's artifact folder.
@@ -1441,12 +1722,12 @@ exit $ec
             self.env_vars["MIGRATABLE_VERSION"] = os.environ["MIGRATABLE_VERSION"]
 
     def _log_custom_kernel_metadata(self, kernel_path: str) -> None:
-        metadata = [f"[uvm-kernel] path={kernel_path}"]
+        metadata = {"path": kernel_path}
         quoted_path = shlex.quote(str(self.node.get_pure_path(kernel_path)))
         try:
             result = self.node.execute(f"test -r {quoted_path}", no_error_log=True)
             if result.exit_code != 0:
-                metadata.append("[uvm-kernel] readable=false")
+                metadata["readable"] = "false"
                 return
 
             embedded_pattern = (
@@ -1476,9 +1757,7 @@ exit $ec
                     )
                     if match:
                         embedded_build = match.group(0)
-            metadata.append(
-                f"[uvm-kernel] embedded-build={embedded_build or 'unavailable'}"
-            )
+            metadata["embedded-build"] = embedded_build or "unavailable"
 
             for name, command in (
                 ("sha256", f"sha256sum -- {quoted_path}"),
@@ -1489,7 +1768,7 @@ exit $ec
                 if result.exit_code == 0 and output:
                     if name == "sha256":
                         output = output.split()[0]
-                    metadata.append(f"[uvm-kernel] {name}={output}")
+                    metadata[name] = output
 
             package_format = shlex.quote(r"%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}\n")
             package_queries: Tuple[Tuple[Type[Tool], str], ...] = (
@@ -1503,15 +1782,21 @@ exit $ec
                 result = package_tool.run(arguments, force_run=True, no_error_log=True)
                 if result.exit_code == 0 and result.stdout.strip():
                     package = result.stdout.strip().splitlines()[0]
-                    metadata.append(f"[uvm-kernel] package={package}")
+                    metadata["package"] = package
                 break
         except LisaException as error:
             self._log.debug(
                 f"Failed to inspect selected UVM kernel '{kernel_path}': {error}"
             )
         finally:
-            metadata_text = "\n".join(metadata)
+            metadata_text = "\n".join(
+                f"[uvm-kernel] {key}={value}" for key, value in metadata.items()
+            )
             self._log.info(f"Selected UVM kernel metadata:\n{metadata_text}")
+            self._custom_kernel_metadata = dict(
+                metadata,
+                collected_at_utc=datetime.now(timezone.utc).isoformat(),
+            )
 
     def _set_ms_kernel_environment(self) -> None:
         if self.use_ms_guest_kernel:
@@ -1650,7 +1935,9 @@ exit $ec
         except Exception as e:
             self._log.debug(f"Could not cache VMM version: {e}")
 
-    def _list_subtests(self, hypervisor: str, test_type: str) -> List[str]:
+    def _list_subtests(
+        self, hypervisor: str, test_type: str, volumes: str = ""
+    ) -> List[str]:
         # Cloud Hypervisor's integration tests run under cargo-nextest, which
         # rejects the libtest "-- -- --list" flag ("failed to parse test binary
         # arguments `--list`: arguments are unsupported"). Enumerate the subtests
@@ -1683,7 +1970,10 @@ exit $ec
             nextest_args.append("--features mshv")
         nextest_args.append("--message-format json")
         nextest_list_cmd = " ".join(nextest_args)
-        cmd_args = f"shell -- {nextest_list_cmd}"
+        command = "shell"
+        if volumes:
+            command += f" --volumes {shlex.quote(volumes)}"
+        cmd_args = f"{command} -- {nextest_list_cmd}"
         # Use enhanced environment variables for consistency
         enhanced_env_vars = self.env_vars.copy()
         enhanced_env_vars.update(

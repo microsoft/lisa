@@ -28,6 +28,7 @@ dependencies = [
     "semver ~= 2.13.0",
     "simpleeval ~= 1.0.7",
     "spurplus ~= 2.3.5",
+    "toml ~= 0.10.2",
     "websockets ~= 15.0.1",
 ]
 dynamic = ["version"]
