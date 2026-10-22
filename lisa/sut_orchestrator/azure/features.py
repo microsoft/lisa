@@ -940,6 +940,7 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                 f"Fail to add route {route_name} to route table {route_table_name}, {e}"
             )
 
+    @retry(HttpResponseError, tries=10, delay=20)  # type: ignore
     def switch_ip_forwarding(self, enable: bool, private_ip_addr: str = "") -> None:
         azure_platform: AzurePlatform = self._platform  # type: ignore
         network_client = get_network_client(azure_platform)
@@ -977,9 +978,13 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"now set its status into [{enable}]."
                 )
                 updated_nic.enable_ip_forwarding = enable
+                # wait for the ARM operation to fully complete (not just be
+                # accepted) before re-reading the nic, since the l3fwd test
+                # depends on forwarding actually being enabled before it
+                # starts sending traffic through this VM.
                 network_client.network_interfaces.begin_create_or_update(
                     self._resource_group_name, updated_nic.name, updated_nic
-                )
+                ).result()
                 updated_nic = network_client.network_interfaces.get(
                     self._resource_group_name, nic_name
                 )

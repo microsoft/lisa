@@ -118,14 +118,11 @@ class GitDownloader(Downloader):
 
 # parent class for tarball source installations
 class TarDownloader(Downloader):
-    def __init__(
-        self,
-        node: Node,
-        tar_url: str,
-    ) -> None:
+    def __init__(self, node: Node, tar_url: str, exclude: str = "") -> None:
         super().__init__(node)
         self._tar_url = tar_url
         self._is_remote_tarball = tar_url.startswith("https://")
+        self.exclude = exclude
 
     # fetch the tarball (or copy it to the node)
     # then extract it
@@ -174,6 +171,7 @@ class TarDownloader(Downloader):
                     dest_dir=str(work_path),
                     gzip=True,
                     skip_existing_files=True,
+                    exclude=self.exclude,
                 )
             except AssertionError:
                 # tar extraction failed,
@@ -231,17 +229,18 @@ class Installer:
         asset_path = self.asset_path
         working_path = str(self._node.get_working_path())
         assert_that(str(asset_path)).described_as(
-            "Test bug: Installer source path was empty during attempted cleanup!"
+            "Test bug: Installer source path " "was empty during attempted cleanup!"
         ).is_not_empty()
         assert_that(str(asset_path)).described_as(
             "Test bug: Installer source path was set to root dir '/' "
             "during attempted cleanup!"
         ).is_not_equal_to("/")
         assert_that(str(asset_path)).described_as(
-            f"Test bug: Installer source path {asset_path} was set to working path "
+            "Test bug: Installer source path "
+            f"{asset_path} was set to working path "
             f"'{working_path}' during attempted cleanup!"
         ).is_not_equal_to(working_path)
-        self._node.shell.remove(asset_path, recursive=True)
+        self._node.execute(f"rm -rf {asset_path}", shell=True)
         delattr(self, "asset_path")
 
     def _rollback_installation(self) -> None:
@@ -281,16 +280,26 @@ class Installer:
         if self._should_install(required_version=required_version):
             # any issues here could result in a broken installation.
             # If the node is still usable, we don't want to discard it.
-            # So attempt to roll back a broken installation and re-raise the problem.
-            # This avoids re-deployments and ensures a transient issue causing a broken
+            # So attempt to roll back a broken installation and re-raise the
+            # problem.
+            # This avoids re-deployments and ensures a transient issue causing
+            # a broken
             # installation doesn't propagate failures into future tests on
             # that same node.
             try:
                 self._uninstall()
                 self._install_dependencies()
                 self._install()
-            except Exception:
-                self._rollback_installation()
+            except Exception as install_error:
+                try:
+                    self._rollback_installation()
+                except Exception as rollback_error:
+                    self._node.log.debug(
+                        "Installation rollback also "
+                        "failed; preserving the original "
+                        f"{type(install_error).__name__}: {install_error!r}. "
+                        f"Rollback error: {rollback_error!r}"
+                    )
                 raise
 
     def __init__(
@@ -387,10 +396,12 @@ def check_dpdk_support(node: Node) -> None:
         if isinstance(node.os, Ubuntu):
             node.log.debug(
                 "Checking Ubuntu release: "
-                f"is_latest_or_prerelease? ({is_ubuntu_latest_or_prerelease(node.os)})"
+                "is_latest_or_prerelease? "
+                f"({is_ubuntu_latest_or_prerelease(node.os)})"
                 f" is_lts_version? ({is_ubuntu_lts_version(node.os)})"
             )
-            # TODO: undo special casing for 18.04 when it's usage is less common
+            # TODO: undo special casing for 18.04 when it's usage is less
+            # common
             supported = (
                 node.os.information.version == "18.4.0"
                 or is_ubuntu_latest_or_prerelease(node.os)
@@ -405,7 +416,8 @@ def check_dpdk_support(node: Node) -> None:
     else:
         # this OS is not supported
         raise UnsupportedDistroException(
-            node.os, "This OS is not supported by the DPDK test suite for Azure."
+            node.os,
+            "This OS is not supported by the DPDK test suite for Azure.",
         )
     # verify MANA driver is available for the kernel version
     if (
@@ -413,7 +425,8 @@ def check_dpdk_support(node: Node) -> None:
         and node.nics.is_mana_device_present()
     ):
         # NOTE: Kernel backport examples are available for lower kernels.
-        # HOWEVER: these are not suitable for general testing and should be installed
+        # HOWEVER: these are not suitable for general testing and should be
+        # installed
         # in the image _before_ starting the test.
         # ex: make a SIG image first using the kernel build transformer.
         if node.os.get_kernel_information().version < "5.15.0":
@@ -423,7 +436,8 @@ def check_dpdk_support(node: Node) -> None:
             )
     if not supported:
         raise UnsupportedDistroException(
-            node.os, "This OS version is EOL and is not supported for DPDK on Azure"
+            node.os,
+            "This OS version is EOL and is not supported for DPDK on Azure",
         )
 
 
@@ -521,10 +535,13 @@ class Pmd(str, Enum):
     # librte_net_netvsc
     # https://doc.dpdk.org/guides/nics/netvsc.html
     NETVSC = "netvsc"
+    # direct use of MANA pmd.
+    MANA = "mana"
 
 
 # set a threshold for an expected PPS minimum with DPDK.
-# this is absolutely arbitrary, synthetic pps is usually less than 1.2m pps (for now)
+# this is absolutely arbitrary, synthetic pps is usually less than 1.2m pps
+# (for now)
 DPDK_PPS_THRESHOLD = 1_200_000
 
 
