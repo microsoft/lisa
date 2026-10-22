@@ -9,6 +9,7 @@ from retry import retry
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.util import LisaException
+from lisa.util.process import ExecutableResult
 
 
 class Hwclock(Tool):
@@ -33,8 +34,16 @@ class Hwclock(Tool):
             posix_os.install_packages(package_name)
         return self._check_exists()
 
+    def show(self) -> ExecutableResult:
+        return self.run("--show", sudo=True, force_run=True)
+
     def set_rtc_clock_to_system_time(self) -> None:
-        cmd_result = self.run("--systohc", shell=True, sudo=True)
+        cmd_result = self.run(
+            "--systohc",
+            force_run=True,
+            shell=True,
+            sudo=True,
+        )
         cmd_result.assert_exit_code()
 
     def set_datetime(
