@@ -32,6 +32,7 @@ from lisa import notifier
 from lisa.base_tools import (
     AptAddRepository,
     Cat,
+    Rpm,
     Sed,
     Service,
     Uname,
@@ -2320,6 +2321,18 @@ class CBLMariner(RPMDistro):
         keys_location: Optional[List[str]] = None,
         **kwargs: Any,
     ) -> None:
+        if keys_location:
+            rpm = self._node.tools[Rpm]
+            for key_location in keys_location:
+                rpm.run(
+                    f"--import {shlex.quote(key_location)}",
+                    sudo=True,
+                    force_run=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        f"Failed to import package signing key {key_location}"
+                    ),
+                )
         parsed_url = urlparse(repo)
         if parsed_url.scheme and parsed_url.netloc:
             self._node.tools[YumConfigManager].add_repository(repo, no_gpgcheck)
