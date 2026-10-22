@@ -51,7 +51,7 @@ from retry import retry
 
 from lisa import Logger, features, schema, search_space
 from lisa.environment import Environment
-from lisa.feature import Feature
+from lisa.feature import Feature, get_feature_settings_by_name
 from lisa.features.availability import AvailabilityType
 from lisa.features.gpu import ComputeSDK
 from lisa.features.hibernation import HibernationSettings
@@ -3219,6 +3219,83 @@ class IsolatedResource(AzureFeatureMixin, features.IsolatedResource):
             return schema.FeatureSettings.create(cls.name())
 
         return None
+
+
+class Hsm(AzureFeatureMixin, features.Hsm):
+    """
+    Azure Integrated HSM support for selected sizes with at least 8 vCPUs.
+
+    Azure Integrated HSM overview:
+    https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-integrated-hardware-security-module-overview
+    """
+
+    supported_vm_sizes = {
+        "Standard_D8as_v7",
+        "Standard_D16as_v7",
+        "Standard_D32as_v7",
+        "Standard_D48as_v7",
+        "Standard_D64as_v7",
+        "Standard_D96as_v7",
+        "Standard_D128as_v7",
+        "Standard_D160as_v7",
+        "Standard_D8ads_v7",
+        "Standard_D16ads_v7",
+        "Standard_D32ads_v7",
+        "Standard_D48ads_v7",
+        "Standard_D64ads_v7",
+        "Standard_D96ads_v7",
+        "Standard_D128ads_v7",
+        "Standard_D160ads_v7",
+        "Standard_E8as_v7",
+        "Standard_E16as_v7",
+        "Standard_E32as_v7",
+        "Standard_E48as_v7",
+        "Standard_E64as_v7",
+        "Standard_E96as_v7",
+        "Standard_E128as_v7",
+        "Standard_E160as_v7",
+        "Standard_E8ads_v7",
+        "Standard_E16ads_v7",
+        "Standard_E32ads_v7",
+        "Standard_E48ads_v7",
+        "Standard_E64ads_v7",
+        "Standard_E96ads_v7",
+        "Standard_E128ads_v7",
+        "Standard_E160ads_v7",
+    }
+
+    @classmethod
+    def create_setting(
+        cls, *args: Any, **kwargs: Any
+    ) -> Optional[schema.FeatureSettings]:
+        resource_sku: Any = kwargs.get("resource_sku")
+
+        if resource_sku.name in cls.supported_vm_sizes:
+            return features.HsmSettings(
+                is_enabled=search_space.SetSpace(True, [True, False])
+            )
+        return None
+
+    @classmethod
+    def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
+        environment = cast(Environment, kwargs.get("environment"))
+        arm_parameters = cast(AzureArmParameter, kwargs.get("arm_parameters"))
+
+        assert len(environment.nodes._list) == len(arm_parameters.nodes)
+        for node, node_parameters in zip(environment.nodes._list, arm_parameters.nodes):
+            if not node.capability.features:
+                continue
+            settings = get_feature_settings_by_name(
+                cls.name(), node.capability.features, ignore_error=True
+            )
+            if settings is None:
+                continue
+            assert isinstance(settings, features.HsmSettings)
+            assert isinstance(settings.is_enabled, bool)
+            if settings.is_enabled:
+                node_parameters.vm_tags[
+                    "platformsettings.host_environment.AzureIntegratedHSM"
+                ] = "True"
 
 
 class ACC(AzureFeatureMixin, features.ACC):
