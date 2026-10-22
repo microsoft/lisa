@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.41.2.15936",
-      "templateHash": "16442678695930802815"
+      "version": "0.44.1.10279",
+      "templateHash": "4479114314922377252"
     }
   },
   "functions": [
@@ -804,7 +804,7 @@
       "apiVersion": "2024-03-01",
       "name": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name]",
       "location": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].location]",
-      "tags": "[variables('combined_vm_tags')]",
+      "tags": "[union(variables('combined_vm_tags'), parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vm_tags)]",
       "plan": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].purchase_plan]",
       "properties": {
         "availabilitySet": "[variables('availability_set_value')]",
@@ -905,8 +905,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.41.2.15936",
-              "templateHash": "2282563054596282747"
+              "version": "0.44.1.10279",
+              "templateHash": "8902632392324556597"
             }
           },
           "functions": [
