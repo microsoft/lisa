@@ -353,7 +353,8 @@ class Storage(TestSuite):
         Steps:
         1. Get the partition identifier from `blkid` command.
         2. Verify that the partition identifier from `blkid` is present in dmesg.
-        3. Verify that the partition identifier from `blkid` is present in fstab output.
+        3. Verify that an active root mount in fstab uses the partition's device
+           path, UUID, PARTUUID, or filesystem LABEL.
         """,
         priority=1,
         requirement=simple_requirement(
@@ -404,28 +405,23 @@ class Storage(TestSuite):
                 "should be present in dmesg/journalctl output"
             )
 
-        # verify that "<uuid> /" or "<name> /"or "<part_uuid> /" present in /etc/fstab
         fstab = node.tools[Cat].run("/etc/fstab", sudo=True).stdout
-        if (
-            not get_matched_str(
-                fstab,
-                re.compile(
-                    rf".*{os_partition_info.name}\s+/",
-                ),
-            )
-            and not get_matched_str(
-                fstab,
-                re.compile(rf".*UUID={os_partition_info.uuid}\s+/"),
-            )
-            and not get_matched_str(
-                fstab,
-                re.compile(rf".*PARTUUID={os_partition_info.part_uuid}\s+/"),
-            )
+        identifiers = [os_partition_info.name]
+        for name, value in (
+            ("UUID", os_partition_info.uuid),
+            ("PARTUUID", os_partition_info.part_uuid),
+            ("LABEL", os_partition_info.label),
         ):
+            if value:
+                identifiers.append(f"{name}={value}")
+        sources = "|".join(re.escape(identifier) for identifier in identifiers)
+        root_mount = re.compile(
+            rf"^[ \t]*(?:{sources})[ \t]+/(?:[ \t]|$)", re.MULTILINE
+        )
+        if not root_mount.search(fstab):
             raise LisaException(
-                f"One of '{os_partition_info.name} /' or "
-                "'UUID={os_partition_info.uuid} /' or "
-                "'PARTUUID={os_partition_info.part_uuid} /' should be present in fstab"
+                f"One of {identifiers} should be present in fstab "
+                "as an active root mount"
             )
 
     @TestCaseMetadata(

@@ -85,6 +85,35 @@ class StoragePartitionTestCase(TestCase):
         with self.assertRaisesRegex(LisaException, "present in fstab"):
             self.suite.verify_os_partition_identifier(log=self.log, node=self.node)
 
+    def test_fstab_accepts_matching_root_identifiers(self) -> None:
+        for source in (
+            self.partition.name,
+            f"UUID={self.partition.uuid}",
+            f"PARTUUID={self.partition.part_uuid}",
+            f"LABEL={self.partition.label}",
+        ):
+            with self.subTest(source=source):
+                self.cat.run.return_value.stdout = (
+                    f"{source}\t/\t ext4\tdiscard,errors=remount-ro\t0 1\n"
+                    "LABEL=UEFI /boot/efi vfat umask=0077 0 1\n"
+                )
+
+                self.suite.verify_os_partition_identifier(log=self.log, node=self.node)
+
+    def test_fstab_rejects_comments_other_mounts_and_wrong_labels(self) -> None:
+        for entry in (
+            f"# UUID={self.partition.uuid} / ext4 defaults 0 1",
+            f"UUID={self.partition.uuid} /boot ext4 defaults 0 1",
+            "LABEL=another-filesystem / ext4 defaults 0 1",
+        ):
+            with self.subTest(entry=entry):
+                self.cat.run.return_value.stdout = entry
+
+                with self.assertRaisesRegex(LisaException, "present in fstab"):
+                    self.suite.verify_os_partition_identifier(
+                        log=self.log, node=self.node
+                    )
+
     def test_cvm_identity_checks_still_use_security_profile(self) -> None:
         profile = MagicMock(spec=SecurityProfile)
         profile.get_settings.return_value = SecurityProfileSettings(
