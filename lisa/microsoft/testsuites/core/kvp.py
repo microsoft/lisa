@@ -8,14 +8,15 @@ from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features.security_profile import CvmDisabled
+from lisa.features.security_profile import is_cvm_disabled
 from lisa.operating_system import BSD
-from lisa.sut_orchestrator import AZURE, HYPERV, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM, READY
 from lisa.sut_orchestrator.azure.tools import KvpClient
 from lisa.tools import Pgrep, Service, Stat
 from lisa.util import get_matched_str
@@ -25,10 +26,12 @@ from lisa.util import get_matched_str
     area="kvp",
     category="functional",
     description="""
-    This test suite verify the KVP service runs well on Azure and Hyper-V
-    platforms. The KVP is used to communicate between Windows host and guest VM.
+    This test suite verifies the Hyper-V KVP service on Azure, Hyper-V and OpenVMM.
+    KVP exchanges data between the host and guest VM.
     """,
-    requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+    requirement=simple_requirement(
+        supported_platform_type=[AZURE, READY, HYPERV, OPENVMM]
+    ),
 )
 class Kvp(TestSuite):
     # lrwx------ 1 root root 64 Oct 18 19:05 9 -> /dev/vmbus/hv_kvp
@@ -49,10 +52,14 @@ class Kvp(TestSuite):
     """,
         priority=1,
         requirement=simple_requirement(
-            supported_features=[CvmDisabled()],
+            supported_platform_type=[AZURE, READY, HYPERV, OPENVMM],
         ),
     )
     def verify_kvp(self, node: Node, log: Logger) -> None:
+        if not is_cvm_disabled(node):
+            raise SkippedException(
+                "KVP validation requires a non-confidential VM without disk encryption."
+            )
         if isinstance(node.os, BSD):
             kvp_pool_path = "/var/db/hyperv/pool"
             kvp_process_name = "hv_kvp_daemon"

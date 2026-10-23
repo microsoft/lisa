@@ -3,13 +3,16 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import partial
-from typing import Any, List, Type, Union
+from typing import TYPE_CHECKING, Any, List, Type, Union
 
 from dataclasses_json import dataclass_json
 
 from lisa import schema, search_space
 from lisa.feature import Feature
 from lisa.util import constants, field_metadata
+
+if TYPE_CHECKING:
+    from lisa.node import Node
 
 FEATURE_NAME_SECURITY_PROFILE = "Security_Profile"
 
@@ -166,6 +169,16 @@ CvmDiskEncryptionEnabled = partial(
     security_profile=search_space.SetSpace(True, [SecurityProfileType.CVM]),
     encrypt_disk=True,
 )
+
+
+def is_cvm_disabled(node: "Node") -> bool:
+    """Match CvmDisabled without requiring a platform security-management feature."""
+    if not node.features.is_supported(SecurityProfile):
+        return True
+    settings = Feature.get_feature_settings(
+        node.features[SecurityProfile].get_settings()
+    )
+    return CvmDisabled().check(settings).result
 
 
 def is_cvm(node: Any) -> bool:

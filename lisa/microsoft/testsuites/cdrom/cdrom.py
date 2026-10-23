@@ -7,7 +7,7 @@ from assertpy import assert_that
 
 from lisa import Node, SkippedException, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CBLMariner, Debian, Ubuntu
-from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM
+from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.testsuite import simple_requirement
 from lisa.tools import Gcc
 from lisa.util.logger import Logger
@@ -31,11 +31,13 @@ class CdromSuite(TestSuite):
         description="""
             Test to check the installation ISO is unloaded
             after provisioning and rebooting a new VM.
+            This validates automatic provisioning-media removal on Azure/Hyper-V,
+            not OpenVMM's explicitly attached persistent cloud-init drive.
         """,
         priority=2,
         requirement=simple_requirement(
             supported_os=[Debian, CBLMariner],
-            supported_platform_type=[AZURE, HYPERV, OPENVMM],
+            supported_platform_type=[AZURE, HYPERV],
         ),
     )
     def verify_cdrom_device_status_code(self, node: Node) -> None:

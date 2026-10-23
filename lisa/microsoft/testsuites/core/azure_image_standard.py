@@ -1339,7 +1339,8 @@ class AzureImageStandard(TestSuite):
     @TestCaseMetadata(
         description="""
         This test validates ClientAliveInterval setting in sshd config is present and
-        set to an appropriate value.
+        set to an appropriate value for Azure image qualification. This is not
+        a requirement of an upstream cloud image running as an OpenVMM guest.
 
         Steps:
         1. Examine the sshd_config file to locate the ClientAliveInterval parameter.
@@ -1356,9 +1357,7 @@ class AzureImageStandard(TestSuite):
            refer to https://aka.ms/Linux-Testcases.
         """,
         priority=2,
-        requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, OPENVMM]
-        ),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
     )
     def verify_client_active_interval(self, node: Node) -> None:
         ssh = node.tools[Ssh]

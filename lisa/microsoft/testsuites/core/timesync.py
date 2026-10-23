@@ -22,6 +22,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import BSD, CpuArchitecture, Redhat, Suse, Ubuntu, Windows
+from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.tools import (
     Cat,
     Chmod,
@@ -114,8 +115,12 @@ class TimeSync(TestSuite):
              /dev/ptp_hyperv to whichever /dev/ptp entry corresponds to the Azure host.
             4. Chrony should be configured to use the symlink /dev/ptp_hyperv
              instead of /dev/ptp0 or /dev/ptp1.
+
+        This checks the Azure/Hyper-V guest-image integration policy, including
+        Chrony configuration, not only whether a generic guest exposes a PTP device.
         """,
         priority=2,
+        requirement=simple_requirement(supported_platform_type=[AZURE, HYPERV, READY]),
     )
     def verify_timesync_ptp(self, node: Node) -> None:
         # On Ubuntu >= 19.10 and Red Hat Enterprise Linux >= 8.x, chrony
