@@ -174,6 +174,16 @@ If a node omits an optional capability, such as disk or network interface
 settings, requirements for that capability do not match the node. Tests
 without those requirements can still run on it.
 
+For generated environments whose guests all use ``use_parent_capability: false``,
+the connected guest capabilities are fixed by the guest configuration. Unmet
+requirements are reported as skipped instead of deploying identical guests
+repeatedly. Compatible tests still run, including tests requiring a fresh
+environment. Guests that inherit parent capabilities and predefined environments
+remain eligible for matching against other candidate environments.
+
+OpenVMM guests advertise their own ``StartStop`` and ``SerialConsole`` features
+even when parent capabilities are not inherited.
+
 The figure below shows a test case that requires at least one core, 2G
 memory and three network interface cards (NIC). The Azure VM
 Standard_DS2_v2 in the middle meets the first two requirements, as it

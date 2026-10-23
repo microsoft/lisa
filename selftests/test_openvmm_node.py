@@ -13,7 +13,9 @@ from assertpy import assert_that
 from paramiko.ssh_exception import SSHException
 
 from lisa import schema
+from lisa.environment import EnvironmentSpace
 from lisa.features import SerialConsole as SerialConsoleFeature
+from lisa.node import LocalNode
 from lisa.sut_orchestrator.openvmm.context import (
     DeviceAddressSchema,
     DevicePassthroughContext,
@@ -35,6 +37,7 @@ from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
+from lisa.testsuite import simple_requirement
 from lisa.tools import Cat, Ip, Kill, Mkdir
 from lisa.tools.openvmm import (
     OPENVMM_DISK_DEVICE_SCSI,
@@ -587,6 +590,25 @@ class OpenVmmNodeTestCase(TestCase):
         ]
 
         self.assertIn(SerialConsoleFeature.name(), supported_feature_names)
+
+    def test_guest_matches_serial_console_requirement_without_parent_capability(
+        self,
+    ) -> None:
+        host = LocalNode(schema.LocalNode(), index=0, logger_name="host")
+        runbook = OpenVmmGuestNodeSchema(
+            use_parent_capability=False,
+            uefi=OpenVmmUefiSchema(firmware_path="firmware.fd"),
+            disk_img="guest.img",
+        )
+        guest = OpenVmmGuestNode(runbook, index=0, logger_name="guest", parent=host)
+        requirement = simple_requirement(supported_features=[SerialConsoleFeature])
+        assert requirement.environment
+
+        result = requirement.environment.check(
+            EnvironmentSpace(nodes=[guest.capability])
+        )
+
+        self.assertTrue(result.result, result.reasons)
 
     def test_serial_console_reads_openvmm_host_console_log(self) -> None:
         cat = SimpleNamespace(

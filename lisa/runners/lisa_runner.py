@@ -231,7 +231,8 @@ class LisaRunner(BaseRunner):
                 environment_results = [
                     x
                     for x in available_results
-                    if environment.source_test_result
+                    if x.can_run
+                    and environment.source_test_result
                     and x.id_ == environment.source_test_result.id_
                 ]
                 if not environment_results:
@@ -765,19 +766,39 @@ class LisaRunner(BaseRunner):
         ]
         if environment:
             runnable_results: List[TestResult] = []
+            guest_runbooks = (
+                cast(schema.Platform, self.platform.runbook).guests
+                if self._guest_enabled
+                else []
+            )
+            # Generated parents share guest settings. Redeploying cannot fix a
+            # guest mismatch when the guests do not inherit parent capabilities.
+            fixed_guest_capabilities = (
+                environment.status == EnvironmentStatus.Connected
+                and not environment.is_predefined
+                and bool(guest_runbooks)
+                and all(not guest.use_parent_capability for guest in guest_runbooks)
+            )
             for result in results:
                 # use guest environment to check
                 tested_environment = environment
                 if self._guest_enabled:
                     tested_environment = environment.get_guest_environment()
                 try:
-                    if result.check_environment(
+                    matches_environment = result.check_environment(
                         environment=tested_environment,
                         environment_platform_type=self._get_test_platform_type(
                             result, self.platform.type_name()
                         ),
                         save_reason=True,
-                    ) and (
+                    )
+                    if not matches_environment and fixed_guest_capabilities:
+                        assert result.check_results is not None
+                        raise SkippedException(
+                            "requirements cannot be satisfied by configured guest "
+                            f"capabilities: {result.check_results.reasons}"
+                        )
+                    if matches_environment and (
                         not result.runtime_data.use_new_environment
                         or environment.is_new
                     ):
