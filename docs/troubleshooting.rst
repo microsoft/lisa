@@ -43,19 +43,6 @@ for more information.
 An alternative way is to simply select the virtual environment ``.venv`` as
 the default interpreter in the workspace.
 
-Azure guest sudo passwords
--------------------------
-
-SSH key authentication does not imply passwordless sudo. When a Linux guest
-requires a sudo password and none was supplied, LISA uses the VMAccessForLinux
-extension to reset the test user's password.
-
-Extension initialization reads the Azure Linux Agent configuration without sudo
-first, so an already-enabled agent can reset the password before privileged guest
-commands are available. If the configuration is not readable, LISA retries with
-sudo and reports any read failure. Changing a disabled ``Extensions.Enabled``
-setting still requires sudo privileges.
-
 Other issues
 ------------
 
