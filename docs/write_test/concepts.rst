@@ -170,6 +170,10 @@ capabilities of environments are loaded from the platform's API. Only if
 the capability of an environment meets the requirements of a test case,
 the test case can be run on this environment.
 
+If a node omits an optional capability, such as disk or network interface
+settings, requirements for that capability do not match the node. Tests
+without those requirements can still run on it.
+
 The figure below shows a test case that requires at least one core, 2G
 memory and three network interface cards (NIC). The Azure VM
 Standard_DS2_v2 in the middle meets the first two requirements, as it

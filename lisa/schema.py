@@ -1140,7 +1140,7 @@ class NodeSpace(search_space.RequirementMixin, TypedSchema, ExtendableSchemaMixi
             "memory_mb",
         )
         if self.disk:
-            result.merge(self.disk.check(capability.disk))
+            result.merge(search_space.check(self.disk, capability.disk))
         if self.network_interface:
             result.merge(self.network_interface.check(capability.network_interface))
         result.merge(
