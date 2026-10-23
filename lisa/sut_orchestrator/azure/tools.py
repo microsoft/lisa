@@ -166,9 +166,22 @@ class Waagent(Tool):
         waagent_conf_file = self._get_waagent_conf_path()
 
         config = {}
-        cfg = self.node.tools[Cat].read(
-            waagent_conf_file, force_run=force_run, sudo=True
+        # VMAccess may need this configuration before a sudo password is available.
+        cat = self.node.tools[Cat]
+        result = cat.run(waagent_conf_file, force_run=force_run, shell=True)
+        if result.exit_code != 0:
+            self._log.debug(
+                f"Cannot read {waagent_conf_file} without sudo: {result.stderr}. "
+                "Retrying with sudo."
+            )
+            result = cat.run(
+                waagent_conf_file, force_run=force_run, shell=True, sudo=True
+            )
+        result.assert_exit_code(
+            message=f"Failed to read waagent configuration {waagent_conf_file}",
+            include_output=True,
         )
+        cfg = result.stdout
         for line in cfg.splitlines():
             matched = self._key_value_regex.fullmatch(line)
             if matched:
