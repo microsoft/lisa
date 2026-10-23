@@ -2453,6 +2453,7 @@ class AzurePlatform(Platform):
             # https://docs.microsoft.com/en-us/azure/virtual-machines/ncv3-series
             # https://docs.microsoft.com/en-us/azure/virtual-machines/nd-series
             # https://learn.microsoft.com/en-us/azure/virtual-machines/sizes/gpu-accelerated/nccadsh100v5-series
+            # https://learn.microsoft.com/en-us/azure/confidential-computing/confidential-vm-overview#limitations
             # below VM size families don't support `Accelerated Networking` but
             # API return `True`, fix this issue temporarily will revert it till
             # bug fixed.
@@ -2463,6 +2464,12 @@ class AzurePlatform(Platform):
                 "standardncsv3family",
                 "standardndsfamily",
                 "standardnccads2023family",
+                "standarddcev6family",
+                "standarddcedv6family",
+                "standarddcelv6family",
+                "standarddceldv6family",
+                "standardecev6family",
+                "standardecedv6family",
             ]:
                 # update data path types if sriov feature is supported
                 node_space.network_interface.data_path.add(schema.NetworkDataPath.Sriov)
