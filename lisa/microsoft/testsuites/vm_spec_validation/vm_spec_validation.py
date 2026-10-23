@@ -299,7 +299,7 @@ class VmSpecValidation(TestSuite):
             ),
         ),
     )
-    def verify_vm_sriov_nic_count(
+    def verify_vm_max_sriov_nic_count(
         self, environment: Environment, node: Node, log: Logger
     ) -> None:
         expected_nic_count = _expected_max_nic_count(node)
@@ -350,7 +350,7 @@ class VmSpecValidation(TestSuite):
             ),
         ),
     )
-    def verify_vm_synthetic_nic_count(
+    def verify_vm_max_synthetic_nic_count(
         self, environment: Environment, node: Node, log: Logger
     ) -> None:
         expected_nic_count = _expected_max_nic_count(node)
@@ -589,7 +589,7 @@ class VmSpecValidation(TestSuite):
             unsupported_os=[BSD, Windows],
             disk=schema.DiskOptionSettings(
                 data_disk_type=schema.DiskType.PremiumSSDLRS,
-                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_iops=search_space.IntRange(min=10000),
                 data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
             ),
         ),
