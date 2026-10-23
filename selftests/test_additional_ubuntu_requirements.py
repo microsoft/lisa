@@ -88,7 +88,17 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
         for case in cases:
             self.assertTrue(_is_os_compatible(case, Ubuntu))
             for distro in (Debian, Redhat, Suse, CBLMariner):
-                self.assertTrue(_is_os_compatible(case, distro, parse_version("1.0")))
+                filtered = (
+                    case in (self.minimum_cases[2][0], self.minimum_cases[3][0])
+                    and distro in (Debian, Redhat)
+                ) or (
+                    case in (_AZSECPACK, self.major_cases[0][0])
+                    and distro in (Debian, Redhat, CBLMariner)
+                )
+                self.assertEqual(
+                    not filtered,
+                    _is_os_compatible(case, distro, parse_version("1.0")),
+                )
             is_azsecpack = case is _AZSECPACK
             self.assertEqual(is_azsecpack, _is_os_compatible(case, Windows))
             self.assertEqual(not is_azsecpack, _is_os_compatible(case, BSD))

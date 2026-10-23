@@ -7,6 +7,7 @@ from assertpy.assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -24,7 +25,9 @@ from lisa.util import SkippedException, UnsupportedDistroException
     description="""
     This test suite is to confirm bpf support.
     """,
-    requirement=simple_requirement(supported_os=[CBLMariner]),
+    requirement=simple_requirement(
+        supported_os=[OsRequirement(CBLMariner, min_version="3")]
+    ),
 )
 class BpfSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

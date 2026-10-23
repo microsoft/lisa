@@ -118,11 +118,17 @@ steps.
 Definition in test case
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-Ubuntu release restrictions can be declared with
+Release restrictions can be declared with
 ``OsRequirement(Ubuntu, min_version="22.04", max_version="24.04")`` in
 ``supported_os`` or ``unsupported_os``. Import ``OsRequirement`` from
-``lisa``. The minimum is inclusive and the maximum exclusive. Only Ubuntu
-supports version bounds; other distros continue to use OS classes.
+``lisa``. The minimum is inclusive and the maximum exclusive. Ubuntu uses
+``YY.MM`` bounds. ``CBLMariner``, ``Redhat``, ``Debian``, ``Oracle`` and
+``CentOs`` also support bounds, using ``major`` or ``major.minor``; for example,
+``OsRequirement(Redhat, min_version="8.3")``. Versioned entries match concrete
+distros, not their subclasses; class-only entries retain inheritance matching.
+An image identifying only a major release is retained if its minor release
+could satisfy the requirement. Keep architecture, kernel, and exact point-release
+checks at runtime.
 These requirements are checked on the connected guest and can also filter
 tests before deployment when distro pre-filtering is enabled. See
 :doc:`../distro_pre_filter` for examples and image inference limitations.

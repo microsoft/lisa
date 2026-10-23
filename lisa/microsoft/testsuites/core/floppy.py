@@ -4,13 +4,15 @@
 from assertpy import assert_that
 
 from lisa import (
+    OsRequirement,
     RemoteNode,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    simple_requirement,
 )
-from lisa.operating_system import CentOs
+from lisa.operating_system import CentOs, Windows
 from lisa.tools import Modprobe
 
 
@@ -35,6 +37,9 @@ class Floppy(TestSuite):
         If the module is loaded, running modprobe will have no output
         """,
         priority=1,
+        requirement=simple_requirement(
+            unsupported_os=[Windows, OsRequirement(CentOs, max_version="7.8")]
+        ),
     )
     def verify_floppy_module_is_blacklisted(self, node: RemoteNode) -> None:
         os_version = node.os.information.version

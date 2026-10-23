@@ -7,23 +7,35 @@ from typing import Optional, Sequence, Type, Union
 
 from semver import VersionInfo
 
-from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.operating_system import (
+    CBLMariner,
+    CentOs,
+    Debian,
+    OperatingSystem,
+    Oracle,
+    Redhat,
+    Ubuntu,
+)
 from lisa.util import LisaException, parse_version
 
 
-def _parse_release(value: str) -> VersionInfo:
-    if not isinstance(value, str) or not re.fullmatch(
-        r"[0-9]{2}\.(?:0[1-9]|1[0-2])", value
-    ):
+def _parse_release(value: str, os_type: Type[OperatingSystem]) -> VersionInfo:
+    if os_type is Ubuntu:
+        pattern = r"[0-9]{2}\.(?:0[1-9]|1[0-2])"
+        expected = "YY.MM (for example 22.04)"
+    else:
+        pattern = r"(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*))?"
+        expected = "major or major.minor (for example 8 or 8.3)"
+    if not isinstance(value, str) or not re.fullmatch(pattern, value):
         raise LisaException(
-            f"Invalid Ubuntu release '{value}': expected YY.MM (for example 22.04)"
+            f"Invalid {os_type.__name__} release '{value}': expected {expected}"
         )
     return parse_version(value)
 
 
 @dataclass(frozen=True)
 class OsRequirement:
-    """OS restriction with optional Ubuntu release bounds: [min, max)."""
+    """OS restriction with optional concrete-distro release bounds: [min, max)."""
 
     os_type: Type[OperatingSystem]
     min_version: Optional[str] = None
@@ -36,13 +48,26 @@ class OsRequirement:
             self.os_type, OperatingSystem
         ):
             raise LisaException("OsRequirement requires an OperatingSystem class")
-        if self.has_version and self.os_type is not Ubuntu:
-            raise LisaException("OS version requirements currently support Ubuntu only")
+        if self.has_version and self.os_type not in (
+            Ubuntu,
+            CBLMariner,
+            Redhat,
+            Debian,
+            Oracle,
+            CentOs,
+        ):
+            raise LisaException(
+                f"OS version requirements do not support {self.os_type.__name__}"
+            )
         minimum = (
-            _parse_release(self.min_version) if self.min_version is not None else None
+            _parse_release(self.min_version, self.os_type)
+            if self.min_version is not None
+            else None
         )
         maximum = (
-            _parse_release(self.max_version) if self.max_version is not None else None
+            _parse_release(self.max_version, self.os_type)
+            if self.max_version is not None
+            else None
         )
         if minimum is not None and maximum is not None and minimum >= maximum:
             raise LisaException(
@@ -72,6 +97,21 @@ class OsRequirement:
             self._maximum is None or release < self._maximum
         )
 
+    def matches_release_range(
+        self, minimum: VersionInfo, maximum: VersionInfo
+    ) -> Optional[bool]:
+        minimum = parse_version(f"{minimum.major}.{minimum.minor}")
+        maximum = parse_version(f"{maximum.major}.{maximum.minor}")
+        if (self._maximum is not None and minimum >= self._maximum) or (
+            self._minimum is not None and maximum <= self._minimum
+        ):
+            return False
+        if (self._minimum is None or minimum >= self._minimum) and (
+            self._maximum is None or maximum <= self._maximum
+        ):
+            return True
+        return None
+
 
 OsRequirementEntry = Union[Type[OperatingSystem], OsRequirement]
 
@@ -82,6 +122,7 @@ def matches_os_requirement(
     version: Optional[VersionInfo] = None,
     *,
     prefilter: bool = False,
+    version_upper_bound: Optional[VersionInfo] = None,
 ) -> Optional[bool]:
     """None means the inferred target is too imprecise to decide."""
     required_os = entry.os_type if isinstance(entry, OsRequirement) else entry
@@ -91,8 +132,13 @@ def matches_os_requirement(
     if not direct_match and not (prefilter and issubclass(required_os, target_os)):
         return False
     if isinstance(entry, OsRequirement) and entry.has_version:
+        # Python ancestry does not imply a shared distro release numbering scheme.
+        if target_os is not required_os:
+            return None if prefilter and issubclass(required_os, target_os) else False
         if not direct_match or version is None:
             return None
+        if version_upper_bound is not None:
+            return entry.matches_release_range(version, version_upper_bound)
         return entry.matches_release(version)
     return True
 
@@ -104,9 +150,25 @@ def is_os_supported(
     version: Optional[VersionInfo] = None,
     *,
     prefilter: bool = False,
+    version_upper_bound: Optional[VersionInfo] = None,
 ) -> bool:
+    # An explicit release rule identifies a concrete distro; a possible subclass
+    # must not bypass it (e.g. AlmaLinux in an allowlist for a known RHEL image).
+    if version is not None and any(
+        isinstance(entry, OsRequirement)
+        and entry.has_version
+        and entry.os_type is target_os
+        for entry in entries
+    ):
+        prefilter = False
     matches = [
-        matches_os_requirement(entry, target_os, version, prefilter=prefilter)
+        matches_os_requirement(
+            entry,
+            target_os,
+            version,
+            prefilter=prefilter,
+            version_upper_bound=version_upper_bound,
+        )
         for entry in entries
     ]
     if is_allow_set:

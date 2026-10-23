@@ -40,14 +40,16 @@ class MetricsExtensionRequirementTestCase(TestCase):
                     )
         self.assertTrue(_is_os_compatible(self.case, Ubuntu))
 
-    def test_platform_and_non_ubuntu_requirements_are_unchanged(self) -> None:
+    def test_platform_and_non_ubuntu_requirements(self) -> None:
         for platform in (AZURE, READY):
             self.assertTrue(_is_platform_compatible(self.case, [platform]))
         self.assertFalse(_is_platform_compatible(self.case, [HYPERV]))
         for distro in (CBLMariner, Debian, Redhat, Oracle):
             for version in ("1.0", "99.0"):
-                self.assertTrue(
-                    _is_os_compatible(self.case, distro, parse_version(version))
+                self.assertEqual(
+                    distro in (Redhat, Oracle)
+                    or (distro is CBLMariner and version == "1.0"),
+                    _is_os_compatible(self.case, distro, parse_version(version)),
                 )
         self.assertFalse(_is_os_compatible(self.case, Windows))
 

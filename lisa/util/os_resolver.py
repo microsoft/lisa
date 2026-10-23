@@ -10,11 +10,19 @@ deploying environments only to skip the cases at runtime.
 
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, List, Optional, Tuple, Type
 
 from semver import VersionInfo
 
-from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.operating_system import (
+    CBLMariner,
+    CentOs,
+    Debian,
+    OperatingSystem,
+    Oracle,
+    Redhat,
+    Ubuntu,
+)
 from lisa.util import parse_version
 from lisa.util.logger import get_logger
 
@@ -96,6 +104,22 @@ _UBUNTU_RELEASES = {
 class TargetOs:
     os_type: Type[OperatingSystem]
     version: Optional[VersionInfo] = None
+    version_upper_bound: Optional[VersionInfo] = None
+
+
+def _image_definition_name(image: str) -> str:
+    text = re.split(r"[?#]", image.lower().strip(), maxsplit=1)[0]
+    segments = text.rstrip("/").split("/")
+    if "images" in segments:
+        index = segments.index("images") + 1
+        return segments[index] if index < len(segments) else ""
+    if len(segments) > 1:
+        return (
+            segments[-2]
+            if re.fullmatch(r"(?:[0-9]+\.)*[0-9]+|latest", segments[-1])
+            else segments[-1]
+        )
+    return text
 
 
 def _infer_ubuntu_release(image: str) -> Optional[VersionInfo]:
@@ -109,18 +133,7 @@ def _infer_ubuntu_release(image: str) -> Optional[VersionInfo]:
         # Publication versions are not distro releases.
         text = " ".join(parts[1:3])
     else:
-        text = re.split(r"[?#]", text, maxsplit=1)[0]
-        # Ignore storage domains, gallery names, and gallery publication versions.
-        segments = text.rstrip("/").split("/")
-        if "images" in segments:
-            index = segments.index("images") + 1
-            text = segments[index] if index < len(segments) else ""
-        elif len(segments) > 1:
-            text = (
-                segments[-2]
-                if re.fullmatch(r"(?:[0-9]+\.)*[0-9]+|latest", segments[-1])
-                else segments[-1]
-            )
+        text = _image_definition_name(text)
 
     if "ubuntu" not in text:
         _log.debug(
@@ -161,6 +174,92 @@ def _infer_ubuntu_release(image: str) -> Optional[VersionInfo]:
         f"unknown or conflicting release in '{image}'"
     )
     return None
+
+
+def _marketplace_release_sources(
+    parts: List[str], os_type: Type[OperatingSystem]
+) -> List[str]:
+    publisher, offer, sku, _ = parts
+    if publisher == "microsoftcblmariner" and os_type is CBLMariner:
+        if offer in ("azure-linux-3", "cbl-mariner"):
+            return [offer, sku]
+    elif publisher == "debian" and os_type is Debian:
+        if re.fullmatch(r"debian-[0-9]+", offer):
+            return [offer, f"debian-{sku}"]
+    elif (
+        (
+            publisher == "redhat"
+            and os_type is Redhat
+            and offer in ("rhel", "rhel-arm64", "rhel-cvm")
+        )
+        or (publisher == "oracle" and os_type is Oracle and offer == "oracle-linux")
+        or (
+            publisher == "openlogic"
+            and os_type is CentOs
+            and offer in ("centos", "centos-lvm")
+        )
+    ):
+        if os_type is Oracle:
+            sku = re.sub(r"^ol", "", sku)
+        # These catalog forms encode major 6-10 followed by the minor.
+        compact = re.fullmatch(r"(10|[6-9])([0-9]{1,2})(?=[-_]|$)(.*)", sku)
+        if compact:
+            sku = f"{compact[1]}.{int(compact[2])}{compact[3]}"
+        if re.match(r"^[0-9]{1,2}(?:[._][0-9]+)?(?=$|[-_])", sku):
+            return [f"{os_type.__name__.lower()}-{sku}"]
+    _log.debug("Version pre-filter deferred: unrecognized publisher/offer/SKU")
+    return []
+
+
+def _infer_distro_release(
+    image: str, os_type: Type[OperatingSystem]
+) -> Tuple[Optional[VersionInfo], Optional[VersionInfo]]:
+    """Return a release and, for incomplete releases, its exclusive upper bound."""
+    prefixes: Dict[Type[OperatingSystem], str] = {
+        CBLMariner: r"(?:azure[-_]?linux|cbl[-_]?mariner|mariner)",
+        Redhat: r"(?:rhel|redhat)",
+        Debian: r"debian",
+        Oracle: r"(?:oracle[-_]?linux|oracle|ol)",
+        CentOs: r"centos",
+    }
+    if os_type not in prefixes:
+        return None, None
+    if "," in image:
+        _log.debug("Version pre-filter deferred: multiple image identifiers")
+        return None, None
+    parts = image.lower().split()
+    sources = (
+        _marketplace_release_sources(parts, os_type)
+        if len(parts) == 4
+        else [_image_definition_name(image)]
+    )
+
+    pattern = (
+        rf"(?:^|[^a-z0-9]){prefixes[os_type]}[-_]"
+        r"([0-9]+)(?:[._]([0-9]+))?(?![a-z0-9]|[._][0-9])"
+    )
+    intervals = []
+    for source in sources:
+        for match in re.finditer(pattern, source):
+            major = int(match[1])
+            minor = int(match[2]) if match[2] is not None else None
+            lower = parse_version(f"{major}.{minor or 0}")
+            upper = (
+                parse_version(str(major + 1))
+                if minor is None
+                else parse_version(f"{major}.{minor + 1}")
+            )
+            intervals.append((lower, upper, minor is not None))
+    if intervals:
+        lower = max(item[0] for item in intervals)
+        upper = min(item[1] for item in intervals)
+        if lower < upper:
+            return lower, None if any(item[2] for item in intervals) else upper
+    _log.debug(
+        f"{os_type.__name__} version pre-filter deferred: "
+        f"unknown or conflicting release in '{image}'"
+    )
+    return None, None
 
 
 def resolve_target_os(variables: Dict[str, Any]) -> Optional[TargetOs]:
@@ -285,10 +384,16 @@ def infer_target_os_info(
                     f"target_os inferred as '{cls.__name__}' "
                     f"(source: variable '{key}'='{value}')"
                 )
-                version = _infer_ubuntu_release(value) if cls is Ubuntu else None
+                if cls is Ubuntu:
+                    version, upper_bound = _infer_ubuntu_release(value), None
+                else:
+                    version, upper_bound = _infer_distro_release(value, cls)
                 if version is not None:
-                    _log.info(f"target Ubuntu release inferred as '{version}'")
-                return TargetOs(cls, version)
+                    _log.info(
+                        f"target {cls.__name__} release inferred as '{version}'"
+                        f", upper_bound={upper_bound}"
+                    )
+                return TargetOs(cls, version, upper_bound)
 
     # Nothing to go on.
     return None

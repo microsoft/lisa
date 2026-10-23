@@ -15,7 +15,17 @@ from lisa import (
     schema,
 )
 from lisa.environment import EnvironmentStatus, load_environments
-from lisa.operating_system import OsInformation, Posix, Ubuntu, Windows
+from lisa.operating_system import (
+    CBLMariner,
+    CentOs,
+    Debian,
+    Oracle,
+    OsInformation,
+    Posix,
+    Redhat,
+    Ubuntu,
+    Windows,
+)
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import parse_testcase_filters
 from lisa.testselector import select_testcases
@@ -381,6 +391,47 @@ class TestSuiteTestCase(TestCase):
                             SkippedException, "OS type mismatch"
                         ):
                             result.check_environment(self.default_env)
+
+    def test_result_check_env_distro_release(self) -> None:
+        _ = self.generate_suite_instance()
+        assert self.default_env
+        self.default_env.status = EnvironmentStatus.Connected
+        self.default_env._is_initialized = True
+        result = self.case_results[0]
+        nodes = list(self.default_env.nodes.list())
+        for distro in (CBLMariner, CentOs, Debian, Oracle, Redhat):
+            for allow in (True, False):
+                entries = [OsRequirement(distro, min_version="8.3", max_version="9")]
+                result.runtime_data.metadata.requirement = simple_requirement(
+                    min_count=2,
+                    supported_os=entries if allow else None,
+                    unsupported_os=None if allow else entries,
+                )
+                for releases in (("8.3.5", "8.10"), ("8.3", "8.2"), ("9", "9")):
+                    with self.subTest(distro=distro, allow=allow, releases=releases):
+                        for node, release in zip(nodes, releases):
+                            node.os = distro(node)
+                            node.os._information = OsInformation(
+                                version=parse_version(release),
+                                release=release,
+                                vendor=distro.__name__,
+                            )
+                        expected = all(
+                            (
+                                parse_version("8.3")
+                                <= parse_version(release)
+                                < parse_version("9")
+                            )
+                            == allow
+                            for release in releases
+                        )
+                        if expected:
+                            self.assertTrue(result.check_environment(self.default_env))
+                        else:
+                            with self.assertRaisesRegex(
+                                SkippedException, "OS type mismatch"
+                            ):
+                                result.check_environment(self.default_env)
 
     def test_result_check_env_non_ubuntu_skips_version(self) -> None:
         _ = self.generate_suite_instance()

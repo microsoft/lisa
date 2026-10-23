@@ -16,8 +16,10 @@ from lisa import (
 from lisa.features import SecureBootEnabled
 from lisa.operating_system import (
     AzureCoreRepo,
+    CentOs,
     CpuArchitecture,
     Debian,
+    Oracle,
     Posix,
     Redhat,
     Suse,
@@ -52,7 +54,14 @@ class TvmTest(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_features=[SecureBootEnabled()],
-            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="18.04")],
+            unsupported_os=[
+                Windows,
+                OsRequirement(Ubuntu, max_version="18.04"),
+                OsRequirement(Debian, max_version="11"),
+                OsRequirement(Redhat, max_version="8.3"),
+                OsRequirement(CentOs, max_version="8.3"),
+                OsRequirement(Oracle, max_version="8.3"),
+            ],
         ),
     )
     def verify_secureboot_compatibility(self, node: Node) -> None:
@@ -100,7 +109,14 @@ class TvmTest(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_features=[SecureBootEnabled()],
-            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="18.04")],
+            unsupported_os=[
+                Windows,
+                OsRequirement(Ubuntu, max_version="18.04"),
+                OsRequirement(Debian, max_version="11"),
+                OsRequirement(Redhat, max_version="8.3"),
+                OsRequirement(CentOs, max_version="8.3"),
+                OsRequirement(Oracle, max_version="8.3"),
+            ],
         ),
     )
     def verify_measuredboot_compatibility(self, node: Node) -> None:

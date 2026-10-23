@@ -32,11 +32,11 @@ Goals
 -  Gracefully fall back to the existing runtime mechanism when the
    target OS cannot be determined.
 
-Ubuntu Release Requirements
----------------------------
+Release Requirements
+--------------------
 
 ``supported_os`` and ``unsupported_os`` accept OS classes as before, and
-``OsRequirement`` entries with optional Ubuntu release bounds:
+``OsRequirement`` entries with optional distro release bounds:
 
 .. code-block:: python
 
@@ -57,16 +57,24 @@ Ubuntu releases from 22.04 up to, but not including, 24.04. In a supported
 list it allows that range; in an unsupported list it excludes that range.
 Entries in each list are alternatives. Both lists cannot be nonempty.
 
-Bounds must use ``YY.MM`` format. Comparison uses the Ubuntu major/minor
+Ubuntu bounds must use ``YY.MM`` format. Comparison uses the Ubuntu major/minor
 release, so Ubuntu 22.04.5 belongs to the 22.04 release. Point releases,
 kernel versions and image publication versions are not supported bounds.
-Malformed bounds, empty/reversed ranges and bounds on a non-Ubuntu OS
+``CBLMariner``, ``Redhat``, ``Debian``, ``Oracle`` and ``CentOs`` accept
+``major`` or ``major.minor`` bounds, such as ``3``, ``8.3`` or ``8.10``.
+Malformed bounds, empty/reversed ranges and version bounds on other OS classes
 raise a configuration error. Class-only requirements retain their existing
-inheritance behavior; Ubuntu release numbers are never compared against
-Debian or another distro's release numbers.
+inheritance behavior. Versioned entries apply to the concrete distro only:
+Debian release bounds do not apply to Ubuntu, and Redhat bounds do not apply
+to CentOS, Oracle Linux or AlmaLinux. Specify each intended distro separately.
+
+For example, ``OsRequirement(CBLMariner, min_version="3", max_version="4")``
+matches Azure Linux major 3, while ``OsRequirement(Redhat, min_version="8.3")``
+matches RHEL 8.3 and later. Comparisons ignore patch components; existing
+point-release guards must remain at runtime.
 
 Version pre-filtering uses the existing ``enable_distro_pre_filtering``
-switch and is implemented only for Ubuntu. It recognizes:
+switch. Ubuntu inference recognizes:
 
 * Marketplace SKU releases such as ``16.04-LTS``, ``22_04-lts-gen2`` and
   ``pro-fips-22_04-arm64``.
@@ -83,13 +91,13 @@ The OS and release must come from the same image variable.
 
 Unknown or conflicting release hints retain the test for runtime checking;
 an unknown release must not turn a versioned exclusion into an exclusion of
-all Ubuntu versions. Non-Ubuntu targets keep the existing distro-only
-filtering, without version checks. Debug logs explain unrecognized or
-conflicting Ubuntu release hints and show the requirements of dropped cases.
+all releases of that distro. Distributions outside the supported set keep
+distro-only filtering. Debug logs explain unrecognized or conflicting release
+hints and show the requirements of dropped cases.
 Both ``lisa run`` and ``lisa list`` use the same gated target resolution.
 As with distro-only filtering, ``list --all`` does not bypass the pre-filter.
 
-The actual connected Ubuntu guest's release is checked against the same
+The actual connected guest's release is checked against the same
 requirements at runtime, even when pre-filtering is disabled. Existing
 runtime guards remain useful for conditions not expressed by this metadata.
 
@@ -100,6 +108,72 @@ extensions (discrete supported Ubuntu major versions). Major-version
 allowlists use January boundaries to preserve the whole supported release
 year, rather than restricting support to LTS releases. Architecture,
 generation and kernel-dependent guards remain runtime checks.
+
+Other Distro Image Releases
+--------------------------
+
+Release inference is local and does not call Azure APIs during test selection.
+The following representative Marketplace names were verified using Azure CLI
+offer/SKU queries in ``eastus`` on October 23, 2026:
+
+.. list-table:: Marketplace release inference examples
+   :header-rows: 1
+   :widths: 70 30
+
+   * - Image
+     - Inferred release
+   * - ``microsoftcblmariner azure-linux-3 azure-linux-3-gen2 latest``
+     - Major 3
+   * - ``redhat RHEL 810-gen2 latest``
+     - 8.10
+   * - ``redhat RHEL 101-gen2 latest``
+     - 10.1
+   * - ``redhat RHEL 8-LVM latest``
+     - Major 8
+   * - ``redhat rhel-arm64 9_5-arm64 latest``
+     - 9.5
+   * - ``redhat rhel-cvm 10_2_cvm latest``
+     - 10.2
+   * - ``debian debian-11 11-backports-arm64-v2 latest``
+     - Major 11
+   * - ``debian debian-12 12-gen2 latest``
+     - Major 12
+   * - ``oracle Oracle-Linux ol810-lvm-gen2 latest``
+     - 8.10
+   * - ``oracle Oracle-Linux ol101-lvm latest``
+     - 10.1
+   * - ``openlogic CentOS 7_9-arm64 latest``
+     - 7.9
+   * - ``openlogic CentOS-LVM 7-lvm-gen2 latest``
+     - Major 7
+
+Supported offer families are ``azure-linux-3`` and ``cbl-mariner`` under
+``microsoftcblmariner``; ``RHEL``, ``rhel-arm64`` and ``rhel-cvm`` under
+``redhat``; numbered stable ``debian-<major>`` offers under ``debian``;
+``Oracle-Linux`` under ``oracle``; and ``CentOS`` / ``CentOS-LVM`` under
+``openlogic``. Publisher and offer matching is case-insensitive. Application,
+daily/sid, test, and other unrecognized offers defer release filtering.
+The legacy ``cbl-mariner`` offer returned no SKUs in this regional query;
+legacy explicit image names are covered by regression fixtures instead.
+
+Major-only names describe a range of possible releases, not an exact ``.0``
+release. For example, ``8-LVM`` represents ``[8.0, 9.0)``. It remains selected
+for a test requiring RHEL >=8.3 because the minor version is unknown, but can
+be excluded by a rule rejecting all RHEL 8 releases. A partially overlapping
+range is always retained. Actual guest release checks resolve the uncertainty.
+
+Explicit gallery image-definition names and VHD filenames also support tokens
+such as ``azure-linux-3-gen2``, ``cbl-mariner-2.0``, ``rhel-8.3-gen2``,
+``debian-12-arm64``, ``oracle-linux-8.10-lvm`` and ``centos-7_9-gen2``.
+Do not rely on a gallery name, image publication version, or kernel version
+to identify the distro release.
+
+Migrated tests include Azure Linux 3+ BTF, LWTunnel, zram, core scheduling,
+firewalld and networking-component tests; Azure Linux major-3-only libbpf
+tests; RHEL-family/Debian trusted-VM thresholds; the CentOS floppy check;
+and conservative release exclusions for Azure extensions. These exclusions
+reflect the tests' existing runtime restrictions, not new vendor support
+claims. Architecture, generation, package and exact-version guards remain.
 
 SIG Image Naming for Ubuntu Release Inference
 --------------------------------------------

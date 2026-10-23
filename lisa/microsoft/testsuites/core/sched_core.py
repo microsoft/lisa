@@ -7,6 +7,7 @@ Core scheduling is a security feature that allows grouping of tasks to share
 a physical core. Only tasks in the same group can execute simultaneously on
 sibling hyperthreads, mitigating side-channel attacks like MDS/L1TF.
 """
+
 from __future__ import annotations
 
 import os
@@ -18,6 +19,7 @@ from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
@@ -40,7 +42,7 @@ from lisa.util import UnsupportedDistroException
     """,
     requirement=simple_requirement(
         supported_platform_type=[AZURE, READY, HYPERV],
-        supported_os=[CBLMariner],
+        supported_os=[OsRequirement(CBLMariner, min_version="3")],
     ),
 )
 class SchedCore(TestSuite):

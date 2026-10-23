@@ -32,6 +32,7 @@ def _is_os_compatible(
     case: TestCaseMetadata,
     target_os: Type[OperatingSystem],
     target_os_version: Optional[VersionInfo] = None,
+    target_os_version_upper_bound: Optional[VersionInfo] = None,
 ) -> bool:
     """Return True if the case's declared OS requirement is compatible with
     the target OS class. The check uses bidirectional ``issubclass`` so that
@@ -52,6 +53,7 @@ def _is_os_compatible(
         target_os,
         target_os_version,
         prefilter=True,
+        version_upper_bound=target_os_version_upper_bound,
     )
 
 
@@ -59,6 +61,7 @@ def _prefilter_by_target_os(
     full_list: Dict[str, TestCaseMetadata],
     target_os: Type[OperatingSystem],
     target_os_version: Optional[VersionInfo] = None,
+    target_os_version_upper_bound: Optional[VersionInfo] = None,
 ) -> Dict[str, TestCaseMetadata]:
     """Drop cases from ``full_list`` whose ``requirement.os_type`` declares
     they cannot run on ``target_os``. Logs a one-line summary so partners
@@ -68,14 +71,17 @@ def _prefilter_by_target_os(
     kept: Dict[str, TestCaseMetadata] = {}
     dropped_names: List[str] = []
     for name, metadata in full_list.items():
-        if _is_os_compatible(metadata, target_os, target_os_version):
+        if _is_os_compatible(
+            metadata, target_os, target_os_version, target_os_version_upper_bound
+        ):
             kept[name] = metadata
         else:
             dropped_names.append(f"{name} ({metadata.requirement.os_type})")
     if dropped_names:
         log.info(
             f"pre-filter: dropped {len(dropped_names)} case(s) incompatible "
-            f"with target_os={target_os.__name__}, version={target_os_version}"
+            f"with target_os={target_os.__name__}, version={target_os_version}, "
+            f"version_upper_bound={target_os_version_upper_bound}"
         )
         log.debug(f"pre-filter dropped cases: {dropped_names}")
     return kept
@@ -169,6 +175,7 @@ def select_testcases(  # noqa: C901
     target_capabilities: Optional[List[str]] = None,
     apply_stable_gate: bool = True,
     target_os_version: Optional[VersionInfo] = None,
+    target_os_version_upper_bound: Optional[VersionInfo] = None,
 ) -> List[TestCaseRuntimeData]:
     """
     Select test cases based on filters. When ``apply_stable_gate`` is True
@@ -190,7 +197,9 @@ def select_testcases(  # noqa: C901
     else:
         full_list = get_cases_metadata()
     if target_os is not None:
-        full_list = _prefilter_by_target_os(full_list, target_os, target_os_version)
+        full_list = _prefilter_by_target_os(
+            full_list, target_os, target_os_version, target_os_version_upper_bound
+        )
     if target_platforms:
         full_list = _prefilter_by_target_platforms(full_list, target_platforms)
     if target_capabilities is not None:

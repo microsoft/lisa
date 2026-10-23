@@ -50,10 +50,20 @@ class ApplicationHealthExtension(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
-            # Exclude Ubuntu 22.10 and newer; retain older distro runtime checks.
+            # Exact major-version support remains checked at runtime.
             unsupported_os=[
                 Windows,
                 OsRequirement(Ubuntu, min_version="22.10"),
+                OsRequirement(Redhat, max_version="7"),
+                OsRequirement(Redhat, min_version="9"),
+                OsRequirement(CentOs, max_version="6"),
+                OsRequirement(CentOs, min_version="8"),
+                OsRequirement(Oracle, max_version="6"),
+                OsRequirement(Oracle, min_version="8"),
+                OsRequirement(Debian, max_version="7"),
+                OsRequirement(Debian, min_version="9"),
+                OsRequirement(CBLMariner, max_version="2"),
+                OsRequirement(CBLMariner, min_version="4"),
             ],
         ),
     )
@@ -108,7 +118,7 @@ class ApplicationHealthExtension(TestSuite):
                     return False
         return False
 
-    @retry(tries=5, delay=60)  # type:ignore
+    @retry(tries=5, delay=60)  # type: ignore
     def _check_extension_logs(
         self, node: Node, log_file: str, expected_app_health_message: str
     ) -> None:

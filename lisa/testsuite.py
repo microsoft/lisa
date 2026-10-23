@@ -20,7 +20,7 @@ from lisa.environment import Environment, EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.features import SerialConsole
 from lisa.messages import TestResultMessage, TestStatus, _is_completed_status
-from lisa.operating_system import OperatingSystem, Ubuntu, Windows
+from lisa.operating_system import OperatingSystem, Windows
 from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
@@ -225,8 +225,11 @@ class TestResult:
                 )
                 os_result = search_space.ResultReason()
                 version = None
-                if isinstance(node.os, Ubuntu) and any(
-                    isinstance(entry, OsRequirement) and entry.has_version
+                node_os_type = type(node.os)
+                if any(
+                    isinstance(entry, OsRequirement)
+                    and entry.has_version
+                    and entry.os_type is node_os_type
                     for entry in requirement.os_type
                 ):
                     version = node.os.information.version
@@ -244,9 +247,11 @@ class TestResult:
                 else:
                     if matching_os:
                         names = sorted(
-                            str(entry)
-                            if isinstance(entry, OsRequirement)
-                            else entry.__name__
+                            (
+                                str(entry)
+                                if isinstance(entry, OsRequirement)
+                                else entry.__name__
+                            )
                             for entry in matching_os
                         )
                         os_result.add_reason(

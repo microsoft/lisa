@@ -39,12 +39,13 @@ class ExtensionUbuntuRequirementTestCase(TestCase):
                         )
             self.assertTrue(_is_os_compatible(case, Ubuntu))
 
-    def test_non_ubuntu_requirements_are_preserved(self) -> None:
+    def test_non_ubuntu_requirements(self) -> None:
         for case in (self.key_vault, self.monitor):
             for version in ("1.0", "99.0"):
-                self.assertTrue(
+                self.assertFalse(
                     _is_os_compatible(case, CBLMariner, parse_version(version))
                 )
+            self.assertTrue(_is_os_compatible(case, CBLMariner, parse_version("2.0")))
             self.assertFalse(_is_os_compatible(case, Windows))
         self.assertFalse(_is_os_compatible(self.key_vault, Redhat))
         self.assertTrue(_is_os_compatible(self.monitor, Redhat))
