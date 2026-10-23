@@ -1,7 +1,6 @@
 import re
 import time
 from collections import Counter
-from copy import deepcopy
 from datetime import timedelta
 from pathlib import PurePosixPath
 from time import sleep
@@ -612,6 +611,7 @@ class TimeSync(TestSuite):
         Ref: https://learn.microsoft.com/en-us/azure/virtual-machines/linux/time-sync#chrony # noqa: E501
         2. Manually change the system clock to a time in the past.
         3. Verify that Chrony has corrected the time drift.
+        4. Restore the clock even if drift correction fails.
         """,
         priority=1,
     )
@@ -620,28 +620,30 @@ class TimeSync(TestSuite):
         chrony = node.tools[Chrony]
         chrony.set_makestep("1.0 -1")
         chrony.restart()
+        chrony.check_tracking()
 
-        for iteration in range(3):
-            is_drift_corrected = False
+        date = node.tools[Date]
+        reference_time = date.current()
+        timer = create_timer()
+        try:
+            for iteration in range(3):
+                is_drift_corrected = False
+                node_time = date.current()
+                date.set(node_time - timedelta(days=2))
 
-            # Get current time
-            date = node.tools[Date]
-            node_time = date.current()
-            modified_time = deepcopy(node_time)
-            modified_time = modified_time - timedelta(days=2)
-            date.set(modified_time)
-
-            # Poll every second and check if the time drift is corrected
-            # for 5 minutes
-            for poll_iter in range(120):
-                time.sleep(1)
-                current_time = date.current()
-                if current_time > node_time:
-                    is_drift_corrected = True
-                    break
-                if poll_iter % 10 == 0:
-                    log.debug(
-                        f"Iteration {iteration}: Time drift is not corrected by "
-                        "chrony yet. Retrying..."
-                    )
-            assert_that(is_drift_corrected, "Time drift is not corrected by chrony.")
+                for poll_iter in range(120):
+                    time.sleep(1)
+                    current_time = date.current()
+                    if current_time > node_time:
+                        is_drift_corrected = True
+                        break
+                    if poll_iter % 10 == 0:
+                        log.debug(
+                            f"Iteration {iteration}: Time drift is not corrected by "
+                            "chrony yet. Retrying..."
+                        )
+                assert_that(
+                    is_drift_corrected, "Time drift is not corrected by chrony."
+                ).is_true()
+        finally:
+            date.set(reference_time + timedelta(seconds=timer.elapsed(False)))
