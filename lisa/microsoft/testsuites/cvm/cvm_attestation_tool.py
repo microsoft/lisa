@@ -18,6 +18,7 @@ from lisa.util.process import ExecutableResult
 class AzureCVMAttestationTests(Tool):
     # repo = "https://github.com/Azure/cvm-attestation-tools.git"
     repo = "https://github.com/SRIKKANTH/cvm-attestation-tools.git"
+    _install_timeout = 1800
     cmd_path: PurePath
     repo_root: PurePath
 
@@ -108,10 +109,13 @@ class AzureCVMAttestationTests(Tool):
         # first, otherwise every apt call in the script fails.
         if isinstance(self.node.os, Ubuntu):
             self.node.os.wait_running_package_process()
+        # install.sh pulls ~100 MB of toolchain packages via apt, which can
+        # exceed the default 600s timeout on slow package mirrors.
         self.node.execute(
             "sudo ./install.sh",
             shell=True,
             cwd=self.attestation_dir,
+            timeout=self._install_timeout,
         )
         return self._check_exists()
 
