@@ -12,6 +12,7 @@ from lisa.operating_system import (
     BSD,
     Cat,
     CBLMariner,
+    CoreOs,
     Debian,
     Fedora,
     Posix,
@@ -50,6 +51,7 @@ class Chrony(Tool):
             isinstance(self.node.os, Redhat)
             or isinstance(self.node.os, Suse)
             or isinstance(self.node.os, CBLMariner)
+            or isinstance(self.node.os, CoreOs)
             or isinstance(self.node.os, BSD)
             or isinstance(self.node.os, Fedora)
         ):
