@@ -402,6 +402,18 @@ initialization with the same ``device_pools`` configuration.
 The guard requires an IPv4 SSH session with ``SSH_CONNECTION`` available. It does
 not protect IPv6 management routing.
 
+OpenVMM guest kernel boot parameters
+-----------------------------------
+
+Set ``kernel_boot_parameters`` on an OpenVMM guest to whitespace-separated
+``name=value`` pairs. After the guest first connects, LISA updates its GRUB
+configuration, reboots the guest, and verifies the requested parameters in
+``/proc/cmdline`` before running tests. This does not change the host kernel
+command line. The default is empty and does not reboot the guest.
+
+OpenVMM guests require a GRUB-based Linux image for this option. A failed
+update, reboot, or command-line verification fails guest initialization.
+
 Run on AWS
 ------------
 

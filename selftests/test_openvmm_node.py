@@ -14,6 +14,7 @@ from paramiko.ssh_exception import SSHException
 
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
+from lisa.node import RemoteNode
 from lisa.sut_orchestrator.openvmm.context import (
     DeviceAddressSchema,
     DevicePassthroughContext,
@@ -35,7 +36,7 @@ from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
-from lisa.tools import Cat, Ip, Kill, Mkdir
+from lisa.tools import Cat, GrubConfig, Ip, Kill, Mkdir
 from lisa.tools.openvmm import (
     OPENVMM_DISK_DEVICE_SCSI,
     OPENVMM_IOMMU_NONE,
@@ -46,6 +47,65 @@ from selftests.test_libvirt_device_pool import _load_device_pool_module
 
 
 class OpenVmmNodeTestCase(TestCase):
+    def test_guest_boot_parameters_are_applied_and_verified(self) -> None:
+        guest, grub, cat = self._create_guest_with_boot_parameters("audit=0")
+        cat.read.return_value = "root=/dev/vda1 audit=0"
+
+        with patch.object(guest, "_provision"), patch.object(RemoteNode, "_initialize"):
+            with patch.object(guest, "reboot") as reboot:
+                guest.initialize()
+
+        grub.set_kernel_cmdline_arg.assert_called_once_with("audit", "0")
+        reboot.assert_called_once_with(time_out=900)
+        cat.read.assert_called_once_with("/proc/cmdline", sudo=True, force_run=True)
+
+    def test_missing_guest_boot_parameters_after_reboot_fail_initialization(
+        self,
+    ) -> None:
+        guest, _, cat = self._create_guest_with_boot_parameters("audit=0")
+        cat.read.return_value = "root=/dev/vda1"
+
+        with patch.object(guest, "_provision"), patch.object(RemoteNode, "_initialize"):
+            with patch.object(guest, "reboot"):
+                with self.assertRaisesRegex(
+                    LisaException, "Missing parameters: audit=0"
+                ):
+                    guest.initialize()
+
+        self.assertFalse(guest._is_initialized)
+
+    def test_guest_boot_parameters_default_does_not_reboot(self) -> None:
+        guest, grub, _ = self._create_guest_with_boot_parameters("")
+
+        with patch.object(guest, "_provision"), patch.object(RemoteNode, "_initialize"):
+            with patch.object(guest, "reboot") as reboot:
+                guest.initialize()
+
+        grub.set_kernel_cmdline_arg.assert_not_called()
+        reboot.assert_not_called()
+
+    def _create_guest_with_boot_parameters(
+        self, parameters: str
+    ) -> Tuple[OpenVmmGuestNode, MagicMock, MagicMock]:
+        host = MagicMock(spec=RemoteNode)
+        host._base_part_path = Path(".")
+        guest = OpenVmmGuestNode(
+            runbook=OpenVmmGuestNodeSchema(
+                uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+                disk_img="/tmp/guest.raw",
+                kernel_boot_parameters=parameters,
+            ),
+            index=0,
+            logger_name="unittest",
+            parent=host,
+        )
+        grub = MagicMock()
+        cat = MagicMock()
+        tools = MagicMock()
+        tools.__getitem__.side_effect = {GrubConfig: grub, Cat: cat}.__getitem__
+        guest.tools = tools
+        return guest, grub, cat
+
     def _create_controller(
         self,
     ) -> Tuple[OpenVmmController, MagicMock, MagicMock, MagicMock]:

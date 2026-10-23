@@ -23,6 +23,7 @@ from lisa.feature import Features
 from lisa.node import Node, RemoteNode
 from lisa.tools import Dnsmasq, Echo, Ip, Kill, Ls, Lspci, Mkdir, Modprobe, OpenVmm, Rm
 from lisa.tools.openvmm import OpenVmmLaunchConfig
+from lisa.transformers.host_kernel_boot_parameters import HostKernelBootParameters
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
@@ -2339,6 +2340,11 @@ class OpenVmmGuestNode(RemoteNode):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._provision()
         super()._initialize(*args, **kwargs)
+        runbook = cast(OpenVmmGuestNodeSchema, self.runbook)
+        if runbook.kernel_boot_parameters.strip():
+            HostKernelBootParameters.apply_to_node(
+                self, runbook.kernel_boot_parameters, self.log
+            )
 
     def _provision(self) -> None:
         host_node = self.parent
