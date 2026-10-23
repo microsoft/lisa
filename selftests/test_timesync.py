@@ -75,6 +75,32 @@ class TimeDriftTestCase(TestCase):
 
         self.assertEqual(self.current_time, self.restored_time)
 
+    def test_each_time_jump_requests_measurements_before_waiting(self) -> None:
+        def set_time_with_delayed_poll(value: datetime) -> None:
+            self._set_time(value)
+            if value < self.initial_time:
+                self.recover = False
+
+        def receive_measurements() -> None:
+            self.recover = True
+
+        self.date.set.side_effect = set_time_with_delayed_poll
+        self.chrony.burst = MagicMock(side_effect=receive_measurements)
+
+        self.suite.verify_timedrift_corrected(node=self.node, log=self.log)
+
+        self.assertEqual(self.chrony.burst.call_count, 3)
+        self.assertEqual(self.current_time, self.restored_time)
+
+    def test_measurement_failure_propagates_after_clock_restoration(self) -> None:
+        self.recover = True
+        self.chrony.burst = MagicMock(side_effect=LisaException("burst failed"))
+
+        with self.assertRaisesRegex(LisaException, "burst failed"):
+            self.suite.verify_timedrift_corrected(node=self.node, log=self.log)
+
+        self.assertEqual(self.current_time, self.restored_time)
+
     def test_poll_error_propagates_after_clock_restoration(self) -> None:
         self.fail_read_number = 3
 

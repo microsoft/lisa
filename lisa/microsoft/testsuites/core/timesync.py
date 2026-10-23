@@ -610,7 +610,8 @@ class TimeSync(TestSuite):
         1. Set makestep to 1.0 -1 to allow Chrony to make large adjustments.
         Ref: https://learn.microsoft.com/en-us/azure/virtual-machines/linux/time-sync#chrony # noqa: E501
         2. Manually change the system clock to a time in the past.
-        3. Verify that Chrony has corrected the time drift.
+        3. Request fresh NTP measurements, then verify that Chrony automatically
+           corrects the time drift without explicitly stepping the clock.
         4. Restore the clock even if drift correction fails.
         """,
         priority=1,
@@ -630,6 +631,8 @@ class TimeSync(TestSuite):
                 is_drift_corrected = False
                 node_time = date.current()
                 date.set(node_time - timedelta(days=2))
+                # Normal NTP poll intervals can exceed the recovery-check window.
+                chrony.burst()
 
                 for poll_iter in range(120):
                     time.sleep(1)

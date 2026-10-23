@@ -81,6 +81,10 @@ class Chrony(Tool):
                 " please check the service status of chrony."
             )
 
+    def burst(self) -> None:
+        result = self.run("burst 4/8", force_run=True, sudo=True)
+        result.assert_exit_code(message="Could not request Chrony measurements")
+
     def set_server_setting(self) -> None:
         cmd_result = self.run("sources", shell=True, sudo=True, force_run=True)
         if self.__no_server_set in cmd_result.stdout:
