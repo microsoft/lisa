@@ -184,6 +184,10 @@ remain eligible for matching against other candidate environments.
 OpenVMM guests advertise their own ``StartStop`` and ``SerialConsole`` features
 even when parent capabilities are not inherited.
 
+Use OS tools for guest-local information, such as ``Mount`` for mounted
+partitions. A test should require a cloud-management feature only when it needs
+that feature's platform operation.
+
 The figure below shows a test case that requires at least one core, 2G
 memory and three network interface cards (NIC). The Azure VM
 Standard_DS2_v2 in the middle meets the first two requirements, as it

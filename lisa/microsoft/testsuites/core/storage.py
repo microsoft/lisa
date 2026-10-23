@@ -34,7 +34,7 @@ from lisa.features.security_profile import (
 from lisa.node import Node
 from lisa.operating_system import BSD, Debian, Fedora, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
-from lisa.sut_orchestrator import AZURE, HYPERV
+from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM
 from lisa.sut_orchestrator.azure.features import (
     AzureDiskOptionSettings,
     AzureFileShare,
@@ -357,29 +357,31 @@ class Storage(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, HYPERV], unsupported_os=[BSD, Windows]
+            supported_platform_type=[AZURE, HYPERV, OPENVMM],
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_os_partition_identifier(self, log: Logger, node: RemoteNode) -> None:
         # get information of root disk from blkid
-        os_disk_partition = node.features[Disk].get_partition_with_mount_point(
+        os_disk_partitions = node.tools[Mount].get_partition_info(
             self.os_disk_mount_point
         )
-        if not os_disk_partition:
+        if not os_disk_partitions:
             raise LisaException("Failed to get os disk partition")
 
-        os_partition = os_disk_partition.name
+        os_partition = os_disk_partitions[0].name
         os_partition_info = node.tools[Blkid].get_partition_info_by_name(os_partition)
 
         # check if cvm
         is_cvm = False
-        settings = Feature.get_feature_settings(
-            node.features[SecurityProfile].get_settings()
-        )
-        assert isinstance(settings, SecurityProfileSettings)
-        if SecurityProfileType.CVM == settings.security_profile:
-            log.debug("Confidential computing is detected to be enabled.")
-            is_cvm = True
+        if node.features.is_supported(SecurityProfile):
+            settings = Feature.get_feature_settings(
+                node.features[SecurityProfile].get_settings()
+            )
+            assert isinstance(settings, SecurityProfileSettings)
+            if SecurityProfileType.CVM == settings.security_profile:
+                log.debug("Confidential computing is detected to be enabled.")
+                is_cvm = True
 
         # verify that root=<name> or root=uuid=<uuid> or root=partuuid=<part_uuid> is
         # present in dmesg or journalctl logs
