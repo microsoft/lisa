@@ -1027,6 +1027,14 @@ class LisaRunner(BaseRunner):
             return platform_type
 
         platform_runbook = cast(schema.Platform, self.platform.runbook)
+        if platform_runbook.guests and all(
+            not guest.use_parent_capability for guest in platform_runbook.guests
+        ):
+            guest_platform_types: Set[str] = {
+                guest.type for guest in platform_runbook.guests
+            }
+            if len(guest_platform_types) == 1:
+                return next(iter(guest_platform_types))
         for guest_runbook in platform_runbook.guests:
             guest_platform_type = getattr(guest_runbook, "type", "")
             if (

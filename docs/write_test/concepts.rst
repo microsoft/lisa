@@ -181,6 +181,11 @@ repeatedly. Compatible tests still run, including tests requiring a fresh
 environment. Guests that inherit parent capabilities and predefined environments
 remain eligible for matching against other candidate environments.
 
+When those isolated guests share one platform type, platform requirements
+match the guest platform, not the provisioning host. An OpenVMM guest on an
+Azure host is not an Azure VM for Azure-only test requirements. Portable
+tests should explicitly include the guest platform in their supported types.
+
 OpenVMM guests advertise their own ``StartStop`` and ``SerialConsole`` features
 even when parent capabilities are not inherited.
 

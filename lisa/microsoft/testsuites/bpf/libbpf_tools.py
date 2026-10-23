@@ -16,7 +16,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import CBLMariner, Linux
-from lisa.sut_orchestrator import AZURE, HYPERV, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM, READY
 from lisa.util import LisaException
 
 
@@ -29,7 +29,7 @@ from lisa.util import LisaException
     analysis and troubleshooting.
     """,
     requirement=simple_requirement(
-        supported_platform_type=[AZURE, READY, HYPERV],
+        supported_platform_type=[AZURE, READY, HYPERV, OPENVMM],
         supported_os=[CBLMariner],
     ),
 )

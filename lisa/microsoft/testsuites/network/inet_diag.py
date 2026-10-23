@@ -16,7 +16,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import BSD, Windows
-from lisa.sut_orchestrator import AZURE, HYPERV, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM, READY
 from lisa.tools import KernelConfig, Rm, Ss
 from lisa.util import LisaException, create_timer
 
@@ -31,7 +31,7 @@ from lisa.util import LisaException, create_timer
     forcefully closing stuck connections or cleaning up resources.
     """,
     requirement=simple_requirement(
-        supported_platform_type=[AZURE, READY, HYPERV],
+        supported_platform_type=[AZURE, READY, HYPERV, OPENVMM],
         unsupported_os=[BSD, Windows],
     ),
 )

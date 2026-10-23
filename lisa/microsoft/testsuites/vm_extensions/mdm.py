@@ -11,7 +11,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import CBLMariner, Debian, Posix, Ubuntu
-from lisa.sut_orchestrator import AZURE, READY
+from lisa.sut_orchestrator import AZURE, OPENVMM, READY
 from lisa.tools import Sed, Service
 from lisa.util import SkippedException, UnsupportedDistroException
 
@@ -32,7 +32,7 @@ class MetricsExtension(TestSuite):
         """,
         priority=1,
         use_new_environment=True,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, OPENVMM]),
     )
     def verify_metricsextension(self, node: Node, log: Logger) -> None:
         package = "metricsext2"

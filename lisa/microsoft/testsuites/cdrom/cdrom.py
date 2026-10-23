@@ -7,7 +7,7 @@ from assertpy import assert_that
 
 from lisa import Node, SkippedException, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.operating_system import CBLMariner, Debian, Ubuntu
-from lisa.sut_orchestrator import AZURE, HYPERV
+from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM
 from lisa.testsuite import simple_requirement
 from lisa.tools import Gcc
 from lisa.util.logger import Logger
@@ -35,7 +35,7 @@ class CdromSuite(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_os=[Debian, CBLMariner],
-            supported_platform_type=[AZURE, HYPERV],
+            supported_platform_type=[AZURE, HYPERV, OPENVMM],
         ),
     )
     def verify_cdrom_device_status_code(self, node: Node) -> None:

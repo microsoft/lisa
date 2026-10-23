@@ -45,7 +45,10 @@ class NetInterface(TestSuite):
 
         """,
         priority=1,
-        requirement=simple_requirement(network_interface=Synthetic()),
+        requirement=simple_requirement(
+            supported_features=[NetworkInterface],
+            network_interface=Synthetic(),
+        ),
     )
     def validate_netvsc_reload(self, node: Node, log_path: Path) -> None:
         self._validate_netvsc_built_in(node)
@@ -103,6 +106,7 @@ class NetInterface(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
+            supported_features=[NetworkInterface],
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),

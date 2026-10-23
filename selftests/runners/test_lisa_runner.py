@@ -442,7 +442,9 @@ class RunnerTestCase(TestCase):
         runner = generate_runner(None)
         platform = test_platform.generate_platform()
         platform.runbook.guest_enabled = True
-        platform.runbook.guests = [SimpleNamespace(type="guest-platform")]
+        platform.runbook.guests = [
+            SimpleNamespace(type="guest-platform", use_parent_capability=True)
+        ]
         runner.platform = platform
         runner._guest_enabled = True
 
@@ -466,6 +468,45 @@ class RunnerTestCase(TestCase):
             expected_message=["", "", ""],
             test_results=test_results,
         )
+
+    def test_isolated_guest_does_not_inherit_parent_platform(self) -> None:
+        for use_parent_capability in (False, True):
+            with self.subTest(use_parent_capability=use_parent_capability):
+                test_testsuite.cleanup_cases_metadata()
+                envs = load_environments(None)
+                runner = generate_runner(None)
+                platform = test_platform.generate_platform()
+                platform.runbook.guest_enabled = True
+                platform.runbook.guests = [
+                    SimpleNamespace(
+                        type="guest-platform",
+                        use_parent_capability=use_parent_capability,
+                    )
+                ]
+                runner.platform = platform
+                runner._guest_enabled = True
+                results = test_testsuite.generate_cases_result()
+                results[0].runtime_data.metadata.requirement = simple_requirement(
+                    supported_platform_type=[constants.PLATFORM_MOCK]
+                )
+                results[1].runtime_data.metadata.requirement = simple_requirement(
+                    supported_platform_type=["guest-platform"]
+                )
+                results[2].runtime_data.metadata.requirement = simple_requirement()
+
+                runner._merge_test_requirements(
+                    test_results=results,
+                    existing_environments=envs,
+                    platform_type=constants.PLATFORM_MOCK,
+                )
+
+                self.assertEqual(
+                    results[0].status,
+                    TestStatus.QUEUED if use_parent_capability else TestStatus.SKIPPED,
+                )
+                self.assertEqual(results[1].status, TestStatus.QUEUED)
+                self.assertEqual(results[2].status, TestStatus.QUEUED)
+                self.assertEqual(len(envs), 3 if use_parent_capability else 2)
 
     def test_fit_a_predefined_env(self) -> None:
         # predefined env can run case in below condition.

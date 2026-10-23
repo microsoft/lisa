@@ -40,7 +40,7 @@ from lisa.operating_system import (
     SuseRepositoryInfo,
     Ubuntu,
 )
-from lisa.sut_orchestrator import AZURE, HYPERV, QEMU, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM, QEMU, READY
 from lisa.sut_orchestrator.azure.common import is_cloud_init_enabled
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
@@ -353,7 +353,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU, OPENVMM]
         ),
     )
     def verify_default_targetpw(self, node: Node) -> None:
@@ -376,7 +376,8 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU], unsupported_os=[BSD]
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU, OPENVMM],
+            unsupported_os=[BSD],
         ),
     )
     def verify_grub(self, node: Node) -> None:
@@ -731,7 +732,9 @@ class AzureImageStandard(TestSuite):
         2. Reboot the VM and see if the VM is still in good state.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, OPENVMM]
+        ),
     )
     def verify_os_update(self, node: Node) -> None:
         if isinstance(node.os, Posix):
@@ -788,12 +791,15 @@ class AzureImageStandard(TestSuite):
         description="""
         This test will check that repositories are correctly installed.
 
+        OpenVMM x86-64 Ubuntu cloud images may use the upstream Ubuntu archive.
+        Security and updates repositories are still required.
+
         Steps:
         1. Verify the repository configuration depending on the distro type.
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU, OPENVMM]
         ),
     )
     def verify_repository_installed(self, node: Node) -> None:  # noqa: C901
@@ -826,6 +832,8 @@ class AzureImageStandard(TestSuite):
                 lscpu = node.tools[Lscpu]
                 arch = lscpu.get_architecture()
                 repo_urls = repo_url_map.get(arch, [])
+                if node.type_name() == OPENVMM and arch == CpuArchitecture.X64:
+                    repo_urls.append("archive.ubuntu.com")
                 contains_security_keyword = any(
                     [
                         "-security" in repository.name
@@ -1059,7 +1067,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU, OPENVMM]
         ),
     )
     def verify_serial_console_is_enabled(self, node: Node) -> None:
@@ -1175,7 +1183,7 @@ class AzureImageStandard(TestSuite):
         priority=1,
         use_new_environment=True,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU, OPENVMM]
         ),
     )
     def verify_bash_history_is_empty(self, node: Node) -> None:
@@ -1348,7 +1356,9 @@ class AzureImageStandard(TestSuite):
            refer to https://aka.ms/Linux-Testcases.
         """,
         priority=2,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE, READY, HYPERV, OPENVMM]
+        ),
     )
     def verify_client_active_interval(self, node: Node) -> None:
         ssh = node.tools[Ssh]
@@ -1378,7 +1388,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU, OPENVMM]
         ),
     )
     def verify_no_pre_exist_users(self, node: Node) -> None:
@@ -1640,7 +1650,7 @@ class AzureImageStandard(TestSuite):
         and not the versions having extended support, otherwise pass.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU, OPENVMM]),
     )
     def verify_openssl_version(self, node: Node) -> None:
         minimum_version = Version("3.0.0")
@@ -1665,7 +1675,7 @@ class AzureImageStandard(TestSuite):
         3. Fail the test if the architecture is not 64-bit.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU, OPENVMM]),
     )
     def verify_azure_64bit_os(self, node: Node) -> None:
         uname_tool = node.tools[Uname]
@@ -1701,7 +1711,7 @@ class AzureImageStandard(TestSuite):
         3. Pass if OMI is not installed or the version is secure.
                 """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU, OPENVMM]),
     )
     def verify_omi_version(self, node: Node) -> None:
         minimum_secure_version = Version("1.6.8.1")
@@ -1775,7 +1785,7 @@ class AzureImageStandard(TestSuite):
         5. Pass the case if no swap partition is found on the OS disk.
         """,
         priority=1,
-        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, QEMU, OPENVMM]),
     )
     def verify_no_swap_on_osdisk(self, node: Node) -> None:
         swap_tool = node.tools[Swap]
