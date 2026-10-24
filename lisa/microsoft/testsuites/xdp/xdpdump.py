@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 from assertpy import assert_that
 from microsoft.testsuites.xdp.xdptools import can_install
 
-from lisa import LisaException, Node, UnsupportedDistroException
+from lisa import LisaException, Node, SkippedException, UnsupportedDistroException
 from lisa.executable import ExecutableResult, Tool
 from lisa.nic import NicInfo
 from lisa.operating_system import CBLMariner, Fedora, Ubuntu
@@ -30,9 +30,16 @@ class XdpDump(Tool):
     This repo is a copy of bpf samples from
     https://github.com/Netronome/bpf-samples, it's to keep a stable version.
     This sample lib is easy to cover more test scenarios than official samples.
+
+    A kernel refusal of unsupported virtio receive-offload negotiation is N/A,
+    not a successful XDP test or a request to fall back to generic XDP.
     """
 
     _bpf_samples_repo = "https://github.com/LIS/bpf-samples.git"
+    _virtio_offload_unsupported = (
+        "Kernel error message: virtio_net: Can't set XDP while host is "
+        "implementing GRO_HW/CSUM, disable GRO_HW/CSUM first"
+    )
 
     @property
     def command(self) -> str:
@@ -155,6 +162,16 @@ class XdpDump(Tool):
             if process.is_running():
                 process.kill()
             self._restore_lro(nic_name)
+        if result.exit_code not in (0, 124) and self._virtio_offload_unsupported in (
+            result.stdout + "\n" + result.stderr
+        ):
+            raise SkippedException(
+                "Native XDP is unsupported by this virtio-net device: negotiated "
+                "receive offloads require VIRTIO_NET_F_CTRL_GUEST_OFFLOADS, "
+                "which the device does not provide. The kernel rejected "
+                "attachment with EOPNOTSUPP."
+            )
+        result.assert_exit_code([0, 124], message="xdpdump failed", include_output=True)
         return result
 
     def test_by_ping(

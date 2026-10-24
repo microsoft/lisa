@@ -18,6 +18,7 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    UnsupportedDistroException,
     create_timer,
     schema,
     search_space,
@@ -26,7 +27,6 @@ from lisa import (
 from lisa.environment import EnvironmentStatus
 from lisa.features import (
     AvailabilityZoneEnabled,
-    Disk,
     DiskEphemeral,
     DiskPremiumSSDLRS,
     DiskStandardSSDLRS,
@@ -36,8 +36,9 @@ from lisa.features import (
     StartStop,
     Synthetic,
 )
-from lisa.features.security_profile import CvmDisabled
-from lisa.tools import Cat, GrubConfig, KernelConfig, Lspci
+from lisa.features.security_profile import is_cvm_disabled
+from lisa.operating_system import Linux
+from lisa.tools import Cat, GrubConfig, KernelConfig, Lsblk, Lspci
 from lisa.util import LisaException, constants
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -405,16 +406,24 @@ class Provisioning(TestSuite):
         TODO: Ideally this should run on all UEFI scenarios, not just Grub-based
         systems. However, since LISA does not have a common UEFI interface yet,
         we skip non-grub scenarios for now.
+
+        The OS disk is discovered inside the guest; a cloud disk-management
+        feature is not required. Confidential and encrypted profiles remain excluded.
         """,
         priority=2,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            supported_features=[CvmDisabled()],
+            supported_os=[Linux],
         ),
     )
     def verify_deployment_provision_swiotlb_force(
         self, log: Logger, node: RemoteNode, log_path: Path
     ) -> None:
+        if not is_cvm_disabled(node):
+            raise SkippedException(
+                "SWIOTLB boot validation requires a non-confidential VM "
+                "without disk encryption."
+            )
         # Check if CONFIG_SWIOTLB is available in kernel configuration
         kernel_config = node.tools[KernelConfig]
         if not kernel_config.is_enabled("CONFIG_SWIOTLB"):
@@ -424,7 +433,7 @@ class Provisioning(TestSuite):
             cat = node.tools[Cat]
             try:
                 grub_config = node.tools[GrubConfig]
-            except Exception as e:
+            except UnsupportedDistroException as e:
                 # Skip if grub is not available on this distribution
                 # TODO: Should support UEFI-based parameter modification when
                 # LISA has a common UEFI interface
@@ -432,12 +441,10 @@ class Provisioning(TestSuite):
                     f"GrubConfig is not available on this distribution: {e}"
                 )
 
-            # Check disk controller type and set appropriate swiotlb parameters
-            disk_feature = node.features[Disk]
-            disk_controller_type = disk_feature.get_os_disk_controller_type()
+            os_disk = node.tools[Lsblk].find_disk_by_mountpoint("/")
             swiotlb_value = "force"
 
-            if disk_controller_type == schema.DiskControllerType.NVME:
+            if os_disk.name.startswith("nvme"):
                 # For NVMe, use larger pool size: swiotlb=force,524288
                 # NVMe devices can have higher I/O throughput and queue depths,
                 # requiring more bounce buffer slots to handle concurrent DMA
@@ -447,7 +454,7 @@ class Provisioning(TestSuite):
                 swiotlb_value = "force,524288"
 
             log.debug(
-                f"Disk controller type: {disk_controller_type}, "
+                f"OS disk: {os_disk.device_name}, "
                 f"Setting swiotlb kernel parameter to: {swiotlb_value}"
             )
             grub_config.set_kernel_cmdline_arg("swiotlb", swiotlb_value)

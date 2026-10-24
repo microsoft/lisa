@@ -8,12 +8,13 @@ from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    SkippedException,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.features.security_profile import CvmDisabled
+from lisa.features.security_profile import is_cvm_disabled
 from lisa.operating_system import BSD
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.tools import KvpClient
@@ -25,8 +26,9 @@ from lisa.util import get_matched_str
     area="kvp",
     category="functional",
     description="""
-    This test suite verify the KVP service runs well on Azure and Hyper-V
-    platforms. The KVP is used to communicate between Windows host and guest VM.
+    This suite qualifies the default Hyper-V host KVP metadata on Azure and
+    Hyper-V targets. A KVP transport alone does not provide that metadata;
+    the standalone OpenVMM profile does not publish the required default values.
     """,
     requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
 )
@@ -46,13 +48,21 @@ class Kvp(TestSuite):
     5. Check if KVP pool 3 file has a size greater than zero.
     6. At least 11 items are present in pool 3, and verify record count is
        correct.
+
+    Pool 3 (AUTO_EXTERNAL) must contain host-published default metadata.
+    Installing a guest daemon only creates the pool files; it does not
+    populate the required host records.
     """,
         priority=1,
         requirement=simple_requirement(
-            supported_features=[CvmDisabled()],
+            supported_platform_type=[AZURE, READY, HYPERV],
         ),
     )
     def verify_kvp(self, node: Node, log: Logger) -> None:
+        if not is_cvm_disabled(node):
+            raise SkippedException(
+                "KVP validation requires a non-confidential VM without disk encryption."
+            )
         if isinstance(node.os, BSD):
             kvp_pool_path = "/var/db/hyperv/pool"
             kvp_process_name = "hv_kvp_daemon"

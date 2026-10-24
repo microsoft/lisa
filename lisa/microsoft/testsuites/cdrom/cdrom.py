@@ -31,6 +31,8 @@ class CdromSuite(TestSuite):
         description="""
             Test to check the installation ISO is unloaded
             after provisioning and rebooting a new VM.
+            This validates automatic provisioning-media removal on Azure/Hyper-V,
+            not OpenVMM's explicitly attached persistent cloud-init drive.
         """,
         priority=2,
         requirement=simple_requirement(

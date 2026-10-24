@@ -21,7 +21,7 @@ from lisa.operating_system import BSD, CpuArchitecture, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import Cat, InterruptInspector, Lscpu, TaskSet, Uname
+from lisa.tools import Cat, Ethtool, InterruptInspector, Lscpu, TaskSet, Uname
 from lisa.tools.lscpu import UNKNOWN_CACHE_ID
 
 hyperv_interrupt_substr = ["hyperv", "hypervsum", "Hypervisor", "Hyper-V"]
@@ -200,6 +200,8 @@ class CPU(TestSuite):
             the vmbus channels, which belong to different vmbus devices. A VM with upto
             4 vcpu on Azure/Hyper-V should have a NetVSC NIC, which normally has 4 VMBus
             channel and should be bound to all the vCPUs.
+            This distribution check requires a NetVSC default NIC on Linux;
+            a virtio NIC does not generate those VMBus network callbacks.
 
             Hyper-V Synthetic timer interrupts should be received on each CPU if the VM
             is run for a long time. We can simulate this process by running CPU
@@ -217,6 +219,15 @@ class CPU(TestSuite):
         priority=2,
     )
     def verify_vmbus_interrupts(self, node: Node, log: Logger) -> None:
+        if not isinstance(node.os, BSD):
+            driver = (
+                node.tools[Ethtool].get_device_driver(node.nics.default_nic).strip()
+            )
+            if driver != "hv_netvsc":
+                raise SkippedException(
+                    "VMBus callback distribution requires a NetVSC default NIC; "
+                    f"the configured driver is '{driver}'."
+                )
         found_hyperv_interrupt = False
         thread_count = node.tools[Lscpu].get_thread_count()
         log.debug(f"{thread_count} CPU threads detected...")

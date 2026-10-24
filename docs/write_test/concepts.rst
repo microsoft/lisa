@@ -170,6 +170,29 @@ capabilities of environments are loaded from the platform's API. Only if
 the capability of an environment meets the requirements of a test case,
 the test case can be run on this environment.
 
+If a node omits an optional capability, such as disk or network interface
+settings, requirements for that capability do not match the node. Tests
+without those requirements can still run on it.
+
+For generated environments whose guests all use ``use_parent_capability: false``,
+the connected guest capabilities are fixed by the guest configuration. Unmet
+requirements are reported as skipped instead of deploying identical guests
+repeatedly. Compatible tests still run, including tests requiring a fresh
+environment. Guests that inherit parent capabilities and predefined environments
+remain eligible for matching against other candidate environments.
+
+When those isolated guests share one platform type, platform requirements
+match the guest platform, not the provisioning host. An OpenVMM guest on an
+Azure host is not an Azure VM for Azure-only test requirements. Portable
+tests should explicitly include the guest platform in their supported types.
+
+OpenVMM guests advertise their own ``StartStop`` and ``SerialConsole`` features
+even when parent capabilities are not inherited.
+
+Use OS tools for guest-local information, such as ``Mount`` for mounted
+partitions. A test should require a cloud-management feature only when it needs
+that feature's platform operation.
+
 The figure below shows a test case that requires at least one core, 2G
 memory and three network interface cards (NIC). The Azure VM
 Standard_DS2_v2 in the middle meets the first two requirements, as it

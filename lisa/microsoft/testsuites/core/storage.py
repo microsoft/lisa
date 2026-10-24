@@ -34,7 +34,7 @@ from lisa.features.security_profile import (
 from lisa.node import Node
 from lisa.operating_system import BSD, Debian, Fedora, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
-from lisa.sut_orchestrator import AZURE, HYPERV
+from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM
 from lisa.sut_orchestrator.azure.features import (
     AzureDiskOptionSettings,
     AzureFileShare,
@@ -353,33 +353,36 @@ class Storage(TestSuite):
         Steps:
         1. Get the partition identifier from `blkid` command.
         2. Verify that the partition identifier from `blkid` is present in dmesg.
-        3. Verify that the partition identifier from `blkid` is present in fstab output.
+        3. Verify that an active root mount in fstab uses the partition's device
+           path, UUID, PARTUUID, or filesystem LABEL.
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, HYPERV], unsupported_os=[BSD, Windows]
+            supported_platform_type=[AZURE, HYPERV, OPENVMM],
+            unsupported_os=[BSD, Windows],
         ),
     )
     def verify_os_partition_identifier(self, log: Logger, node: RemoteNode) -> None:
         # get information of root disk from blkid
-        os_disk_partition = node.features[Disk].get_partition_with_mount_point(
+        os_disk_partitions = node.tools[Mount].get_partition_info(
             self.os_disk_mount_point
         )
-        if not os_disk_partition:
+        if not os_disk_partitions:
             raise LisaException("Failed to get os disk partition")
 
-        os_partition = os_disk_partition.name
+        os_partition = os_disk_partitions[0].name
         os_partition_info = node.tools[Blkid].get_partition_info_by_name(os_partition)
 
         # check if cvm
         is_cvm = False
-        settings = Feature.get_feature_settings(
-            node.features[SecurityProfile].get_settings()
-        )
-        assert isinstance(settings, SecurityProfileSettings)
-        if SecurityProfileType.CVM == settings.security_profile:
-            log.debug("Confidential computing is detected to be enabled.")
-            is_cvm = True
+        if node.features.is_supported(SecurityProfile):
+            settings = Feature.get_feature_settings(
+                node.features[SecurityProfile].get_settings()
+            )
+            assert isinstance(settings, SecurityProfileSettings)
+            if SecurityProfileType.CVM == settings.security_profile:
+                log.debug("Confidential computing is detected to be enabled.")
+                is_cvm = True
 
         # verify that root=<name> or root=uuid=<uuid> or root=partuuid=<part_uuid> is
         # present in dmesg or journalctl logs
@@ -402,28 +405,23 @@ class Storage(TestSuite):
                 "should be present in dmesg/journalctl output"
             )
 
-        # verify that "<uuid> /" or "<name> /"or "<part_uuid> /" present in /etc/fstab
         fstab = node.tools[Cat].run("/etc/fstab", sudo=True).stdout
-        if (
-            not get_matched_str(
-                fstab,
-                re.compile(
-                    rf".*{os_partition_info.name}\s+/",
-                ),
-            )
-            and not get_matched_str(
-                fstab,
-                re.compile(rf".*UUID={os_partition_info.uuid}\s+/"),
-            )
-            and not get_matched_str(
-                fstab,
-                re.compile(rf".*PARTUUID={os_partition_info.part_uuid}\s+/"),
-            )
+        identifiers = [os_partition_info.name]
+        for name, value in (
+            ("UUID", os_partition_info.uuid),
+            ("PARTUUID", os_partition_info.part_uuid),
+            ("LABEL", os_partition_info.label),
         ):
+            if value:
+                identifiers.append(f"{name}={value}")
+        sources = "|".join(re.escape(identifier) for identifier in identifiers)
+        root_mount = re.compile(
+            rf"^[ \t]*(?:{sources})[ \t]+/(?:[ \t]|$)", re.MULTILINE
+        )
+        if not root_mount.search(fstab):
             raise LisaException(
-                f"One of '{os_partition_info.name} /' or "
-                "'UUID={os_partition_info.uuid} /' or "
-                "'PARTUUID={os_partition_info.part_uuid} /' should be present in fstab"
+                f"One of {identifiers} should be present in fstab "
+                "as an active root mount"
             )
 
     @TestCaseMetadata(
