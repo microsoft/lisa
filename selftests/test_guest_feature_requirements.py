@@ -18,12 +18,13 @@ from lisa.microsoft.testsuites.core.kvp import Kvp
 from lisa.microsoft.testsuites.core.provisioning import Provisioning
 from lisa.node import LocalNode, RemoteNode
 from lisa.operating_system import Ubuntu
+from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM, READY
 from lisa.sut_orchestrator.openvmm.node import OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
     OpenVmmGuestNodeSchema,
     OpenVmmUefiSchema,
 )
-from lisa.testsuite import get_cases_metadata
+from lisa.testsuite import TestCaseRuntimeData, TestResult, get_cases_metadata
 from lisa.tools import Cat, GrubConfig, KernelConfig, Lsblk
 from lisa.tools.lsblk import DiskInfo
 from lisa.util import LisaException, SkippedException
@@ -61,7 +62,7 @@ class GuestFeatureRequirementTestCase(TestCase):
         self.smoke = smoke_patch.start()
         self.addCleanup(smoke_patch.stop)
 
-    def test_portable_requirements_match_actual_isolated_guest(self) -> None:
+    def test_swiotlb_requirement_matches_actual_isolated_guest(self) -> None:
         host = LocalNode(schema.LocalNode(), index=0, logger_name="host")
         guest = OpenVmmGuestNode(
             OpenVmmGuestNodeSchema(
@@ -73,18 +74,15 @@ class GuestFeatureRequirementTestCase(TestCase):
             logger_name="guest",
             parent=host,
         )
-        for name in (
-            "Kvp.verify_kvp",
-            "Provisioning.verify_deployment_provision_swiotlb_force",
-        ):
-            with self.subTest(case=name):
-                requirement = get_cases_metadata()[name].requirement
-                assert requirement and requirement.environment
-                result = requirement.environment.check(
-                    EnvironmentSpace(nodes=[guest.capability])
-                )
+        requirement = get_cases_metadata()[
+            "Provisioning.verify_deployment_provision_swiotlb_force"
+        ].requirement
+        assert requirement and requirement.environment
+        result = requirement.environment.check(
+            EnvironmentSpace(nodes=[guest.capability])
+        )
 
-                self.assertTrue(result.result, result.reasons)
+        self.assertTrue(result.result, result.reasons)
 
     def test_swiotlb_uses_guest_disk_without_cloud_features(self) -> None:
         for disk_name, argument in (
@@ -147,3 +145,13 @@ class GuestFeatureRequirementTestCase(TestCase):
 
         self.assertNotIsInstance(context.exception, SkippedException)
         self.node.reboot.assert_not_called()
+
+    def test_kvp_qualification_requires_a_host_metadata_platform(self) -> None:
+        result = TestResult(
+            "kvp", TestCaseRuntimeData(get_cases_metadata()["Kvp.verify_kvp"])
+        )
+
+        self.assertFalse(result.check_platform(OPENVMM).result)
+        for platform in (AZURE, HYPERV, READY):
+            with self.subTest(platform=platform):
+                self.assertTrue(result.check_platform(platform).result)

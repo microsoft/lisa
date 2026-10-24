@@ -16,7 +16,7 @@ from lisa import (
 )
 from lisa.features.security_profile import is_cvm_disabled
 from lisa.operating_system import BSD
-from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.sut_orchestrator.azure.tools import KvpClient
 from lisa.tools import Pgrep, Service, Stat
 from lisa.util import get_matched_str
@@ -26,12 +26,11 @@ from lisa.util import get_matched_str
     area="kvp",
     category="functional",
     description="""
-    This test suite verifies the Hyper-V KVP service on Azure, Hyper-V and OpenVMM.
-    KVP exchanges data between the host and guest VM.
+    This suite qualifies the default Hyper-V host KVP metadata on Azure and
+    Hyper-V targets. A KVP transport alone does not provide that metadata;
+    the standalone OpenVMM profile does not publish the required default values.
     """,
-    requirement=simple_requirement(
-        supported_platform_type=[AZURE, READY, HYPERV, OPENVMM]
-    ),
+    requirement=simple_requirement(supported_platform_type=[AZURE, READY, HYPERV]),
 )
 class Kvp(TestSuite):
     # lrwx------ 1 root root 64 Oct 18 19:05 9 -> /dev/vmbus/hv_kvp
@@ -49,10 +48,14 @@ class Kvp(TestSuite):
     5. Check if KVP pool 3 file has a size greater than zero.
     6. At least 11 items are present in pool 3, and verify record count is
        correct.
+
+    Pool 3 (AUTO_EXTERNAL) must contain host-published default metadata.
+    Installing a guest daemon only creates the pool files; it does not
+    populate the required host records.
     """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, OPENVMM],
+            supported_platform_type=[AZURE, READY, HYPERV],
         ),
     )
     def verify_kvp(self, node: Node, log: Logger) -> None:
