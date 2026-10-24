@@ -16,8 +16,9 @@ from lisa.features.security_profile import (
 )
 from lisa.microsoft.testsuites.core.kvp import Kvp
 from lisa.microsoft.testsuites.core.provisioning import Provisioning
+from lisa.microsoft.testsuites.vm_extensions.mdm import MetricsExtension
 from lisa.node import LocalNode, RemoteNode
-from lisa.operating_system import Ubuntu
+from lisa.operating_system import OsInformation, Ubuntu
 from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM, READY
 from lisa.sut_orchestrator.openvmm.node import OpenVmmGuestNode
 from lisa.sut_orchestrator.openvmm.schema import (
@@ -25,9 +26,9 @@ from lisa.sut_orchestrator.openvmm.schema import (
     OpenVmmUefiSchema,
 )
 from lisa.testsuite import TestCaseRuntimeData, TestResult, get_cases_metadata
-from lisa.tools import Cat, GrubConfig, KernelConfig, Lsblk
+from lisa.tools import Cat, GrubConfig, KernelConfig, Lsblk, Sed, Service
 from lisa.tools.lsblk import DiskInfo
-from lisa.util import LisaException, SkippedException
+from lisa.util import LisaException, SkippedException, parse_version
 
 
 class GuestFeatureRequirementTestCase(TestCase):
@@ -155,3 +156,53 @@ class GuestFeatureRequirementTestCase(TestCase):
         for platform in (AZURE, HYPERV, READY):
             with self.subTest(platform=platform):
                 self.assertTrue(result.check_platform(platform).result)
+
+    def _configure_metrics_case(self, release: str) -> None:
+        metrics_class = cast(Any, MetricsExtension).__wrapped__
+        self.metrics = object.__new__(metrics_class)
+        self.node.os = object.__new__(Ubuntu)
+        self.node.os._information = OsInformation(
+            version=parse_version(release),
+            vendor="Ubuntu",
+            release=release,
+            full_version=f"Ubuntu {release} LTS",
+        )
+        self.metrics_methods: Dict[str, MagicMock] = {}
+        for name in (
+            "add_azure_core_repo",
+            "package_exists",
+            "is_package_in_repo",
+            "install_packages",
+            "uninstall_packages",
+        ):
+            method_patch = patch.object(self.node.os, name)
+            self.metrics_methods[name] = method_patch.start()
+            self.addCleanup(method_patch.stop)
+        self.metrics_methods["package_exists"].return_value = False
+        self.metrics_methods["is_package_in_repo"].return_value = True
+        self.metrics_service = MagicMock(spec=Service)
+        self.metrics_service.check_service_status.return_value = True
+        self.tools.update({Sed: MagicMock(spec=Sed), Service: self.metrics_service})
+
+    def test_metrics_jammy_reaches_install_start_and_uninstall(self) -> None:
+        self._configure_metrics_case("22.04")
+
+        self.metrics.verify_metricsextension(node=self.node, log=self.log)
+
+        self.metrics_methods["add_azure_core_repo"].assert_called_once()
+        self.metrics_methods["install_packages"].assert_called_once_with("metricsext2")
+        self.metrics_service.restart_service.assert_called_once_with("mdm")
+        self.metrics_service.check_service_status.assert_called_once_with("mdm")
+        self.metrics_methods["uninstall_packages"].assert_called_once_with(
+            "metricsext2"
+        )
+
+    def test_metrics_unknown_release_skips_before_environment_changes(self) -> None:
+        self._configure_metrics_case("99.04")
+
+        with self.assertRaises(SkippedException):
+            self.metrics.verify_metricsextension(node=self.node, log=self.log)
+
+        self.metrics_methods["add_azure_core_repo"].assert_not_called()
+        self.metrics_methods["install_packages"].assert_not_called()
+        self.metrics_service.restart_service.assert_not_called()
