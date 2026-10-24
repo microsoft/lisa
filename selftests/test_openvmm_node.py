@@ -36,7 +36,7 @@ from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
-from lisa.tools import Cat, GrubConfig, Ip, Kill, Mkdir
+from lisa.tools import Cat, GrubConfig, Ip, Iptables, Kill, Mkdir
 from lisa.tools.openvmm import (
     OPENVMM_DISK_DEVICE_SCSI,
     OPENVMM_IOMMU_NONE,
@@ -740,22 +740,36 @@ class OpenVmmNodeTestCase(TestCase):
                     **invalid_network,
                 )
 
-    def test_enable_ssh_forwarding_allows_openvmm_guest_subnet_routing(
+    def test_enable_ssh_forwarding_installs_iptables_and_allows_guest_subnet_routing(
         self,
     ) -> None:
         bridge_name = "ovmbr1"
         guest_address = "10.0.1.2"
         tap_host_cidr = "10.0.1.1/24"
+        iptables_installed = False
+
+        def _get_tool(tool_type: type) -> MagicMock:
+            nonlocal iptables_installed
+            self.assertIs(tool_type, Iptables)
+            iptables_installed = True
+            return MagicMock(spec=Iptables)
 
         def _execute(command: str, *args: Any, **kwargs: Any) -> Any:
+            if command.startswith("iptables") and not iptables_installed:
+                raise LisaException("iptables: command not found")
             if command.startswith("iptables") and " -C " in command:
                 return SimpleNamespace(exit_code=1, stderr="", stdout="")
             return SimpleNamespace(exit_code=0, stderr="", stdout="0")
 
+        tools = MagicMock()
+        tools.get.side_effect = _get_tool
+        tools.__getitem__.side_effect = {
+            Ip: SimpleNamespace(get_default_route_info=lambda: ("eth0", ""))
+        }.__getitem__
         host_node = SimpleNamespace(
             is_remote=True,
             execute=MagicMock(side_effect=_execute),
-            tools={Ip: SimpleNamespace(get_default_route_info=lambda: ("eth0", ""))},
+            tools=tools,
         )
         controller = OpenVmmController(cast(Any, host_node), MagicMock())
         node_context = NodeContext(guest_address=guest_address, ssh_port=22)
@@ -862,6 +876,37 @@ class OpenVmmNodeTestCase(TestCase):
                 f"FORWARD -i eth0 -o {bridge_name} -p tcp -d {guest_address}" in command
                 for command in commands
             )
+        )
+
+    def test_ssh_forwarding_install_failure_does_not_change_host_state(self) -> None:
+        tools = MagicMock()
+        tools.get.side_effect = LisaException("iptables installation failed")
+        tools.__getitem__.return_value = SimpleNamespace(
+            get_default_route_info=lambda: ("eth0", "")
+        )
+        host_node = SimpleNamespace(
+            execute=MagicMock(
+                return_value=SimpleNamespace(exit_code=0, stdout="0", stderr="")
+            ),
+            tools=tools,
+        )
+        controller = OpenVmmController(cast(Any, host_node), MagicMock())
+        node_context = NodeContext()
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            tap_name="tap0",
+            forward_ssh_port=True,
+            forwarded_port=60022,
+        )
+
+        with self.assertRaisesRegex(LisaException, "iptables installation failed"):
+            controller._enable_ssh_forwarding(node_context, "10.0.0.2", network)
+
+        host_node.execute.assert_not_called()
+        self.assertFalse(node_context.forwarding_enabled)
+        self.assertEqual([], node_context.forwarding_rules_added)
+        self.assertEqual(
+            0, get_host_context(controller.host_node).active_forwarding_count
         )
 
     def test_configure_connection_uses_host_proxy_mode(self) -> None:

@@ -16,6 +16,8 @@ Run tests on different platforms
 
 -  `OpenVMM NIC passthrough <#openvmm-nic-passthrough>`__
 
+-  `OpenVMM guest SSH forwarding <#openvmm-guest-ssh-forwarding>`__
+
 -  `Run on AWS <#run-on-aws>`__
 
 -  `Run on WSL <#run-on-wsl>`__
@@ -401,6 +403,13 @@ initialization with the same ``device_pools`` configuration.
 
 The guard requires an IPv4 SSH session with ``SSH_CONNECTION`` available. It does
 not protect IPv6 management routing.
+
+OpenVMM guest SSH forwarding
+---------------------------
+
+When guest SSH port forwarding is enabled, LISA installs a missing ``iptables``
+package through the host's package manager before changing forwarding state.
+Installation errors fail guest setup; existing host firewall rules are not reset.
 
 OpenVMM guest kernel boot parameters
 -----------------------------------
