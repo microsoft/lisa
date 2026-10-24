@@ -118,6 +118,15 @@ steps.
 Definition in test case
 ^^^^^^^^^^^^^^^^^^^^^^^
 
+Ubuntu release restrictions can be declared with
+``OsRequirement(Ubuntu, min_version="22.04", max_version="24.04")`` in
+``supported_os`` or ``unsupported_os``. Import ``OsRequirement`` from
+``lisa``. The minimum is inclusive and the maximum exclusive. Only Ubuntu
+supports version bounds; other distros continue to use OS classes.
+These requirements are checked on the connected guest and can also filter
+tests before deployment when distro pre-filtering is enabled. See
+:doc:`../distro_pre_filter` for examples and image inference limitations.
+
 .. code:: python
 
    @TestCaseMetadata(

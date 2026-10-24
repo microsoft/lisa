@@ -6,6 +6,7 @@ from retry import retry
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -20,6 +21,7 @@ from lisa.operating_system import (
     Redhat,
     Suse,
     Ubuntu,
+    Windows,
 )
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
@@ -48,6 +50,11 @@ class ApplicationHealthExtension(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
+            # Exclude Ubuntu 22.10 and newer; retain older distro runtime checks.
+            unsupported_os=[
+                Windows,
+                OsRequirement(Ubuntu, min_version="22.10"),
+            ],
         ),
     )
     def verify_application_health_extension(self, log: Logger, node: Node) -> None:

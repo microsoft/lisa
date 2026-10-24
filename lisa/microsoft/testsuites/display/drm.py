@@ -9,6 +9,7 @@ from microsoft.testsuites.display.modetest import Modetest
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -31,6 +32,7 @@ GRUB_CMDLINE_LINUX_DEFAULT_PATTERN = re.compile(
     category="functional",
     description="""
     This test suite uses to verify drm driver sanity.
+    Ubuntu 20.04 and older releases are not supported.
     """,
     requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
 )
@@ -47,6 +49,7 @@ class Drm(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_features=[CvmDisabled()],
+            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="20.05")],
         ),
     )
     def verify_drm_driver(self, node: Node, log: Logger) -> None:
@@ -75,6 +78,7 @@ class Drm(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_features=[CvmDisabled()],
+            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="20.05")],
         ),
     )
     def verify_dri_node(self, node: Node, log: Logger) -> None:
@@ -98,6 +102,7 @@ class Drm(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_features=[CvmDisabled()],
+            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="20.05")],
         ),
     )
     def verify_no_error_output(self, node: Node, log: Logger) -> None:
@@ -117,6 +122,7 @@ class Drm(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_features=[CvmDisabled()],
+            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="20.05")],
         ),
     )
     def verify_connection_status(self, node: Node, log: Logger) -> None:
