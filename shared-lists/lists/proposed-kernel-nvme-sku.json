@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "id": "proposed-kernel-nvme-sku",
+  "name": "Proposed kernel – NVMe SKU",
+  "description": "Storage and NVMe coverage for proposed kernels on NVMe-controller VM sizes (for example v6). Use fills the parameters too.",
+  "type": "whitelist",
+  "owner": { "name": "LSG Quality", "email": "" },
+  "tests": [
+    "smoke_test",
+    "verify_nvme_disk_controller_type",
+    "verify_nvme_basic",
+    "verify_nvme_function",
+    "verify_nvme_function_unpartitioned",
+    "verify_nvme_max_disk",
+    "verify_os_partition_identifier",
+    "verify_swap",
+    "perf_nvme"
+  ],
+  "parameters": {
+    "DiskControllerType": "NVMe",
+    "ConcurrencyMultiCase": "2",
+    "DbName": "listest_dev"
+  },
+  "updatedAt": "2026-10-25T00:00:00Z",
+  "history": [
+    {
+      "date": "2026-10-25T00:00:00Z",
+      "author": "LSG Quality",
+      "added": [
+        "smoke_test",
+        "verify_nvme_disk_controller_type",
+        "verify_nvme_basic",
+        "verify_nvme_function",
+        "verify_nvme_function_unpartitioned",
+        "verify_nvme_max_disk",
+        "verify_os_partition_identifier",
+        "verify_swap",
+        "perf_nvme"
+      ],
+      "removed": [],
+      "note": "Created"
+    }
+  ]
+}

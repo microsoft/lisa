@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "id": "proposed-kernel-core-gate",
+  "name": "Proposed kernel – core gate",
+  "description": "Fast functional gate for proposed kernel builds.",
+  "type": "whitelist",
+  "owner": { "name": "LSG Quality", "email": "" },
+  "tests": [
+    "smoke_test",
+    "verify_cpu_count",
+    "verify_dns_name_resolution",
+    "verify_swap",
+    "verify_resource_disk_mounted",
+    "verify_sriov_basic",
+    "verify_nvme_basic",
+    "verify_kdumpcrash_on_random_cpu",
+    "verify_network_interface_reload_via_ip_link"
+  ],
+  "parameters": {
+    "ConcurrencyMultiCase": "2"
+  },
+  "updatedAt": "2026-10-25T00:00:00Z",
+  "history": [
+    {
+      "date": "2026-10-25T00:00:00Z",
+      "author": "LSG Quality",
+      "added": [
+        "smoke_test",
+        "verify_cpu_count",
+        "verify_dns_name_resolution",
+        "verify_swap",
+        "verify_resource_disk_mounted",
+        "verify_sriov_basic",
+        "verify_nvme_basic",
+        "verify_kdumpcrash_on_random_cpu",
+        "verify_network_interface_reload_via_ip_link"
+      ],
+      "removed": [],
+      "note": "Created"
+    }
+  ]
+}

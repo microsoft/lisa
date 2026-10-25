@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "id": "known-flaky",
+  "name": "Known flaky – greylist",
+  "description": "Run, but don't block the pipeline on failure.",
+  "type": "greylist",
+  "owner": { "name": "LSG Quality", "email": "" },
+  "tests": [
+    "verify_timedrift_corrected",
+    "verify_vm_hot_resize_decrease",
+    "verify_smb_linux"
+  ],
+  "parameters": {},
+  "updatedAt": "2026-10-25T00:00:00Z",
+  "history": [
+    {
+      "date": "2026-10-25T00:00:00Z",
+      "author": "LSG Quality",
+      "added": [
+        "verify_timedrift_corrected",
+        "verify_vm_hot_resize_decrease",
+        "verify_smb_linux"
+      ],
+      "removed": [],
+      "note": "Created"
+    }
+  ]
+}
