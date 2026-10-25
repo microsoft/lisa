@@ -2588,17 +2588,12 @@ class Suse(Linux):
     #      the RPM transaction failed because another process holds
     #      /usr/lib/sysimage/rpm/.rpm.lock. The stdout will contain
     #      "can't create transaction lock on ...rpm.lock".
-    # Both conditions are transient and retryable.
-    # Retries are tuned to balance resilience and test runtime:
-    # - In practice, locks are typically released within a few seconds
-    #   once the competing process exits.
-    # - 5 attempts with a 10-second delay cap the worst-case wait at ~50s,
-    #   which is long enough for transient locks to clear without noticeably
-    #   extending overall LISA test runs.
+    # SUSE cloud plugin read timeouts can also return exit code 8.
+    # Share one retry budget: five attempts with at most four 10-second delays.
     _ZYPPER_EXIT_LOCK = 7
     _ZYPPER_EXIT_COMMIT = 8
-    _ZYPPER_LOCK_MAX_RETRIES = 5
-    _ZYPPER_LOCK_RETRY_DELAY = 10  # seconds
+    _ZYPPER_MAX_ATTEMPTS = 5
+    _ZYPPER_RETRY_DELAY = 10  # seconds
     _rpm_lock_pattern = re.compile(
         r"can't create transaction lock on.*\.rpm\.lock",
         re.I,
@@ -2655,7 +2650,7 @@ class Suse(Linux):
         if no_gpgcheck:
             cmd += " -G "
         cmd += f" {repo} {repo_name}"
-        cmd_result = self._execute_zypper_with_lock_retry(
+        cmd_result = self._execute_zypper_with_retry(
             cmd, operation_name="add_repository", sudo=True
         )
         if "already exists. Please use another alias." not in cmd_result.stdout:
@@ -2690,16 +2685,26 @@ class Suse(Linux):
                 return True
         return False
 
-    def _execute_zypper_with_lock_retry(
+    def _is_zypper_plugin_timeout(self, result: ExecutableResult) -> bool:
+        output = f"{result.stdout}\n{result.stderr}"
+        return (
+            result.exit_code == self._ZYPPER_EXIT_COMMIT
+            and "plugin:/susecloud?" in output
+            and "Not ready to read within timeout." in output
+        )
+
+    def _execute_zypper_with_retry(
         self,
         cmd: str,
         operation_name: str,
         **execute_kwargs: Any,
     ) -> ExecutableResult:
-        """Execute a zypper command, retrying on lock contention.
+        """Execute zypper with bounded retries for known transient errors.
 
         Retries on zypper exit code 7 (zypper lock) and exit code 8 when
-        the RPM transaction lock (.rpm.lock) is held by another process.
+        the RPM transaction lock (.rpm.lock) is held by another process or
+        a susecloud plugin read timeout is reported. Other failures are returned
+        unchanged for the caller to handle.
 
         Args:
             cmd: The zypper command string to execute.
@@ -2708,28 +2713,35 @@ class Suse(Linux):
                 ``node.execute`` (e.g. ``sudo``, ``shell``, ``timeout``).
 
         Returns:
-            The ``ExecutableResult`` of the last successful (non-lock) execution.
+            The first result that does not indicate a retryable error.
 
         Raises:
-            LisaException: If lock contention persists after all retries.
+            LisaException: If retryable errors exhaust the shared attempt budget.
         """
         result: ExecutableResult
-        for retry_num in range(self._ZYPPER_LOCK_MAX_RETRIES):
+        for attempt in range(1, self._ZYPPER_MAX_ATTEMPTS + 1):
             self.wait_running_process("zypper")
             result = self._node.execute(cmd, **execute_kwargs)
-            if not self._is_zypper_lock_error(result):
+            if self._is_zypper_lock_error(result):
+                reason = "lock contention"
+            elif self._is_zypper_plugin_timeout(result):
+                reason = "susecloud plugin read timeout"
+            else:
                 return result
+            if attempt == self._ZYPPER_MAX_ATTEMPTS:
+                break
             self._log.warning(
-                f"zypper lock contention (exit code {result.exit_code}) "
-                f"during {operation_name}, "
-                f"retry {retry_num + 1}/{self._ZYPPER_LOCK_MAX_RETRIES}"
+                f"zypper {reason} (exit code {result.exit_code}) "
+                f"during {operation_name}, attempt "
+                f"{attempt}/{self._ZYPPER_MAX_ATTEMPTS}; "
+                f"retrying in {self._ZYPPER_RETRY_DELAY}s"
             )
-            time.sleep(self._ZYPPER_LOCK_RETRY_DELAY)
+            time.sleep(self._ZYPPER_RETRY_DELAY)
         raise LisaException(
-            f"zypper {operation_name} failed due to persistent lock contention "
-            f"(exit code {result.exit_code}) "
-            f"after {self._ZYPPER_LOCK_MAX_RETRIES} retries "
-            f"with {self._ZYPPER_LOCK_RETRY_DELAY}s delay between retries. "
+            f"zypper {operation_name} failed after "
+            f"{self._ZYPPER_MAX_ATTEMPTS} attempts; "
+            f"last error: {reason} (exit code {result.exit_code}), "
+            f"with {self._ZYPPER_RETRY_DELAY}s delay between attempts. "
             f"stdout: {result.stdout!r}. stderr: {result.stderr!r}."
         )
 
@@ -2766,7 +2778,7 @@ class Suse(Linux):
                     recovered = True
                     continue
                 time.sleep(1)
-        output = self._execute_zypper_with_lock_retry(
+        output = self._execute_zypper_with_retry(
             "zypper --non-interactive --gpg-auto-import-keys refresh",
             operation_name="refresh",
             sudo=True,
@@ -2801,7 +2813,7 @@ class Suse(Linux):
             command += " --no-gpg-checks "
         remove_packages = " ".join(packages)
         command += f" rm {remove_packages}"
-        uninstall_result = self._execute_zypper_with_lock_retry(
+        uninstall_result = self._execute_zypper_with_retry(
             command,
             operation_name="uninstall",
             shell=True,
@@ -2827,7 +2839,7 @@ class Suse(Linux):
         if not signed:
             command += " --no-gpg-checks "
         command += f" in {' '.join(packages)}"
-        install_result = self._execute_zypper_with_lock_retry(
+        install_result = self._execute_zypper_with_retry(
             command,
             operation_name="install",
             shell=True,
@@ -2852,7 +2864,7 @@ class Suse(Linux):
             if not signed:
                 command_with_force += " --no-gpg-checks "
             command_with_force += f" in --force-resolution {' '.join(packages)}"
-            install_result = self._execute_zypper_with_lock_retry(
+            install_result = self._execute_zypper_with_retry(
                 command_with_force,
                 operation_name="install (force-resolution)",
                 shell=True,
@@ -2880,7 +2892,7 @@ class Suse(Linux):
         command = "zypper --non-interactive --gpg-auto-import-keys update "
         if packages:
             command += " ".join(packages)
-        self._execute_zypper_with_lock_retry(
+        self._execute_zypper_with_retry(
             command, operation_name="update", sudo=True, timeout=3600
         )
 
