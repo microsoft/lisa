@@ -146,16 +146,16 @@ class StressNg(Tool):
 
     def _install_required_packages(self) -> None:
         if isinstance(self.node.os, CBLMariner):
-            self.node.os.install_packages(
-                [
-                    "gcc",
-                    "glibc-devel",
-                    "kernel-headers",
-                    "binutils",
-                    "make",
-                    "libapparmor-devel",
-                ]
-            )
+            packages = ["gcc", "glibc-devel", "kernel-headers", "binutils", "make"]
+            # AppArmor is optional upstream and unavailable in some Azure Linux repos.
+            if self.node.os.is_package_in_repo("libapparmor-devel"):
+                packages.append("libapparmor-devel")
+            else:
+                self._log.info(
+                    "libapparmor-devel is unavailable; building stress-ng "
+                    "without AppArmor support"
+                )
+            self.node.os.install_packages(packages)
         elif isinstance(self.node.os, Debian):
             self.node.os.install_packages("libapparmor-dev")
 
