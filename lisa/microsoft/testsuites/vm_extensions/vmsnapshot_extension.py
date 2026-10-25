@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import PurePosixPath
 
 from assertpy.assertpy import assert_that
+from azure.core.exceptions import HttpResponseError
 
 from lisa import (
     Environment,
@@ -36,6 +37,7 @@ from lisa.tools.chown import Chown
 from lisa.tools.find import Find
 from lisa.tools.python import Pip, Python
 from lisa.tools.whoami import Whoami
+from lisa.util import LisaException
 
 
 @TestSuiteMetadata(
@@ -54,7 +56,8 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         Create application consistent restore point on the restore point
         collection.
         Validate response of the restore point for validity.
-        Attempt it a few items to rule out cases when VM is under changes.
+        Retry VM model update conflicts with capped exponential backoff.
+        Preserve the Azure error if retries are exhausted.
         """,
         priority=1,
         requirement=simple_requirement(
@@ -241,8 +244,9 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         log.info("restore point collection created")
         rpc_status = response.provisioning_state
         assert_that(rpc_status, "RPC creation failed").is_equal_to("Succeeded")
-        count = 0
-        for _ in range(10):
+        max_attempts = 10
+        retry_delay = 5
+        for attempt in range(1, max_attempts + 1):
             try:
                 # create a restore point for the VM
                 restore_point = "rp_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
@@ -261,19 +265,24 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
                     restore_point_collection,
                     restore_point,
                 )
-                break
-            except Exception as e:
-                # Changes were made to the Virtual Machine, while the operation
-                # 'Create Restore Point' was in progress.
-                # Code: Conflict message is sometimes seen while rp creation
-                if "Changes were made to the Virtual Machine" in str(e):
-                    # so we will be retrying it after some time
-                    pass
-                else:
-                    raise e
-            time.sleep(1)
-            count += 1
-        assert_that(count, "Restore point creation failed.").is_less_than(10)
+                return
+            except HttpResponseError as error:
+                if "Changes were made to the Virtual Machine" not in str(error):
+                    raise
+                if attempt == max_attempts:
+                    raise LisaException(
+                        f"Restore point creation failed after {max_attempts} attempts "
+                        f"for VM '{vm_name}' because of VM model changes. "
+                        f"Last Azure error: {error}"
+                    ) from error
+                # Policy-driven VM updates can outlast initial VM provisioning.
+                log.warning(
+                    f"Restore point '{restore_point}' attempt {attempt}/{max_attempts} "
+                    f"conflicted with a VM update; retrying in {retry_delay} seconds: "
+                    f"{error}"
+                )
+                time.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 60)
 
     def _find_extension_dir(self, node: Node) -> str:
         startpath = node.get_pure_path("/var/lib/waagent/")
