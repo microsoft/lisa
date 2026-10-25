@@ -60,6 +60,7 @@ from lisa.tools import (
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KernelConfig
+from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
@@ -72,11 +73,44 @@ from lisa.util import (
 from lisa.util.perf_timer import create_timer
 
 
+_DISK_DETECT_TIMEOUT = 60
+
+
+def _wait_for_added_disks(
+    lsblk: Lsblk,
+    disks_before: List[DiskInfo],
+    expected_count: int,
+    log: Logger,
+) -> List[DiskInfo]:
+    before_names = {disk.name for disk in disks_before}
+    timeout = _DISK_DETECT_TIMEOUT
+    timer = create_timer()
+    while True:
+        added_disks = [
+            disk
+            for disk in lsblk.get_disks(force_run=True)
+            if disk.name not in before_names
+        ]
+        if len(added_disks) == expected_count or timer.elapsed(False) >= timeout:
+            break
+        log.debug(
+            f"Waiting for {expected_count} added disks; "
+            f"detected {[disk.name for disk in added_disks]}"
+        )
+        time.sleep(1)
+
+    assert_that(
+        added_disks, f"{expected_count} data disks should be added within {timeout}s"
+    ).is_length(expected_count)
+    return added_disks
+
+
 @TestSuiteMetadata(
     area="storage",
     category="functional",
     description="""
     This test suite is used to run storage related tests.
+    Hot-add checks allow up to 60 seconds for guest disk enumeration.
     """,
 )
 class Storage(TestSuite):
@@ -1046,17 +1080,10 @@ class Storage(TestSuite):
 
             # verify that partition count is increased by 1
             # and the size of partition is correct
-            partitons_after_adding_disk = lsblk.get_disks(force_run=True)
-            before_names = {d.name for d in partitions_before_adding_disk}
-            added_partitions = [
-                item
-                for item in partitons_after_adding_disk
-                if item.name not in before_names
-            ]
-            log.debug(f"added_partitions: {added_partitions}")
-            assert_that(added_partitions, "Data disk should be added").is_length(
-                added_disk_count
+            added_partitions = _wait_for_added_disks(
+                lsblk, partitions_before_adding_disk, added_disk_count, log
             )
+            log.debug(f"added_partitions: {added_partitions}")
             assert_that(
                 added_partitions[added_disk_count - 1].size_in_gb,
                 f"data disk {added_partitions[added_disk_count - 1].name}"
@@ -1075,8 +1102,6 @@ class Storage(TestSuite):
                 new_keys = set(linux_device_luns_after) - set(_baseline)
                 return len(new_keys) > 0
 
-            # 30s matches the disk-detection timeout used in
-            # _hot_add_disk_parallel for partition appearance after attach.
             check_till_timeout(
                 _new_lun_detected,
                 timeout_message=(
@@ -1084,7 +1109,7 @@ class Storage(TestSuite):
                     f"luns_before: {linux_device_luns}, "
                     f"luns_after: {linux_device_luns_after}"
                 ),
-                timeout=30,
+                timeout=_DISK_DETECT_TIMEOUT,
                 interval=1,
             )
             new_device_keys: List[str] = list(
@@ -1161,24 +1186,9 @@ class Storage(TestSuite):
 
         # verify that partition count is increased by disks_to_add
         # and the size of partition is correct
-        timeout = 30
-        timer = create_timer()
-        while timeout > timer.elapsed(False):
-            partitons_after_adding_disks = lsblk.get_disks(force_run=True)
-            before_names = {d.name for d in partitions_before_adding_disks}
-            added_partitions = [
-                item
-                for item in partitons_after_adding_disks
-                if item.name not in before_names
-            ]
-            if len(added_partitions) == disks_to_add:
-                break
-            else:
-                log.debug(f"added disks count: {len(added_partitions)}")
-                time.sleep(1)
-        assert_that(
-            added_partitions, f"{disks_to_add} disks should be added"
-        ).is_length(disks_to_add)
+        added_partitions = _wait_for_added_disks(
+            lsblk, partitions_before_adding_disks, disks_to_add, log
+        )
         for partition in added_partitions:
             assert_that(
                 partition.size_in_gb,
