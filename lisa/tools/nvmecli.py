@@ -79,13 +79,18 @@ class Nvmecli(Tool):
         return self._check_exists()
 
     def get_error_count(self, namespace: str) -> int:
-        error_log = self.run(f"error-log {namespace}", shell=True, sudo=True)
-        error_count = 0
-        # for row in error_log.stdout.splitlines():
+        error_log = self.run(
+            f"error-log {namespace}", shell=True, sudo=True, force_run=True
+        )
+        error_log.assert_exit_code(
+            message=f"cannot read NVMe error-log for {namespace}.", include_output=True
+        )
         errors = find_patterns_in_lines(error_log.stdout, [self.__error_count_pattern])
-        if errors[0]:
-            error_count = sum([int(element) for element in errors[0]])
-        return error_count
+        if not errors[0]:
+            raise LisaException(
+                f"cannot parse NVMe error counts for {namespace}: {error_log.stdout!r}"
+            )
+        return sum(int(element) for element in errors[0])
 
     def support_ns_manage_attach(self, device_name: str) -> bool:
         cmd_result = self.run(f"id-ctrl -H {device_name}", shell=True, sudo=True)
