@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import re
+from hashlib import sha256
 
 from assertpy import assert_that
 
@@ -17,7 +18,7 @@ from lisa import (
 from lisa.features import Nvme, NvmeSettings, Sriov
 from lisa.search_space import IntRange
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.tools import Cat, Df, Echo, Fdisk, Lspci, Mkfs, Mount, Nvmecli
+from lisa.tools import Df, Echo, Fdisk, Lspci, Mkfs, Mount, Nvmecli
 from lisa.tools.fdisk import FileSystem
 from lisa.util import LisaException, LisaTimeoutException, check_till_timeout
 from lisa.util.constants import DEVICE_TYPE_NVME, DEVICE_TYPE_SRIOV
@@ -157,7 +158,7 @@ class NvmeTestSuite(TestSuite):
         3. Create a txt file on the partition, content is 'TestContent'.
         4. Create a file 'data' on the partition, get the md5sum value.
         5. Umount and remount the partition.
-        6. Get the txt file content, compare the value.
+        6. Verify the exact txt file bytes using a guest-side checksum check.
         7. Compare the number of errors from nvme-cli after operations.
         """,
         priority=2,
@@ -178,7 +179,7 @@ class NvmeTestSuite(TestSuite):
         3. Create a txt file on the partition, content is 'TestContent'.
         4. Create a file 'data' on the partition, get the md5sum value.
         5. Umount and remount the partition.
-        6. Get the txt file content, compare the value.
+        6. Verify the exact txt file bytes using a guest-side checksum check.
         7. Compare the number of errors from nvme-cli after operations.
         """,
         priority=2,
@@ -511,8 +512,8 @@ class NvmeTestSuite(TestSuite):
             "Could not identify any nvme devices on the test node."
         ).is_not_zero()
         nvme_cli = node.tools[Nvmecli]
-        cat = node.tools[Cat]
         mount = node.tools[Mount]
+        expected_content_hash = sha256(b"TestContent\n").hexdigest()
         for namespace in nvme_namespaces:
             # 1. Get the number of errors from nvme-cli before operations.
             error_count_before_operations = nvme_cli.get_error_count(namespace)
@@ -554,23 +555,32 @@ class NvmeTestSuite(TestSuite):
             else:
                 mount.mount(f"{namespace}", mount_point)
 
-            # 6. Get the txt file content, compare the value.
-            file_content = cat.run(f"{mount_point}/testfile.txt", shell=True, sudo=True)
-            assert_that(
-                file_content.stdout,
-                f"content of {mount_point}/testfile.txt should keep consistent "
+            # Check guest file bytes, not terminal-formatted or cached cat output.
+            file_content = node.execute(
+                f"printf '%s\\n' '{expected_content_hash}  {mount_point}/testfile.txt'"
+                " | sha256sum --check",
+                shell=True,
+                sudo=True,
+            )
+            file_content.assert_exit_code(
+                message=f"content of {mount_point}/testfile.txt should keep consistent "
                 "after umount and re-mount.",
-            ).is_equal_to("TestContent")
+                include_output=True,
+            )
 
             # 6. Get md5sum value of file 'data', compare with initial value.
             final_md5 = node.execute(
                 f"md5sum {mount_point}/data", shell=True, sudo=True
             )
+            final_md5.assert_exit_code(
+                message=f"cannot read md5sum of {mount_point}/data after re-mount.",
+                include_output=True,
+            )
             assert_that(
-                initial_md5.stdout,
+                initial_md5.stdout.strip(),
                 f"md5sum of {mount_point}/data should keep consistent "
                 "after umount and re-mount.",
-            ).is_equal_to(final_md5.stdout)
+            ).is_equal_to(final_md5.stdout.strip())
 
             # 7. Compare the number of errors from nvme-cli after operations.
             error_count_after_operations = nvme_cli.get_error_count(namespace)
