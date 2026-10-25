@@ -21,7 +21,7 @@ from lisa.operating_system import (
     Redhat,
     Suse,
 )
-from lisa.sut_orchestrator import AZURE, HYPERV
+from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM
 from lisa.tools import Lscpu, Modprobe
 from lisa.util import MissingPackagesException
 
@@ -110,10 +110,10 @@ class HvOsPlatformInfo:
     description="""
     Test suite verifies hyper-v platform id is set correctly via hypercall to host.
     Theoretically, this could work for any guest which uses hypercalls
-    on Hyper-V or Azure.
+    on Hyper-V, Azure, or OpenVMM.
     """,
     requirement=simple_requirement(
-        supported_os=[Linux], supported_platform_type=[AZURE, HYPERV]
+        supported_os=[Linux], supported_platform_type=[AZURE, HYPERV, OPENVMM]
     ),
 )
 class Msr(TestSuite):

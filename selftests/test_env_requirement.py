@@ -110,6 +110,30 @@ UT_DEFAULT_REQUIREMENT = UtTestCaseRequirement(
 
 
 class RequirementTestCase(SearchSpaceTestCase):
+    def test_missing_disk_capability_is_not_supported(self) -> None:
+        requirement = schema.NodeSpace(disk=schema.DiskOptionSettings())
+        capability = schema.NodeSpace(core_count=2, memory_mb=1024)
+
+        result = requirement.check(capability)
+
+        self.assertFalse(result.result)
+        self.assertEqual(1, len(result.reasons))
+        self.assertRegex(result.reasons[0], "capability.*None")
+        self.assertIsNone(capability.disk)
+
+    def test_missing_network_capability_is_not_supported(self) -> None:
+        requirement = schema.NodeSpace(
+            network_interface=schema.NetworkInterfaceOptionSettings()
+        )
+        capability = schema.NodeSpace(core_count=2, memory_mb=1024)
+
+        result = requirement.check(capability)
+
+        self.assertFalse(result.result)
+        self.assertEqual(1, len(result.reasons))
+        self.assertRegex(result.reasons[0], "capability.*None")
+        self.assertIsNone(capability.network_interface)
+
     def test_supported_simple_requirement(self) -> None:
         n1 = schema.NodeSpace()
         n1 = n1.choose_value(n1)

@@ -18,7 +18,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import BSD, Windows
-from lisa.sut_orchestrator import AZURE, HYPERV, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM, READY
 from lisa.tools import Cat, KernelConfig, Modprobe, Rm, Ss, Sysctl
 from lisa.util import create_timer
 
@@ -32,7 +32,7 @@ from lisa.util import create_timer
     (only for kernels that are built with BBR3 support).
     """,
     requirement=simple_requirement(
-        supported_platform_type=[AZURE, READY, HYPERV],
+        supported_platform_type=[AZURE, READY, HYPERV, OPENVMM],
         unsupported_os=[BSD, Windows],
     ),
 )

@@ -28,6 +28,7 @@ from lisa import (
 )
 from lisa.base_tools import Uname
 from lisa.operating_system import BSD, Debian, Redhat, Suse, Ubuntu, Windows
+from lisa.sut_orchestrator import OPENVMM
 from lisa.tools import Ethtool, Iperf3, KernelConfig, Ls, Modinfo, Nm, Zstd
 from lisa.util import parse_version
 
@@ -41,6 +42,8 @@ NETVSC_SEND_SECTION_SIZE = 6144
     category="functional",
     description="""
     This test suite runs the ethtool related network test cases.
+    Portable offload checks can inspect the OpenVMM guest NIC directly;
+    NetVSC-specific ring, channel, RSS and message-level checks retain their gates.
     """,
 )
 class NetworkSettings(TestSuite):
@@ -290,7 +293,7 @@ class NetworkSettings(TestSuite):
         priority=1,
     )
     def verify_device_enabled_features(self, node: Node) -> None:
-        skip_if_no_synthetic_nics(node)
+        interfaces = self._get_portable_setting_interfaces(node)
 
         required_features = [
             "rx-checksumming",
@@ -302,7 +305,10 @@ class NetworkSettings(TestSuite):
             required_features.append("scatter-gather")
 
         ethtool = node.tools[Ethtool]
-        devices_features = ethtool.get_all_device_enabled_features()
+        devices_features = [
+            ethtool.get_device_enabled_features(interface, force_run=True)
+            for interface in interfaces
+        ]
 
         for device_features in devices_features:
             enabled_features = device_features.enabled_features
@@ -332,12 +338,15 @@ class NetworkSettings(TestSuite):
         requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_device_gro_lro_settings_change(self, node: Node, log: Logger) -> None:
-        skip_if_no_synthetic_nics(node)
+        interfaces = self._get_portable_setting_interfaces(node)
 
         ethtool = node.tools[Ethtool]
 
         skip_test = True
-        devices_gro_lro_settings = ethtool.get_all_device_gro_lro_settings()
+        devices_gro_lro_settings = [
+            ethtool.get_device_gro_lro_settings(interface, force_run=True)
+            for interface in interfaces
+        ]
         for settings in devices_gro_lro_settings:
             interface = settings.interface
             if settings.gro_fixed and settings.lro_fixed:
@@ -358,30 +367,36 @@ class NetworkSettings(TestSuite):
                 original_lro_setting if settings.lro_fixed else not original_lro_setting
             )
 
-            new_settings = ethtool.change_device_gro_lro_settings(
-                interface, new_gro_setting, new_lro_setting
-            )
-            assert_that(
-                new_settings.gro_setting,
-                "Changing GRO setting didn't succeed",
-            ).is_equal_to(new_gro_setting)
-            assert_that(
-                new_settings.lro_setting,
-                "Changing LRO setting didn't succeed",
-            ).is_equal_to(new_lro_setting)
-
-            # Revert the settings back to original values
-            reverted_settings = ethtool.change_device_gro_lro_settings(
-                interface, original_gro_setting, original_lro_setting
-            )
-            assert_that(
-                reverted_settings.gro_setting,
-                "Reverting GRO setting to original value didn't succeed",
-            ).is_equal_to(original_gro_setting)
-            assert_that(
-                reverted_settings.lro_setting,
-                "Reverting LRO setting to original value didn't succeed",
-            ).is_equal_to(original_lro_setting)
+            try:
+                new_settings = ethtool.change_device_gro_lro_settings(
+                    interface, new_gro_setting, new_lro_setting
+                )
+                assert_that(
+                    new_settings.gro_setting,
+                    "Changing GRO setting didn't succeed",
+                ).is_equal_to(new_gro_setting)
+                assert_that(
+                    new_settings.lro_setting,
+                    "Changing LRO setting didn't succeed",
+                ).is_equal_to(new_lro_setting)
+            finally:
+                restored = False
+                try:
+                    reverted_settings = ethtool.change_device_gro_lro_settings(
+                        interface, original_gro_setting, original_lro_setting
+                    )
+                    assert_that(
+                        reverted_settings.gro_setting,
+                        "Reverting GRO setting to original value didn't succeed",
+                    ).is_equal_to(original_gro_setting)
+                    assert_that(
+                        reverted_settings.lro_setting,
+                        "Reverting LRO setting to original value didn't succeed",
+                    ).is_equal_to(original_lro_setting)
+                    restored = True
+                finally:
+                    if not restored:
+                        node.mark_dirty()
 
         if skip_test:
             raise SkippedException(
@@ -741,6 +756,12 @@ class NetworkSettings(TestSuite):
     def after_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
         cleanup_iperf3(environment)
+
+    def _get_portable_setting_interfaces(self, node: Node) -> List[str]:
+        if node.type_name() == OPENVMM:
+            return [node.nics.default_nic]
+        skip_if_no_synthetic_nics(node)
+        return sorted(node.tools[Ethtool].get_device_list())
 
     def _check_msg_level_change_supported(self, node: Node) -> None:
         msg_level_symbols: Union[str, List[str]]

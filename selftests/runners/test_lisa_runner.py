@@ -15,13 +15,18 @@ from lisa import (
     schema,
     search_space,
 )
-from lisa.environment import EnvironmentSpace, EnvironmentStatus, load_environments
+from lisa.environment import (
+    Environment,
+    EnvironmentSpace,
+    EnvironmentStatus,
+    load_environments,
+)
 from lisa.messages import TestResultMessage, TestStatus
 from lisa.notifier import _notifiers, flush_notifications, register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import RunnerResult
 from lisa.runners.lisa_runner import LisaRunner
-from lisa.testsuite import TestResult, simple_requirement
+from lisa.testsuite import TestCaseRuntimeData, TestResult, simple_requirement
 from lisa.util.parallel import Task
 from selftests import test_platform, test_testsuite
 from selftests.test_environment import generate_runbook as generate_env_runbook
@@ -123,6 +128,107 @@ class RunnerTestCase(TestCase):
         test_environment = test_results[0].runtime_data.requirement.environment
         assert test_environment
         self.assertEqual(2, len(test_environment.nodes))
+
+    def test_fixed_guest_mismatch_does_not_block_runnable_case(self) -> None:
+        runner = generate_runner(None)
+        runner.platform = test_platform.generate_platform()
+        runner.platform.runbook.guests = [schema.GuestNode(use_parent_capability=False)]
+        runner._guest_enabled = True
+        test_results = test_testsuite.generate_cases_result()[:2]
+        for index, result in enumerate(test_results):
+            result.id_ = str(index)
+        test_results[0].runtime_data.metadata.requirement = simple_requirement(
+            supported_features=["Nvme"]
+        )
+        runner.test_results = test_results
+
+        guest_environment = MagicMock(spec=Environment)
+        guest_environment.status = EnvironmentStatus.Connected
+        guest_environment.capability = EnvironmentSpace(
+            nodes=[schema.NodeSpace(core_count=4, memory_mb=8192)]
+        )
+        guest_environment.nodes = SimpleNamespace(list=lambda: [])
+        environment = MagicMock(spec=Environment)
+        environment.name = "generated_0"
+        environment.nodes = []
+        environment.status = EnvironmentStatus.Connected
+        environment.is_predefined = False
+        environment.is_in_use = False
+        environment.is_alive = True
+        environment.is_new = True
+        environment.source_test_result = test_results[0]
+        environment.get_guest_environment.return_value = guest_environment
+        environment.get_information.return_value = {}
+        prepared_environment = MagicMock(spec=Environment)
+        prepared_environment.status = EnvironmentStatus.Prepared
+        prepared_environment.is_predefined = False
+        prepared_environment.is_in_use = False
+        prepared_environment.is_alive = True
+        prepared_environment.source_test_result = test_results[1]
+        runner.environments = [environment, prepared_environment]
+
+        with patch.object(runner, "_should_early_stop"), patch.object(
+            runner, "_generate_task"
+        ) as generate_task:
+            task = runner.fetch_task()
+
+        self.assertIs(task, generate_task.return_value)
+        generate_task.assert_called_once_with(
+            task_method=runner._run_test_task,
+            environment=environment,
+            test_results=[test_results[1]],
+            case_variables=runner._case_variables,
+        )
+        self.assertEqual(TestStatus.SKIPPED, test_results[0].status)
+        self.assertIn("configured guest", test_results[0].message)
+        self.assertIn("Nvme", test_results[0].message)
+        self.assertEqual(TestStatus.QUEUED, test_results[1].status)
+
+    def test_guest_mismatch_preserves_other_environment_candidates(self) -> None:
+        runner = generate_runner(None)
+        runner.platform = test_platform.generate_platform()
+        runner._guest_enabled = True
+        metadata = test_testsuite.generate_cases_metadata()[1]
+        for inherit, status, predefined, needs_fresh in [
+            (True, EnvironmentStatus.Connected, False, False),
+            (False, EnvironmentStatus.Deployed, False, False),
+            (False, EnvironmentStatus.Connected, True, False),
+            (False, EnvironmentStatus.Connected, False, True),
+        ]:
+            with self.subTest(
+                inherit=inherit,
+                status=status,
+                predefined=predefined,
+                needs_fresh=needs_fresh,
+            ):
+                runner.platform.runbook.guests = [
+                    schema.GuestNode(use_parent_capability=inherit)
+                ]
+                metadata.requirement = simple_requirement(
+                    supported_features=[] if needs_fresh else ["Nvme"]
+                )
+                result = TestResult("0", TestCaseRuntimeData(metadata))
+                result.runtime_data.use_new_environment = needs_fresh
+                guest_environment = MagicMock(spec=Environment)
+                guest_environment.status = status
+                guest_environment.capability = EnvironmentSpace(
+                    nodes=[schema.NodeSpace(core_count=4, memory_mb=8192)]
+                )
+                guest_environment.nodes = SimpleNamespace(list=lambda: [])
+                environment = MagicMock(spec=Environment)
+                environment.name = "generated_0"
+                environment.nodes = []
+                environment.status = status
+                environment.is_predefined = predefined
+                environment.is_new = False
+                environment.get_guest_environment.return_value = guest_environment
+
+                runnable = runner._get_runnable_test_results(
+                    [result], environment=environment
+                )
+
+                self.assertEqual([], runnable)
+                self.assertEqual(TestStatus.QUEUED, result.status)
 
     def test_merge_req_platform_features_do_not_bleed_between_nodes(self) -> None:
         runner = generate_runner(None)
@@ -336,7 +442,9 @@ class RunnerTestCase(TestCase):
         runner = generate_runner(None)
         platform = test_platform.generate_platform()
         platform.runbook.guest_enabled = True
-        platform.runbook.guests = [SimpleNamespace(type="guest-platform")]
+        platform.runbook.guests = [
+            SimpleNamespace(type="guest-platform", use_parent_capability=True)
+        ]
         runner.platform = platform
         runner._guest_enabled = True
 
@@ -360,6 +468,45 @@ class RunnerTestCase(TestCase):
             expected_message=["", "", ""],
             test_results=test_results,
         )
+
+    def test_isolated_guest_does_not_inherit_parent_platform(self) -> None:
+        for use_parent_capability in (False, True):
+            with self.subTest(use_parent_capability=use_parent_capability):
+                test_testsuite.cleanup_cases_metadata()
+                envs = load_environments(None)
+                runner = generate_runner(None)
+                platform = test_platform.generate_platform()
+                platform.runbook.guest_enabled = True
+                platform.runbook.guests = [
+                    SimpleNamespace(
+                        type="guest-platform",
+                        use_parent_capability=use_parent_capability,
+                    )
+                ]
+                runner.platform = platform
+                runner._guest_enabled = True
+                results = test_testsuite.generate_cases_result()
+                results[0].runtime_data.metadata.requirement = simple_requirement(
+                    supported_platform_type=[constants.PLATFORM_MOCK]
+                )
+                results[1].runtime_data.metadata.requirement = simple_requirement(
+                    supported_platform_type=["guest-platform"]
+                )
+                results[2].runtime_data.metadata.requirement = simple_requirement()
+
+                runner._merge_test_requirements(
+                    test_results=results,
+                    existing_environments=envs,
+                    platform_type=constants.PLATFORM_MOCK,
+                )
+
+                self.assertEqual(
+                    results[0].status,
+                    TestStatus.QUEUED if use_parent_capability else TestStatus.SKIPPED,
+                )
+                self.assertEqual(results[1].status, TestStatus.QUEUED)
+                self.assertEqual(results[2].status, TestStatus.QUEUED)
+                self.assertEqual(len(envs), 3 if use_parent_capability else 2)
 
     def test_fit_a_predefined_env(self) -> None:
         # predefined env can run case in below condition.

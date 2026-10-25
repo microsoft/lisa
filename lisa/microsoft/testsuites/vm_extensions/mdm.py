@@ -11,7 +11,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import CBLMariner, Debian, Posix, Ubuntu
-from lisa.sut_orchestrator import AZURE, READY
+from lisa.sut_orchestrator import AZURE, OPENVMM, READY
 from lisa.tools import Sed, Service
 from lisa.util import SkippedException, UnsupportedDistroException
 
@@ -29,10 +29,12 @@ class MetricsExtension(TestSuite):
         description="""
             Verify whether MetricsExtension is installed, running,
             and uninstalled successfully
+
+            Ubuntu 22.04 uses the metricsext2 package published for Jammy.
         """,
         priority=1,
         use_new_environment=True,
-        requirement=simple_requirement(supported_platform_type=[AZURE, READY]),
+        requirement=simple_requirement(supported_platform_type=[AZURE, READY, OPENVMM]),
     )
     def verify_metricsextension(self, node: Node, log: Logger) -> None:
         package = "metricsext2"
@@ -87,7 +89,7 @@ class MetricsExtension(TestSuite):
         # MetricsExtension only supports these distributions
         supported_versions: Dict[Any, List[str]] = {
             CBLMariner: ["1.0", "2.0"],
-            Ubuntu: ["18.04", "20.04"],
+            Ubuntu: ["18.04", "20.04", "22.04"],
             Debian: [f"10.{i}" for i in range(0, 14)],
         }
         release = node.os.information.release

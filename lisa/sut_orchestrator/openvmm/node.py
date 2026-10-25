@@ -2500,12 +2500,14 @@ class OpenVmmGuestNode(RemoteNode):
             self.capability.features = search_space.SetSpace[schema.FeatureSettings](
                 is_allow_set=True
             )
-        if not any(
-            feature.type == StartStop.name() for feature in self.capability.features
-        ):
-            self.capability.features.add(
-                schema.FeatureSettings.create(StartStop.name())
-            )
+        for feature_type in self._openvmm_controller.supported_features():
+            if not any(
+                feature.type == feature_type.name()
+                for feature in self.capability.features
+            ):
+                self.capability.features.add(
+                    schema.FeatureSettings.create(feature_type.name())
+                )
 
     def _openvmm_stop(self, wait: bool = True) -> None:
         self._openvmm_controller.stop_node(self, wait=wait)

@@ -240,6 +240,7 @@ class HvModule(TestSuite):
         priority=1,
         requirement=simple_requirement(
             min_core_count=4,
+            supported_platform_type=[AZURE, HYPERV, READY],
         ),
     )
     def verify_reload_hyperv_modules(self, log: Logger, node: Node) -> None:

@@ -25,7 +25,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import CBLMariner
-from lisa.sut_orchestrator import AZURE, HYPERV, READY
+from lisa.sut_orchestrator import AZURE, HYPERV, OPENVMM, READY
 from lisa.tools import Gcc, Rm
 from lisa.tools.kernel_config import KernelConfig
 from lisa.util import UnsupportedDistroException
@@ -39,7 +39,7 @@ from lisa.util import UnsupportedDistroException
     Requires CONFIG_SCHED_CORE enabled.
     """,
     requirement=simple_requirement(
-        supported_platform_type=[AZURE, READY, HYPERV],
+        supported_platform_type=[AZURE, READY, HYPERV, OPENVMM],
         supported_os=[CBLMariner],
     ),
 )

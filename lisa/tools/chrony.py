@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from pathlib import PurePath
+from pathlib import PurePosixPath
 from typing import cast
 
 from retry import retry
@@ -38,6 +38,14 @@ class Chrony(Tool):
     def can_install(self) -> bool:
         return True
 
+    @property
+    def _config_path(self) -> PurePosixPath:
+        if isinstance(self.node.os, Debian):
+            return PurePosixPath("/etc/chrony/chrony.conf")
+        if isinstance(self.node.os, BSD):
+            return PurePosixPath("/usr/local/etc/chrony.conf")
+        return PurePosixPath("/etc/chrony.conf")
+
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
         posix_os.install_packages("chrony")
@@ -73,14 +81,20 @@ class Chrony(Tool):
                 " please check the service status of chrony."
             )
 
+    def burst(self) -> None:
+        result = self.run("burst 4/8", force_run=True, sudo=True)
+        result.assert_exit_code(message="Could not request Chrony measurements")
+
     def set_server_setting(self) -> None:
         cmd_result = self.run("sources", shell=True, sudo=True, force_run=True)
         if self.__no_server_set in cmd_result.stdout:
             echo = self.node.tools[Echo]
-            echo.run("server 0.pool.ntp.org >> /etc/chrony.conf", shell=True, sudo=True)
-            echo.run("server 1.pool.ntp.org >> /etc/chrony.conf", shell=True, sudo=True)
-            echo.run("server 2.pool.ntp.org >> /etc/chrony.conf", shell=True, sudo=True)
-            echo.run("server 3.pool.ntp.org >> /etc/chrony.conf", shell=True, sudo=True)
+            for index in range(4):
+                echo.run(
+                    f"server {index}.pool.ntp.org >> {self._config_path}",
+                    shell=True,
+                    sudo=True,
+                )
 
     @retry(exceptions=LisaException, tries=40, delay=0.5)  # type: ignore
     def check_sources_and_stats(self) -> None:
@@ -95,15 +109,13 @@ class Chrony(Tool):
 
     def set_makestep(self, step: str) -> None:
         content = ""
-        if self.node.tools[Ls].path_exists("/etc/chrony.conf", sudo=True):
+        config_path = self._config_path
+        if self.node.tools[Ls].path_exists(config_path.as_posix(), sudo=True):
             cat = self.node.tools[Cat]
-            content = cat.read("/etc/chrony.conf", sudo=True, force_run=True)
+            content = cat.read(config_path.as_posix(), sudo=True, force_run=True)
             content = content.replace("makestep", "# makestep")
 
         # update makestep value
         content += f"\nmakestep {step}\n"
 
-        # write back to /etc/chrony.conf
-        self.node.tools[Echo].write_to_file(
-            content, PurePath("/etc/chrony.conf"), sudo=True
-        )
+        self.node.tools[Echo].write_to_file(content, config_path, sudo=True)

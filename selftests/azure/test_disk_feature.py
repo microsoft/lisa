@@ -9,6 +9,17 @@ from lisa.sut_orchestrator.azure import features
 
 
 class AzureDiskFeatureTestCase(TestCase):
+    def test_node_without_disk_capability_does_not_match(self) -> None:
+        requirement = schema.NodeSpace(disk=features.AzureDiskOptionSettings())
+        capability = schema.NodeSpace(core_count=2, memory_mb=1024)
+
+        result = requirement.check(capability)
+
+        self.assertFalse(result.result)
+        self.assertEqual(1, len(result.reasons))
+        self.assertRegex(result.reasons[0], "capability.*None")
+        self.assertIsNone(capability.disk)
+
     def test_disk_type_no_disk_req(self) -> None:
         # no disk in req, the cap get from lowest cost StandardHDDLRS. iops and
         # disk size
