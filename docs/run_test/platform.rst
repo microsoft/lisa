@@ -411,6 +411,16 @@ When guest SSH port forwarding is enabled, LISA installs a missing ``iptables``
 package through the host's package manager before changing forwarding state.
 Installation errors fail guest setup; existing host firewall rules are not reset.
 
+OpenVMM parallel guest provisioning
+----------------------------------
+
+Before provisioning multiple guests on a remote host, LISA checks the effective
+SSH ``MaxSessions`` limit once under a shared host lock. If it is smaller than
+the guest count, LISA uses its SSH tool to raise the limit to at least 200,
+restart the SSH service, and reconnect before provisioning starts. The effective
+limit is verified after the change. Sufficient existing limits and local hosts
+are unchanged; configuration or restart errors fail guest setup.
+
 OpenVMM guest kernel boot parameters
 -----------------------------------
 

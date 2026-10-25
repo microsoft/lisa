@@ -1,8 +1,10 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PurePath, PurePosixPath
 from tempfile import TemporaryDirectory
+from threading import Barrier, Lock
 from types import SimpleNamespace
 from typing import Any, List, Tuple, cast
 from unittest import TestCase
@@ -10,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import yaml
 from assertpy import assert_that
-from paramiko.ssh_exception import SSHException
+from paramiko.ssh_exception import ChannelException, SSHException
 
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
@@ -36,7 +38,7 @@ from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
-from lisa.tools import Cat, GrubConfig, Ip, Iptables, Kill, Mkdir
+from lisa.tools import Cat, GrubConfig, Ip, Iptables, Kill, Mkdir, Ssh
 from lisa.tools.openvmm import (
     OPENVMM_DISK_DEVICE_SCSI,
     OPENVMM_IOMMU_NONE,
@@ -1041,3 +1043,129 @@ class OpenVmmNodeTestCase(TestCase):
             "/var/tmp/host-g0"
         )
         controller.ensure_minimum_raw_disk_size.assert_not_called()
+
+    def test_parallel_provisioning_prepares_shared_host_ssh_capacity(self) -> None:
+        guest_count = 12
+        capacity = 10
+        active_checks = 0
+        peak_checks = 0
+        checks_ready = Barrier(guest_count)
+        checks_lock = Lock()
+        ssh = MagicMock()
+        ssh.get.side_effect = lambda _setting: str(capacity)
+
+        def set_max_session(count: int) -> None:
+            nonlocal capacity
+            with checks_lock:
+                self.assertEqual(0, active_checks)
+                capacity = count
+
+        def check_binary(_binary: str) -> SimpleNamespace:
+            nonlocal active_checks, peak_checks
+            with checks_lock:
+                active_checks += 1
+                peak_checks = max(peak_checks, active_checks)
+            try:
+                checks_ready.wait(timeout=10)
+                with checks_lock:
+                    if active_checks > capacity:
+                        raise ChannelException(2, "Connect failed")
+                return SimpleNamespace(exists=True)
+            finally:
+                with checks_lock:
+                    active_checks -= 1
+
+        ssh.set_max_session.side_effect = set_max_session
+        guests: List[SimpleNamespace] = []
+        host = SimpleNamespace(
+            name="host",
+            is_remote=True,
+            guests=guests,
+            initialize=MagicMock(),
+            get_pure_path=PurePosixPath,
+            tools={Ssh: ssh, Mkdir: MagicMock()},
+        )
+        controllers = []
+        for index in range(guest_count):
+            controller = MagicMock(
+                wraps=OpenVmmController(cast(Any, host), MagicMock())
+            )
+            controller.get_openvmm_tool.side_effect = check_binary
+            controller.create_effective_network.return_value = OpenVmmNetworkSchema()
+            controller.resolve_guest_artifact_path.return_value = "/tmp/guest.img"
+            controller.set_device_passthrough_node_context.return_value = None
+            controller.launch.return_value = None
+            controller.configure_connection.return_value = None
+            controllers.append(controller)
+            guests.append(
+                SimpleNamespace(
+                    parent=host,
+                    name=f"g{index}",
+                    index=index,
+                    log=MagicMock(),
+                    runbook=OpenVmmGuestNodeSchema(
+                        uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+                        disk_img="/tmp/guest.img",
+                    ),
+                    context=NodeContext(),
+                    _openvmm_controller=controller,
+                )
+            )
+
+        def provision(guest: SimpleNamespace) -> None:
+            OpenVmmGuestNode._provision(cast(Any, guest))
+
+        with patch(
+            "lisa.sut_orchestrator.openvmm.node.get_node_context",
+            side_effect=lambda guest: guest.context,
+        ):
+            with ThreadPoolExecutor(max_workers=guest_count) as executor:
+                list(executor.map(provision, guests))
+
+        self.assertEqual(guest_count, peak_checks)
+        self.assertGreaterEqual(capacity, guest_count)
+        ssh.set_max_session.assert_called_once()
+        for controller in controllers:
+            controller.launch.assert_called_once()
+
+    def test_ssh_capacity_preparation_failure_does_not_cache_success(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        host = cast(Any, controller.host_node)
+        host.guests = [MagicMock() for _ in range(12)]
+        ssh = MagicMock()
+        ssh.get.return_value = "10"
+        ssh.set_max_session.side_effect = LisaException("sshd restart failed")
+        host.tools[Ssh] = ssh
+
+        with self.assertRaisesRegex(LisaException, "sshd restart failed"):
+            controller.ensure_ssh_session_capacity()
+
+        self.assertEqual(0, get_host_context(host).ssh_session_capacity)
+
+    def test_sufficient_host_ssh_capacity_is_not_changed(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        host = cast(Any, controller.host_node)
+        host.guests = [MagicMock() for _ in range(12)]
+        ssh = MagicMock()
+        ssh.get.return_value = "500"
+        host.tools[Ssh] = ssh
+        other_controller = OpenVmmController(host, MagicMock())
+
+        controller.ensure_ssh_session_capacity()
+        other_controller.ensure_ssh_session_capacity()
+
+        ssh.get.assert_called_once_with("MaxSessions")
+        ssh.set_max_session.assert_not_called()
+
+    def test_ineffective_host_ssh_capacity_update_fails(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        host = cast(Any, controller.host_node)
+        host.guests = [MagicMock() for _ in range(12)]
+        ssh = MagicMock()
+        ssh.get.return_value = "10"
+        host.tools[Ssh] = ssh
+
+        with self.assertRaisesRegex(LisaException, "did not increase enough"):
+            controller.ensure_ssh_session_capacity()
+
+        self.assertEqual(0, get_host_context(host).ssh_session_capacity)

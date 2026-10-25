@@ -33,6 +33,7 @@ from lisa.tools import (
     Modprobe,
     OpenVmm,
     Rm,
+    Ssh,
 )
 from lisa.tools.openvmm import OpenVmmLaunchConfig
 from lisa.transformers.host_kernel_boot_parameters import HostKernelBootParameters
@@ -238,6 +239,7 @@ class OpenVmmController:
     def __init__(self, host_node: Node, log: Logger) -> None:
         self.host_node = host_node
         self._log = log
+        self._host_context = get_host_context(host_node)
 
     @classmethod
     def type_name(cls) -> str:
@@ -246,6 +248,39 @@ class OpenVmmController:
     @classmethod
     def supported_features(cls) -> List[Type[Any]]:
         return [StartStop, SerialConsole]
+
+    def ensure_ssh_session_capacity(self) -> None:
+        guest_count = len(self.host_node.guests)
+        if not self.host_node.is_remote or guest_count < 2:
+            return
+
+        with self._host_context.ssh_session_lock:
+            if self._host_context.ssh_session_capacity >= guest_count:
+                return
+            ssh = self.host_node.tools[Ssh]
+            configured = ssh.get("MaxSessions").strip()
+            if not configured.isdecimal():
+                raise LisaException(
+                    f"Cannot determine host SSH MaxSessions: '{configured}'"
+                )
+            capacity = int(configured)
+            self._log.info(
+                f"OpenVMM host SSH MaxSessions={capacity}, guests={guest_count}"
+            )
+            if capacity < guest_count:
+                ssh.set_max_session(count=max(200, guest_count))
+                configured = ssh.get("MaxSessions").strip()
+                if not configured.isdecimal() or int(configured) < guest_count:
+                    raise LisaException(
+                        "Host SSH MaxSessions did not increase enough for "
+                        f"{guest_count} OpenVMM guests: '{configured}'"
+                    )
+                capacity = int(configured)
+                self._log.info(
+                    f"OpenVMM host SSH MaxSessions increased to {capacity} "
+                    "before guest provisioning"
+                )
+            self._host_context.ssh_session_capacity = capacity
 
     def resolve_guest_artifact_path(
         self, source_path: str, is_remote_path: bool, working_path: PurePath
@@ -2367,6 +2402,7 @@ class OpenVmmGuestNode(RemoteNode):
         host_node.initialize()
         runbook = cast(OpenVmmGuestNodeSchema, self.runbook)
 
+        self._openvmm_controller.ensure_ssh_session_capacity()
         openvmm = self._openvmm_controller.get_openvmm_tool(runbook.openvmm_binary)
         if not openvmm.exists:
             raise LisaException(
