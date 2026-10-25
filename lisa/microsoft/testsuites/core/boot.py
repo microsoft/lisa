@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
+from shlex import quote
 
 from assertpy.assertpy import assert_that
 
@@ -36,7 +37,8 @@ class Boot(TestSuite):
            case, since they encounter an issue which is seeing call trace when boot
            with debug kernel.
         2. Skip if kernel-debug package is not available in repos (e.g. HPC images).
-        3. Install kernel-debug package and set boot with this debug kernel.
+        3. Install kernel-debug and select the newest debug kernel by path,
+           independently of GRUB menu ordering. Verify the default before reboot.
         4. Reboot VM, check kernel version is debug type.
         """,
         priority=3,
@@ -70,10 +72,37 @@ class Boot(TestSuite):
         # which is not the intended behavior for a kernel validation.
         node.mark_dirty()
 
-        # 3. Install kernel-debug package and set boot with this debug kernel.
-        node.os.install_packages("kernel-debug")
-        result = node.execute("grub2-set-default 0", sudo=True)
-        result.assert_exit_code()
+        node.os.install_packages(["kernel-debug", "grubby"])
+        result = node.execute(
+            "ls -1v /boot/vmlinuz-*debug",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Could not list installed debug kernels",
+        )
+        debug_kernels = result.stdout.splitlines()
+        assert_that(
+            debug_kernels, "No debug kernel image found after installing kernel-debug."
+        ).is_not_empty()
+        # Version-sort kernel paths; BLS filenames can sort by different machine IDs.
+        debug_kernel = debug_kernels[-1]
+        log.info(f"Selecting debug kernel: {debug_kernel}")
+        node.execute(
+            f"grubby --set-default={quote(debug_kernel)}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Could not select the debug kernel",
+        )
+        result = node.execute(
+            "grubby --default-kernel",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Could not read the default kernel",
+        )
+        assert_that(
+            result.stdout.strip(),
+            "GRUB default does not match the selected debug kernel.",
+        ).is_equal_to(debug_kernel)
 
         # 4. Reboot VM, check kernel version is debug type.
         reboot_tool = node.tools[Reboot]
