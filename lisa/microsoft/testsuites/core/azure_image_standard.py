@@ -790,6 +790,8 @@ class AzureImageStandard(TestSuite):
 
         Steps:
         1. Verify the repository configuration depending on the distro type.
+           Azure Linux 4 requires the azurelinux-base and azurelinux-microsoft
+           production repositories, not the legacy Mariner repository names.
         """,
         priority=1,
         requirement=simple_requirement(
@@ -1005,7 +1007,12 @@ class AzureImageStandard(TestSuite):
                 cast(RPMRepositoryInfo, repo) for repo in repositories
             ]
 
-            if 3 == node.os.information.version.major:
+            if 4 == node.os.information.version.major:
+                expected_repo_list = [
+                    "azurelinux-base",
+                    "azurelinux-microsoft",
+                ]
+            elif 3 == node.os.information.version.major:
                 expected_repo_list = [
                     "azurelinux-official-base",
                     "azurelinux-official-ms-non-oss",
@@ -1023,7 +1030,12 @@ class AzureImageStandard(TestSuite):
 
             for id_ in expected_repo_list:
                 is_repository_present = any(
-                    id_ in repository.id for repository in mariner_repositories
+                    (
+                        id_ == repository.id
+                        if 4 == node.os.information.version.major
+                        else id_ in repository.id
+                    )
+                    for repository in mariner_repositories
                 )
                 assert_that(
                     is_repository_present,
