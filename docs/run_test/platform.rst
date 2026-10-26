@@ -473,6 +473,29 @@ be deployed to the same configured region.
    For an Ubuntu AMI, the user name is ubuntu. Please refer to the
    `general prerequisites for connecting to the instance <https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connection-prereqs.html>`_.
 
+Guest node counts
+-----------------
+
+By default, ``platform.guests`` provisions every configured guest on every
+parent node. A guest's ``capability.node_count`` expands that entry into
+independent guests. Explicit counts keep this behavior, even when a test
+requires fewer nodes.
+
+For generated, single-parent environments, set
+``platform.guest_count_from_requirement: true`` to provision only the number
+of guests required by the source test case. LISA uses the resolved
+``EnvironmentSpace`` node requirements, including expanded node counts, not
+test names. The expanded ``guests`` list is an ordered capacity pool; LISA
+uses its first required entries without changing their CPU, memory, disks,
+or other settings. For example, a two-guest pool provisions one guest for a
+single-node case and two for a peer-network case.
+
+This option defaults to ``false``. Leave it disabled for scenarios that
+intentionally run additional guests, such as explicit-count stress tests.
+When enabled, a missing source test requirement, multiple parent nodes, or
+insufficient configured guest capacity raises an error before host deployment.
+It does not automatically add guests or resize them to satisfy requirements.
+
 Run on WSL
 ------------
 
