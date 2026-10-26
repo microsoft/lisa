@@ -109,6 +109,8 @@ class Fio(Tool):
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
         cwd: Optional[pathlib.PurePath] = None,
+        per_file_jobs: bool = False,
+        offset_increment_mb: int = 0,
     ) -> FIOResult:
         cmd = self._get_command(
             name,
@@ -130,6 +132,8 @@ class Fio(Tool):
             verify_fatal,
             verify,
             ioengine,
+            per_file_jobs,
+            offset_increment_mb,
         )
         result = self.run(
             cmd,
@@ -140,8 +144,13 @@ class Fio(Tool):
         )
         if result.exit_code != 0:
             raise LisaException(f"fail to run {cmd} with {result.stdout}")
+        # In per-file mode numjob is per file, so report the total job count to
+        # keep qdepth as the total number of outstanding I/Os.
+        total_jobs = numjob
+        if per_file_jobs:
+            total_jobs = max(numjob, 1) * len(self._split_filenames(filename))
         fio_result = self.get_result_from_raw_output(
-            mode, result.stdout, iodepth, numjob
+            mode, result.stdout, iodepth, total_jobs
         )
         return fio_result
 
@@ -338,15 +347,27 @@ class Fio(Tool):
         verify_fatal: bool = False,
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
+        per_file_jobs: bool = False,
+        offset_increment_mb: int = 0,
     ) -> str:
         if isinstance(self.node.os, BSD):
             ioengine = IoEngine.POSIXAIO
 
-        cmd = (
-            f"--ioengine={ioengine.value} --filename={filename} "
-            f"--readwrite={mode} --iodepth={iodepth} "
-            f"--name={name}"
-        )
+        if per_file_jobs:
+            # Global options come first; each "--name" then starts a job that
+            # inherits them and targets a single file. fio stalls writes when one
+            # job round-robins across many block devices, so per-file jobs are
+            # needed to drive multi-disk setups to the VM's IOPS limit.
+            cmd = (
+                f"--ioengine={ioengine.value} "
+                f"--readwrite={mode} --iodepth={iodepth}"
+            )
+        else:
+            cmd = (
+                f"--ioengine={ioengine.value} --filename={filename} "
+                f"--readwrite={mode} --iodepth={iodepth} "
+                f"--name={name}"
+            )
 
         if time:
             cmd += f" --runtime={time}"
@@ -360,6 +381,8 @@ class Fio(Tool):
             cmd += " --gtod_reduce=1"
         if size_gb:
             cmd += f" --size={size_gb}M"
+        if offset_increment_mb:
+            cmd += f" --offset_increment={offset_increment_mb}M"
         if group_reporting:
             cmd += " --group_reporting"
         if overwrite:
@@ -377,7 +400,20 @@ class Fio(Tool):
         if verify:
             cmd += f" --verify={verify}"
 
+        if per_file_jobs:
+            files = self._split_filenames(filename)
+            if not files:
+                raise LisaException(
+                    f"no file found in '{filename}' for per-file fio jobs"
+                )
+            for index, file in enumerate(files):
+                cmd += f" --name={name}_{index} --filename={file}"
+
         return cmd
+
+    @staticmethod
+    def _split_filenames(filename: str) -> List[str]:
+        return [file for file in filename.split(":") if file]
 
     def _install_dep_packages(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
