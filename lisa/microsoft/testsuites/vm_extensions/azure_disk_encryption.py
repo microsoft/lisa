@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import json
+import re
 import string
 import time
 from typing import Any, Dict, List
@@ -12,7 +13,7 @@ from azure.mgmt.keyvault.models import VaultProperties
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.features.security_profile import CvmDisabled
-from lisa.operating_system import CBLMariner, CentOs, Oracle, Redhat, Ubuntu
+from lisa.operating_system import CBLMariner, CentOs, Oracle, Posix, Redhat, Ubuntu
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
@@ -27,6 +28,7 @@ from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Lscpu
 from lisa.tools.lscpu import CpuArchitecture
 from lisa.util import (
+    LisaException,
     SkippedException,
     UnsupportedCpuArchitectureException,
     UnsupportedDistroException,
@@ -43,12 +45,31 @@ UnsupportedVersionInfo = List[Dict[str, int]]
 @TestSuiteMetadata(
     area="vm_extension",
     category="functional",
-    description="Tests for the Azure Disk Encryption (ADE) extension",
+    description=(
+        "Tests for the Azure Disk Encryption (ADE) extension. "
+        "Skip unsupported Basic, A-series, L-series, and v6 or newer VM sizes."
+    ),
     tags=["VM_Extension"],
 )
 class AzureDiskEncryption(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
-        node = kwargs["node"]
+        node: Node = kwargs["node"]
+        vm_size = node.capability.get_extended_runbook(AzureNodeSchema, AZURE).vm_size
+        if not vm_size:
+            raise LisaException("Cannot check ADE support: Azure VM size is missing.")
+
+        # ADE's VM-family restrictions apply before any guest-side prerequisites.
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/linux/disk-encryption-overview#supported-vms
+        # https://learn.microsoft.com/en-us/azure/virtual-machines/linux/disk-encryption-linux#restrictions
+        version = re.search(r"_v(\d+)(?:_Promo)?$", vm_size, re.IGNORECASE)
+        if re.match(r"^(?:Basic_|Standard_[AL]\d)", vm_size, re.IGNORECASE) or (
+            version and int(version.group(1)) >= 6
+        ):
+            raise SkippedException(
+                f"Azure Disk Encryption does not support VM size '{vm_size}': "
+                "Basic, A-series, L-series, and v6 or newer sizes are excluded."
+            )
+
         node_arch = node.tools[Lscpu].get_architecture()
         # ADE only supports x64 architecture. See supported VM configurations at:
         # https://learn.microsoft.com/en-us/azure/virtual-machines/linux/disk-encryption-overview#supported-vms-and-operating-systems
@@ -58,6 +79,7 @@ class AzureDiskEncryption(TestSuite):
             )
         if not self._is_supported_linux_distro(node):
             raise SkippedException(UnsupportedDistroException(node.os))
+        assert isinstance(node.os, Posix)
         needed_packages = ["python-parted", "python3-parted"]
         for package in needed_packages:
             if node.os.is_package_in_repo(package):
