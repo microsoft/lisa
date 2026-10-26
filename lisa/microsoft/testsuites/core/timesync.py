@@ -22,7 +22,15 @@ from lisa import (
     create_timer,
     simple_requirement,
 )
-from lisa.operating_system import BSD, CpuArchitecture, Redhat, Suse, Ubuntu, Windows
+from lisa.operating_system import (
+    BSD,
+    CBLMariner,
+    CpuArchitecture,
+    Redhat,
+    Suse,
+    Ubuntu,
+    Windows,
+)
 from lisa.tools import (
     Cat,
     Chmod,
@@ -498,6 +506,8 @@ class TimeSync(TestSuite):
     @TestCaseMetadata(
         description="""
         This test is to check, ntp works properly.
+        Azure Linux 4.0 and later use chrony instead; validate those releases with
+        verify_timesync_chrony.
             1. Stop systemd-timesyncd if this service exists.
             2. Set rtc clock to system time.
             3. Restart Ntp service.
@@ -510,8 +520,13 @@ class TimeSync(TestSuite):
     )
     def verify_timesync_ntp(self, node: Node) -> None:
         # On higher distro version, ntp is replaced by chrony. So skip this test.
-        if (isinstance(node.os, Redhat) and node.os.information.version >= "8.0.0") or (
-            isinstance(node.os, Suse) and node.os.information.version >= "15.0.0"
+        if (
+            (isinstance(node.os, Redhat) and node.os.information.version >= "8.0.0")
+            or (isinstance(node.os, Suse) and node.os.information.version >= "15.0.0")
+            or (
+                isinstance(node.os, CBLMariner)
+                and node.os.information.version >= "4.0.0"
+            )
         ):
             raise SkippedException(
                 f"The distro {node.os.name} {node.os.information.version} doesn't "
