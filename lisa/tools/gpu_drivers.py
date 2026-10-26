@@ -317,6 +317,22 @@ class NvidiaCudaDriver(GpuDriver):
     def command(self) -> str:
         return "nvidia-smi"
 
+    def _check_exists(self) -> bool:
+        if not super()._check_exists():
+            return False
+
+        # A failed extension installation can leave only the userspace tools.
+        result = self.run("-L", sudo=True, force_run=True)
+        if result.exit_code == 0 and result.stdout.strip():
+            return True
+
+        self._log.warning(
+            "NVIDIA CUDA driver is not usable; attempting driver installation. "
+            f"nvidia-smi -L exit code: {result.exit_code}, "
+            f"stdout: {result.stdout}, stderr: {result.stderr}"
+        )
+        return False
+
     @property
     def can_install(self) -> bool:
         """CUDA drivers support a wider range of OS versions"""
