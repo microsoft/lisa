@@ -22,6 +22,7 @@ from lisa import (
     create_timer,
     simple_requirement,
 )
+from lisa.features.security_profile import is_cvm
 from lisa.operating_system import BSD, CpuArchitecture, Redhat, Suse, Ubuntu, Windows
 from lisa.tools import (
     Cat,
@@ -107,6 +108,7 @@ class TimeSync(TestSuite):
     @TestCaseMetadata(
         description="""
         https://docs.microsoft.com/en-us/azure/virtual-machines/linux/time-sync#check-for-ptp-clock-source # noqa: E501
+        Intel TDX confidential VMs use NTP and are excluded from this PTP check.
         This test is to check -
             1. PTP time source is available on Azure guests (newer versions of Linux).
             2. PTP device name is hyperv.
@@ -119,6 +121,11 @@ class TimeSync(TestSuite):
         priority=2,
     )
     def verify_timesync_ptp(self, node: Node) -> None:
+        if is_cvm(node) and node.tools[Lscpu].get_cpu_type() == CpuType.Intel:
+            raise SkippedException(
+                "Intel TDX confidential VMs use NTP instead of the Hyper-V PTP clock."
+            )
+
         # On Ubuntu >= 19.10 and Red Hat Enterprise Linux >= 8.x, chrony
         # is configured to use a PTP source clock. Older Linux releases use the
         # Network Time Protocol daemon (ntpd), which doesn't support PTP sources.
