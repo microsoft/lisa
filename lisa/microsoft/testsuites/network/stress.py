@@ -256,7 +256,7 @@ class StressSynthetic(TestSuite):
         Steps,
         1. Provision VM with max network interfaces with synthetic network.
         2. Check each nic has an ip address.
-        3. Reboot VM from guest.
+        3. Reboot VM from guest, allowing up to 600 seconds per reboot.
         4. Check each nic has an ip address.
         5. Repeat step 3 and 4 for 10 times.
         """,
@@ -281,7 +281,7 @@ class StressSynthetic(TestSuite):
         initialize_nic_info(environment, is_sriov=False)
         for _ in range(10):  # repeat reboot cycles to stress NIC stability
             for node in environment.nodes.list():
-                node.reboot()
+                node.reboot(time_out=600)
             initialize_nic_info(environment, is_sriov=False)
 
     @TestCaseMetadata(

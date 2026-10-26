@@ -100,7 +100,11 @@ class Reboot(Tool):
 
     def _run_reboot_command(self) -> None:
         command_result = self.node.execute(
-            "command -v reboot", shell=True, sudo=True, no_info_log=True
+            "command -v reboot",
+            shell=True,
+            sudo=True,
+            timeout=10,
+            no_info_log=True,
         )
         if command_result.exit_code == 0:
             self._command = command_result.stdout.strip()
@@ -152,7 +156,11 @@ class Reboot(Tool):
             # like SUSE sles-15-sp1-sapcal gen1 2020.10.23.
             # In this case, use timeout to prevent hanging.
             systemctl_result = self.node.execute(
-                "command -v systemctl", shell=True, sudo=True, no_info_log=True
+                "command -v systemctl",
+                shell=True,
+                sudo=True,
+                timeout=10,
+                no_info_log=True,
             )
             if systemctl_result.exit_code == 0:
                 reboot_result = self.node.execute(
@@ -161,7 +169,8 @@ class Reboot(Tool):
                     sudo=True,
                     timeout=10,
                 )
-                if reboot_result.exit_code != 0:
+                # Reboot can close SSH before the command reports an exit status.
+                if reboot_result.exit_code not in (0, -1):
                     self._log.debug(
                         "systemctl reboot failed with exit code "
                         f"{reboot_result.exit_code}; falling back to reboot. "
