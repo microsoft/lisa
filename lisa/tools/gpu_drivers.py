@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-import re
 from enum import Enum
 from pathlib import PurePosixPath
 from typing import Any, List, Optional, Type
@@ -554,11 +553,6 @@ class NvidiaCudaDriver(GpuDriver):
 
         assert isinstance(self.node.os, Posix), "CUDA installation requires Posix OS"
 
-        cuda_package_name = self.DEFAULT_CUDA_PACKAGE
-        cuda_drivers_package_pattern = re.compile(
-            rf"^{cuda_package_name}-(\d+)\s", re.MULTILINE
-        )
-
         # Install CUDA public GPG key
         cuda_keyring = "cuda-keyring_1.1-1_all.deb"
         self.node.tools[Wget].get(
@@ -568,6 +562,8 @@ class NvidiaCudaDriver(GpuDriver):
             f"dpkg -i {cuda_keyring}",
             sudo=True,
             cwd=self.node.get_working_path(),
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to install CUDA keyring",
         )
 
         # Add CUDA repository
@@ -587,31 +583,16 @@ class NvidiaCudaDriver(GpuDriver):
         )
 
         # Update apt cache to fetch packages from the new repository
-        self.node.execute("apt-get update", sudo=True)
-
-        # Search for versioned CUDA driver packages
-        result = self.node.execute(
-            f"apt-cache search --names-only ^{cuda_package_name}", sudo=True
+        self.node.execute(
+            "apt-get update",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to update CUDA repository",
         )
-        available_versions = cuda_drivers_package_pattern.findall(result.stdout)
 
-        if available_versions:
-            # Sort versions and select the highest one
-            highest_version = max(available_versions, key=int)
-            package_name = f"{cuda_package_name}-{highest_version}"
-            self._log.debug(
-                f"Found versioned packages, installing {package_name} "
-                f"(version {highest_version})"
-            )
-        else:
-            # No versioned packages found, use base package (meta-package)
-            package_name = cuda_package_name
-            self._log.debug(
-                f"No versioned packages found, installing base package "
-                f"{package_name}"
-            )
-
-        self.node.os.install_packages(package_name)
+        # Versioned package names can lag behind the current unversioned branch.
+        # Let APT resolve the driver and libraries through the metapackage.
+        self.node.os.install_packages(self.DEFAULT_CUDA_PACKAGE)
 
     def _install_cuda_mariner(self) -> None:
         """Install CUDA driver on CBL-Mariner"""

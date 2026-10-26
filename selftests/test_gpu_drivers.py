@@ -4,6 +4,7 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
+from lisa.operating_system import Ubuntu
 from lisa.tools.gpu_drivers import NvidiaCudaDriver
 
 
@@ -48,3 +49,16 @@ class NvidiaCudaDriverTestCase(TestCase):
 
         self.assertFalse(self.driver._check_exists())
         self.mock_run.assert_not_called()
+
+    def test_install_does_not_select_an_older_versioned_driver_branch(self) -> None:
+        node = MagicMock()
+        node.os = MagicMock(spec=Ubuntu)
+        node.execute.return_value.stdout = (
+            "cuda-drivers-580 - NVIDIA driver metapackage\n"
+            "cuda-drivers - Transitional dummy package\n"
+        )
+        self.driver.node = node
+
+        self.driver._install_cuda_debian_based("ubuntu2204")
+
+        node.os.install_packages.assert_called_once_with("cuda-drivers")
