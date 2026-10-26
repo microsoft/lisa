@@ -158,10 +158,8 @@ class TimeSync(TestSuite):
         ptp_devices = ls.list_dir("/sys/class/ptp")
         ptp_hyperv_device = None
         for ptp_device in ptp_devices:
-            clock_name_result = cat.run(
-                f"{ptp_device}clock_name", sudo=True, shell=True, force_run=True
-            )
-            if clock_name_result.stdout == "hyperv":
+            clock_name = cat.read(f"{ptp_device}clock_name", sudo=True, force_run=True)
+            if clock_name.strip() == "hyperv":
                 ptp_hyperv_device = ptp_device
         assert_that(ptp_hyperv_device).described_as(
             "There should be at least one PTP device with name 'hyperv', more info"
