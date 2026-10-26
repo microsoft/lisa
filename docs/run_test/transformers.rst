@@ -71,6 +71,34 @@ The output variables will be:
 Since ``prefix`` is set, the values of ``name`` and ``type`` will not affect the output variable names.
 
 
+Cloud Hypervisor binary installer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``cloudhypervisor_installer`` transformer's ``binary`` installer reads
+the upstream GitHub release metadata. Set ``installer.ref`` to a release tag
+to pin the version; an omitted ref resolves the latest release once.
+The host architecture determines which exact binary asset names are eligible:
+
+- x86-64: ``cloud-hypervisor`` when available, otherwise
+  ``cloud-hypervisor-static`` from the same release.
+- ARM64: ``cloud-hypervisor-static-aarch64``.
+
+The installer never selects ``ch-remote`` binaries or source archives. Missing
+assets, unsupported architectures, and release API/download failures are errors;
+they do not trigger a different version or a source/package installation.
+The binary is still installed as ``/usr/local/bin/cloud-hypervisor`` and linked
+from ``/usr/bin/cloud-hypervisor``. Explicit source and package installers are
+unchanged.
+
+Asset names alone do not describe enabled hypervisor backends. For example, the
+`v53.0 release build
+<https://github.com/cloud-hypervisor/cloud-hypervisor/blob/9ed824d6d08df3e96f7d5f50795d9449ac99f431/.github/workflows/release.yaml>`_
+enables MSHV in addition to the default KVM features for the x86-64 static
+binary, but not for ARM64. Verify the required features with
+``cloud-hypervisor --version -v`` on the target host before running VMs;
+selecting a static asset does not change the required backend.
+
+
 Use Shared Image Gallery (SIG) transformer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
