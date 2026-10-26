@@ -82,7 +82,7 @@ var ip_tags = [for key in objectKeys(ip_service_tags): {
   tag: ip_service_tags[key]
 }]
 
-func isCvmVhd(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.cvm_gueststate_path)))
+func isCvmVhd(node object) bool => bool(!empty(node.?vhd.?cvm_gueststate_path))
 
 func isVhd(node object) bool => bool((!empty(node.vhd)) && (!empty(node.vhd.vhd_path)))
 
@@ -366,7 +366,7 @@ resource nodes_public_ip_ipv6 'Microsoft.Network/publicIPAddresses@2020-05-01' =
   zones: (use_availability_zones ? availability_zones : null)
 }]
 
-resource nodes_image 'Microsoft.Compute/images@2019-03-01' = [for i in range(0, node_count): if (isVhd(nodes[i]) && empty(nodes[i].vhd.cvm_gueststate_path)) {
+resource nodes_image 'Microsoft.Compute/images@2019-03-01' = [for i in range(0, node_count): if (isVhd(nodes[i]) && empty(nodes[i].?vhd.?cvm_gueststate_path)) {
   name: '${nodes[i].name}-image'
   tags: tags
   location: location
@@ -402,8 +402,8 @@ resource nodes_disk 'Microsoft.Compute/disks@2025-01-02' = [for i in range(0, no
     creationData: {
       createOption: 'ImportSecure'
       storageAccountId: resourceId(shared_resource_group_name, 'Microsoft.Storage/storageAccounts', vhd_storage_name)
-      securityDataUri: nodes[i].vhd.cvm_gueststate_path
-      securityMetadataUri: empty(nodes[i].vhd.cvm_metadata_path) ? null : nodes[i].vhd.cvm_metadata_path
+      securityDataUri: nodes[i].?vhd.?cvm_gueststate_path
+      securityMetadataUri: empty(nodes[i].?vhd.?cvm_metadata_path) ? null : nodes[i].?vhd.?cvm_metadata_path
       sourceUri: nodes[i].vhd.vhd_path
     }
   }
