@@ -381,7 +381,8 @@ class Iperf3(Tool):
         result = process.wait_result(
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to launch iperf3 client",
-            timeout=run_time_seconds,
+            # The transfer duration excludes setup and the final result exchange.
+            timeout=run_time_seconds + 60,
         )
         return result  # type: ignore
 
