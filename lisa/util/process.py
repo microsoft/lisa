@@ -12,7 +12,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import spur
 from assertpy.assertpy import AssertionBuilder, assert_that, fail
@@ -247,14 +247,37 @@ class Process:
         """
         command include all parameters also.
         """
+        stdout_level, stderr_level = self._configure_loggers(
+            no_error_log, no_info_log, no_debug_log
+        )
+        self._sudo = sudo
+        self._nohup = nohup
+        split_command, cwd_path, update_envs, use_pty = self._prepare_spawn(
+            command, shell, sudo, nohup, cwd, update_envs, command_splitter, encoding
+        )
+        self._spawn_process(
+            split_command,
+            cwd_path,
+            update_envs,
+            use_pty,
+            encoding,
+            stdout_level,
+            stderr_level,
+        )
+        self.check_and_input_password()
+
+    def _configure_loggers(
+        self,
+        no_error_log: bool,
+        no_info_log: bool,
+        no_debug_log: bool,
+    ) -> Tuple[int, int]:
         stdout_level = logging.INFO
         stderr_level = logging.ERROR
-
         if no_debug_log:
             stdout_level = logging.NOTSET
         elif no_info_log:
             stdout_level = logging.DEBUG
-
         if no_error_log:
             stderr_level = stdout_level
 
@@ -264,7 +287,6 @@ class Process:
         stderr_capture_stream = (
             self.log_buffer if stderr_level == logging.NOTSET else None
         )
-
         self.stdout_logger = get_logger("stdout", parent=self._log)
         self.stderr_logger = get_logger("stderr", parent=self._log)
         self._stdout_writer = LogWriter(
@@ -277,52 +299,58 @@ class Process:
             level=stderr_level,
             capture_stream=stderr_capture_stream,
         )
-
         self._log_handler = logging.StreamHandler(self.log_buffer)
         msg_only_format = logging.Formatter(fmt="%(message)s", datefmt="")
         add_handler(self._log_handler, self.stdout_logger, msg_only_format)
         add_handler(self._log_handler, self.stderr_logger, msg_only_format)
+        return stdout_level, stderr_level
 
-        self._sudo = sudo
-        self._nohup = nohup
-
+    def _prepare_spawn(
+        self,
+        command: str,
+        shell: bool,
+        sudo: bool,
+        nohup: bool,
+        cwd: Optional[pathlib.PurePath],
+        update_envs: Optional[Dict[str, str]],
+        command_splitter: Callable[..., List[str]],
+        encoding: str,
+    ) -> Tuple[List[str], Optional[str], Dict[str, str], bool]:
         if update_envs is None:
             update_envs = {}
-
         if update_envs and self._is_posix:
             # envs are supported in bash only. If there are envs, force the bash
             # mode.
             shell = True
-
         update_envs = update_envs.copy()
         split_command = command_splitter(
-            self._is_posix, command, sudo, shell, nohup, update_envs
+            self._is_posix, command, self._sudo, shell, self._nohup, update_envs
         )
-
         cwd_path: Optional[str] = None
         if cwd:
-            if self._is_posix:
-                cwd_path = str(pathlib.PurePosixPath(cwd))
-            else:
-                cwd_path = str(pathlib.PureWindowsPath(cwd))
-
+            cwd_path = (
+                str(pathlib.PurePosixPath(cwd))
+                if self._is_posix
+                else str(pathlib.PureWindowsPath(cwd))
+            )
         self._log.debug(
-            f"cmd: {split_command}, "
-            f"cwd: {cwd_path}, "
-            f"shell: {shell}, "
-            f"sudo: {sudo}, "
-            f"nohup: {nohup}, "
-            f"posix: {self._is_posix}, "
-            f"remote: {self._shell.is_remote}, "
-            f"encoding: {encoding}"
+            f"cmd: {split_command}, cwd: {cwd_path}, shell: {shell}, "
+            f"sudo: {self._sudo}, nohup: {self._nohup}, posix: {self._is_posix}, "
+            f"remote: {self._shell.is_remote}, encoding: {encoding}"
         )
+        use_pty = self._is_posix and self._shell.is_remote
+        return split_command, cwd_path, update_envs, use_pty
 
-        if self._is_posix and self._shell.is_remote:
-            # only enable pty on remote Linux
-            use_pty = True
-        else:
-            use_pty = False
-
+    def _spawn_process(
+        self,
+        split_command: List[str],
+        cwd_path: Optional[str],
+        update_envs: Dict[str, str],
+        use_pty: bool,
+        encoding: str,
+        stdout_level: int,
+        stderr_level: int,
+    ) -> None:
         try:
             self._timer = create_timer()
             self._process = self._shell.spawn(
@@ -336,31 +364,25 @@ class Process:
                 encoding=encoding,
                 use_pty=use_pty,
             )
-            # save for logging.
             self._cmd = split_command
             self._running = True
-
-            # set keep alive for ssh connection, it avoids the connection being
-            # closed without any data transfer.
             if self._shell.is_remote:
                 self._process._channel.transport.set_keepalive(30)
         except (FileNotFoundError, NoSuchCommandError) as e:
-            # FileNotFoundError: not found command on Windows
-            # NoSuchCommandError: not found command on remote Posix
             self._result = ExecutableResult(
                 "", e.strerror, 1, split_command, self._id_, self._timer.elapsed()
             )
             self._log.log(stderr_level, f"not found command: {e}")
         except (SshSpawnTimeoutException, SshSessionNotActiveException):
-            # close the shell and try again, see if the ssh connection is interrupted.
-            self._stdout_writer.close()
-            self._stderr_writer.close()
-            remove_handler(self._log_handler, self.stdout_logger)
-            remove_handler(self._log_handler, self.stderr_logger)
+            self._remove_spawn_handlers()
             self._shell.close()
             raise
 
-        self.check_and_input_password()
+    def _remove_spawn_handlers(self) -> None:
+        self._stdout_writer.close()
+        self._stderr_writer.close()
+        remove_handler(self._log_handler, self.stdout_logger)
+        remove_handler(self._log_handler, self.stderr_logger)
 
     def check_and_input_password(self) -> None:
         if (
