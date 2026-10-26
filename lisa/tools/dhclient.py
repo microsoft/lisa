@@ -3,7 +3,7 @@
 import re
 from typing import Any, Optional, Type
 
-from lisa.base_tools import Cat
+from lisa.base_tools import Cat, Service
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Debian, Fedora, Redhat, Suse
 from lisa.util import LisaException, UnsupportedDistroException, find_group_in_lines
@@ -72,8 +72,7 @@ class Dhclient(Tool):
                 value = int(group["number"])
                 is_default_value = False
         elif isinstance(self.node.os, (Fedora, CBLMariner)):
-            # Fedora and AZL4+ use NetworkManager for DHCP; default timeout is 300.
-            # CBLMariner < 4 is not supported here and raises below.
+            # Only use NetworkManager configuration when that backend applies.
             if isinstance(self.node.os, CBLMariner) and (
                 self.node.os.information.version.major < 4
             ):
@@ -87,6 +86,21 @@ class Dhclient(Tool):
                         "instead."
                     ),
                 )
+            if isinstance(self.node.os, CBLMariner):
+                service = self.node.tools[Service]
+                if service.is_service_running(
+                    "systemd-networkd"
+                ) or not service.is_service_running("NetworkManager"):
+                    raise UnsupportedDistroException(
+                        os=self.node.os,
+                        message=(
+                            "Azure Linux DHCP timeout lookup requires an active "
+                            "NetworkManager backend without systemd-networkd. "
+                            "Timeout validation for systemd-networkd or dhcpcd "
+                            "is not supported; add backend-specific configuration "
+                            "handling instead of reading NetworkManager settings."
+                        ),
+                    )
             value = 300
             result = self.node.execute(
                 "NetworkManager --print-config",
