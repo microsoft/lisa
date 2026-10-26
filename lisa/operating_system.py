@@ -772,6 +772,14 @@ class CoreOs(Linux):
     def name_pattern(cls) -> Pattern[str]:
         return re.compile("^coreos|Flatcar|flatcar$")
 
+    def _update_packages(self, packages: Optional[List[str]] = None) -> None:
+        raise SkippedException(
+            UnsupportedDistroException(
+                self._node.os,
+                "Updating packages for this distro not supported in LISA.",
+            )
+        )
+
 
 class Alpine(Linux):
     @classmethod
