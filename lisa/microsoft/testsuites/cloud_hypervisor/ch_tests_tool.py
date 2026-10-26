@@ -2639,7 +2639,10 @@ exit $ec
             # Validate path: must be absolute and not contain shell metacharacters
             if not precond_file.startswith("/"):
                 self._log.debug(
-                    "CH_PRECOND_FILE must be absolute path, " "skipping preconditioning"
+                    (
+                        "CH_PRECOND_FILE must be absolute path, "
+                        "skipping preconditioning"
+                    )
                 )
             elif any(c in precond_file for c in [";", "&", "|", "$", "`", "\n"]):
                 self._log.debug(
@@ -2690,7 +2693,10 @@ exit $ec
         """
         # Ensure irqbalance is running
         self.node.execute(
-            "sudo systemctl is-active irqbalance || " "sudo systemctl start irqbalance",
+            (
+                "sudo systemctl is-active irqbalance || "
+                "sudo systemctl start irqbalance"
+            ),
             shell=True,
             sudo=True,
         )
