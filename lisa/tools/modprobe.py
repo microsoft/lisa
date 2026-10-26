@@ -155,12 +155,26 @@ class Modprobe(Tool):
             if isinstance(self.node.os, CoreOs):
                 dhclient = Dhclient.create(self.node)
                 dhclient.initialize()
-                if not dhclient.exists:
+                if dhclient.exists:
+                    dhclient_command = dhclient.command
+                elif (
+                    self.node.execute(
+                        "command -v networkctl && "
+                        "systemctl is-active --quiet systemd-networkd",
+                        shell=True,
+                        sudo=True,
+                    ).exit_code
+                    == 0
+                ):
+                    dhclient_command = "networkctl"
+                else:
                     raise SkippedException(
-                        "Network module reload requires dhclient or dhcpcd for DHCP "
-                        "recovery, but neither is available on this CoreOS image."
+                        "Network module reload requires dhclient, dhcpcd, or active "
+                        "systemd-networkd with networkctl for DHCP recovery, but "
+                        "none is available on this CoreOS image."
                     )
-            dhclient_command = self.node.tools[Dhclient].command
+            else:
+                dhclient_command = self.node.tools[Dhclient].command
 
         username = self.node.tools[Whoami].get_username()
         unique_id = uuid.uuid4()
