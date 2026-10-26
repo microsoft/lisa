@@ -132,6 +132,7 @@ def perf_disk(
     ioengine: IoEngine = IoEngine.LIBAIO,
     cwd: Optional[pathlib.PurePath] = None,
     fio_modes: Optional[List[str]] = None,
+    per_disk_jobs: bool = False,
 ) -> None:
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
@@ -149,6 +150,7 @@ def perf_disk(
     # This limitation is only needed for 'libaio' ioengine but not for 'io_uring'.
     if ioengine == IoEngine.LIBAIO:
         numjob = min(numjob, 256)
+    per_disk_file_count = len([f for f in filename.split(":") if f])
     modes = [mode.name for mode in FIOMODES] if fio_modes is None else fio_modes
     for mode in modes:
         iodepth = start_iodepth
@@ -156,6 +158,14 @@ def perf_disk(
         while iodepth <= max_iodepth:
             if num_jobs:
                 numjob = num_jobs[numjobindex]
+            launch_numjob = numjob
+            offset_increment_mb = 0
+            if per_disk_jobs:
+                # Split the total job count across disks so the overall number of
+                # outstanding I/Os stays the same as the shared-file layout, and
+                # give each job on a disk its own region.
+                launch_numjob = max(1, numjob // max(per_disk_file_count, 1))
+                offset_increment_mb = size_mb
             fio_result = fio.launch(
                 name=f"iteration{numjobiterator}",
                 filename=filename,
@@ -165,9 +175,11 @@ def perf_disk(
                 block_size=f"{block_size}K",
                 iodepth=iodepth,
                 overwrite=overwrite,
-                numjob=numjob,
+                numjob=launch_numjob,
                 cwd=cwd,
                 ioengine=ioengine,
+                per_file_jobs=per_disk_jobs,
+                offset_increment_mb=offset_increment_mb,
             )
             fio_result_list.append(fio_result)
             iodepth = iodepth * 2
@@ -954,6 +966,16 @@ def perf_premium_datadisks(
     filename = ":".join(partition_disks)
     cpu = node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
+    # Each fio job targets one disk (see perf_disk per_disk_jobs). Cap the
+    # per-job region so all jobs on a disk fit without overlapping.
+    total_jobs = min(thread_count, 256) if ioengine == IoEngine.LIBAIO else thread_count
+    jobs_per_disk = max(1, total_jobs // disk_count)
+    size_mb = min(
+        8192, _get_min_partition_size_mb(node, partition_disks) // jobs_per_disk
+    )
+    assert_that(size_mb).described_as(
+        f"per-job fio region for {jobs_per_disk} job(s) per data disk"
+    ).is_greater_than(0)
     perf_disk(
         node,
         start_iodepth,
@@ -966,11 +988,28 @@ def perf_premium_datadisks(
         disk_type=disk_type,
         numjob=thread_count,
         block_size=block_size,
-        size_mb=8192,
+        size_mb=size_mb,
         overwrite=True,
         test_result=test_result,
         ioengine=ioengine,
+        per_disk_jobs=True,
     )
+
+
+def _get_min_partition_size_mb(node: Node, partitions: List[str]) -> int:
+    result = node.execute(
+        f"lsblk -bdno SIZE {' '.join(partitions)}",
+        sudo=True,
+        shell=True,
+        expected_exit_code=0,
+        expected_exit_code_failure_message="failed to get data disk partition sizes",
+    )
+    sizes = [int(line) for line in result.stdout.split() if line.strip().isdigit()]
+    if len(sizes) != len(partitions):
+        raise LisaException(
+            f"expected {len(partitions)} partition sizes, got: {result.stdout}"
+        )
+    return min(sizes) // (1024 * 1024)
 
 
 def perf_resource_disks(
