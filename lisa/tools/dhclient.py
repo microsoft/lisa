@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+import shlex
 from typing import Any, Optional, Type
 
 from lisa.base_tools import Cat
@@ -42,7 +43,8 @@ class Dhclient(Tool):
     def can_install(self) -> bool:
         return False
 
-    def get_timeout(self) -> int:
+    def get_timeout(self) -> float:
+        """Read the DHCP timeout in seconds, or infinity for an unlimited wait."""
         is_default_value: bool = True
         if (
             isinstance(self.node.os, Debian)
@@ -72,20 +74,12 @@ class Dhclient(Tool):
                 value = int(group["number"])
                 is_default_value = False
         elif isinstance(self.node.os, (Fedora, CBLMariner)):
-            # Fedora and AZL4+ use NetworkManager for DHCP; default timeout is 300.
-            # CBLMariner < 4 is not supported here and raises below.
-            if isinstance(self.node.os, CBLMariner) and (
-                self.node.os.information.version.major < 4
-            ):
-                raise UnsupportedDistroException(
-                    os=self.node.os,
-                    message=(
-                        "CBLMariner < 4 (AZL2/3) uses dhcpcd rather than "
-                        "NetworkManager, so this NetworkManager-based timeout "
-                        "lookup does not apply. To add support, read the timeout "
-                        "from the dhcpcd configuration (e.g. /etc/dhcpcd.conf) "
-                        "instead."
-                    ),
+            if not self.command_exists("NetworkManager")[0]:
+                if self.command_exists("dhcpcd")[0]:
+                    return self._get_dhcpcd_timeout()
+                raise LisaException(
+                    "Cannot read DHCP timeout: neither NetworkManager nor "
+                    "dhcpcd is installed"
                 )
             value = 300
             result = self.node.execute(
@@ -107,6 +101,44 @@ class Dhclient(Tool):
         self._log.debug(f"timeout value: {value}, is default: {is_default_value}")
 
         return value
+
+    def _get_dhcpcd_timeout(self) -> float:
+        config_path = "/etc/dhcpcd.conf"
+        output = self.node.tools[Cat].read(config_path, sudo=True)
+        # dhcpcd defaults to 30 seconds; zero means wait indefinitely.
+        value = 30
+        for line_number, line in enumerate(output.splitlines(), start=1):
+            try:
+                options = shlex.split(line, comments=True)
+            except ValueError as error:
+                raise LisaException(
+                    f"Invalid dhcpcd configuration at {config_path}:{line_number}"
+                ) from error
+            if not options:
+                continue
+            if options[0] in ("interface", "profile", "ssid"):
+                raise UnsupportedDistroException(
+                    os=self.node.os,
+                    message=(
+                        f"Scoped dhcpcd configuration in {config_path} is not "
+                        "supported for DHCP timeout lookup"
+                    ),
+                )
+            if options[0] == "timeout":
+                if (
+                    len(options) != 2
+                    or not options[1].isascii()
+                    or (not options[1].isdigit())
+                ):
+                    raise LisaException(
+                        f"Invalid dhcpcd timeout at {config_path}:{line_number}: "
+                        f"{line}"
+                    )
+                value = int(options[1])
+
+        timeout = float("inf") if value == 0 else float(value)
+        self._log.debug(f"dhcpcd timeout value from {config_path}: {timeout}")
+        return timeout
 
     def renew(self, interface: str = "") -> None:
         # Determine the appropriate option based on the command
