@@ -95,20 +95,23 @@ class Qemu(Tool):
         cmd += f"-device {nic_model},netdev=net0," f"mac={random_mac_address} "
         cmd += f"-netdev user,id=net0,hostfwd=tcp::{port}-:22 "
 
-        # Add taps-based nic interfaces
-        # Qemu automatically creates a tap interface `tap_<index>`
+        # Use explicit TAP names so bridge setup targets the interfaces QEMU creates.
         if taps:
             for _ in range(taps):
+                tap_name = f"tap{self.interface_count}"
                 random_mac_address = str(RandMac())
                 cmd += (
                     f"-device {nic_model},netdev=nettap{self.interface_count},"
                     f"mac={random_mac_address} "
                 )
-                base_cmd = f"-netdev tap,id=nettap{self.interface_count},script=no"
+                base_cmd = (
+                    f"-netdev tap,id=nettap{self.interface_count},"
+                    f"ifname={tap_name},script=no"
+                )
                 if self.node.tools[KernelConfig].is_enabled("CONFIG_VHOST_NET"):
                     base_cmd += ",vhost=on"
                 cmd += base_cmd + " "
-                added_taps.append(f"tap{self.interface_count}")
+                added_taps.append(tap_name)
                 self.interface_count += 1
 
         # Add data disks

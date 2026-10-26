@@ -205,6 +205,7 @@ class Ip(Tool):
     def add_ipv4_address(self, nic_name: str, ip: str, persist: bool = True) -> None:
         self.run(
             f"addr add {ip} dev {nic_name}",
+            force_run=True,
             sudo=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
