@@ -3,6 +3,7 @@
 
 import argparse
 import os
+import re
 import signal
 import subprocess
 import tempfile
@@ -65,6 +66,10 @@ def _run_test(runner: Path, test: str, timeout: float) -> Tuple[str, bool]:
         raise RuntimeError(
             f"kselftest runner failed for {test}, exit={process.returncode}:\n{result}"
         )
+    if not timed_out and not re.search(
+        r"^(?:not ok|ok)\s+\d+\s+selftests:", result, re.MULTILINE
+    ):
+        raise RuntimeError(f"kselftest runner produced no result for {test}:\n{result}")
     return result, timed_out
 
 
