@@ -2,10 +2,18 @@
 # Licensed under the MIT license.
 
 import sys
+from types import SimpleNamespace
+from typing import Any, Dict
 from unittest.case import TestCase
+from unittest.mock import Mock, patch
+
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 
 from lisa import LisaException, constants, schema, search_space
+from lisa.node import Node
 from lisa.sut_orchestrator.azure import features
+from lisa.sut_orchestrator.azure.common import NodeContext
+from lisa.util.logger import get_logger
 
 
 class AzureDiskFeatureTestCase(TestCase):
@@ -198,3 +206,126 @@ class AzureDiskFeatureTestCase(TestCase):
             data_disk_iops=search_space.IntRange(max=sys.maxsize),
             data_disk_size=search_space.IntRange(max=sys.maxsize),
         )
+
+
+class AzureDiskHotAddTestCase(TestCase):
+    def setUp(self) -> None:
+        self.node = Mock(spec=Node)
+        self.node.log = get_logger("test", "disk")
+        self.node.capability = schema.NodeSpace(
+            disk=features.AzureDiskOptionSettings(
+                data_disk_count=0, max_data_disk_count=4
+            )
+        )
+        self.node.get_context.return_value = NodeContext(
+            resource_group_name="group", vm_name="vm"
+        )
+        self.vm = Mock()
+        self.vm.name = "vm"
+        self.vm.storage_profile.data_disks = []
+        self.client = Mock()
+        self.client.disks.begin_create_or_update.side_effect = self._create_disk
+        for name, value in (("get_vm", self.vm), ("get_compute_client", self.client)):
+            patcher = patch(
+                f"lisa.sut_orchestrator.azure.features.{name}", return_value=value
+            )
+            self.addCleanup(patcher.stop)
+            patcher.start()
+        self.disk = features.Disk(features.AzureDiskOptionSettings(), self.node, Mock())
+        self.disk.initialize()
+        update_patcher = patch.object(
+            self.disk, "_update_vm_disks", side_effect=self._update_vm
+        )
+        self.addCleanup(update_patcher.stop)
+        self.update_vm = update_patcher.start()
+
+    def test_initialize_refreshes_attached_disk_count(self) -> None:
+        self.vm.storage_profile.data_disks = [SimpleNamespace(name="existing", lun=2)]
+        self.disk._initialize()
+
+        self.assertEqual(1, self.node.capability.disk.data_disk_count)
+        self.assertEqual([], self.disk.disks)
+
+    def test_add_uses_actual_attachments_and_free_luns(self) -> None:
+        self.vm.storage_profile.data_disks = [
+            SimpleNamespace(name="lisa_data_disk_0_vm", lun=0),
+            SimpleNamespace(name="existing", lun=2),
+        ]
+
+        names = self.disk.add_data_disk(2, schema.DiskType.StandardSSDLRS)
+
+        self.assertEqual(
+            [0, 2, 1, 3], [disk.lun for disk in self.vm.storage_profile.data_disks]
+        )
+        self.assertNotIn("lisa_data_disk_0_vm", names)
+        self.assertEqual(names, self.disk.disks)
+        self.assertEqual(4, self.node.capability.disk.data_disk_count)
+
+    def test_add_rejects_occupied_lun_and_excess_count_before_creation(self) -> None:
+        self.vm.storage_profile.data_disks = [SimpleNamespace(name="existing", lun=0)]
+
+        with self.assertRaisesRegex(LisaException, "occupied LUN 0"):
+            self.disk.add_data_disk(1, lun=0)
+        with self.assertRaisesRegex(LisaException, "Cannot add 4"):
+            self.disk.add_data_disk(4)
+
+        self.client.disks.begin_create_or_update.assert_not_called()
+        self.assertEqual(1, self.node.capability.disk.data_disk_count)
+
+    def test_failed_creation_remains_tracked_until_cleanup(self) -> None:
+        self.client.disks.begin_create_or_update.return_value = Mock()
+        self.client.disks.begin_create_or_update.side_effect = None
+        poller = self.client.disks.begin_create_or_update.return_value
+        poller.result.side_effect = HttpResponseError("creation failed")
+
+        with self.assertRaisesRegex(HttpResponseError, "creation failed"):
+            self.disk.add_data_disk(1)
+        self.assertEqual(1, len(self.disk.disks))
+        name = self.disk.disks[0]
+        self.client.disks.begin_delete.side_effect = ResourceNotFoundError(
+            "disk not created"
+        )
+
+        self.disk.remove_data_disk()
+
+        self.client.disks.begin_delete.assert_called_once_with("group", name)
+        self.assertEqual([], self.disk.disks)
+        self.assertEqual(0, self.node.capability.disk.data_disk_count)
+        self.update_vm.assert_not_called()
+
+    def test_cleanup_after_failed_attachment_preserves_existing_disk(self) -> None:
+        existing = SimpleNamespace(name="existing", lun=2)
+        self.vm.storage_profile.data_disks = [existing]
+        self.update_vm.side_effect = HttpResponseError("attachment failed")
+
+        with self.assertRaisesRegex(HttpResponseError, "attachment failed"):
+            self.disk.add_data_disk(2)
+        names = list(self.disk.disks)
+        self.assertEqual(2, len(names))
+        # Model an attachment that partially reached Azure before the failure.
+        self.vm.storage_profile.data_disks = [
+            existing,
+            SimpleNamespace(name=names[0], lun=0),
+        ]
+        self.update_vm.side_effect = self._update_vm
+
+        self.disk.remove_data_disk()
+
+        self.assertEqual([existing], self.vm.storage_profile.data_disks)
+        self.assertEqual(
+            names,
+            [call.args[1] for call in self.client.disks.begin_delete.call_args_list],
+        )
+        self.assertEqual([], self.disk.disks)
+        self.assertEqual(1, self.node.capability.disk.data_disk_count)
+
+    def _create_disk(self, _group: str, name: str, _parameters: Dict[str, Any]) -> Mock:
+        poller = Mock()
+        poller.result.return_value = SimpleNamespace(name=name, id=name)
+        return poller
+
+    def _update_vm(self, _client: Any, _group: str, _name: str, vm: Any) -> None:
+        vm.storage_profile.data_disks[:] = [
+            SimpleNamespace(**disk) if isinstance(disk, dict) else disk
+            for disk in vm.storage_profile.data_disks
+        ]

@@ -1020,9 +1020,10 @@ class Storage(TestSuite):
         partitions_before_adding_disk = lsblk.get_disks(force_run=True)
         added_disk_count = 0
         disks_added = []
-        # Assuming existing disks added sequentially from lun = 0 to
-        # (current_data_disk_count - 1)
-        free_luns = list(range(current_data_disk_count, max_data_disk_count))
+        occupied_luns = set(disk.get_luns().values())
+        free_luns = [
+            lun for lun in range(max_data_disk_count) if lun not in occupied_luns
+        ][: max_data_disk_count - current_data_disk_count]
 
         if len(free_luns) < 1:
             raise SkippedException(
