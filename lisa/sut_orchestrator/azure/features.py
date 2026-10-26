@@ -646,6 +646,9 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         """
         Install GPU drivers using Azure VM extension.
 
+        Raise UnsupportedOperationException when the extension explicitly rejects
+        an OS/driver combination.
+
         Reference:
         https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux
         """
@@ -676,6 +679,15 @@ class Gpu(AzureFeatureMixin, features.Gpu):
                 type_handler_version="1.8",
             )
         except Exception as e:
+            if isinstance(e, HttpResponseError):
+                unsupported_os = re.search(
+                    r"\[NGDL-readJSON-9001\] Driver selection failed: "
+                    r"OS offer='[^'\r\n]+' sku='[^'\r\n]+' is not supported for "
+                    r"category='[^'\r\n]+' driverVersion='[^'\r\n]+'",
+                    str(e),
+                )
+                if unsupported_os:
+                    raise UnsupportedOperationException(unsupported_os.group(0)) from e
             if (
                 "'Microsoft.HpcCompute.NvidiaGpuDriverLinux' already added"
                 " or specified in input" in str(e)

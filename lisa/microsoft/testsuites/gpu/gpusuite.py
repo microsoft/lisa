@@ -190,11 +190,11 @@ class GpuTestSuite(TestSuite):
         gpu_feature = node.features[Gpu]
         try:
             gpu_feature._install_driver_using_platform_feature()
-        except UnsupportedOperationException:
+        except UnsupportedOperationException as e:
             raise SkippedException(
-                "GPU Driver Installation using extension is not supported\n"
+                f"GPU Driver Installation using extension is not supported: {e}\n"
                 "https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux"  # noqa: E501
-            )
+            ) from e
         reboot_tool = node.tools[Reboot]
         reboot_tool.reboot_and_check_panic(log_path)
         _check_driver_installed(node, log)
@@ -576,8 +576,8 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
         reboot_tool = node.tools[Reboot]
         reboot_tool.reboot_and_check_panic(log_path)
         return
-    except UnsupportedOperationException:
-        log.info("Installing Driver using Azure GPU Extension is not supported")
+    except UnsupportedOperationException as e:
+        log.info(f"Installing Driver using Azure GPU Extension is not supported: {e}")
     except Exception:
         log.info("Failed to install Driver using Azure GPU Extension")
         if isinstance(node.os, Ubuntu):
