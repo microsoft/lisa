@@ -35,6 +35,7 @@ class PanicInfo:
 class SerialConsole(Feature):
     panic_patterns: List[Pattern[str]] = [
         re.compile(r"^(.*Kernel panic - not syncing:.*)$", re.MULTILINE),
+        re.compile(r"^(.*Oops:.*)$", re.MULTILINE),
         re.compile(r"^(.*RIP:.*)$", re.MULTILINE),
         re.compile(r"^(.*grub>.*)$", re.MULTILINE),
         re.compile(r"^The operating system has halted.$", re.MULTILINE),
@@ -68,6 +69,25 @@ class SerialConsole(Feature):
             re.IGNORECASE,
         ),
     ]
+
+    # An unchecked MSR dump can show the interrupted idle task's RIP. Require
+    # a complete IRQ/TASK trace with a consistent prefix, so an unrelated RIP
+    # or an interleaved crash is not mistaken for part of the warning.
+    _msr_warning_pattern = re.compile(
+        r"(?P<before>^(?:\[[ \d.]+\] )?unchecked MSR access error: "
+        r"(?:RDMSR from|WRMSR to) [^\r\n]*\r*\n"
+        r"(?P<prefix>(?:\[[ \d.]+\] )?)Call Trace:\r*\n"
+        r"(?P=prefix) <IRQ>\r*\n"
+        r"(?:(?P=prefix) (?!</IRQ>)[^\r\n]*\r*\n)*"
+        r"(?P=prefix) </IRQ>\r*\n"
+        r"(?P=prefix) <TASK>\r*\n"
+        r"(?:(?P=prefix) (?!</TASK>)[^\r\n]*\r*\n)*)"
+        r"(?P=prefix)RIP: 0010:native_safe_halt\+0x[0-9a-f]+/0x[0-9a-f]+\r*\n"
+        r"(?P<after>(?:(?P=prefix)(?: (?!</TASK>)[^\r\n]*|"
+        r"(?:Code|R[A-Z0-9]{2}):[^\r\n]*)\r*\n)*"
+        r"(?P=prefix) </TASK>\r*$)",
+        re.MULTILINE,
+    )
 
     # Patterns for extracting error codes from panic messages
     # Examples:
@@ -248,6 +268,9 @@ class SerialConsole(Feature):
         """
         Check for kernel panic in serial console log.
 
+        An idle RIP in a complete unchecked-MSR warning trace is ignored;
+        standalone RIPs and explicit crash signatures remain panic evidence.
+
         Args:
             saved_path: Path to save console log
             force_run: Force re-fetch console log
@@ -263,6 +286,9 @@ class SerialConsole(Feature):
         self._node.log.debug("checking panic in serial log...")
 
         content: str = self.get_console_log(saved_path=saved_path, force_run=force_run)
+
+        # Remove only this occurrence, not identical RIP lines in other traces.
+        content = self._msr_warning_pattern.sub(r"\g<before>\g<after>", content)
 
         ignored_candidates = [
             x

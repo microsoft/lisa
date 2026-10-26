@@ -14,6 +14,8 @@ from paramiko.ssh_exception import SSHException
 
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
+from lisa.messages import TestStatus
+from lisa.microsoft.testsuites.stress.stress_ng_suite import StressNgTestSuite
 from lisa.sut_orchestrator.openvmm.context import (
     DeviceAddressSchema,
     DevicePassthroughContext,
@@ -41,8 +43,149 @@ from lisa.tools.openvmm import (
     OPENVMM_IOMMU_NONE,
     OPENVMM_NETWORK_DEVICE_SYNTHETIC,
 )
-from lisa.util import LisaException, ResourceAwaitableException
+from lisa.util import KernelPanicException, LisaException, ResourceAwaitableException
 from selftests.test_libvirt_device_pool import _load_device_pool_module
+
+
+class SerialConsolePanicTestCase(TestCase):
+    def setUp(self) -> None:
+        self.console = OpenVmmSerialConsole(
+            schema.FeatureSettings.create(SerialConsoleFeature.name()),
+            MagicMock(),
+            MagicMock(),
+        )
+
+    def _msr_trace(
+        self,
+        access: str = "RDMSR from 0x1ad",
+        prefix: str = "[    1.000000] ",
+        newline: str = "\n",
+    ) -> str:
+        lines = [
+            f"unchecked MSR access error: {access} at rIP: 0xffffffff81000008",
+            "Call Trace:",
+            " <IRQ>",
+            " flush_smp_call_function_queue+0x1/0x10",
+            " </IRQ>",
+            " <TASK>",
+            " asm_sysvec_call_function_single+0x1/0x10",
+            "RIP: 0010:native_safe_halt+0xb/0x10",
+            "Code: 00 fb f4 <c3> cc",
+            "RSP: 0000:ffffffff81000000 EFLAGS: 00000246",
+            "RAX: 0000000000000000 RBX: 0000000000000000",
+            " ? default_idle+0xe/0x20",
+            " </TASK>",
+        ]
+        return newline.join(f"{prefix}{line}" for line in lines) + newline
+
+    def test_serial_console_ignores_complete_msr_idle_traces(self) -> None:
+        for prefix, newline in (
+            ("", "\n"),
+            ("[    1.000000] ", "\n"),
+            ("[    1.000000] ", "\r\n"),
+            ("[    1.000000] ", "\r\r\n"),
+        ):
+            content = self._msr_trace(prefix=prefix, newline=newline)
+            content += self._msr_trace(
+                access="WRMSR to 0x199 (tried to write 0x0000000000000800)",
+                prefix=prefix,
+                newline=newline,
+            )
+            content += "cloud-init finished\nsynthetic-guest login:\n"
+            result = MagicMock(message="original failure")
+            with self.subTest(prefix=prefix, newline=newline), patch.object(
+                self.console, "get_console_log", return_value=content
+            ):
+                self.assertIsNone(self.console.check_panic())
+                self.assertIsNone(self.console.check_panic(stage="after_case"))
+                self.assertIsNone(self.console.check_panic(test_result=result))
+            self.assertEqual("original failure", result.message)
+
+    def test_serial_console_keeps_rip_without_complete_msr_context(self) -> None:
+        trace = self._msr_trace()
+        for content in (
+            "RIP: 0010:native_safe_halt+0xb/0x10\n",
+            trace.replace("unchecked MSR access error:", "unrelated warning:"),
+            trace.replace("Call Trace:", "unrelated call trace:"),
+            trace.replace(" <IRQ>", " <NMI>"),
+            trace.replace("[    1.000000]  </TASK>\n", ""),
+            trace.replace("native_safe_halt", "fault_handler"),
+            trace.replace("RIP:", "Call Trace:\nRIP:"),
+            trace.replace("[    1.000000] RIP:", "[    2.000000] RIP:"),
+        ):
+            with self.subTest(content=content), patch.object(
+                self.console, "get_console_log", return_value=content
+            ), self.assertRaises(KernelPanicException):
+                self.console.check_panic(stage="after_case")
+
+    def test_serial_console_keeps_identical_rip_outside_msr_trace(self) -> None:
+        rip = "RIP: 0010:native_safe_halt+0xb/0x10"
+        trace = self._msr_trace(prefix="")
+        for content in (rip + "\n" + trace, trace + rip + "\n"):
+            with self.subTest(content=content), patch.object(
+                self.console, "get_console_log", return_value=content
+            ), self.assertRaisesRegex(KernelPanicException, "native_safe_halt"):
+                self.console.check_panic(stage="after_case")
+
+    def test_serial_console_keeps_crashes_alongside_msr_trace(self) -> None:
+        trace = self._msr_trace()
+        for crash in (
+            "Kernel panic - not syncing: Fatal exception",
+            "Oops: 0000 [#1] SMP",
+            "BUG: unable to handle kernel NULL pointer dereference",
+            "RIP: 0010:fault_handler+0x1/0x10",
+        ):
+            for content in (
+                crash + "\n" + trace,
+                trace + crash + "\n",
+                trace.replace("Code:", f"{crash}\nCode:"),
+            ):
+                with self.subTest(crash=crash, content=content), patch.object(
+                    self.console, "get_console_log", return_value=content
+                ):
+                    with self.assertRaises(KernelPanicException) as raised:
+                        self.console.check_panic(stage="after_case")
+                    self.assertIn(crash, str(raised.exception))
+                    result = MagicMock(message="original failure")
+                    with self.assertRaises(KernelPanicException):
+                        self.console.check_panic(test_result=result)
+                    self.assertIn("original failure", result.message)
+                    self.assertIn("KERNEL PANIC DETECTED", result.message)
+
+    def test_stress_start_error_survives_msr_panic_check(self) -> None:
+        suite = cast(Any, StressNgTestSuite).__wrapped__(MagicMock())
+        node = MagicMock()
+        node.features.is_supported.return_value = True
+        node.features.__getitem__.return_value = self.console
+        environment = MagicMock()
+        environment.nodes.list.return_value = [node]
+        result = MagicMock(message="original failure")
+        error = AssertionError(
+            "apt-get update: exit code 100; "
+            "Write error - write (28: No space left on device)"
+        )
+
+        with patch.object(
+            self.console, "get_console_log", return_value=self._msr_trace()
+        ) as get_console_log, patch.object(
+            suite, "_deploy_and_launch_stress_jobs", side_effect=error
+        ), patch(
+            "lisa.microsoft.testsuites.stress.stress_ng_suite."
+            "send_sub_test_result_message"
+        ) as report, self.assertRaises(
+            AssertionError
+        ) as raised:
+            suite._run_stress_ng_job("synthetic.job", environment, result, MagicMock())
+
+        self.assertIs(error, raised.exception)
+        self.assertEqual("original failure", result.message)
+        get_console_log.assert_called_once_with(saved_path=None, force_run=True)
+        report.assert_called_once_with(
+            test_result=result,
+            test_case_name="synthetic.job",
+            test_status=TestStatus.FAILED,
+            test_message=f"Error: AssertionError: {error}",
+        )
 
 
 class OpenVmmNodeTestCase(TestCase):
