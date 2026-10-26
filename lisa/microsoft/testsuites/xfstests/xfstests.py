@@ -650,7 +650,6 @@ class Xfstests(Tool):
         "libacl1-dev",
         "libaio-dev",
         "libcap-dev",
-        "libgcrypt20-dev",
         "libgdbm-dev",
         "libtool-bin",
         "liburing-dev",
