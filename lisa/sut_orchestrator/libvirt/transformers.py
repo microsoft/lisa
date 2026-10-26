@@ -1,17 +1,20 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import json
 import re
 import time
 from dataclasses import dataclass, field
 from pathlib import PurePath
-from typing import Any, Dict, List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, Tuple, Type, cast
+from urllib.parse import quote
 
 from dataclasses_json import dataclass_json
 
 from lisa import schema
+from lisa.base_tools import Uname
 from lisa.node import Node, quick_connect
-from lisa.operating_system import CBLMariner, Linux, Ubuntu
+from lisa.operating_system import CBLMariner, CpuArchitecture, Linux, Ubuntu
 from lisa.tools import Git, Ln, Sed, Service, Usermod, Wget, Whoami
 from lisa.transformer import Transformer
 from lisa.util import (
@@ -585,9 +588,13 @@ class CloudHypervisorMsftSourceInstaller(CloudHypervisorSourceInstaller):
 
 
 class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
-    _distro_package_mapping = {
-        Ubuntu.__name__: ["jq"],
-        CBLMariner.__name__: ["jq"],
+    _distro_package_mapping: Dict[str, List[str]] = {
+        Ubuntu.__name__: [],
+        CBLMariner.__name__: [],
+    }
+    _release_binary_names = {
+        CpuArchitecture.X64: ("cloud-hypervisor", "cloud-hypervisor-static"),
+        CpuArchitecture.ARM64: ("cloud-hypervisor-static-aarch64",),
     }
 
     @classmethod
@@ -599,36 +606,8 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
         return BaseInstallerSchema
 
     def install(self) -> str:
-        linux: Linux = cast(Linux, self._node.os)
-        packages_list = self._distro_package_mapping[type(linux).__name__]
-        self._log.info(f"installing packages: {packages_list}")
-        linux.install_packages(packages_list)
-
-        runbook: BaseInstallerSchema = self.runbook
-        if runbook.ref:
-            release_tag = runbook.ref
-            # Validate ref format: should start with 'v' followed by version number
-            # or be a valid git ref (commit hash, branch name)
-            if not release_tag.strip():
-                raise LisaException(
-                    "Invalid cloud-hypervisor ref: empty string provided. "
-                    "Please specify a valid release tag (e.g., 'v40.0') or git ref."
-                )
-            self._log.info(f"Using specified cloud-hypervisor ref: {release_tag}")
-        else:
-            command = (
-                "curl -s https://api.github.com/repos/cloud-hypervisor/"
-                "cloud-hypervisor/releases/latest | jq -r '.tag_name'"
-            )
-            release_tag = self._node.execute(command, shell=True).stdout.strip()
-            self._log.info(f"Using latest cloud-hypervisor release: {release_tag}")
-
+        release_tag, file_url = self._get_download_url()
         wget = self._node.tools[Wget]
-        file_url = (
-            "https://github.com/cloud-hypervisor/cloud-hypervisor/"
-            f"releases/download/{release_tag}/cloud-hypervisor"
-        )
-
         try:
             file_path = wget.get(
                 url=file_url,
@@ -654,6 +633,85 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
         )
         self._create_symlink_to_usr_bin()
         return self._get_version()
+
+    def _get_download_url(self) -> Tuple[str, str]:
+        architecture = self._node.tools[Uname].get_machine_architecture()
+        binary_names = self._release_binary_names.get(architecture)
+        if not binary_names:
+            raise LisaException(
+                "Unsupported cloud-hypervisor binary architecture "
+                f"'{architecture.value}'."
+            )
+
+        release_tag, asset_names = self._get_release()
+        for binary_name in binary_names:
+            if binary_name in asset_names:
+                self._log.info(
+                    f"Using cloud-hypervisor release '{release_tag}' asset "
+                    f"'{binary_name}' for {architecture.value}"
+                )
+                return (
+                    release_tag,
+                    "https://github.com/cloud-hypervisor/cloud-hypervisor/"
+                    f"releases/download/{quote(release_tag, safe='')}/{binary_name}",
+                )
+        raise LisaException(
+            f"No cloud-hypervisor binary for {architecture.value} in release "
+            f"'{release_tag}'. Available assets: {', '.join(asset_names)}. "
+            "Configure a source or package installer explicitly if needed."
+        )
+
+    def _get_release(self) -> Tuple[str, List[str]]:
+        runbook: BaseInstallerSchema = self.runbook
+        ref = runbook.ref
+        if ref and not ref.strip():
+            raise LisaException(
+                "Invalid cloud-hypervisor ref: empty string provided. "
+                "Please specify a valid release tag (e.g., 'v40.0')."
+            )
+        release_path = f"tags/{quote(ref, safe='')}" if ref else "latest"
+        release_url = (
+            "https://api.github.com/repos/cloud-hypervisor/"
+            f"cloud-hypervisor/releases/{release_path}"
+        )
+        result = self._node.execute(
+            f"curl -fsSL {release_url}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Failed to query cloud-hypervisor release '{ref or 'latest'}'."
+            ),
+        )
+        try:
+            release = json.loads(result.stdout)
+        except json.JSONDecodeError as error:
+            raise LisaException(
+                f"Invalid cloud-hypervisor release metadata from {release_url}: {error}"
+            ) from error
+        if not isinstance(release, dict):
+            raise LisaException(
+                f"Invalid cloud-hypervisor release metadata from {release_url}."
+            )
+        release_tag = release.get("tag_name")
+        assets = release.get("assets")
+        if (
+            not isinstance(release_tag, str)
+            or not release_tag.strip()
+            or not isinstance(assets, list)
+        ):
+            raise LisaException(
+                f"Missing tag_name or assets in cloud-hypervisor release {release_url}."
+            )
+        if ref and release_tag != ref:
+            raise LisaException(
+                f"Requested cloud-hypervisor release '{ref}', "
+                f"but received metadata for '{release_tag}'."
+            )
+        return release_tag, [
+            asset["name"]
+            for asset in assets
+            if isinstance(asset, dict) and isinstance(asset.get("name"), str)
+        ]
 
 
 def _get_source_code(
