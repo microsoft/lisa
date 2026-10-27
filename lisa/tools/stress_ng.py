@@ -1,16 +1,20 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
+import shlex
 from pathlib import Path
-from typing import cast
+from typing import List, cast
 
+from lisa.base_tools import Cat
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Debian, Posix
+from lisa.operating_system import CBLMariner, Debian, Linux, Posix
 from lisa.util import LisaException, RepoNotExistException, parse_version
 from lisa.util.process import Process
 
 from .git import Git
 from .make import Make
+from .python import Python
 
 
 class StressNg(Tool):
@@ -137,12 +141,111 @@ class StressNg(Tool):
         verbose: bool = True,
         sudo: bool = False,
     ) -> Process:
+        """Run a class; socket-heavy network stressors use one worker each."""
+        is_network = class_name == "network"
+        exclusions = ""
+        if is_network:
+            sudo = sudo or self._use_sudo
+            if num_workers != 1:
+                self._log.info(
+                    f"Limiting network stressors to one worker instead of "
+                    f"{num_workers} to avoid CPU-scaled socket resource exhaustion."
+                )
+            num_workers = 1
+            excluded = self._get_network_exclusions(sudo)
+            if excluded:
+                exclusions = f" --exclude {','.join(excluded)}"
+
         v_flag = "-v" if verbose else ""
-        return self.run_async(
-            f"{v_flag} --sequential {num_workers} --class {class_name} "
-            f"--timeout {timeout_secs}",
-            sudo=sudo,
+        parameters = (
+            f"--sequential {num_workers} --class {class_name} "
+            f"--timeout {timeout_secs}{exclusions}"
         )
+        if is_network:
+            preflight = self.run(
+                f"{parameters} --dry-run",
+                sudo=sudo,
+                force_run=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Network stressor preflight failed",
+            )
+            self._log.info(
+                "Network stressor support preflight:\n"
+                f"{preflight.stdout}\n{preflight.stderr}"
+            )
+
+        return self.run_async(
+            f"{v_flag} {parameters}",
+            sudo=sudo,
+            force_run=is_network,
+        )
+
+    def _get_network_exclusions(self, sudo: bool) -> List[str]:
+        excluded: List[str] = []
+        if not isinstance(self.node.os, Linux):
+            return excluded
+
+        status = self.node.tools[Cat].read(
+            "/proc/self/status", sudo=sudo, force_run=True
+        )
+        match = re.search(r"^CapEff:\s+([0-9a-fA-F]+)$", status, re.M)
+        if not match:
+            raise LisaException("Cannot determine effective network capabilities")
+        effective = int(match.group(1), 16)
+        for bit, capability, stressors in (
+            (12, "CAP_NET_ADMIN", ("netlink-proc", "netlink-task", "tun")),
+            (
+                13,
+                "CAP_NET_RAW",
+                ("eth-sniff", "icmp-flood", "rawpkt", "rawsock", "rawudp"),
+            ),
+        ):
+            if not effective & (1 << bit):
+                excluded.extend(stressors)
+                self._log.info(
+                    f"Excluding {','.join(stressors)}: {capability} is unavailable."
+                )
+
+        if "tun" not in excluded and not self.node.shell.exists(
+            self.node.get_pure_path("/dev/net/tun")
+        ):
+            excluded.append("tun")
+            self._log.info("Excluding tun: /dev/net/tun is unavailable.")
+
+        python = self.node.tools[Python]
+        # Python does not expose SOCK_DCCP/IPPROTO_DCCP on every Linux distro.
+        for stressor, socket_type, protocol in (("dccp", 6, 33), ("sctp", 1, 132)):
+            probe = (
+                "import errno, socket, sys\n"
+                "try:\n"
+                f"    with socket.socket(socket.AF_INET, {socket_type}, {protocol}):\n"
+                "        pass\n"
+                "except OSError as error:\n"
+                "    if error.errno not in (errno.EAFNOSUPPORT, "
+                "errno.EPROTONOSUPPORT, errno.ESOCKTNOSUPPORT):\n"
+                "        raise\n"
+                "    print('UNSUPPORTED_PROTOCOL:', error)\n"
+                "    sys.exit(2)\n"
+            )
+            result = python.run(
+                f"-c {shlex.quote(probe)}",
+                sudo=sudo,
+                shell=True,
+                force_run=True,
+            )
+            if result.exit_code == 2 and result.stdout.startswith(
+                "UNSUPPORTED_PROTOCOL:"
+            ):
+                excluded.append(stressor)
+                self._log.info(f"Excluding {stressor}: {result.stdout.strip()}")
+            else:
+                result.assert_exit_code(
+                    0,
+                    message=f"Cannot probe {stressor} protocol support",
+                    include_output=True,
+                )
+
+        return sorted(set(excluded))
 
     def _install_required_packages(self) -> None:
         if isinstance(self.node.os, CBLMariner):
