@@ -275,7 +275,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         # EnvironmentSpace has already expanded each node's count requirement.
         node_count = len(requirement.nodes)
         if node_count > configured_count:
-            raise LisaException(
+            raise SkippedException(
                 f"test requires {node_count} guests, but only "
                 f"{configured_count} are configured"
             )

@@ -105,11 +105,30 @@ class Ssh(Tool):
         # close the current connection.
         self.node.close()
 
-    def get(self, setting: str) -> str:
+    def get(self, setting: str, connection_context: bool = False) -> str:
         # Firstly, using command "sshd -T" to get the effective configuration
         # Take ClientAliveInterval as an example, if the value is "60m" in the config
         # file, sshd -T can show the effective value which is 3600.
-        result = self.node.execute("sshd -T", sudo=True)
+        command = "sshd -T"
+        if connection_context:
+            connection = self.node.execute(
+                "printf '%s' \"${SSH_CONNECTION:-}\""
+            ).stdout.split()
+            connection_info = self.node.shell.connection_info
+            username = connection_info.username
+            if len(connection) != 4 or not username:
+                raise LisaException(
+                    "Cannot determine the active SSH connection context for "
+                    "connection-specific sshd configuration"
+                )
+            client_address, _, server_address, server_port = connection
+            context = (
+                f"user={username},addr={client_address},laddr={server_address},"
+                f"lport={server_port}"
+            )
+            command += f" -C {shlex.quote(context)}"
+
+        result = self.node.execute(command, sudo=True)
         if result.exit_code == 0:
             # The pattern needs to match "clientaliveinterval 120"
             pattern = re.compile(
@@ -117,6 +136,12 @@ class Ssh(Tool):
             )
             matches = find_patterns_groups_in_lines(result.stdout, [pattern])
             return matches[0][0]["value"].strip() if matches[0] else ""
+
+        if connection_context:
+            raise LisaException(
+                f"Failed to query connection-specific SSH configuration with "
+                f"'{command}' ({result.exit_code}): {result.stderr}"
+            )
 
         self._log.warning(
             f"sshd -T failed ({result.exit_code}): {result.stderr}. "

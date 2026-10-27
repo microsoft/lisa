@@ -6,7 +6,7 @@ import shlex
 from types import SimpleNamespace
 from typing import Any, Dict, cast
 from unittest import TestCase
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 from lisa.base_tools import Cat, Sed, Service
 from lisa.executable import Tools
@@ -150,6 +150,32 @@ class SshTestCase(TestCase):
         self.ssh.set_max_session(count=200)
 
         self.assertEqual("200", self.ssh.get("MaxSessions"))
+
+    def test_get_uses_active_connection_context(self) -> None:
+        self.ssh.node.shell.connection_info = SimpleNamespace(username="lisa")
+        self.ssh.node.execute.side_effect = [
+            SimpleNamespace(
+                exit_code=0,
+                stdout="192.0.2.10 54321 198.51.100.20 22",
+                stderr="",
+            ),
+            SimpleNamespace(exit_code=0, stdout="maxsessions 12\n", stderr=""),
+        ]
+
+        self.assertEqual(
+            "12", self.ssh.get("MaxSessions", connection_context=True)
+        )
+
+        self.ssh.node.execute.assert_has_calls(
+            [
+                call("printf '%s' \"${SSH_CONNECTION:-}\""),
+                call(
+                    "sshd -T -C "
+                    "user=lisa,addr=192.0.2.10,laddr=198.51.100.20,lport=22",
+                    sudo=True,
+                ),
+            ]
+        )
 
     def test_fallback_expands_includes_at_their_position_in_sorted_order(self) -> None:
         files = {

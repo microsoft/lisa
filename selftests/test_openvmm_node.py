@@ -8,7 +8,7 @@ from threading import Barrier, Lock
 from types import SimpleNamespace
 from typing import Any, List, Tuple, cast
 from unittest import TestCase
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import yaml
 from assertpy import assert_that
@@ -1058,7 +1058,7 @@ class OpenVmmNodeTestCase(TestCase):
         checks_ready = Barrier(guest_count)
         checks_lock = Lock()
         ssh = MagicMock()
-        ssh.get.side_effect = lambda _setting: str(capacity)
+        ssh.get.side_effect = lambda _setting, **_kwargs: str(capacity)
 
         def set_max_session(count: int) -> None:
             nonlocal capacity
@@ -1160,7 +1160,7 @@ class OpenVmmNodeTestCase(TestCase):
         controller.ensure_ssh_session_capacity()
         other_controller.ensure_ssh_session_capacity()
 
-        ssh.get.assert_called_once_with("MaxSessions")
+        ssh.get.assert_called_once_with("MaxSessions", connection_context=True)
         ssh.set_max_session.assert_not_called()
 
     def test_ineffective_host_ssh_capacity_update_fails(self) -> None:
@@ -1171,9 +1171,17 @@ class OpenVmmNodeTestCase(TestCase):
         ssh.get.return_value = "10"
         host.tools[Sshd] = ssh
 
-        with self.assertRaisesRegex(LisaException, "did not increase enough"):
+        with self.assertRaisesRegex(
+            LisaException, "did not increase enough.*matching sshd configuration rules"
+        ):
             controller.ensure_ssh_session_capacity()
 
+        ssh.get.assert_has_calls(
+            [
+                call("MaxSessions", connection_context=True),
+                call("MaxSessions", connection_context=True),
+            ]
+        )
         self.assertEqual(0, get_host_context(host).ssh_session_capacity)
 
     def test_cached_capacity_reserves_headroom_and_scales_above_default(self) -> None:
