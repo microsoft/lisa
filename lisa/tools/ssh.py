@@ -137,18 +137,18 @@ class Ssh(Tool):
             matches = find_patterns_groups_in_lines(result.stdout, [pattern])
             return matches[0][0]["value"].strip() if matches[0] else ""
 
-        if connection_context:
-            raise LisaException(
-                f"Failed to query connection-specific SSH configuration with "
-                f"'{command}' ({result.exit_code}): {result.stderr}"
-            )
-
         self._log.warning(
             f"sshd -T failed ({result.exit_code}): {result.stderr}. "
-            "Reading global SSH configuration directly."
+            "Reading SSH configuration directly."
         )
         config_path = self.get_default_sshd_config_path()
-        for fields in self._iter_sshd_config(PurePosixPath(config_path)):
+        config = list(self._iter_sshd_config(PurePosixPath(config_path)))
+        if connection_context and any(fields[0] == "match" for fields in config):
+            raise LisaException(
+                "Cannot determine connection-specific SSH settings because "
+                "sshd -T -C failed and the configuration contains Match blocks"
+            )
+        for fields in config:
             if fields[0] == "match":
                 break
             if fields[0] == setting.lower():
@@ -184,7 +184,7 @@ class Ssh(Tool):
             path = PurePosixPath("/etc/ssh") / path
         # Quote shell syntax while retaining only pathname-expansion characters.
         shell_pattern = "".join(
-            char if char in "*?[]" else shlex.quote(char) for char in str(path)
+            char if char in "*?[]!" else shlex.quote(char) for char in str(path)
         )
         result = self.node.execute(
             f"for config in {shell_pattern}; do "
