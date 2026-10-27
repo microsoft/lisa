@@ -129,7 +129,7 @@ from .sar import Sar
 from .smb import SmbClient, SmbServer
 from .sockperf import Sockperf
 from .ss import Ss
-from .ssh import Ssh
+from .ssh import Ssh, Sshd
 from .sshpass import Sshpass
 from .start_configuration import StartConfiguration
 from .stat import Stat
@@ -303,6 +303,7 @@ __all__ = [
     "Sockperf",
     "Ss",
     "Ssh",
+    "Sshd",
     "Sshpass",
     "StartConfiguration",
     "Stat",
