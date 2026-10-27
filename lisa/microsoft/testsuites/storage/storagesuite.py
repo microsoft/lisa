@@ -18,7 +18,7 @@ from lisa import (
 )
 from lisa.features import Disk
 from lisa.operating_system import BSD, Windows
-from lisa.tools import Fdisk, FileSystem, Fio, Mdadm, Mkfs, Mount
+from lisa.tools import Fdisk, FileSystem, Fio, IoEngine, Mdadm, Mkfs, Mount
 from lisa.util import find_patterns_in_lines
 
 
@@ -110,6 +110,7 @@ class StorageTest(TestSuite):
             2. Create a 100GB partition for each disk using fdisk
             3. Create a RAID type 1 device using partitions created in step 2
             4. Run fio against raid0 with verify option for 100 times
+        Skip before disk setup if the required libaio IO engine is unavailable.
         """,
         priority=1,
         requirement=simple_requirement(
@@ -122,6 +123,8 @@ class StorageTest(TestSuite):
         ),
     )
     def verify_disk_with_fio_verify_option(self, node: Node) -> None:
+        fio = node.tools[Fio]
+        fio.ensure_ioengine(IoEngine.LIBAIO)
         pattern = re.compile(
             r"error=Invalid or incomplete multibyte or wide character", re.M
         )
@@ -145,7 +148,7 @@ class StorageTest(TestSuite):
         )
         for _ in range(100):
             try:
-                node.tools[Fio].launch(
+                fio.launch(
                     name="test",
                     filename="/dev/md0",
                     mode="write",

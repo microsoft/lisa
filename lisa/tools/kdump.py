@@ -440,14 +440,13 @@ class KdumpBase(Tool):
     def _ensure_dump_path_mounted(self) -> None:
         """
         Ensures the dump path mount point exists and filesystem is mounted.
-        This is necessary because mount points in /mnt don't persist across reboots,
-        and kdump service requires the dump path to be accessible before starting.
+        The kdump service requires the dump path to be accessible before starting.
         """
         if self.dump_path == "/var/crash":
             # Default path doesn't need special handling
             return
 
-        # Extract mount point from dump path (e.g., /mnt/kdump/crash -> /mnt/kdump)
+        # Extract mount point from dump path (e.g., /kdumpdisk/crash -> /kdumpdisk)
         dump_mount_point = str(PurePosixPath(self.dump_path).parent)
 
         # Ensure mount point directory exists
@@ -1116,9 +1115,9 @@ class KdumpCheck(Tool):
             raise LisaException("Could not identify newly added disk device")
         new_disk = new_disks[0]
 
-        # Format and mount to absolute path /mnt/kdump
-        # This avoids filling small /home partitions
-        mount_point = "/mnt/kdump"
+        # Avoid nesting under /mnt, whose network-dependent mount can create
+        # a systemd ordering cycle with local-fs.target and networking services.
+        mount_point = "/kdumpdisk"
         mkfs = self.node.tools[Mkfs]
         mount = self.node.tools[Mount]
 

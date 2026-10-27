@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from pathlib import PurePath
+from pathlib import PurePosixPath
 from typing import cast
 
 from retry import retry
@@ -105,5 +105,5 @@ class Chrony(Tool):
 
         # write back to /etc/chrony.conf
         self.node.tools[Echo].write_to_file(
-            content, PurePath("/etc/chrony.conf"), sudo=True
+            content, PurePosixPath("/etc/chrony.conf"), sudo=True, ignore_error=False
         )
