@@ -262,11 +262,11 @@ class OpenVmmController:
                 return
             ssh = self.host_node.tools[Sshd]
             configured = ssh.get("MaxSessions", connection_context=True).strip()
-            if not configured.isdecimal():
+            if configured and not configured.isdecimal():
                 raise LisaException(
                     f"Cannot determine host SSH MaxSessions: '{configured}'"
                 )
-            capacity = int(configured)
+            capacity = int(configured) if configured else 0
             self._log.info(
                 f"OpenVMM host SSH MaxSessions={capacity}, guests={guest_count}, "
                 f"required sessions={required_capacity}"
