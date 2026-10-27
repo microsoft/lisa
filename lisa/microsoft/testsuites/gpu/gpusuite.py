@@ -4,7 +4,7 @@
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Dict, List, Optional
 
 from assertpy import assert_that
 
@@ -269,16 +269,82 @@ class GpuTestSuite(TestSuite):
         gpu_devices = lspci.get_gpu_devices()
         gpu_devices = gpu.remove_virtual_gpus(gpu_devices)
 
-        # remove nvidia modules to release the GPU devices in used.
         modprobe = node.tools[Modprobe]
-        modprobe.remove(["nvidia_drm", "nvidia_uvm", "nvidia_modeset", "nvidia"])
+        nvidia_smi: Optional[NvidiaSmi] = None
+        persistence_modes: Dict[str, bool] = {}
+        if modprobe.is_module_loaded("nvidia", force_run=True):
+            nvidia_smi = node.tools[NvidiaSmi]
+            persistence_modes = nvidia_smi.get_persistence_modes()
 
-        # 1. Disable GPU devices.
-        for device in gpu_devices:
-            lspci.disable_device(device)
+        stopped_services: List[str] = []
+        restore_failures: List[str] = []
+        rescan_required = False
+        try:
+            if nvidia_smi:
+                self._stop_gpu_services(node, log, stopped_services)
+                for gpu_uuid, enabled in persistence_modes.items():
+                    if enabled:
+                        nvidia_smi.set_persistence_mode(gpu_uuid, False)
 
-        # 2. Enable GPU devices.
-        lspci.enable_devices()
+            self._unload_gpu_modules(node, log)
+            rescan_required = True
+            for device in gpu_devices:
+                lspci.disable_device(device)
+        finally:
+            if rescan_required:
+                try:
+                    lspci.enable_devices()
+                except (LisaException, AssertionError) as identifier:
+                    log.error(f"could not rescan GPUs after rescind: {identifier}")
+                    restore_failures.append(f"PCI rescan: {identifier}")
+            if nvidia_smi:
+                try:
+                    modprobe.load("nvidia")
+                except (LisaException, AssertionError) as identifier:
+                    log.error(f"could not reload NVIDIA module: {identifier}")
+                    restore_failures.append(f"NVIDIA module: {identifier}")
+            restore_failures.extend(
+                self._restore_gpu_services(node, log, stopped_services)
+            )
+            # Starting the daemon can enable persistence, so restore each GPU
+            # only after the services have been restarted.
+            if nvidia_smi:
+                for gpu_uuid, enabled in persistence_modes.items():
+                    try:
+                        nvidia_smi.set_persistence_mode(gpu_uuid, enabled)
+                    except (LisaException, AssertionError) as identifier:
+                        log.error(
+                            f"could not restore persistence for {gpu_uuid}: "
+                            f"{identifier}"
+                        )
+                        restore_failures.append(f"{gpu_uuid}: {identifier}")
+            if restore_failures:
+                node.mark_dirty()
+
+        if restore_failures:
+            raise LisaException(
+                f"GPU rescind cleanup failed: {'; '.join(restore_failures)}"
+            )
+
+    def _unload_gpu_modules(self, node: Node, log: Logger) -> None:
+        try:
+            node.tools[Modprobe].remove(
+                ["nvidia_drm", "nvidia_uvm", "nvidia_modeset", "nvidia"]
+            )
+        except (LisaException, AssertionError) as identifier:
+            try:
+                holders = node.execute("fuser -v /dev/nvidia*", sudo=True, shell=True)
+                log.error(
+                    f"GPU holder diagnostics (exit code {holders.exit_code}):\n"
+                    f"{holders.stdout}\n{holders.stderr}"
+                )
+            except (LisaException, AssertionError) as diagnostics_error:
+                log.error(
+                    f"could not collect GPU holder diagnostics: {diagnostics_error}"
+                )
+            raise LisaException(
+                f"GPU rescind setup failed before PCI removal: {identifier}"
+            ) from identifier
 
     @TestCaseMetadata(
         description="""
@@ -370,17 +436,9 @@ class GpuTestSuite(TestSuite):
                     "guest kernel"
                 ).is_empty()
         finally:
-            service = node.tools[Service]
-            for name in stopped_services:
-                # Restoring must not mask the reset failure that got us here.
-                # restart_service is used because the SysV backend has no
-                # start_service, and it asserts on the exit code, so a failed
-                # restart surfaces as an AssertionError.
-                try:
-                    service.restart_service(name)
-                except (LisaException, AssertionError) as identifier:
-                    log.info(f"could not restart '{name}' after reset: {identifier}")
-                    restore_failures.append(f"{name}: {identifier}")
+            restore_failures.extend(
+                self._restore_gpu_services(node, log, stopped_services)
+            )
 
         actual_count = gpu.get_gpu_count_with_lspci()
         assert_that(actual_count).described_as(
@@ -400,20 +458,39 @@ class GpuTestSuite(TestSuite):
     def _release_gpu_holders(
         self, node: Node, log: Logger, stopped_services: List[str]
     ) -> None:
+        self._stop_gpu_services(node, log, stopped_services)
+
+        # Idle nvidia_uvm/nvidia_drm still count as clients for 'nvidia-smi -r'.
+        node.tools[Modprobe].remove(
+            ["nvidia_drm", "nvidia_uvm", "nvidia_modeset"], ignore_error=True
+        )
+
+    def _stop_gpu_services(
+        self, node: Node, log: Logger, stopped_services: List[str]
+    ) -> None:
         service = node.tools[Service]
         for name in self._gpu_holding_services:
             if not service.check_service_exists(name):
                 continue
             if not service.is_service_running(name):
                 continue
-            log.info(f"stopping '{name}' so it does not hold a GPU during reset")
-            service.stop_service(name)
+            log.info(f"stopping '{name}' so it does not hold a GPU during the test")
+            # A failed stop can still change state, so record it before stopping.
             stopped_services.append(name)
+            service.stop_service(name)
 
-        # Idle nvidia_uvm/nvidia_drm still count as clients for 'nvidia-smi -r'.
-        node.tools[Modprobe].remove(
-            ["nvidia_drm", "nvidia_uvm", "nvidia_modeset"], ignore_error=True
-        )
+    def _restore_gpu_services(
+        self, node: Node, log: Logger, stopped_services: List[str]
+    ) -> List[str]:
+        failures: List[str] = []
+        for name in stopped_services:
+            # SysV has no start_service; restart works for both service backends.
+            try:
+                node.tools[Service].restart_service(name)
+            except (LisaException, AssertionError) as identifier:
+                log.error(f"could not restart GPU service '{name}': {identifier}")
+                failures.append(f"{name}: {identifier}")
+        return failures
 
     @TestCaseMetadata(
         description="""
@@ -631,7 +708,7 @@ def __install_driver_using_sdk(node: Node, log: Logger, log_path: Path) -> None:
     try:
         from lisa.tools import LisDriver
 
-        node.tools[LisDriver]
+        _ = node.tools[LisDriver]
     except Exception as e:
         log.debug(f"LisDriver is not installed. It might not be required. {e}")
 
