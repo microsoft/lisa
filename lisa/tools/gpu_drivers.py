@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from enum import Enum
 from pathlib import PurePosixPath
 from typing import Any, List, Optional, Type
@@ -24,6 +25,7 @@ from lisa.tools.df import Df
 from lisa.tools.echo import Echo
 from lisa.tools.gpu_smi import GpuSmi
 from lisa.tools.mkdir import Mkdir
+from lisa.tools.mokutil import Mokutil
 from lisa.tools.usermod import Usermod
 from lisa.tools.whoami import Whoami
 from lisa.util import BaseClassMixin, LisaException, SkippedException
@@ -474,6 +476,10 @@ class NvidiaCudaDriver(GpuDriver):
 
     def _install_cuda_ubuntu(self) -> None:
         """Install CUDA driver on Ubuntu"""
+        if self.node.tools[Mokutil].is_secure_boot_enabled():
+            self._install_cuda_ubuntu_signed()
+            return
+
         os_info = self.node.os.information
 
         # NVIDIA only provides CUDA repos for LTS releases (even major version, XX.04)
@@ -535,6 +541,50 @@ class NvidiaCudaDriver(GpuDriver):
             self._install_cuda_debian_based(f"ubuntu{release}")
 
         self._log.info("Successfully installed CUDA driver for Ubuntu")
+
+    def _install_cuda_ubuntu_signed(self) -> None:
+        assert isinstance(self.node.os, Ubuntu), "Ubuntu installation expected"
+
+        self.node.os.install_packages("ubuntu-drivers-common")
+        drivers = self.node.execute(
+            "ubuntu-drivers list --gpgpu",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to discover Ubuntu GPU drivers",
+        )
+        kernel = self.node.tools[Uname].get_linux_information().kernel_version_raw
+        for line in drivers.stdout.splitlines():
+            match = re.match(r"^nvidia-driver-(\d+(?:-server)?(?:-open)?)(?:,|$)", line)
+            if not match:
+                continue
+
+            branch = match.group(1)
+            modules = f"linux-modules-nvidia-{branch}-{kernel}"
+            available = self.node.execute(
+                f"apt-cache show {modules}", sudo=True, no_error_log=True
+            )
+            if available.exit_code != 0 or not available.stdout.strip():
+                self._log.debug(
+                    f"No signed modules available for {modules}: "
+                    f"{available.stdout}\n{available.stderr}"
+                )
+                continue
+
+            # Preserve the kernel under test and avoid building unsigned DKMS modules.
+            self.node.os.install_packages(
+                [
+                    modules,
+                    f"nvidia-headless-no-dkms-{branch}",
+                    f"nvidia-utils-{branch.replace('-open', '')}",
+                ]
+            )
+            return
+
+        raise LisaException(
+            f"No supported signed NVIDIA modules found for running kernel {kernel}; "
+            f"Secure Boot must remain enabled. Driver discovery output: "
+            f"{drivers.stdout}\n{drivers.stderr}"
+        )
 
     def _install_cuda_debian(self) -> None:
         """Install CUDA driver on Debian"""
