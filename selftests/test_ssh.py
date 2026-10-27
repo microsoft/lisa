@@ -122,6 +122,12 @@ class SshTestCase(TestCase):
         ]
 
         def execute(command: str, **kwargs: Any) -> SimpleNamespace:
+            if command.startswith("printf '%s'"):
+                return SimpleNamespace(
+                    exit_code=0,
+                    stdout="192.0.2.10 54321 198.51.100.20 22",
+                    stderr="",
+                )
             if command.startswith("sshd -T"):
                 return SimpleNamespace(
                     exit_code=1,
@@ -150,6 +156,21 @@ class SshTestCase(TestCase):
         self.ssh.set_max_session(count=200)
 
         self.assertEqual("200", self.ssh.get("MaxSessions"))
+
+    def test_fallback_missing_max_sessions_can_be_set_explicitly(self) -> None:
+        files = {self.config_path: "#MaxSessions 10\n"}
+        self._use_fallback_config(files)
+        self.ssh.node.shell.connection_info = SimpleNamespace(username="lisa")
+
+        def insert(line: str, file: str, sudo: bool = False) -> None:
+            files[file] = line + "\n" + files[file]
+
+        self.sed.insert_line_beginning.side_effect = insert
+        self.assertEqual("", self.ssh.get("MaxSessions", connection_context=True))
+
+        self.ssh.set_max_session(count=200)
+
+        self.assertEqual("200", self.ssh.get("MaxSessions", connection_context=True))
 
     def test_get_uses_active_connection_context(self) -> None:
         self.ssh.node.shell.connection_info = SimpleNamespace(username="lisa")
@@ -223,6 +244,38 @@ class SshTestCase(TestCase):
             }
         )
         self.assertEqual("8", self.ssh.get("MaxSessions"))
+
+    def test_fallback_preserves_negated_include_patterns(self) -> None:
+        self._use_fallback_config(
+            {
+                self.config_path: "Include /etc/ssh/[!0-9]*.conf\n",
+                "/etc/ssh/limits.conf": "MaxSessions 5\n",
+                "/etc/ssh/10-limits.conf": "MaxSessions 8\n",
+            }
+        )
+
+        self.assertEqual("5", self.ssh.get("MaxSessions"))
+
+    def test_connection_context_fallback_rejects_match_blocks(self) -> None:
+        self._use_fallback_config(
+            {
+                self.config_path: (
+                    "MaxSessions 200\nMatch User restricted\nMaxSessions 5\n"
+                )
+            }
+        )
+        self.ssh.node.shell.connection_info = SimpleNamespace(username="lisa")
+        self.ssh.node.execute.side_effect = [
+            SimpleNamespace(stdout="192.0.2.10 54321 198.51.100.20 22"),
+            SimpleNamespace(
+                exit_code=1,
+                stdout="",
+                stderr="Missing privilege separation directory",
+            ),
+        ]
+
+        with self.assertRaisesRegex(LisaException, "configuration contains Match"):
+            self.ssh.get("MaxSessions", connection_context=True)
 
     def test_fallback_propagates_config_read_failure(self) -> None:
         self._use_fallback_config({self.config_path: "MaxSessions 10\n"})

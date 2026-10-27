@@ -1184,6 +1184,33 @@ class OpenVmmNodeTestCase(TestCase):
         )
         self.assertEqual(0, get_host_context(host).ssh_session_capacity)
 
+    def test_missing_host_ssh_capacity_is_set_and_verified(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        host = cast(Any, controller.host_node)
+        host.guests = [MagicMock() for _ in range(12)]
+        ssh = MagicMock()
+        ssh.get.side_effect = ["", "200"]
+        host.tools[Sshd] = ssh
+
+        controller.ensure_ssh_session_capacity()
+
+        ssh.set_max_session.assert_called_once_with(count=200)
+        self.assertEqual(200, get_host_context(host).ssh_session_capacity)
+
+    def test_malformed_host_ssh_capacity_is_rejected(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        host = cast(Any, controller.host_node)
+        host.guests = [MagicMock() for _ in range(12)]
+        ssh = MagicMock()
+        ssh.get.return_value = "unlimited"
+        host.tools[Sshd] = ssh
+
+        with self.assertRaisesRegex(LisaException, "Cannot determine host SSH"):
+            controller.ensure_ssh_session_capacity()
+
+        ssh.set_max_session.assert_not_called()
+        self.assertEqual(0, get_host_context(host).ssh_session_capacity)
+
     def test_cached_capacity_reserves_headroom_and_scales_above_default(self) -> None:
         for guest_count in (10, 200):
             with self.subTest(guest_count=guest_count):
