@@ -21,7 +21,7 @@ from lisa.environment import (
 )
 from lisa.feature import Feature
 from lisa.platform_ import Platform, load_platform
-from lisa.util import ResourceAwaitableException, plugin_manager
+from lisa.util import ResourceAwaitableException, SkippedException, plugin_manager
 from lisa.util.logger import Logger
 from selftests.test_environment import generate_runbook as generate_env_runbook
 
@@ -339,3 +339,23 @@ class PlatformTestCase(TestCase):
                 for feature in parent_capability.features
             )
         )
+
+    def test_guest_count_above_configured_is_skipped(self) -> None:
+        platform = generate_platform()
+        platform.runbook.guest_count_from_requirement = True
+        platform.runbook.guests = [None, None]
+        environment = SimpleNamespace(
+            source_test_result=SimpleNamespace(
+                runtime_data=SimpleNamespace(
+                    requirement=SimpleNamespace(
+                        environment=SimpleNamespace(nodes=[None, None, None])
+                    )
+                )
+            ),
+            capability=SimpleNamespace(nodes=[None]),
+        )
+
+        with self.assertRaisesRegex(
+            SkippedException, "test requires 3 guests, but only 2 are configured"
+        ):
+            platform._get_guest_node_count(cast(Any, environment))
