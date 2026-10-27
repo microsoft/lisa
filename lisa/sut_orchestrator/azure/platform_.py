@@ -172,6 +172,13 @@ OSDISK_SIZE_TOO_SMALL_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Accelerated networking cannot be disabled on the Ddsv5/Dadsv5 generation and
+# newer VM families (v5 and later), so a synthetic-only NIC cannot be used.
+# Azure SKU API doesn't expose this, so detect it from the family name,
+# e.g. standardDDSv5Family, StandardDpdsv7Family.
+AN_MANDATORY_FAMILY_PATTERN = re.compile(r"v(?P<version>\d+)family$", re.IGNORECASE)
+AN_MANDATORY_MIN_FAMILY_VERSION = 5
+
 VM_SIZE_FALLBACK_PATTERNS = [
     # First priority: Standard_D series with single digit
     # (excluding D1) because one core is too slow, and doesn't work in some distro
@@ -2557,7 +2564,20 @@ class AzurePlatform(Platform):
         node_space.disk.os_disk_type.add(schema.DiskType.StandardSSDLRS)
         node_space.disk.data_disk_type.add(schema.DiskType.StandardHDDLRS)
         node_space.disk.data_disk_type.add(schema.DiskType.StandardSSDLRS)
-        node_space.network_interface.data_path.add(schema.NetworkDataPath.Synthetic)
+        family_match = AN_MANDATORY_FAMILY_PATTERN.search(
+            (resource_sku.family or "").replace(" ", "")
+        )
+        if (
+            schema.NetworkDataPath.Sriov in node_space.network_interface.data_path
+            and family_match
+            and int(family_match.group("version")) >= AN_MANDATORY_MIN_FAMILY_VERSION
+        ):
+            log.debug(
+                f"VM family '{resource_sku.family}' requires accelerated networking; "
+                "synthetic networking is not supported."
+            )
+        else:
+            node_space.network_interface.data_path.add(schema.NetworkDataPath.Synthetic)
 
         return node_space
 
