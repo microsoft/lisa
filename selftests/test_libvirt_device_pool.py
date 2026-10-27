@@ -27,6 +27,8 @@ def _load_device_pool_module() -> ModuleType:
             if module_name == "libvirt":
                 module.__dict__.update(
                     {
+                        "libvirtError": type("libvirtError", (Exception,), {}),
+                        "virConnect": type("virConnect", (), {}),
                         "virDomain": type("virDomain", (), {}),
                         "virStream": type("virStream", (), {}),
                     }
@@ -558,3 +560,83 @@ class LibvirtDevicePoolTestCase(TestCase):
         self.assertEqual([], node_context.passthrough_devices)
         self.assertEqual({}, pool._allocated_device_groups)
         host_node.execute.assert_not_called()
+
+    def test_failed_domain_cleanup_retains_devices_until_retry(self) -> None:
+        device_pool_module = _load_device_pool_module()
+        platform_module = importlib.import_module(
+            "lisa.sut_orchestrator.libvirt.platform"
+        )
+        for operation in ("destroy", "undefineFlags"):
+            with self.subTest(operation=operation):
+                host_node = MagicMock()
+                host_node.execute.return_value = MagicMock(exit_code=0)
+                pool = device_pool_module.LibvirtDevicePool(host_node, MagicMock())
+                pool_type = device_pool_module.HostDevicePoolType.PCI_NIC
+                device = device_pool_module.DeviceAddressSchema(
+                    domain="0000", bus="03", slot="00", function="0"
+                )
+                pool.available_host_devices = {pool_type: {"iommu_grp_12": [device]}}
+                domain = MagicMock()
+                domain.isActive.return_value = True
+                cleanup_error = platform_module.libvirt.libvirtError(
+                    "client socket is closed"
+                )
+                getattr(domain, operation).side_effect = cleanup_error
+                node_context = device_pool_module.NodeContext(
+                    vm_name="synthetic-vm",
+                    domain=domain,
+                    passthrough_devices=[
+                        device_pool_module.DevicePassthroughContext(
+                            pool_type=pool_type,
+                            device_list=pool.request_devices(pool_type, 1),
+                        )
+                    ],
+                )
+                cleanup_command = "ip route del 192.0.2.10/32"
+                pool._management_route_cleanup_commands = [cleanup_command]
+                platform = platform_module.BaseLibvirtPlatform(MagicMock())
+                platform.device_pool = pool
+                platform.libvirt_conn = MagicMock()
+                platform.libvirt_conn.lookupByName.return_value = domain
+
+                with patch.object(
+                    platform_module, "get_node_context", return_value=node_context
+                ), patch.object(platform_module, "Timer") as watchdog, patch.object(
+                    platform, "_get_domain_undefine_flags", return_value=0
+                ), patch.object(
+                    platform, "_reopen_libvirt_connection"
+                ) as reconnect:
+                    with self.assertRaises(
+                        platform_module.libvirt.libvirtError
+                    ) as caught:
+                        platform._delete_node(MagicMock(), MagicMock())
+
+                    self.assertIs(cleanup_error, caught.exception)
+                    reconnect.assert_called_once()
+                    self.assertEqual(2, getattr(domain, operation).call_count)
+                    watchdog.return_value.cancel.assert_called_once()
+                    self.assertIs(domain, node_context.domain)
+                    self.assertTrue(node_context.passthrough_devices)
+                    with self.assertRaises(
+                        device_pool_module.ResourceAwaitableException
+                    ):
+                        pool.request_devices(pool_type, 1)
+                    pool.cleanup()
+                    host_node.execute.assert_not_called()
+                    self.assertEqual(
+                        [cleanup_command], pool._management_route_cleanup_commands
+                    )
+
+                    getattr(domain, operation).side_effect = None
+                    domain.isActive.return_value = operation == "destroy"
+                    platform._delete_node(MagicMock(), MagicMock())
+
+                self.assertIsNone(node_context.domain)
+                self.assertEqual([], node_context.passthrough_devices)
+                self.assertEqual(
+                    {"iommu_grp_12": [device]}, pool.available_host_devices[pool_type]
+                )
+                self.assertEqual({}, pool._allocated_device_groups)
+                pool.cleanup()
+                self.assertEqual([], pool._management_route_cleanup_commands)
+                self.assertEqual([device], pool.request_devices(pool_type, 1))

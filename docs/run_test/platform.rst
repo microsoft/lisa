@@ -378,6 +378,16 @@ For CBL-Mariner:
 
       ./lisa.sh  -r ./microsoft/runbook/qemu/CBL-Mariner.yml -v "admin_private_key_file:<private key file>" -v "qcow2:<qcow2 file>"
 
+Libvirt passthrough cleanup
+--------------------------
+
+Libvirt releases passthrough allocations only after domain cleanup succeeds.
+If stopping or undefining a domain fails, LISA reports the error and retains the
+domain context, allocated devices, and any temporary SSH peer route. After
+restoring host connectivity or resolving the libvirt error, retry cleanup of the
+same node before allocating those devices again. Cleanup must not mark devices
+available while their physical ownership is uncertain.
+
 OpenVMM NIC passthrough
 ----------------------
 

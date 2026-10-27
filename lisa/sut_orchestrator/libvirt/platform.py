@@ -776,6 +776,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             self._stop_domain(node_context, log)
         except libvirt.libvirtError as ex:
             log.info(f"VM stop failed for {node_context.vm_name}. {ex}")
+            raise
 
     def _undefine_domain(self, node_context: NodeContext, log: Logger) -> None:
         """Undefine the VM domain, reconnecting if the socket was closed."""
@@ -802,6 +803,7 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             )
         except libvirt.libvirtError as ex:
             log.info(f"VM delete failed for {node_context.vm_name}. {ex}")
+            raise
 
     def _delete_node(self, node: Node, log: Logger) -> None:
         node_context = get_node_context(node)
