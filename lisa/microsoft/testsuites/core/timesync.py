@@ -407,7 +407,7 @@ class TimeSync(TestSuite):
         priority=3,
         timeout=7200,
         requirement=simple_requirement(
-            unsupported_os=[BSD, Windows],
+            supported_os=[Ubuntu],
         ),
         tags=["ai-generated"],
         maturity="preview",
