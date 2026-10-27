@@ -795,8 +795,9 @@ class AzurePlatform(Platform):
             log_file_name = saved_path / f"{vm.name}_serial_console.log"
             log_file_name.write_bytes(log_response_content)
             if check_serial_console is True:
-                check_panic(log_response_content.decode("utf-8"), "provision", log)
-                check_rootfs_failure(log_response_content.decode("utf-8"), log)
+                console_log = log_response_content.decode("utf-8", errors="replace")
+                check_panic(console_log, "provision", log)
+                check_rootfs_failure(console_log, log)
 
     def _get_node_information(self, node: Node) -> Dict[str, str]:  # noqa: C901
         platform_runbook = cast(schema.Platform, self.runbook)
