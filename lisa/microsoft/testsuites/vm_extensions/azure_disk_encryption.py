@@ -79,7 +79,9 @@ class AzureDiskEncryption(TestSuite):
             )
         if not self._is_supported_linux_distro(node):
             raise SkippedException(UnsupportedDistroException(node.os))
-        assert isinstance(node.os, Posix)
+        assert isinstance(
+            node.os, Posix
+        ), "Expected supported ADE distribution to use a POSIX operating system."
         needed_packages = ["python-parted", "python3-parted"]
         for package in needed_packages:
             if node.os.is_package_in_repo(package):
