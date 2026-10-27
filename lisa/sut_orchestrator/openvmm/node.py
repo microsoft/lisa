@@ -261,7 +261,7 @@ class OpenVmmController:
             if self._host_context.ssh_session_capacity >= required_capacity:
                 return
             ssh = self.host_node.tools[Sshd]
-            configured = ssh.get("MaxSessions").strip()
+            configured = ssh.get("MaxSessions", connection_context=True).strip()
             if not configured.isdecimal():
                 raise LisaException(
                     f"Cannot determine host SSH MaxSessions: '{configured}'"
@@ -273,13 +273,15 @@ class OpenVmmController:
             )
             if capacity < required_capacity:
                 ssh.set_max_session(count=max(200, required_capacity))
-                configured = ssh.get("MaxSessions").strip()
+                configured = ssh.get("MaxSessions", connection_context=True).strip()
                 if not configured.isdecimal() or int(configured) < required_capacity:
                     raise LisaException(
-                        "Host SSH MaxSessions did not increase enough for "
+                        "Host SSH MaxSessions did not increase enough for the "
+                        "LISA SSH connection: "
                         f"{guest_count} OpenVMM guests and "
                         f"{OPENVMM_SSH_SESSION_HEADROOM} host sessions "
-                        f"(required: {required_capacity}): '{configured}'"
+                        f"(required: {required_capacity}); check matching sshd "
+                        f"configuration rules. Effective value: '{configured}'"
                     )
                 capacity = int(configured)
                 self._log.info(
