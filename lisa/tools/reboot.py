@@ -5,7 +5,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from time import sleep
-from typing import Any, Optional, Type, cast
+from typing import Any, List, Optional, Type, cast
 
 from func_timeout import FunctionTimedOut, func_set_timeout
 
@@ -19,6 +19,7 @@ from lisa.util import (
     constants,
 )
 from lisa.util.perf_timer import create_timer
+from lisa.util.process import ExecutableResult
 from lisa.util.shell import wait_tcp_port_ready
 
 from .date import Date
@@ -98,13 +99,66 @@ class Reboot(Tool):
             f"Last error: {last_error}"
         )
 
-    def _run_reboot_command(self) -> None:
+    def _run_reboot_command(self) -> ExecutableResult:
         command_result = self.node.execute(
             "command -v reboot", shell=True, sudo=True, no_info_log=True
         )
         if command_result.exit_code == 0:
             self._command = command_result.stdout.strip()
-        self.run(force_run=True, sudo=True, timeout=10)
+        return self.run(force_run=True, sudo=True, timeout=10)
+
+    def _request_reboot(self, time_out: float) -> Optional[str]:
+        timer = create_timer()
+        systemctl_result = self.node.execute(
+            "command -v systemctl", shell=True, sudo=True, no_info_log=True
+        )
+        while True:
+            failures: List[str] = []
+            if systemctl_result.exit_code == 0:
+                result = self.node.execute(
+                    "systemctl reboot -i", shell=True, sudo=True, timeout=10
+                )
+                # SSH can close before a successful reboot returns an exit status.
+                if (
+                    result.exit_code is None
+                    or result.exit_code <= 0
+                    or result.is_timeout
+                ):
+                    return None
+                failures.append(
+                    f"systemctl reboot failed with exit code {result.exit_code}; "
+                    f"stdout: {result.stdout}; stderr: {result.stderr}"
+                )
+                self._log.debug(f"{failures[-1]}; falling back to reboot.")
+
+            result = self._run_reboot_command()
+            if result.exit_code is None or result.exit_code <= 0 or result.is_timeout:
+                return None
+            failures.append(
+                f"{self.command} failed with exit code {result.exit_code}; "
+                f"stdout: {result.stdout}; stderr: {result.stderr}"
+            )
+            failure = "; ".join(failures)
+            output = f"{result.stdout}\n{result.stderr}".lower()
+            if not any(
+                message in output
+                for message in (
+                    "operation inhibited",
+                    "please retry operation after closing inhibitors",
+                )
+            ):
+                return f"Reboot request failed: {failure}"
+
+            remaining = time_out - timer.elapsed(False)
+            if remaining > 0:
+                delay = min(5, remaining)
+                self._log.info(
+                    f"Reboot inhibited; retrying in {delay:.1f} seconds. {failure}"
+                )
+                sleep(delay)
+                if timer.elapsed(False) < time_out:
+                    continue
+            return f"Timed out waiting for reboot inhibitors to clear: {failure}"
 
     def reboot_and_check_panic(self, log_path: Path) -> None:
         try:
@@ -147,33 +201,18 @@ class Reboot(Tool):
             current_delta = date.current().replace(tzinfo=None) - current_boot_time
 
         self._log.debug(f"rebooting with boot time: {last_boot_time}")
+        reboot_failure: Optional[str] = None
         try:
             # Reboot is not reliable, and sometime stuck,
             # like SUSE sles-15-sp1-sapcal gen1 2020.10.23.
             # In this case, use timeout to prevent hanging.
-            systemctl_result = self.node.execute(
-                "command -v systemctl", shell=True, sudo=True, no_info_log=True
-            )
-            if systemctl_result.exit_code == 0:
-                reboot_result = self.node.execute(
-                    "systemctl reboot -i",
-                    shell=True,
-                    sudo=True,
-                    timeout=10,
-                )
-                if reboot_result.exit_code != 0:
-                    self._log.debug(
-                        "systemctl reboot failed with exit code "
-                        f"{reboot_result.exit_code}; falling back to reboot. "
-                        f"stdout: {reboot_result.stdout}, "
-                        f"stderr: {reboot_result.stderr}"
-                    )
-                    self._run_reboot_command()
-            else:
-                self._run_reboot_command()
+            reboot_failure = self._request_reboot(time_out - timer.elapsed(False))
         except Exception as e:
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {e}")
+
+        if reboot_failure is not None:
+            raise LisaException(reboot_failure)
 
         connected: bool = False
         # The previous steps may take longer time than time out. After that, it
