@@ -75,7 +75,8 @@ Cloud Hypervisor binary installer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``cloudhypervisor_installer`` transformer's ``binary`` installer reads
-the upstream GitHub release metadata. Set ``installer.ref`` to a release tag
+the upstream GitHub release metadata through LISA's ``Curl`` tool, which installs
+``curl`` on the host if needed. Set ``installer.ref`` to a release tag
 to pin the version; an omitted ref resolves the latest release once.
 The host architecture determines which exact binary asset names are eligible:
 

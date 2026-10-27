@@ -8,13 +8,15 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from lisa.base_tools import Uname
+from lisa.executable import Tools
 from lisa.operating_system import CpuArchitecture, Ubuntu
 from lisa.sut_orchestrator.libvirt.transformers import (
     BaseInstallerSchema,
     CloudHypervisorBinaryInstaller,
 )
-from lisa.tools import Ln, Wget
+from lisa.tools import Curl, Ln, Wget
 from lisa.util import LisaException
+from lisa.util.logger import get_logger
 
 
 class CloudHypervisorBinaryInstallerTestCase(TestCase):
@@ -78,17 +80,56 @@ class CloudHypervisorBinaryInstallerTestCase(TestCase):
 
         installer.install()
 
-        metadata_calls = [
-            call
-            for call in node.execute.call_args_list
-            if "api.github.com" in call.args[0]
-        ]
-        self.assertEqual(1, len(metadata_calls))
-        self.assertIn("/releases/latest", metadata_calls[0].args[0])
+        node.tools[Curl].run.assert_called_once_with(
+            "-fsSL https://api.github.com/repos/cloud-hypervisor/"
+            "cloud-hypervisor/releases/latest",
+            shell=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to query cloud-hypervisor release 'latest'."
+            ),
+        )
         self.assertIn(
             "/releases/download/v53.0/cloud-hypervisor-static",
             wget.get.call_args.kwargs["url"],
         )
+
+    def test_installs_curl_before_querying_a_pinned_release(self) -> None:
+        metadata = self._release("v53.0", ["cloud-hypervisor-static"])
+        installer, node, _ = self._create_installer(
+            "v53.0", CpuArchitecture.X64, metadata
+        )
+        node.log = get_logger("test")
+        node.is_posix = True
+        node.tools = Tools(node)
+        node.execute.side_effect = LisaException("curl: command not found")
+
+        with patch.object(node.os, "install_packages") as install_packages:
+
+            def query_release(*_args: Any, **_kwargs: Any) -> SimpleNamespace:
+                install_packages.assert_called_once_with("curl")
+                return SimpleNamespace(stdout=json.dumps(metadata), exit_code=0)
+
+            with patch.object(
+                Curl, "_check_exists", side_effect=lambda: install_packages.called
+            ), patch.object(Curl, "run", side_effect=query_release) as query:
+                self.assertEqual(
+                    ("v53.0", ["cloud-hypervisor-static"]),
+                    installer._get_release(),
+                )
+
+                query.assert_called_once_with(
+                    "-fsSL https://api.github.com/repos/cloud-hypervisor/"
+                    "cloud-hypervisor/releases/tags/v53.0",
+                    shell=True,
+                    force_run=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "Failed to query cloud-hypervisor release 'v53.0'."
+                    ),
+                )
+        node.execute.assert_not_called()
 
     def test_missing_compatible_binary_does_not_install_other_assets(self) -> None:
         cases: List[Tuple[CpuArchitecture, List[str]]] = [
@@ -128,13 +169,14 @@ class CloudHypervisorBinaryInstallerTestCase(TestCase):
             "v53.0", CpuArchitecture.X64, self._release("v53.0", [])
         )
         failure = LisaException("curl: HTTP 403 rate limit exceeded")
-        node.execute.side_effect = failure
+        node.tools[Curl].run.side_effect = failure
 
         with self.assertRaises(LisaException) as raised:
             installer.install()
 
         self.assertIs(failure, raised.exception)
-        node.execute.assert_called_once()
+        node.tools[Curl].run.assert_called_once()
+        node.execute.assert_not_called()
         self._assert_not_installed(node, wget)
 
     def test_invalid_metadata_fails_before_download(self) -> None:
@@ -158,8 +200,7 @@ class CloudHypervisorBinaryInstallerTestCase(TestCase):
 
     def test_malformed_json_preserves_the_parse_error(self) -> None:
         installer, node, wget = self._create_installer("v53.0", CpuArchitecture.X64, {})
-        node.execute.side_effect = None
-        node.execute.return_value = SimpleNamespace(
+        node.tools[Curl].run.return_value = SimpleNamespace(
             stdout="<html>upstream unavailable</html>", exit_code=0
         )
 
@@ -205,19 +246,14 @@ class CloudHypervisorBinaryInstallerTestCase(TestCase):
         uname.get_machine_architecture.return_value = architecture
         wget = MagicMock()
         wget.get.return_value = "/work/cloud-hypervisor"
-        node.tools = {Uname: uname, Wget: wget, Ln: MagicMock()}
-
-        def execute(command: str, **kwargs: Any) -> SimpleNamespace:
-            return SimpleNamespace(
-                stdout=(
-                    json.dumps(metadata)
-                    if command.startswith("curl ")
-                    else "cloud-hypervisor v53.0"
-                ),
-                exit_code=0,
-            )
-
-        node.execute.side_effect = execute
+        curl = MagicMock()
+        curl.run.return_value = SimpleNamespace(
+            stdout=json.dumps(metadata), exit_code=0
+        )
+        node.tools = {Uname: uname, Wget: wget, Ln: MagicMock(), Curl: curl}
+        node.execute.return_value = SimpleNamespace(
+            stdout="cloud-hypervisor v53.0", exit_code=0
+        )
         installer = CloudHypervisorBinaryInstaller(
             runbook=BaseInstallerSchema(type="binary", ref=ref),
             node=node,

@@ -15,7 +15,7 @@ from lisa import schema
 from lisa.base_tools import Uname
 from lisa.node import Node, quick_connect
 from lisa.operating_system import CBLMariner, CpuArchitecture, Linux, Ubuntu
-from lisa.tools import Git, Ln, Sed, Service, Usermod, Wget, Whoami
+from lisa.tools import Curl, Git, Ln, Sed, Service, Usermod, Wget, Whoami
 from lisa.transformer import Transformer
 from lisa.util import (
     LisaException,
@@ -674,9 +674,10 @@ class CloudHypervisorBinaryInstaller(CloudHypervisorInstaller):
             "https://api.github.com/repos/cloud-hypervisor/"
             f"cloud-hypervisor/releases/{release_path}"
         )
-        result = self._node.execute(
-            f"curl -fsSL {release_url}",
+        result = self._node.tools[Curl].run(
+            f"-fsSL {release_url}",
             shell=True,
+            force_run=True,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 f"Failed to query cloud-hypervisor release '{ref or 'latest'}'."
