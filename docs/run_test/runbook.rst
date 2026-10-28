@@ -142,6 +142,37 @@ Below section is for running cases on Azure platform, it specifies:
            Environment: Testing
            Project: LISA
 
+Configure Secure Boot for Azure confidential VMs
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The Azure ``Security_Profile`` feature accepts ``secure_boot_enabled`` for
+``cvm`` and ``stateless`` profiles. Omit it to preserve the existing default
+of enabled Secure Boot, or explicitly set it to ``false`` when the guest image
+requires Secure Boot to be disabled. Other security profiles retain their
+existing Secure Boot behavior.
+
+.. code:: yaml
+
+   platform:
+     - type: azure
+       azure:
+         subscription_id: $(subscription_id)
+       requirement:
+         features:
+           - type: Security_Profile
+             security_profile: cvm
+             secure_boot_enabled: false
+             encrypt_disk: false
+
+This example retains the confidential VM security type and vTPM, and uses
+``VMGuestStateOnly`` for a gallery or marketplace image. It disables
+confidential OS-disk encryption, not Azure managed-disk encryption at rest.
+Use ``encrypt_disk: true`` and, when needed, ``disk_encryption_set_id`` for
+confidential OS-disk encryption; the Secure Boot setting is independent.
+Confirm that the image and target VM size support the selected combination.
+Explicit, conflicting Secure Boot settings in feature requirements are
+rejected rather than silently overridden.
+
 Select and set test cases
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
