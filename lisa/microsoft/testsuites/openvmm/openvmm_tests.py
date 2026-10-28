@@ -101,7 +101,9 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         PCAT firmware discovery depends on Windows or WSL-hosted firmware paths.
         Set openvmm_vmm_tests_profile=linux-intel-mshv for upstream CI coverage
         across all guest operating systems, release builds and the CI nextest
-        profile. This uses locally built binaries, not upstream CI artifacts.
+        profile. This builds and runs in an Ubuntu container on the MSHV host,
+        including ARM64 nested-test and Windows guest build prerequisites,
+        rather than downloading upstream CI test binaries.
         """,
         priority=2,
         # The full upstream vmm_tests suite can take up to 12 hours on slower

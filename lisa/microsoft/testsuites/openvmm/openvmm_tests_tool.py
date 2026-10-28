@@ -4,6 +4,7 @@
 import hashlib
 import re
 import shlex
+import uuid
 import xml.etree.ElementTree as ETree
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
@@ -11,7 +12,7 @@ from typing import Any, Dict, List, Optional, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Posix
-from lisa.tools import Cargo, Curl, Git, Ls
+from lisa.tools import Cargo, Curl, Docker, Git, Ls
 from lisa.util import LisaException, UnsupportedDistroException
 
 
@@ -63,6 +64,7 @@ class OpenVmmTests(Tool):
     repo_url = DEFAULT_REPO
     auth_token = ""
     command_group = ""
+    _container_name = ""
 
     _distro_package_mapping = {
         CBLMariner.__name__: [
@@ -138,58 +140,73 @@ class OpenVmmTests(Tool):
         skip_vhd_prompt: bool = True,
         ci_profile: bool = False,
     ) -> _JUnitSummary:
-        cargo = self.node.tools[Cargo]
-        env = self._prepare_repo(log_path, ref)
-        output_dir = self._artifact_root / "vmm-tests-run"
-        self.node.execute(
-            (
-                f"rm -rf {shlex.quote(str(output_dir))} && "
-                f"mkdir -p {shlex.quote(str(output_dir))}"
-            ),
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "failed to prepare OpenVMM vmm-tests output directory"
-            ),
-        )
+        try:
+            env = self._prepare_repo(log_path, ref, ci_profile=ci_profile)
+            output_dir = self._artifact_root / "vmm-tests-run"
+            self.node.execute(
+                (
+                    f"rm -rf {shlex.quote(str(output_dir))} && "
+                    f"mkdir -p {shlex.quote(str(output_dir))}"
+                ),
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to prepare OpenVMM vmm-tests output directory"
+                ),
+            )
 
-        command = [
-            cargo.command,
-            "xflowey",
-            "vmm-tests-run",
-            "--target",
-            "linux-x64",
-            "--dir",
-            str(output_dir),
-        ]
-        if install_missing_deps:
-            command.append("--install-missing-deps")
-        if skip_vhd_prompt:
-            command.append("--skip-vhd-prompt")
-        if release:
-            command.append("--release")
-        if ci_profile:
-            command.extend(["--ci-profile", "--no-reuse-prepped-vhds"])
-        if test_filter:
-            command.extend(["--filter", test_filter])
+            command = [
+                "cargo" if ci_profile else self.node.tools[Cargo].command,
+                "xflowey",
+                "vmm-tests-run",
+                "--target",
+                "linux-x64",
+                "--dir",
+                str(output_dir),
+            ]
+            if install_missing_deps:
+                command.append("--install-missing-deps")
+            if skip_vhd_prompt:
+                command.append("--skip-vhd-prompt")
+            if release:
+                command.append("--release")
+            if ci_profile:
+                command.extend(["--ci-profile", "--no-reuse-prepped-vhds"])
+            if test_filter:
+                command.extend(["--filter", test_filter])
 
-        wrapped_command = self._wrap_command_for_group(shlex.join(command))
+            wrapped_command = shlex.join(command)
+            if not ci_profile:
+                wrapped_command = self._wrap_command_for_group(wrapped_command)
+            self._run_logged_command(
+                name="openvmm_vmm_tests",
+                command=wrapped_command,
+                log_path=log_path,
+                timeout=self.VMM_TIMEOUT,
+                update_envs=env,
+            )
 
-        self._run_logged_command(
-            name="openvmm_vmm_tests",
-            command=wrapped_command,
-            log_path=log_path,
-            timeout=self.VMM_TIMEOUT,
-            update_envs=env,
-        )
-
-        local_junit = log_path / "openvmm_vmm_tests.junit.xml"
-        self._copy_back_if_exists(output_dir / "junit.xml", local_junit)
-        return self._check_vmm_tests_results(
-            name="openvmm_vmm_tests",
-            log_file=log_path / "openvmm_vmm_tests.log",
-            junit_file=local_junit,
-        )
+            local_junit = log_path / "openvmm_vmm_tests.junit.xml"
+            self._copy_back_if_exists(output_dir / "junit.xml", local_junit)
+            return self._check_vmm_tests_results(
+                name="openvmm_vmm_tests",
+                log_file=log_path / "openvmm_vmm_tests.log",
+                junit_file=local_junit,
+            )
+        finally:
+            if self._container_name:
+                container_name = self._container_name
+                self._container_name = ""
+                self._repo_prepared = False
+                self.node.tools[Docker].run(
+                    f"rm --force {shlex.quote(container_name)}",
+                    sudo=True,
+                    force_run=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "failed to remove the OpenVMM MSHV test container"
+                    ),
+                )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._set_repo_paths()
@@ -236,7 +253,9 @@ class OpenVmmTests(Tool):
 
         return self.node.tools[Ls].path_exists(str(self.repo_root))
 
-    def _prepare_repo(self, log_path: Path, ref: str) -> Dict[str, str]:
+    def _prepare_repo(
+        self, log_path: Path, ref: str, ci_profile: bool = False
+    ) -> Dict[str, str]:
         git = self.node.tools[Git]
         if not self._check_exists() and not self._install():
             raise LisaException(
@@ -244,8 +263,7 @@ class OpenVmmTests(Tool):
                 f"{self.repo_url}"
             )
 
-        cargo_env = self._get_cargo_environment()
-
+        cargo_env = {} if ci_profile else self._get_cargo_environment()
         if ref and self._prepared_ref != ref:
             git.checkout(ref, self.repo_root)
             self.node.execute(
@@ -266,18 +284,21 @@ class OpenVmmTests(Tool):
             f"requested ref: {ref or '<default>'}, HEAD: {openvmm_commit}"
         )
 
+        if ci_profile:
+            self._prepare_ci_container(log_path)
+
         if not self._repo_prepared:
-            restore_command = shlex.join(
-                [
-                    self.node.tools[Cargo].command,
-                    "xflowey",
-                    "restore-packages",
-                    "--no-compat-igvm",
-                ]
-            )
+            restore_args = [
+                "cargo" if ci_profile else self.node.tools[Cargo].command,
+                "xflowey",
+                "restore-packages",
+                "--no-compat-igvm",
+            ]
+            if ci_profile:
+                restore_args.extend(["x64", "aarch64"])
             self._run_logged_command(
                 name="openvmm_restore_packages",
-                command=restore_command,
+                command=shlex.join(restore_args),
                 log_path=log_path,
                 timeout=self.RESTORE_TIMEOUT,
                 update_envs=cargo_env,
@@ -288,6 +309,95 @@ class OpenVmmTests(Tool):
         self._ensure_cargo_nextest(log_path, cargo_env)
 
         return cargo_env
+
+    def _prepare_ci_container(self, log_path: Path) -> None:
+        docker = self.node.tools[Docker]
+        identity = self.node.execute(
+            "id -u && id -g", shell=True, expected_exit_code=0
+        ).stdout.split()
+        if len(identity) != 2 or not all(value.isdecimal() for value in identity):
+            raise LisaException("failed to determine the MSHV checkout owner's UID/GID")
+        host_uid, host_gid = identity
+        node_os = cast(Posix, self.node.os)
+        node_os.install_packages("qemu-user-static-aarch64")
+        # Flowey executes nested ARM64 discovery binaries directly, not via Cargo.
+        self.node.execute(
+            "systemctl restart systemd-binfmt && "
+            "grep -q '^enabled$' /proc/sys/fs/binfmt_misc/qemu-aarch64 && "
+            "grep -q '^flags:.*F' /proc/sys/fs/binfmt_misc/qemu-aarch64",
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "ARM64 binfmt registration with a fixed interpreter is required"
+            ),
+        )
+        build_dir = self._artifact_root / "container-build"
+        self.node.execute(
+            f"mkdir -p {shlex.quote(str(build_dir))}",
+            shell=True,
+            expected_exit_code=0,
+        )
+        self.node.shell.copy(
+            Path(__file__).with_name("mshv.Dockerfile"), build_dir / "Dockerfile"
+        )
+        image_name = f"lisa-openvmm-mshv:{uuid.uuid4().hex}"
+        self._run_logged_command(
+            name="openvmm_build_container",
+            command=(
+                f"{docker.command} build --pull "
+                f"--build-arg HOST_UID={host_uid} --build-arg HOST_GID={host_gid} "
+                f"--tag {image_name} {shlex.quote(str(build_dir))}"
+            ),
+            log_path=log_path,
+            timeout=self.RESTORE_TIMEOUT,
+            update_envs={},
+            sudo=True,
+        )
+        container_name = f"lisa-openvmm-{uuid.uuid4().hex}"
+        # io_uring and AF_VSOCK are needed by OpenVMM but blocked by Docker seccomp.
+        docker.run(
+            f"run --detach --rm --init --name {container_name} "
+            "--device /dev/mshv --device /dev/vhost-vsock "
+            '--group-add "$(stat -c %g /dev/mshv)" '
+            '--group-add "$(stat -c %g /dev/vhost-vsock)" '
+            "--security-opt seccomp=unconfined "
+            f"--volume {shlex.quote(f'{self.repo_root}:{self.repo_root}')} "
+            f"--workdir {shlex.quote(str(self.repo_root))} "
+            f"{image_name} sleep infinity",
+            shell=True,
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failed to start MSHV test container",
+        )
+        self._container_name = container_name
+        self._repo_prepared = False
+        self.node.execute(
+            self._wrap_container_command(
+                "test -r /dev/mshv && test -w /dev/mshv && "
+                "test -r /dev/vhost-vsock && test -w /dev/vhost-vsock && "
+                "rustup update stable && "
+                "rustup target add x86_64-unknown-linux-musl "
+                "aarch64-unknown-linux-musl x86_64-pc-windows-gnu && "
+                "rustup component add rust-src"
+            ),
+            sudo=True,
+            shell=True,
+            timeout=self.RESTORE_TIMEOUT,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to prepare MSHV container devices or Rust cross targets"
+            ),
+        )
+
+    def _wrap_container_command(self, command: str) -> str:
+        if not self._container_name:
+            return command
+        return (
+            f"{self.node.tools[Docker].command} exec "
+            f"{shlex.quote(self._container_name)} bash -c {shlex.quote(command)}"
+        )
 
     def _get_cargo_environment(self) -> Dict[str, str]:
         cargo = self.node.tools[Cargo]
@@ -373,7 +483,9 @@ class OpenVmmTests(Tool):
         timeout: int,
         update_envs: Dict[str, str],
         artifact_dir: Optional[PurePath] = None,
+        sudo: bool = False,
     ) -> None:
+        command = self._wrap_container_command(command)
         remote_log = self._artifact_root / f"{name}.log"
         command_result = self.node.execute(
             (
@@ -384,6 +496,7 @@ class OpenVmmTests(Tool):
                 )
             ),
             shell=True,
+            sudo=sudo or bool(self._container_name),
             cwd=self.repo_root,
             timeout=timeout,
             update_envs=update_envs,
@@ -439,7 +552,7 @@ class OpenVmmTests(Tool):
         )
         download_url = f"{release_url}/{archive_name}"
         sha256_url = f"{release_url}/{sha256_name}"
-        curl_command = self.node.tools[Curl].command
+        curl_command = "curl" if self._container_name else self.node.tools[Curl].command
         install_command = (
             f"rm -rf {shlex.quote(str(install_dir))} && "
             f"mkdir -p {shlex.quote(str(install_dir))} ~/.cargo/bin && "
@@ -496,8 +609,9 @@ class OpenVmmTests(Tool):
 
     def _has_cargo_nextest(self, update_envs: Dict[str, str], version: str) -> bool:
         result = self.node.execute(
-            "cargo nextest --version",
+            self._wrap_container_command("cargo nextest --version"),
             shell=True,
+            sudo=bool(self._container_name),
             cwd=self.repo_root,
             update_envs=update_envs,
             expected_exit_code=None,
