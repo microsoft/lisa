@@ -183,13 +183,11 @@ class SshTestCase(TestCase):
             SimpleNamespace(exit_code=0, stdout="maxsessions 12\n", stderr=""),
         ]
 
-        self.assertEqual(
-            "12", self.ssh.get("MaxSessions", connection_context=True)
-        )
+        self.assertEqual("12", self.ssh.get("MaxSessions", connection_context=True))
 
         self.ssh.node.execute.assert_has_calls(
             [
-                call("printf '%s' \"${SSH_CONNECTION:-}\""),
+                call("printf '%s' \"${SSH_CONNECTION:-}\"", shell=True),
                 call(
                     "sshd -T -C "
                     "user=lisa,addr=192.0.2.10,laddr=198.51.100.20,lport=22",

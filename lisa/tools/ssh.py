@@ -3,11 +3,12 @@
 import re
 import shlex
 from pathlib import PurePosixPath
-from typing import Iterator, List
+from typing import Iterator, List, cast
 
 from lisa.base_tools import Cat, Sed, Service
 from lisa.executable import Tool
 from lisa.util import LisaException, find_patterns_groups_in_lines
+from lisa.util.shell import SshShell
 
 from .echo import Echo
 from .find import Find
@@ -114,7 +115,7 @@ class Ssh(Tool):
             connection = self.node.execute(
                 "printf '%s' \"${SSH_CONNECTION:-}\"", shell=True
             ).stdout.split()
-            connection_info = self.node.shell.connection_info
+            connection_info = cast(SshShell, self.node.shell).connection_info
             username = connection_info.username
             if len(connection) != 4 or not username:
                 raise LisaException(
