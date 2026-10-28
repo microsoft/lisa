@@ -47,6 +47,7 @@ from azure.mgmt.serialconsole import MicrosoftSerialConsoleClient
 from azure.mgmt.serialconsole.models import SerialPort, SerialPortState
 from azure.mgmt.serialconsole.operations import SerialPortsOperations
 from dataclasses_json import dataclass_json
+from marshmallow import fields
 from retry import retry
 
 from lisa import Logger, features, schema, search_space
@@ -2806,6 +2807,10 @@ class Hibernation(AzureFeatureMixin, features.Hibernation):
 @dataclass_json()
 @dataclass()
 class SecurityProfileSettings(features.SecurityProfileSettings):
+    secure_boot_enabled: Optional[bool] = field(
+        default=None,
+        metadata=field_metadata(fields.Boolean, required=False, allow_none=True),
+    )
     disk_encryption_set_id: str = field(
         default="",
         metadata=field_metadata(
@@ -2819,8 +2824,23 @@ class SecurityProfileSettings(features.SecurityProfileSettings):
     def _get_key(self) -> str:
         return (
             f"{self.type}/{self.security_profile}/"
-            f"{self.encrypt_disk}/{self.disk_encryption_set_id}"
+            f"{self.encrypt_disk}/{self.disk_encryption_set_id}/"
+            f"{self.secure_boot_enabled}"
         )
+
+    def check(self, capability: Any) -> search_space.ResultReason:
+        result = super().check(capability)
+        if (
+            self.secure_boot_enabled is not None
+            and capability.secure_boot_enabled is not None
+            and self.secure_boot_enabled != capability.secure_boot_enabled
+        ):
+            result.add_reason(
+                "Conflicting Secure Boot settings. Use the same secure_boot_enabled "
+                "value in the test and runbook requirements.",
+                "secure_boot_enabled",
+            )
+        return result
 
     def _call_requirement_method(
         self, method: RequirementMethod, capability: Any
@@ -2831,6 +2851,11 @@ class SecurityProfileSettings(features.SecurityProfileSettings):
         value = SecurityProfileSettings()
         value.security_profile = super_value.security_profile
         value.encrypt_disk = super_value.encrypt_disk
+        value.secure_boot_enabled = (
+            self.secure_boot_enabled
+            if self.secure_boot_enabled is not None
+            else capability.secure_boot_enabled
+        )
 
         if self.disk_encryption_set_id:
             value.disk_encryption_set_id = self.disk_encryption_set_id
@@ -2952,13 +2977,17 @@ class SecurityProfile(AzureFeatureMixin, features.SecurityProfile):
                 node_parameters.security_profile["security_type"] = "TrustedLaunch"
                 node_parameters.security_profile["encryption_type"] = "TrustedLaunch"
             elif SecurityProfileType.Stateless == settings.security_profile:
-                node_parameters.security_profile["secure_boot"] = True
+                node_parameters.security_profile["secure_boot"] = (
+                    settings.secure_boot_enabled is not False
+                )
                 node_parameters.security_profile["security_type"] = "ConfidentialVM"
                 node_parameters.security_profile["encryption_type"] = (
                     "ConfidentialVM_NonPersistedTPM" if is_vhd else "NonPersistedTPM"
                 )
             elif SecurityProfileType.CVM == settings.security_profile:
-                node_parameters.security_profile["secure_boot"] = True
+                node_parameters.security_profile["secure_boot"] = (
+                    settings.secure_boot_enabled is not False
+                )
                 node_parameters.security_profile["security_type"] = "ConfidentialVM"
                 if settings.encrypt_disk:
                     if settings.disk_encryption_set_id:
