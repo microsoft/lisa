@@ -167,10 +167,9 @@ class AziHsm(TestSuite):
         if repo_already_added:
             return
 
-        # Mark the node dirty before mutating it so that a partial failure
-        # here doesn't leave a modified environment eligible for reuse.
-        node.mark_dirty()
-
+        # Adding a repository definition is additive and idempotent - it
+        # doesn't need to be undone for the environment to remain reusable
+        # by later test cases.
         log.info("Adding PMC testing repository")
         if isinstance(node.os, Ubuntu):
             node.os.add_repository(
@@ -415,7 +414,6 @@ class AziHsm(TestSuite):
     def verify_package_installation(self, node: Node, log: Logger) -> None:
         # Make sure we've added the AZIHSM repo
         self.setup_package_repository(node=node, log=log)
-        node.mark_dirty()  # this case installs the driver package
         with _STATE_LOCK:
             driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
             kernel_version = _AZIHSM_KERNEL_VERSIONS[node]
@@ -524,8 +522,8 @@ class AziHsm(TestSuite):
             ).is_not_empty()
             log.info(f"modinfo output:\n{info}")
         finally:
-            # Uninstalling the driver package leaves the environment modified.
-            node.mark_dirty()
+            # Restore the environment to its pre-test state (driver package
+            # not installed) so it remains safe to reuse for later cases.
             cast(Posix, node.os).uninstall_packages(driver_package_name)
 
     #
@@ -546,7 +544,6 @@ class AziHsm(TestSuite):
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
         self.check_azihsm_device(node=node)
-        node.mark_dirty()  # this case loads/unloads kernel modules
         with _STATE_LOCK:
             driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
 
@@ -663,7 +660,6 @@ class AziHsm(TestSuite):
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
         self.check_azihsm_device(node=node)
-        node.mark_dirty()  # this case loads/unloads kernel modules
         with _STATE_LOCK:
             driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
 
@@ -739,7 +735,6 @@ class AziHsm(TestSuite):
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
         self.check_azihsm_device(node=node)
-        node.mark_dirty()  # this case uninstalls the driver package
         with _STATE_LOCK:
             driver_package_name = _AZIHSM_DRIVER_PACKAGE_NAMES[node]
             kmod_path = _AZIHSM_KMOD_PATHS[node]
@@ -764,48 +759,59 @@ class AziHsm(TestSuite):
             if path.startswith("/") and not node.shell.is_dir(node.get_pure_path(path))
         ]
 
-        #
-        # Test 14 - Package removal succeeds
-        # The package unloads the module
-        posix_os.uninstall_packages(driver_package_name)
-        log.info("Package successfully removed")
+        try:
+            #
+            # Test 14 - Package removal succeeds
+            # The package unloads the module
+            posix_os.uninstall_packages(driver_package_name)
+            log.info("Package successfully removed")
 
-        #
-        # Test 15 - package gone from package database
-        package_installed = posix_os.package_exists(driver_package_name)
-        assert_that(package_installed).described_as(
-            f"{driver_package_name} package should NOT be installed"
-        ).is_false()
-        log.info("Package no longer in package database")
+            #
+            # Test 15 - package gone from package database
+            package_installed = posix_os.package_exists(driver_package_name)
+            assert_that(package_installed).described_as(
+                f"{driver_package_name} package should NOT be installed"
+            ).is_false()
+            log.info("Package no longer in package database")
 
-        #
-        # Test 16 - .ko file removed
-        assert_that(node.shell.exists(node.get_pure_path(kmod_path))).described_as(
-            "The driver module is still present after the package was removed"
-        ).is_false()
-        log.info("Module file removed from disk")
+            #
+            # Test 16 - .ko file removed
+            assert_that(node.shell.exists(node.get_pure_path(kmod_path))).described_as(
+                "The driver module is still present after the package was removed"
+            ).is_false()
+            log.info("Module file removed from disk")
 
-        #
-        # Test 17 - modprobe fails
-        module_exists = node.tools[Modprobe].module_exists(AZIHSM_NAME)
-        assert_that(module_exists).described_as(
-            "modprobe should fail after the package is uninstalled"
-        ).is_false()
-        log.info("modprobe correctly failed")
+            #
+            # Test 17 - modprobe fails
+            module_exists = node.tools[Modprobe].module_exists(AZIHSM_NAME)
+            assert_that(module_exists).described_as(
+                "modprobe should fail after the package is uninstalled"
+            ).is_false()
+            log.info("modprobe correctly failed")
 
-        #
-        # Test 18 - no leftover files
-        # Check specifically for this package's own files (captured from
-        # the package manifest before uninstall), rather than assuming the
-        # whole module directory is empty - other drivers may share it.
-        leftover_files = [
-            path for path in owned_files if node.shell.exists(node.get_pure_path(path))
-        ]
-        assert_that(leftover_files).described_as(
-            f"Files owned by {driver_package_name} should not remain after "
-            f"uninstall: {leftover_files}"
-        ).is_empty()
-        log.info("No leftover AZIHSM files found after uninstall")
+            #
+            # Test 18 - no leftover files
+            # Check specifically for this package's own files (captured from
+            # the package manifest before uninstall), rather than assuming
+            # the whole module directory is empty - other drivers may share
+            # it.
+            leftover_files = [
+                path
+                for path in owned_files
+                if node.shell.exists(node.get_pure_path(path))
+            ]
+            assert_that(leftover_files).described_as(
+                f"Files owned by {driver_package_name} should not remain after "
+                f"uninstall: {leftover_files}"
+            ).is_empty()
+            log.info("No leftover AZIHSM files found after uninstall")
+        finally:
+            # This test's purpose is to verify uninstallation, so it leaves
+            # the driver package uninstalled on success. Reinstall it here
+            # so the environment is restored to the "driver package
+            # installed" baseline that other test cases expect, keeping it
+            # safe to reuse.
+            posix_os.install_packages(driver_package_name, signed=True)
 
     #
     #
@@ -819,7 +825,6 @@ class AziHsm(TestSuite):
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
         self.check_azihsm_device(node=node)
-        node.mark_dirty()  # this case installs packages and runs driver tests
 
         # Make sure the azihsm packages are installed
         self.install_all_azihsm_packages(node=node, log=log)
@@ -882,7 +887,6 @@ class AziHsm(TestSuite):
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
         self.check_azihsm_device(node=node)
-        node.mark_dirty()  # this case installs packages and runs sdk tests
 
         # Make sure the azihsm packages are installed
         self.install_all_azihsm_packages(node=node, log=log)
@@ -1016,7 +1020,6 @@ class AziHsm(TestSuite):
         # Make sure the driver package is installed
         self.install_azihsm_driver_package(node=node, log=log)
         self.check_azihsm_device(node=node)
-        node.mark_dirty()  # this case installs packages and runs the engine
 
         # Make sure the azihsm packages (including the OpenSSL provider) are
         # installed
