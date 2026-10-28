@@ -46,6 +46,7 @@ HOST_COMMAND_TIMEOUT_GRACE_SECONDS = 10
 DOMAIN_CLEANUP_DELAY_SECONDS = 1
 DELETE_NODE_WATCHDOG_MARGIN_SECONDS = 30
 CONSOLE_CLOSE_TIMEOUT_SECONDS = 15
+REGULAR_BOOT_RETRY_COUNT = 1
 PASSTHROUGH_BOOT_RETRY_COUNT = 4
 
 DOMAIN_STOP_OPERATION_TIMEOUT_SECONDS = (
@@ -571,6 +572,11 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
     ) -> str:
         node_context = get_node_context(node)
         restart_count = 0
+        is_passthrough = bool(node_context.passthrough_devices)
+        boot_retry_count = (
+            PASSTHROUGH_BOOT_RETRY_COUNT if is_passthrough else REGULAR_BOOT_RETRY_COUNT
+        )
+        domain_type = "passthrough" if is_passthrough else "regular"
         current_timeout = timeout
         while True:
             try:
@@ -581,18 +587,19 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                     current_timeout,
                 )
             except GuestBootTimeoutError:
-                if (
-                    not node_context.passthrough_devices
-                    or restart_count >= PASSTHROUGH_BOOT_RETRY_COUNT
-                ):
+                if restart_count >= boot_retry_count:
+                    raise
+                domain = cast(Any, node_context.domain)
+                assert domain is not None
+                if not is_passthrough and domain.isActive():
                     raise
 
             restart_count += 1
             log.debug(
                 f"VM {node_context.vm_name} did not acquire an IP address before "
-                "the boot timeout; restarting the Cloud Hypervisor passthrough "
+                f"the boot timeout; restarting the Cloud Hypervisor {domain_type} "
                 f"domain (attempt {restart_count} of "
-                f"{PASSTHROUGH_BOOT_RETRY_COUNT})"
+                f"{boot_retry_count})"
             )
             self._stop_domain(node_context, log)
             self.restart_domain_and_attach_logger(node)
