@@ -46,6 +46,8 @@ from lisa.util import SkippedException
     description="""
     This test suite is to validate premium SSD data disks performance of Linux VM using
      fio tool.
+    The max-disks variants request the VM's maximum data-disk count at deployment.
+    They fail before partitioning if the visible disk count does not match that maximum.
     """,
 )
 class StoragePerformance(TestSuite):
@@ -242,6 +244,111 @@ class StoragePerformance(TestSuite):
 
     @TestCaseMetadata(
         description="""
+        Use fio with 4K blocks and libaio on the VM's maximum data-disk count.
+        Each Premium SSD is provisioned for at least 5,000 IOPS.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            supported_platform_type=["azure"],
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
+        ),
+    )
+    def perf_premium_datadisks_4k_max_disks(
+        self, node: Node, result: TestResult
+    ) -> None:
+        perf_premium_datadisks(node, result, verify_max_disks=True)
+
+    @TestCaseMetadata(
+        description="""
+        Use fio with 1024K blocks and libaio on the VM's maximum data-disk count.
+        Each Premium SSD is provisioned for at least 5,000 IOPS.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            supported_platform_type=["azure"],
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
+        ),
+    )
+    def perf_premium_datadisks_1024k_max_disks(
+        self, node: Node, result: TestResult
+    ) -> None:
+        perf_premium_datadisks(node, result, block_size=1024, verify_max_disks=True)
+
+    @TestCaseMetadata(
+        description="""
+        Use fio with 4K blocks and io_uring on the VM's maximum data-disk count.
+        Each Premium SSD is provisioned for at least 5,000 IOPS.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            supported_platform_type=["azure"],
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
+        ),
+    )
+    def perf_premium_datadisks_4k_io_uring_max_disks(
+        self, node: Node, result: TestResult
+    ) -> None:
+        if not node.tools[KernelConfig].is_enabled("CONFIG_IO_URING"):
+            raise SkippedException("io_uring is not available in kernel configuration")
+        perf_premium_datadisks(
+            node,
+            result,
+            ioengine=IoEngine.IO_URING,
+            max_iodepth=1024,
+            verify_max_disks=True,
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Use fio with 1024K blocks and io_uring on the VM's maximum data-disk count.
+        Each Premium SSD is provisioned for at least 5,000 IOPS.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            supported_platform_type=["azure"],
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.PremiumSSDLRS,
+                os_disk_type=schema.DiskType.PremiumSSDLRS,
+                data_disk_iops=search_space.IntRange(min=5000),
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
+        ),
+    )
+    def perf_premium_datadisks_1024k_io_uring_max_disks(
+        self, node: Node, result: TestResult
+    ) -> None:
+        if not node.tools[KernelConfig].is_enabled("CONFIG_IO_URING"):
+            raise SkippedException("io_uring is not available in kernel configuration")
+        perf_premium_datadisks(
+            node,
+            result,
+            ioengine=IoEngine.IO_URING,
+            max_iodepth=1024,
+            block_size=1024,
+            verify_max_disks=True,
+        )
+
+    @TestCaseMetadata(
+        description="""
         This testcase uses fio to test resource disk performance using 1024K block size.
         """,
         priority=3,
@@ -302,6 +409,58 @@ class StoragePerformance(TestSuite):
     def perf_standardssd_datadisks_1024k(self, node: Node, result: TestResult) -> None:
         perf_premium_datadisks(
             node, result, disk_type=DiskType.standardssd, block_size=1024
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Use fio with 4K blocks and libaio on the VM's maximum data-disk count.
+        Each Standard SSD is provisioned for 6,000 IOPS, its highest supported tier.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            supported_platform_type=["azure"],
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.StandardSSDLRS,
+                os_disk_type=schema.DiskType.StandardSSDLRS,
+                data_disk_iops=search_space.IntRange(min=6000),
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
+        ),
+    )
+    def perf_standardssd_datadisks_4k_max_disks(
+        self, node: Node, result: TestResult
+    ) -> None:
+        perf_premium_datadisks(
+            node, result, disk_type=DiskType.standardssd, verify_max_disks=True
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Use fio with 1024K blocks and libaio on the VM's maximum data-disk count.
+        Each Standard SSD is provisioned for 6,000 IOPS, its highest supported tier.
+        """,
+        priority=3,
+        timeout=TIME_OUT,
+        requirement=simple_requirement(
+            supported_platform_type=["azure"],
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.StandardSSDLRS,
+                os_disk_type=schema.DiskType.StandardSSDLRS,
+                data_disk_iops=search_space.IntRange(min=6000),
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
+        ),
+    )
+    def perf_standardssd_datadisks_1024k_max_disks(
+        self, node: Node, result: TestResult
+    ) -> None:
+        perf_premium_datadisks(
+            node,
+            result,
+            disk_type=DiskType.standardssd,
+            block_size=1024,
+            verify_max_disks=True,
         )
 
     @TestCaseMetadata(
