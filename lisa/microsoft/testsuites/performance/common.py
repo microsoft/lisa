@@ -943,10 +943,23 @@ def perf_premium_datadisks(
     start_iodepth: int = 1,
     max_iodepth: int = 256,
     ioengine: IoEngine = IoEngine.LIBAIO,
+    verify_max_disks: bool = False,
 ) -> None:
     disk = node.features[Disk]
     data_disks = disk.get_raw_data_disks()
     disk_count = len(data_disks)
+    if verify_max_disks:
+        # choose_max_value affects provisioning, not matching reused environments.
+        # Verify guest-visible disks so a max-disk test cannot pass with fewer disks.
+        assert node.capability.disk, "Disk capability is required"
+        max_count = node.capability.disk.max_data_disk_count
+        assert (
+            isinstance(max_count, int) and max_count > 0
+        ), f"Expected a resolved positive maximum data-disk count, got {max_count}"
+        assert_that(disk_count).described_as(
+            f"Visible data-disk count must match the VM's maximum ({max_count}) "
+            "before fio"
+        ).is_equal_to(max_count)
     assert_that(disk_count).described_as(
         "At least 1 data disk for fio testing."
     ).is_greater_than(0)
