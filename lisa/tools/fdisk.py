@@ -114,7 +114,8 @@ class Fdisk(Tool):
         return matched[0]
 
     def _get_partition_pattern(self, disk_name: str) -> Pattern[str]:
-        return re.compile(rf"({disk_name}p[0-9]|{disk_name}[0-9])+")
+        separator = "p" if disk_name[-1:].isdigit() else ""
+        return re.compile(rf"(?<!\S){re.escape(disk_name)}{separator}[0-9]+(?!\S)")
 
 
 class BSDFdisk(Fdisk):
