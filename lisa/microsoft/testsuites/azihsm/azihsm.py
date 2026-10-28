@@ -114,6 +114,9 @@ class AziHsm(TestSuite):
             (f"ls -la {node.get_pure_path(AZIHSM_DEV)}", True),
             ("ps -ef | grep -i azihsm", True),
             ("lsmod | grep -i azihsm", True),
+            # Reports the HSM firmware build version, useful for correlating
+            # failures with a specific firmware release.
+            ("hsmtool", True),
         ]
         for command, sudo in diagnostic_commands:
             result = node.execute(
