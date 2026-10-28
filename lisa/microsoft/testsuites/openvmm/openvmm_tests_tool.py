@@ -27,6 +27,7 @@ class _JUnitSummary:
     failures: int = 0
     errors: int = 0
     skipped: int = 0
+    has_nextest_summary: bool = False
     failed_tests: List[str] = field(default_factory=_new_str_list)
     passed_tests: List[str] = field(default_factory=_new_str_list)
 
@@ -39,20 +40,22 @@ class OpenVmmTests(Tool):
     # Individual filtered runs are faster, but allow the full ceiling to avoid
     # spurious timeouts when running the complete suite.
     VMM_TIMEOUT = 43200
-    NEXTEST_VERSION = "0.9.101"
     NEXTEST_LINUX_X64_TARGET = "x86_64-unknown-linux-gnu"
     _ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
     _SUMMARY_PATTERN = re.compile(
-        r"Summary \[\s*[\d.]+s\]\s+(?P<run>\d+)(?:/(?P<total>\d+))? tests run:\s+"
-        r"(?P<passed>\d+) passed,\s+(?P<failed>\d+) failed,\s+"
-        r"(?P<skipped>\d+) skipped"
+        r"Summary \[[^\]\r\n]+\]\s+(?P<run>\d+)(?:/(?P<total>\d+))? tests run:"
+        r"[ \t]*(?P<counts>[^\r\n]+)"
     )
     _FAILED_TEST_PATTERN = re.compile(
-        r"^\s*FAIL\s+\[[^\]]+\]\s+\S+\s+(?P<name>.+?)\s*$",
+        r"^[ \t]*(?:FAIL|TIMEOUT|EXECFAIL|ABORT)[ \t]+\[[^\]\r\n]+\][ \t]+"
+        r"(?:\([ \t]*\d+/\d+\)[ \t]+)?"
+        r"(?P<name>\S+(?:[ \t]+|[ \t]*\r?\n[ \t]+)\S[^\r\n]*)$",
         re.MULTILINE,
     )
     _PASSED_TEST_PATTERN = re.compile(
-        r"^\s*PASS\s+\[[^\]]+\]\s+\S+\s+(?P<name>.+?)\s*$",
+        r"^[ \t]*PASS[ \t]+\[[^\]\r\n]+\][ \t]+"
+        r"(?:\([ \t]*\d+/\d+\)[ \t]+)?"
+        r"(?P<name>\S+(?:[ \t]+|[ \t]*\r?\n[ \t]+)\S[^\r\n]*)$",
         re.MULTILINE,
     )
 
@@ -133,6 +136,7 @@ class OpenVmmTests(Tool):
         test_filter: str = "",
         install_missing_deps: bool = True,
         skip_vhd_prompt: bool = True,
+        ci_profile: bool = False,
     ) -> _JUnitSummary:
         cargo = self.node.tools[Cargo]
         env = self._prepare_repo(log_path, ref)
@@ -164,6 +168,8 @@ class OpenVmmTests(Tool):
             command.append("--skip-vhd-prompt")
         if release:
             command.append("--release")
+        if ci_profile:
+            command.extend(["--ci-profile", "--no-reuse-prepped-vhds"])
         if test_filter:
             command.extend(["--filter", test_filter])
 
@@ -415,15 +421,16 @@ class OpenVmmTests(Tool):
         log_path: Path,
         update_envs: Dict[str, str],
     ) -> None:
-        if self._has_cargo_nextest(update_envs):
+        version = self._get_nextest_version()
+        if self._has_cargo_nextest(update_envs, version):
             return
 
         self._log.debug(
-            "cargo-nextest was not available after restore-packages; "
+            f"cargo-nextest {version} was not available after restore-packages; "
             "installing the upstream pinned standalone binary"
         )
         install_dir = self._artifact_root / "cargo-nextest-install"
-        release_name = f"cargo-nextest-{self.NEXTEST_VERSION}"
+        release_name = f"cargo-nextest-{version}"
         asset_name = f"{release_name}-{self.NEXTEST_LINUX_X64_TARGET}"
         archive_name = f"{asset_name}.tar.gz"
         sha256_name = f"{asset_name}.sha256"
@@ -459,13 +466,35 @@ class OpenVmmTests(Tool):
             update_envs=update_envs,
         )
 
-        if not self._has_cargo_nextest(update_envs):
+        if not self._has_cargo_nextest(update_envs, version):
             raise LisaException(
                 "cargo-nextest is still unavailable after the fallback install. "
                 "See openvmm_install_cargo_nextest.log for details."
             )
 
-    def _has_cargo_nextest(self, update_envs: Dict[str, str]) -> bool:
+    def _get_nextest_version(self) -> str:
+        result = self.node.execute(
+            "cat flowey/flowey_lib_hvlite/src/_jobs/cfg_versions.rs",
+            shell=True,
+            cwd=self.repo_root,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to read the upstream cargo-nextest version pin"
+            ),
+            no_info_log=True,
+        )
+        match = re.search(
+            r'pub const NEXTEST:\s*&str\s*=\s*"(?P<version>\d+\.\d+\.\d+)";',
+            result.stdout,
+        )
+        if not match:
+            raise LisaException(
+                "The OpenVMM checkout has no recognized cargo-nextest version pin "
+                "in flowey/flowey_lib_hvlite/src/_jobs/cfg_versions.rs"
+            )
+        return match.group("version")
+
+    def _has_cargo_nextest(self, update_envs: Dict[str, str], version: str) -> bool:
         result = self.node.execute(
             "cargo nextest --version",
             shell=True,
@@ -475,7 +504,12 @@ class OpenVmmTests(Tool):
             no_info_log=True,
             no_error_log=True,
         )
-        return result.exit_code == 0
+        return result.exit_code == 0 and bool(
+            re.search(
+                rf"\bcargo-nextest {re.escape(version)}(?:\s|$)",
+                f"{result.stdout}\n{result.stderr}",
+            )
+        )
 
     def _archive_remote_directory(
         self,
@@ -528,10 +562,11 @@ class OpenVmmTests(Tool):
         log_file: Path,
         junit_file: Optional[Path],
     ) -> _JUnitSummary:
+        summary: Optional[_JUnitSummary] = None
         if junit_file and junit_file.exists():
             try:
                 summary = self._parse_junit_summary(junit_file)
-            except ETree.ParseError as identifier:
+            except (ETree.ParseError, ValueError) as identifier:
                 raise LisaException(
                     f"{name} produced an unreadable JUnit report at {junit_file}: "
                     f"{identifier}"
@@ -542,23 +577,48 @@ class OpenVmmTests(Tool):
                     f"{name} reported test failures.\n"
                     f"{self.format_run_summary(summary)}"
                 )
-            return summary
-
         if log_file.exists():
-            summary = self._extract_log_summary(log_file)
-            failure_summary = self._extract_failure_summary_from_log(log_file, summary)
+            log_summary = self._extract_log_summary(log_file)
+            failure_summary = self._extract_failure_summary_from_log(
+                log_file, log_summary
+            )
             if failure_summary:
                 raise LisaException(
                     f"{name} reported test failures.\n{failure_summary}"
                 )
 
-            return summary
+            # Nextest's JUnit omits filtered tests. Its terminal summary retains them.
+            if log_summary.has_nextest_summary:
+                if summary and (
+                    summary.tests != log_summary.tests
+                    or summary.passed != log_summary.passed
+                ):
+                    raise LisaException(
+                        f"{name} produced conflicting JUnit and nextest "
+                        "execution counts. Check that both reports are complete "
+                        "and belong to the same run."
+                    )
+                summary = log_summary
 
-        raise LisaException(
-            f"{name} did not produce a local JUnit report or log file. "
-            f"Checked JUnit path: {junit_file}, log path: {log_file}. "
-            "Verify the test run completed and artifact copy-back succeeded."
-        )
+        if summary is None:
+            raise LisaException(
+                f"{name} did not produce a recognized nextest summary or JUnit "
+                f"report. Checked JUnit path: {junit_file}, log path: {log_file}. "
+                "Verify the test run completed and artifact copy-back succeeded."
+            )
+        if summary.tests <= 0:
+            raise LisaException(
+                f"{name} executed no tests. Check the nextest filter and test assets.\n"
+                f"{self.format_run_summary(summary)}"
+            )
+        if summary.passed != summary.tests or (
+            summary.total and summary.tests != summary.total
+        ):
+            raise LisaException(
+                f"{name} produced incomplete or inconsistent test results.\n"
+                f"{self.format_run_summary(summary)}"
+            )
+        return summary
 
     def format_run_summary(
         self,
@@ -578,9 +638,7 @@ class OpenVmmTests(Tool):
         elif summary.tests:
             # Derive passed count from totals when individual names aren't captured
             # (e.g. JUnit reports that record counts but omit per-case elements).
-            passed_count = max(
-                0, summary.tests - summary.failures - summary.errors - summary.skipped
-            )
+            passed_count = max(0, summary.tests - summary.failures - summary.errors)
         else:
             passed_count = 0
         tests_run = summary.tests or (passed_count + failed_count)
@@ -628,11 +686,17 @@ class OpenVmmTests(Tool):
             suites = [root]
 
         for suite in suites:
-            summary.tests += int(suite.attrib.get("tests", "0") or 0)
-            summary.failures += int(suite.attrib.get("failures", "0") or 0)
-            summary.errors += int(suite.attrib.get("errors", "0") or 0)
+            for attribute in ("tests", "failures", "errors", "skipped", "disabled"):
+                value = suite.get(attribute)
+                if value is not None and not value.isdigit():
+                    raise LisaException(
+                        f"Invalid JUnit {attribute} count {value!r} in {junit_file}"
+                    )
+            summary.tests += int(suite.attrib.get("tests", "0"))
+            summary.failures += int(suite.attrib.get("failures", "0"))
+            summary.errors += int(suite.attrib.get("errors", "0"))
             summary.skipped += int(
-                suite.attrib.get("skipped", suite.attrib.get("disabled", "0")) or 0
+                suite.attrib.get("skipped", suite.attrib.get("disabled", "0"))
             )
 
         for testcase in root.iter("testcase"):
@@ -650,7 +714,13 @@ class OpenVmmTests(Tool):
 
         summary.passed_tests = self._deduplicate_test_names(summary.passed_tests)
         summary.failed_tests = self._deduplicate_test_names(summary.failed_tests)
-        summary.passed = len(summary.passed_tests)
+        summary.tests -= summary.skipped
+        summary.passed = summary.tests - summary.failures - summary.errors
+        if summary.passed < 0:
+            raise LisaException(
+                f"Inconsistent JUnit counts in {junit_file}: "
+                "failures, errors and skipped exceed the total test count"
+            )
 
         return summary
 
@@ -686,13 +756,26 @@ class OpenVmmTests(Tool):
     def _extract_log_summary_from_content(self, content: str) -> _JUnitSummary:
         sanitized_content = self._strip_ansi_escape_sequences(content)
         summary = _JUnitSummary()
-        summary_match = self._SUMMARY_PATTERN.search(sanitized_content)
-        if summary_match:
+        summary_matches = list(self._SUMMARY_PATTERN.finditer(sanitized_content))
+        if summary_matches:
+            summary_match = summary_matches[-1]
+            summary.has_nextest_summary = True
             summary.tests = int(summary_match.group("run"))
             summary.total = int(summary_match.group("total") or 0)
-            summary.passed = int(summary_match.group("passed"))
-            summary.failures = int(summary_match.group("failed"))
-            summary.skipped = int(summary_match.group("skipped"))
+            counts = dict(
+                (status, int(count))
+                for count, status in re.findall(
+                    r"\b(\d+) (passed|failed|skipped|timed out|exec failed|aborted)\b",
+                    summary_match.group("counts"),
+                )
+            )
+            summary.passed = counts.get("passed", 0)
+            summary.failures = counts.get("failed", 0)
+            summary.skipped = counts.get("skipped", 0)
+            summary.errors = sum(
+                counts.get(status, 0)
+                for status in ("timed out", "exec failed", "aborted")
+            )
 
         summary.passed_tests = self._deduplicate_test_names(
             self._PASSED_TEST_PATTERN.findall(sanitized_content)
@@ -704,7 +787,7 @@ class OpenVmmTests(Tool):
 
     def _deduplicate_test_names(self, test_names: List[str]) -> List[str]:
         normalized_names = [
-            str(test_name).strip() for test_name in test_names if test_name
+            " ".join(test_name.split()) for test_name in test_names if test_name
         ]
         return list(dict.fromkeys(name for name in normalized_names if name))
 

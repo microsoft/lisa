@@ -166,7 +166,7 @@ class OpenVmmTestsSuiteTestCase(TestCase):
 
         self.assertEqual(
             result,
-            "((test(linux_direct) | test(ubuntu) | test(alpine))) & (!test(pcat))",
+            "((test(linux_) | test(ubuntu) | test(alpine))) & (!test(pcat))",
         )
 
     def test_compose_vmm_tests_filter_keeps_pcat_on_wsl(self) -> None:
@@ -177,7 +177,7 @@ class OpenVmmTestsSuiteTestCase(TestCase):
             self._create_host("6.6.87.2-microsoft-standard-WSL2"),
         )
 
-        self.assertEqual(result, "(test(linux_direct) | test(ubuntu) | test(alpine))")
+        self.assertEqual(result, "(test(linux_) | test(ubuntu) | test(alpine))")
 
     def test_before_case_initializes_host_before_os_check(self) -> None:
         suite = self._suite_type.__new__(self._suite_type)
@@ -194,7 +194,10 @@ class OpenVmmTestsSuiteTestCase(TestCase):
         suite.before_case(
             MagicMock(),
             node=host,
-            variables={"openvmm_tests_repo": "https://example.com/openvmm.git"},
+            variables={
+                "openvmm_installer_repo": "https://example.com/openvmm.git",
+                "openvmm_tests_repo": "",
+            },
         )
 
         host.initialize.assert_called_once()
@@ -236,8 +239,12 @@ class OpenVmmTestsSuiteTestCase(TestCase):
             node=node,
             log_path=Path("."),
             result=result,
-            variables={},
+            variables={
+                "openvmm_installer_ref": "reference-sha",
+                "openvmm_tests_ref": "",
+            },
         )
 
         self.assertIn("upstream vmm_tests:", result.message)
         self.assertIn("3 tests run: 3 passed, 0 failed, 45 skipped", result.message)
+        self.assertEqual("reference-sha", tool.run_vmm_tests.call_args.kwargs["ref"])

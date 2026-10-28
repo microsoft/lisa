@@ -19,8 +19,18 @@ from lisa.operating_system import CBLMariner
 from lisa.secret import add_secret
 from lisa.testsuite import TestResult
 from lisa.tools import Ls, Lscpu, Uname
+from lisa.tools.lscpu import CpuType
 from lisa.tools.usermod import Usermod
 from lisa.util import LisaException, SkippedException
+
+# Mirrors checkin_gates.rs's standard_filter for the GitHub Intel MSHV job.
+_MSHV_CI_FILTER = (
+    "all() & !test(very_heavy)"
+    " & !test(openvmm_openhcl_uefi_x64_windows_datacenter_core_2025_x64_prepped_vbs)"
+    " & !test(hyperv_openhcl_pcat)"
+    " & !(test(servicing) & test(hyperv))"
+    " & !test(pcat_x64)"
+)
 
 
 @lru_cache(maxsize=1)
@@ -54,9 +64,8 @@ class OpenVmmUpstreamTestSuite(TestSuite):
 
         variables: Dict[str, Any] = cast(Dict[str, Any], kwargs.get("variables", {}))
         repo_url = (
-            str(
-                variables.get("openvmm_tests_repo", openvmm_tests_type.DEFAULT_REPO)
-            ).strip()
+            str(variables.get("openvmm_tests_repo", "")).strip()
+            or str(variables.get("openvmm_installer_repo", "")).strip()
             or openvmm_tests_type.DEFAULT_REPO
         )
         auth_token = str(variables.get("openvmm_tests_auth_token", "")).strip()
@@ -90,6 +99,9 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         and openvmm_vmm_tests_filter for any additional nextest filter expression.
         Native Linux hosts automatically exclude PCAT coverage because upstream
         PCAT firmware discovery depends on Windows or WSL-hosted firmware paths.
+        Set openvmm_vmm_tests_profile=linux-intel-mshv for upstream CI coverage
+        across all guest operating systems, release builds and the CI nextest
+        profile. This uses locally built binaries, not upstream CI artifacts.
         """,
         priority=2,
         # The full upstream vmm_tests suite can take up to 12 hours on slower
@@ -110,15 +122,44 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         variables: Dict[str, Any],
     ) -> None:
         host = self._get_initialized_host_node(node)
+        profile = self._get_vmm_tests_profile(variables)
+        ci_profile = profile == "linux-intel-mshv"
+        test_filter = self._compose_vmm_tests_filter(variables, host)
+        if ci_profile and (
+            host.tools[Lscpu].get_cpu_type() != CpuType.Intel
+            or not host.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
+        ):
+            raise LisaException(
+                "The linux-intel-mshv profile requires an Intel host with /dev/mshv"
+            )
         command_group = self._ensure_vmm_tests_supported(host)
+        if ci_profile:
+            command_group = "mshv"
+            host.execute(
+                "modprobe vhost_vsock && udevadm settle && "
+                "chgrp mshv /dev/vhost-vsock && chmod g+rw /dev/vhost-vsock",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to prepare vhost-vsock for the MSHV CI profile"
+                ),
+            )
+            if not self._can_open_device(host, "/dev/vhost-vsock", group="mshv"):
+                raise LisaException(
+                    "/dev/vhost-vsock is not accessible to the OpenVMM test user"
+                )
 
         openvmm_tests = host.tools[_get_openvmm_tests_type()]
         openvmm_tests.command_group = command_group or ""
         run_summary = openvmm_tests.run_vmm_tests(
             log_path=log_path,
-            ref=str(variables.get("openvmm_tests_ref", "")).strip(),
-            release=self._is_truthy(variables.get("openvmm_tests_release", "")),
-            test_filter=self._compose_vmm_tests_filter(variables, host),
+            ref=str(variables.get("openvmm_tests_ref", "")).strip()
+            or str(variables.get("openvmm_installer_ref", "")).strip(),
+            release=ci_profile
+            or self._is_truthy(variables.get("openvmm_tests_release", "")),
+            test_filter=test_filter,
+            ci_profile=ci_profile,
             install_missing_deps=self._is_truthy(
                 variables.get("openvmm_vmm_tests_install_missing_deps", "yes"),
                 default=True,
@@ -242,12 +283,19 @@ class OpenVmmUpstreamTestSuite(TestSuite):
             .lower()
         )
         custom_filter = str(variables.get("openvmm_vmm_tests_filter", "")).strip()
+        if self._get_vmm_tests_profile(variables) == "linux-intel-mshv":
+            if guest_os not in {"", "all", "both"} or custom_filter:
+                raise LisaException(
+                    "The linux-intel-mshv profile requires all guests and no custom "
+                    "filter. Use the custom profile for a restricted test selection."
+                )
+            return _MSHV_CI_FILTER
 
         guest_filters = {
             "": "",
             "all": "",
             "both": "",
-            "linux": "(test(linux_direct) | test(ubuntu) | test(alpine))",
+            "linux": "(test(linux_) | test(ubuntu) | test(alpine))",
             "windows": "test(windows)",
         }
         if guest_os not in guest_filters:
@@ -267,6 +315,15 @@ class OpenVmmUpstreamTestSuite(TestSuite):
             filters.append("!test(pcat)")
 
         return self._combine_nextest_filters(filters)
+
+    def _get_vmm_tests_profile(self, variables: Dict[str, Any]) -> str:
+        profile = str(variables.get("openvmm_vmm_tests_profile", "")).strip().lower()
+        if profile not in {"", "custom", "linux-intel-mshv"}:
+            raise LisaException(
+                "Unsupported openvmm_vmm_tests_profile. "
+                "Use custom or linux-intel-mshv."
+            )
+        return profile
 
     def _combine_nextest_filters(self, filters: Any) -> str:
         normalized = [
