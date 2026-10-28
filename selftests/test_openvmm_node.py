@@ -1,19 +1,22 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path, PurePath, PurePosixPath
 from tempfile import TemporaryDirectory
+from threading import Barrier, Lock
 from types import SimpleNamespace
 from typing import Any, List, Tuple, cast
 from unittest import TestCase
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import yaml
 from assertpy import assert_that
-from paramiko.ssh_exception import SSHException
+from paramiko.ssh_exception import ChannelException, SSHException
 
 from lisa import schema
 from lisa.features import SerialConsole as SerialConsoleFeature
+from lisa.node import RemoteNode
 from lisa.sut_orchestrator.openvmm.context import (
     DeviceAddressSchema,
     DevicePassthroughContext,
@@ -35,7 +38,7 @@ from lisa.sut_orchestrator.openvmm.serial_console import (
     SerialConsole as OpenVmmSerialConsole,
 )
 from lisa.sut_orchestrator.util.schema import HostDevicePoolSchema, HostDevicePoolType
-from lisa.tools import Cat, Ip, Kill, Mkdir
+from lisa.tools import Cat, GrubConfig, Ip, Iptables, Kill, Mkdir, Sshd
 from lisa.tools.openvmm import (
     OPENVMM_DISK_DEVICE_SCSI,
     OPENVMM_IOMMU_NONE,
@@ -46,6 +49,65 @@ from selftests.test_libvirt_device_pool import _load_device_pool_module
 
 
 class OpenVmmNodeTestCase(TestCase):
+    def test_guest_boot_parameters_are_applied_and_verified(self) -> None:
+        guest, grub, cat = self._create_guest_with_boot_parameters("audit=0")
+        cat.read.return_value = "root=/dev/vda1 audit=0"
+
+        with patch.object(guest, "_provision"), patch.object(RemoteNode, "_initialize"):
+            with patch.object(guest, "reboot") as reboot:
+                guest.initialize()
+
+        grub.set_kernel_cmdline_arg.assert_called_once_with("audit", "0")
+        reboot.assert_called_once_with(time_out=900)
+        cat.read.assert_called_once_with("/proc/cmdline", sudo=True, force_run=True)
+
+    def test_missing_guest_boot_parameters_after_reboot_fail_initialization(
+        self,
+    ) -> None:
+        guest, _, cat = self._create_guest_with_boot_parameters("audit=0")
+        cat.read.return_value = "root=/dev/vda1"
+
+        with patch.object(guest, "_provision"), patch.object(RemoteNode, "_initialize"):
+            with patch.object(guest, "reboot"):
+                with self.assertRaisesRegex(
+                    LisaException, "Missing parameters: audit=0"
+                ):
+                    guest.initialize()
+
+        self.assertFalse(guest._is_initialized)
+
+    def test_guest_boot_parameters_default_does_not_reboot(self) -> None:
+        guest, grub, _ = self._create_guest_with_boot_parameters("")
+
+        with patch.object(guest, "_provision"), patch.object(RemoteNode, "_initialize"):
+            with patch.object(guest, "reboot") as reboot:
+                guest.initialize()
+
+        grub.set_kernel_cmdline_arg.assert_not_called()
+        reboot.assert_not_called()
+
+    def _create_guest_with_boot_parameters(
+        self, parameters: str
+    ) -> Tuple[OpenVmmGuestNode, MagicMock, MagicMock]:
+        host = MagicMock(spec=RemoteNode)
+        host._base_part_path = Path(".")
+        guest = OpenVmmGuestNode(
+            runbook=OpenVmmGuestNodeSchema(
+                uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+                disk_img="/tmp/guest.raw",
+                kernel_boot_parameters=parameters,
+            ),
+            index=0,
+            logger_name="unittest",
+            parent=host,
+        )
+        grub = MagicMock()
+        cat = MagicMock()
+        tools = MagicMock()
+        tools.__getitem__.side_effect = {GrubConfig: grub, Cat: cat}.__getitem__
+        guest.tools = tools
+        return guest, grub, cat
+
     def _create_controller(
         self,
     ) -> Tuple[OpenVmmController, MagicMock, MagicMock, MagicMock]:
@@ -680,22 +742,36 @@ class OpenVmmNodeTestCase(TestCase):
                     **invalid_network,
                 )
 
-    def test_enable_ssh_forwarding_allows_openvmm_guest_subnet_routing(
+    def test_enable_ssh_forwarding_installs_iptables_and_allows_guest_subnet_routing(
         self,
     ) -> None:
         bridge_name = "ovmbr1"
         guest_address = "10.0.1.2"
         tap_host_cidr = "10.0.1.1/24"
+        iptables_installed = False
+
+        def _get_tool(tool_type: type) -> MagicMock:
+            nonlocal iptables_installed
+            self.assertIs(tool_type, Iptables)
+            iptables_installed = True
+            return MagicMock(spec=Iptables)
 
         def _execute(command: str, *args: Any, **kwargs: Any) -> Any:
+            if command.startswith("iptables") and not iptables_installed:
+                raise LisaException("iptables: command not found")
             if command.startswith("iptables") and " -C " in command:
                 return SimpleNamespace(exit_code=1, stderr="", stdout="")
             return SimpleNamespace(exit_code=0, stderr="", stdout="0")
 
+        tools = MagicMock()
+        tools.get.side_effect = _get_tool
+        tools.__getitem__.side_effect = {
+            Ip: SimpleNamespace(get_default_route_info=lambda: ("eth0", ""))
+        }.__getitem__
         host_node = SimpleNamespace(
             is_remote=True,
             execute=MagicMock(side_effect=_execute),
-            tools={Ip: SimpleNamespace(get_default_route_info=lambda: ("eth0", ""))},
+            tools=tools,
         )
         controller = OpenVmmController(cast(Any, host_node), MagicMock())
         node_context = NodeContext(guest_address=guest_address, ssh_port=22)
@@ -802,6 +878,37 @@ class OpenVmmNodeTestCase(TestCase):
                 f"FORWARD -i eth0 -o {bridge_name} -p tcp -d {guest_address}" in command
                 for command in commands
             )
+        )
+
+    def test_ssh_forwarding_install_failure_does_not_change_host_state(self) -> None:
+        tools = MagicMock()
+        tools.get.side_effect = LisaException("iptables installation failed")
+        tools.__getitem__.return_value = SimpleNamespace(
+            get_default_route_info=lambda: ("eth0", "")
+        )
+        host_node = SimpleNamespace(
+            execute=MagicMock(
+                return_value=SimpleNamespace(exit_code=0, stdout="0", stderr="")
+            ),
+            tools=tools,
+        )
+        controller = OpenVmmController(cast(Any, host_node), MagicMock())
+        node_context = NodeContext()
+        network = OpenVmmNetworkSchema(
+            mode=OPENVMM_NETWORK_MODE_TAP,
+            tap_name="tap0",
+            forward_ssh_port=True,
+            forwarded_port=60022,
+        )
+
+        with self.assertRaisesRegex(LisaException, "iptables installation failed"):
+            controller._enable_ssh_forwarding(node_context, "10.0.0.2", network)
+
+        host_node.execute.assert_not_called()
+        self.assertFalse(node_context.forwarding_enabled)
+        self.assertEqual([], node_context.forwarding_rules_added)
+        self.assertEqual(
+            0, get_host_context(controller.host_node).active_forwarding_count
         )
 
     def test_configure_connection_uses_host_proxy_mode(self) -> None:
@@ -936,3 +1043,202 @@ class OpenVmmNodeTestCase(TestCase):
             "/var/tmp/host-g0"
         )
         controller.ensure_minimum_raw_disk_size.assert_not_called()
+
+    def test_parallel_provisioning_prepares_shared_host_ssh_capacity(self) -> None:
+        for guest_count, capacity in ((12, 10), (10, 10)):
+            with self.subTest(guest_count=guest_count, capacity=capacity):
+                self._assert_parallel_guest_ssh_capacity(guest_count, capacity)
+
+    def _assert_parallel_guest_ssh_capacity(
+        self, guest_count: int, capacity: int
+    ) -> None:
+        # Model the SFTP session retained on the shared host connection.
+        active_checks = 1
+        peak_checks = 1
+        checks_ready = Barrier(guest_count)
+        checks_lock = Lock()
+        ssh = MagicMock()
+        ssh.get.side_effect = lambda _setting, **_kwargs: str(capacity)
+
+        def set_max_session(count: int) -> None:
+            nonlocal capacity
+            with checks_lock:
+                self.assertEqual(1, active_checks)
+                capacity = count
+
+        def check_binary(_binary: str) -> SimpleNamespace:
+            nonlocal active_checks, peak_checks
+            with checks_lock:
+                active_checks += 1
+                peak_checks = max(peak_checks, active_checks)
+            try:
+                checks_ready.wait(timeout=10)
+                with checks_lock:
+                    if active_checks > capacity:
+                        raise ChannelException(2, "Connect failed")
+                return SimpleNamespace(exists=True)
+            finally:
+                with checks_lock:
+                    active_checks -= 1
+
+        ssh.set_max_session.side_effect = set_max_session
+        guests: List[SimpleNamespace] = []
+        host = SimpleNamespace(
+            name="host",
+            is_remote=True,
+            guests=guests,
+            initialize=MagicMock(),
+            get_pure_path=PurePosixPath,
+            tools={Sshd: ssh, Mkdir: MagicMock()},
+        )
+        controllers = []
+        for index in range(guest_count):
+            controller = MagicMock(
+                wraps=OpenVmmController(cast(Any, host), MagicMock())
+            )
+            controller.get_openvmm_tool.side_effect = check_binary
+            controller.create_effective_network.return_value = OpenVmmNetworkSchema()
+            controller.resolve_guest_artifact_path.return_value = "/tmp/guest.img"
+            controller.set_device_passthrough_node_context.return_value = None
+            controller.launch.return_value = None
+            controller.configure_connection.return_value = None
+            controllers.append(controller)
+            guests.append(
+                SimpleNamespace(
+                    parent=host,
+                    name=f"g{index}",
+                    index=index,
+                    log=MagicMock(),
+                    runbook=OpenVmmGuestNodeSchema(
+                        uefi=OpenVmmUefiSchema(firmware_path="/tmp/MSVM.fd"),
+                        disk_img="/tmp/guest.img",
+                    ),
+                    context=NodeContext(),
+                    _openvmm_controller=controller,
+                )
+            )
+
+        def provision(guest: SimpleNamespace) -> None:
+            OpenVmmGuestNode._provision(cast(Any, guest))
+
+        with patch(
+            "lisa.sut_orchestrator.openvmm.node.get_node_context",
+            side_effect=lambda guest: guest.context,
+        ):
+            with ThreadPoolExecutor(max_workers=guest_count) as executor:
+                list(executor.map(provision, guests))
+
+        self.assertEqual(guest_count + 1, peak_checks)
+        self.assertGreaterEqual(capacity, guest_count + 2)
+        ssh.set_max_session.assert_called_once()
+        for controller in controllers:
+            controller.launch.assert_called_once()
+
+    def test_ssh_capacity_preparation_failure_does_not_cache_success(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        host = cast(Any, controller.host_node)
+        host.guests = [MagicMock() for _ in range(12)]
+        ssh = MagicMock()
+        ssh.get.return_value = "10"
+        ssh.set_max_session.side_effect = LisaException("sshd restart failed")
+        host.tools[Sshd] = ssh
+
+        with self.assertRaisesRegex(LisaException, "sshd restart failed"):
+            controller.ensure_ssh_session_capacity()
+
+        self.assertEqual(0, get_host_context(host).ssh_session_capacity)
+
+    def test_sufficient_host_ssh_capacity_is_not_changed(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        host = cast(Any, controller.host_node)
+        host.guests = [MagicMock() for _ in range(12)]
+        ssh = MagicMock()
+        ssh.get.return_value = "500"
+        host.tools[Sshd] = ssh
+        other_controller = OpenVmmController(host, MagicMock())
+
+        controller.ensure_ssh_session_capacity()
+        other_controller.ensure_ssh_session_capacity()
+
+        ssh.get.assert_called_once_with("MaxSessions", connection_context=True)
+        ssh.set_max_session.assert_not_called()
+
+    def test_ineffective_host_ssh_capacity_update_fails(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        host = cast(Any, controller.host_node)
+        host.guests = [MagicMock() for _ in range(12)]
+        ssh = MagicMock()
+        ssh.get.return_value = "10"
+        host.tools[Sshd] = ssh
+
+        with self.assertRaisesRegex(
+            LisaException, "did not increase enough.*matching sshd configuration rules"
+        ):
+            controller.ensure_ssh_session_capacity()
+
+        ssh.get.assert_has_calls(
+            [
+                call("MaxSessions", connection_context=True),
+                call("MaxSessions", connection_context=True),
+            ]
+        )
+        self.assertEqual(0, get_host_context(host).ssh_session_capacity)
+
+    def test_missing_host_ssh_capacity_is_set_and_verified(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        host = cast(Any, controller.host_node)
+        host.guests = [MagicMock() for _ in range(12)]
+        ssh = MagicMock()
+        ssh.get.side_effect = ["", "200"]
+        host.tools[Sshd] = ssh
+
+        controller.ensure_ssh_session_capacity()
+
+        ssh.set_max_session.assert_called_once_with(count=200)
+        self.assertEqual(200, get_host_context(host).ssh_session_capacity)
+
+    def test_malformed_host_ssh_capacity_is_rejected(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        host = cast(Any, controller.host_node)
+        host.guests = [MagicMock() for _ in range(12)]
+        ssh = MagicMock()
+        ssh.get.return_value = "unlimited"
+        host.tools[Sshd] = ssh
+
+        with self.assertRaisesRegex(LisaException, "Cannot determine host SSH"):
+            controller.ensure_ssh_session_capacity()
+
+        ssh.set_max_session.assert_not_called()
+        self.assertEqual(0, get_host_context(host).ssh_session_capacity)
+
+    def test_cached_capacity_reserves_headroom_and_scales_above_default(self) -> None:
+        for guest_count in (10, 200):
+            with self.subTest(guest_count=guest_count):
+                controller, _, _, _ = self._create_controller()
+                host = cast(Any, controller.host_node)
+                host.guests = [MagicMock() for _ in range(guest_count)]
+                context = get_host_context(host)
+                context.ssh_session_capacity = guest_count
+                ssh = MagicMock()
+                ssh.get.side_effect = [str(guest_count), str(guest_count + 2)]
+                host.tools[Sshd] = ssh
+
+                controller.ensure_ssh_session_capacity()
+
+                ssh.set_max_session.assert_called_once_with(
+                    count=max(200, guest_count + 2)
+                )
+                self.assertEqual(guest_count + 2, context.ssh_session_capacity)
+
+    def test_updated_capacity_without_full_headroom_is_rejected(self) -> None:
+        controller, _, _, _ = self._create_controller()
+        host = cast(Any, controller.host_node)
+        host.guests = [MagicMock() for _ in range(10)]
+        ssh = MagicMock()
+        ssh.get.side_effect = ["10", "11"]
+        host.tools[Sshd] = ssh
+
+        with self.assertRaisesRegex(LisaException, "did not increase enough"):
+            controller.ensure_ssh_session_capacity()
+
+        self.assertEqual(0, get_host_context(host).ssh_session_capacity)
