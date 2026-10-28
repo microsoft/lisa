@@ -112,7 +112,7 @@ class Ssh(Tool):
         command = "sshd -T"
         if connection_context:
             connection = self.node.execute(
-                "printf '%s' \"${SSH_CONNECTION:-}\""
+                "printf '%s' \"${SSH_CONNECTION:-}\"", shell=True
             ).stdout.split()
             connection_info = self.node.shell.connection_info
             username = connection_info.username
