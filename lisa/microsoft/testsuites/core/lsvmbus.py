@@ -129,14 +129,14 @@ class LsVmBus(TestSuite):
                   The code computes a set of allowed channel counts covering
                   legacy (min(vCPUs, 8)) and post-646f071d formulas, then
                   asserts the actual count is in that set.
-            2.2 Check expected channel count of each storvsc SCSI device is min (num of
-                 vcpu/4, 64).
-                2.2.1 Calculate channel count of each storvsc SCSI device.
-                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n368 # noqa: E501
-                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n1936 # noqa: E501
-                2.2.2 Cap of channel count of each storvsc SCSI device,
-                      it is decided by host storage VSP driver.
-                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n952 # noqa: E501
+            2.2 Check storvsc SCSI channel counts against known host policies:
+                - One channel per vCPU, capped at 64, can be offered even when
+                  no MANA device is visible in the guest.
+                - Without MANA, also allow the legacy ceil(vCPU/4), capped at 64.
+                The guest requests subchannels up to the host-advertised limit
+                and the online CPU count minus one (the primary channel).
+                Reference: handle_multichannel_storage in storvsc_drv.c.
+                        https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/drivers/scsi/storvsc_drv.c?h=v6.17 # noqa: E501
         """,
         priority=1,
         requirement=simple_requirement(
@@ -152,12 +152,10 @@ class LsVmBus(TestSuite):
         lscpu_tool = node.tools[Lscpu]
         thread_count = lscpu_tool.get_thread_count()
         core_count = lscpu_tool.get_core_count()
-        # Each storvsc SCSI device should have "the_number_of_vCPUs / 4" channel(s)
-        #  with a cap value of 64.
-        if node.nics.is_mana_device_present():
-            expected_scsi_channel_count = min(thread_count, 64)
-        else:
-            expected_scsi_channel_count = math.ceil(min(thread_count, 256) / 4)
+        # Storage channel offers are not determined by guest-visible NICs alone.
+        allowed_scsi_channels = {min(thread_count, 64)}
+        if not node.nics.is_mana_device_present():
+            allowed_scsi_channels.add(math.ceil(min(thread_count, 256) / 4))
         for vmbus_device in vmbus_devices_list:
             if vmbus_device.name == "Synthetic network adapter":
                 actual_channels = len(vmbus_device.channel_vp_map)
@@ -193,9 +191,16 @@ class LsVmBus(TestSuite):
                         "in VM with NVMe disk controller."
                     )
                     continue
-                assert_that(vmbus_device.channel_vp_map).is_length(
-                    expected_scsi_channel_count
+                actual_channels = len(vmbus_device.channel_vp_map)
+                log.info(
+                    f"storvsc actual channels: {actual_channels}, "
+                    f"allowed channel counts: {sorted(allowed_scsi_channels)}"
                 )
+                assert_that(actual_channels).described_as(
+                    f"storvsc channel count {actual_channels} not in allowed "
+                    f"values {sorted(allowed_scsi_channels)} "
+                    f"(thread_count={thread_count})"
+                ).is_in(*sorted(allowed_scsi_channels))
 
     @TestCaseMetadata(
         description="""
