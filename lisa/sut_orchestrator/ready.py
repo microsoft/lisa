@@ -41,6 +41,7 @@ class ReadyPlatform(Platform):
         return [
             features.Disk,
             features.Gpu,
+            features.Hsm,
             features.Nvme,
             features.NestedVirtualization,
             features.NetworkInterface,
