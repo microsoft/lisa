@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+from collections import Counter
 from typing import Any, Dict, List, Tuple
 
 from assertpy import assert_that
@@ -23,33 +24,37 @@ from lisa.tools import Dmesg, Lscpu, StressNg
     area="cpu",
     category="stress",
     description="""
-    Validates guest behavior on CPU-oversubscribed VM sizes (e.g. DTv7, DTav7,
-    Asv3), where the host reserves only part of the advertised vCPU capacity
-    and may throttle the VM under host contention. Also meaningful on regular
-    sizes as a baseline for comparison.
+    Validates guest stability and CPU performance characteristics on VM sizes
+    that use CPU oversubscription, including DTv7, DTav7, and Asv3.
+    Oversubscription policy and expected performance behavior may vary by
+    family. Also meaningful on regular sizes as a baseline for comparison.
     """,
 )
 class CpuOversubscription(TestSuite):
     # Default sustained load duration. Long enough to likely overlap a host
     # contention window; override with runbook variables for longer runs.
     DEFAULT_DURATION_IN_SECONDS = 1800
+    # Upper bound for the runbook-configurable duration, so the load always
+    # finishes within the static TIMEOUT below.
+    MAX_DURATION_IN_SECONDS = 10800
     # Length of each throughput/steal sampling window.
     DEFAULT_WINDOW_IN_SECONDS = 60
-    # Oversubscribed sizes promise a 50% CPU performance floor. Use a looser
-    # bound so jitter between windows does not cause false failures.
-    MIN_THROUGHPUT_RATIO = 0.4
-    # Leaves room for stress-ng install and window overhead.
-    TIMEOUT = DEFAULT_DURATION_IN_SECONDS * 3
+    # Experimental variability guardrail, NOT the contractual 50% performance
+    # floor. Below this, a warning is logged; it does not fail the test until a
+    # baseline methodology against the base D-series size is agreed.
+    PROVISIONAL_MIN_TO_PEAK_RATIO = 0.4
+    # MAX_DURATION plus room for stress-ng install and per-window overhead.
+    TIMEOUT = 14400
 
     @TestCaseMetadata(
         description="""
         Runs a sustained all-vCPU stress-ng cpu load, then verifies the guest
-        kernel logged no new soft lockups, RCU stalls, or call traces. These
-        indicate the host is starving the guest badly enough to destabilize
-        the kernel.
+        kernel logged no new soft lockups, RCU stalls, or call traces. This
+        confirms guest stability while all guest vCPUs are busy; it does not
+        itself create or prove host-level contention.
 
         Runbook variable "cpu_oversub_duration" overrides the load duration
-        in seconds.
+        in seconds (max 10800).
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -58,9 +63,7 @@ class CpuOversubscription(TestSuite):
     def verify_no_soft_lockup_under_cpu_pressure(
         self, node: Node, log: Logger, variables: Dict[str, Any]
     ) -> None:
-        duration = int(
-            variables.get("cpu_oversub_duration", self.DEFAULT_DURATION_IN_SECONDS)
-        )
+        duration = self._get_duration(variables)
         thread_count = node.tools[Lscpu].get_thread_count()
         dmesg = node.tools[Dmesg]
         stress_ng = node.tools[StressNg]
@@ -73,23 +76,28 @@ class CpuOversubscription(TestSuite):
         stress_ng.launch_cpu(num_cores=thread_count, timeout_in_seconds=duration)
         errors_after = self._get_kernel_error_lines(dmesg)
 
-        new_errors = [line for line in errors_after if line not in errors_before]
+        # Multiset difference, so a repeat of an error line already present
+        # before the load is still counted as new.
+        new_errors = list((Counter(errors_after) - Counter(errors_before)).elements())
         assert_that(new_errors).described_as(
-            "guest kernel reported soft lockups, RCU stalls, or call traces "
-            "under sustained CPU load. On oversubscribed sizes this means host "
-            "throttling is starving the guest; compare with the base VM size "
-            "on the same image to confirm."
+            "the guest reported kernel stability errors during sustained CPU "
+            "pressure. Review host contention and reproduce on the "
+            "corresponding base VM size."
         ).is_empty()
 
     @TestCaseMetadata(
         description="""
         Runs back-to-back stress-ng cpu windows on all vCPUs, recording per-window
-        throughput (bogo ops/s) and steal time from /proc/stat. Reports steal
-        percentiles and throughput spread as perf metrics, and fails only if the
-        slowest window drops far below the fastest one.
+        throughput (bogo ops/s) and steal time from /proc/stat, and publishes
+        them as perf metrics. This is a data-collection test: it does not
+        validate the 50% performance floor, which needs a baseline from the
+        corresponding D-series size. Steal time is telemetry only; Hyper-V may
+        not expose host throttling as guest steal time, so zero steal does not
+        prove there was no contention.
 
-        Runbook variables "cpu_oversub_duration" and "cpu_oversub_window"
-        override the total duration and window length in seconds.
+        Runbook variables "cpu_oversub_duration" (max 10800) and
+        "cpu_oversub_window" override the total duration and window length in
+        seconds. A remainder shorter than one window runs as a final window.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -102,22 +110,26 @@ class CpuOversubscription(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        duration = int(
-            variables.get("cpu_oversub_duration", self.DEFAULT_DURATION_IN_SECONDS)
-        )
+        duration = self._get_duration(variables)
         window = int(
             variables.get("cpu_oversub_window", self.DEFAULT_WINDOW_IN_SECONDS)
         )
-        window_count = max(1, duration // window)
+        assert_that(window).described_as(
+            "cpu_oversub_window must be a positive number of seconds no larger "
+            "than cpu_oversub_duration. Fix the runbook variable."
+        ).is_greater_than(0).is_less_than_or_equal_to(duration)
+        full_windows, remainder = divmod(duration, window)
+        window_lengths = [window] * full_windows + ([remainder] if remainder else [])
+        window_count = len(window_lengths)
         thread_count = node.tools[Lscpu].get_thread_count()
         stress_ng = node.tools[StressNg]
 
         throughputs: List[float] = []
         steal_percents: List[float] = []
-        for index in range(window_count):
+        for index, window_length in enumerate(window_lengths):
             steal_before, total_before = self._read_cpu_stat(node)
             throughput = stress_ng.launch_cpu_with_metrics(
-                num_workers=thread_count, timeout_in_seconds=window
+                num_workers=thread_count, timeout_in_seconds=window_length
             )
             steal_after, total_after = self._read_cpu_stat(node)
             total_delta = total_after - total_before
@@ -142,7 +154,7 @@ class CpuOversubscription(TestSuite):
             "steal_percent_max": (max(steal_percents), "%"),
             "cpu_bogo_ops_per_sec_p50": (self._percentile(throughputs, 50), "ops/s"),
             "cpu_bogo_ops_per_sec_min": (min(throughputs), "ops/s"),
-            "cpu_throughput_min_to_max_ratio": (min_ratio, ""),
+            "cpu_throughput_min_to_peak_ratio": (min_ratio, ""),
         }
         for name, (value, unit) in metrics.items():
             relativity = (
@@ -166,14 +178,26 @@ class CpuOversubscription(TestSuite):
             f"{metrics['steal_percent_p50'][0]:.2f}/"
             f"{metrics['steal_percent_p90'][0]:.2f}/"
             f"{metrics['steal_percent_max'][0]:.2f}%, "
-            f"min/max throughput ratio = {min_ratio:.2f}"
+            f"min-to-peak throughput ratio = {min_ratio:.2f}"
         )
+        if min_ratio < self.PROVISIONAL_MIN_TO_PEAK_RATIO:
+            log.warning(
+                f"cpu oversubscription min-to-peak throughput ratio {min_ratio:.2f} "
+                f"on '{node.name}' is below provisional guardrail "
+                f"{self.PROVISIONAL_MIN_TO_PEAK_RATIO}. Compare with a run on the "
+                f"corresponding base D-series size."
+            )
 
-        assert_that(min_ratio).described_as(
-            "slowest CPU window fell below the oversubscription performance "
-            "floor relative to the fastest window. Check steal_percent metrics "
-            "and host contention for this VM."
-        ).is_greater_than_or_equal_to(self.MIN_THROUGHPUT_RATIO)
+    def _get_duration(self, variables: Dict[str, Any]) -> int:
+        duration = int(
+            variables.get("cpu_oversub_duration", self.DEFAULT_DURATION_IN_SECONDS)
+        )
+        assert_that(duration).described_as(
+            f"cpu_oversub_duration must be between 1 and "
+            f"{self.MAX_DURATION_IN_SECONDS} seconds to finish within the test "
+            f"timeout. Fix the runbook variable."
+        ).is_greater_than(0).is_less_than_or_equal_to(self.MAX_DURATION_IN_SECONDS)
+        return duration
 
     def _get_kernel_error_lines(self, dmesg: Dmesg) -> List[str]:
         output = dmesg.check_kernel_errors(force_run=True, throw_error=False)
