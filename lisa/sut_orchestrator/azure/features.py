@@ -4197,16 +4197,19 @@ class AzureFileShare(AzureFeatureMixin, Feature):
             version = "3.0"
         return version
 
-    def _find_or_generate_storage_account_name(self, prefix: str) -> Tuple[str, bool]:
+    def _find_or_generate_storage_account_name(
+        self, prefix: str, exact_name: str = ""
+    ) -> Tuple[str, bool]:
         """
         Find an existing LISA-created storage account or generate a new name.
 
-        Searches for storage accounts with the given prefix in the resource group.
-        If found, returns the existing name for reuse. Otherwise generates a new
-        unique name.
+        When exact_name is given, only that account is considered a reuse
+        candidate (so cleanup deletes it only if LISA created it). Otherwise
+        any account matching the prefix is reused, else a new name is generated.
 
         Args:
             prefix: Storage account name prefix (e.g., 'lisafs')
+            exact_name: Specific account name requested by the user
 
         Returns:
             Tuple of (storage_account_name, was_reused)
@@ -4220,15 +4223,34 @@ class AzureFileShare(AzureFeatureMixin, Feature):
         )
 
         for account in storage_accounts:
-            if account.name.startswith(prefix):
+            # Exact name wins when a specific account was requested; otherwise
+            # reuse any LISA-created account matching the prefix.
+            if exact_name and account.name == exact_name:
+                self._log.debug(f"Reusing existing storage account: {account.name}")
+                return (account.name, True)
+            if not exact_name and account.name.startswith(prefix):
                 self._log.debug(f"Reusing existing storage account: {account.name}")
                 return (account.name, True)
 
+        if exact_name:
+            # Requested account doesn't exist yet; LISA will create it.
+            self._log.debug(f"Will create storage account: {exact_name}")
+            return (exact_name, False)
         # No existing account found, generate new name
         random_str = generate_random_chars(string.ascii_lowercase + string.digits, 10)
         new_name = f"{prefix}{random_str}"
         self._log.debug(f"Will create new storage account: {new_name}")
         return (new_name, False)
+
+    def set_storage_account_name(self, name: str) -> None:
+        """Reuse a user-specified storage account, resolving the reuse flag by
+        checking whether it already exists."""
+        (
+            self._storage_account_name,
+            self._storage_account_reused,
+        ) = self._find_or_generate_storage_account_name(
+            self.STORAGE_ACCOUNT_PREFIX, exact_name=name
+        )
 
     def _setup_private_endpoint(self, location: str) -> None:
         """
