@@ -207,6 +207,7 @@ class AziHsm(TestSuite):
                     ),
                     repo_name="AZIHSM Packages",
                     keys_location=[
+                        "/etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY",
                         "https://packages.microsoft.com/keys/microsoft.asc",
                         "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                     ],
@@ -219,6 +220,7 @@ class AziHsm(TestSuite):
                     ),
                     repo_name="AZIHSM Packages Non-OSS",
                     keys_location=[
+                        "/etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY",
                         "https://packages.microsoft.com/keys/microsoft.asc",
                         "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                     ],
@@ -232,6 +234,7 @@ class AziHsm(TestSuite):
                     ),
                     repo_name="AZIHSM Packages",
                     keys_location=[
+                        "/etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY",
                         "https://packages.microsoft.com/keys/microsoft.asc",
                         "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                     ],
