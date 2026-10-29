@@ -18,6 +18,7 @@ from lisa.messages import MetricRelativity, send_unified_perf_message
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
 from lisa.tools import Dmesg, Lscpu, StressNg
+from lisa.util import LisaException
 
 
 @TestSuiteMetadata(
@@ -43,7 +44,8 @@ class CpuOversubscription(TestSuite):
     # floor. Below this, a warning is logged; it does not fail the test until a
     # baseline methodology against the base D-series size is agreed.
     PROVISIONAL_MIN_TO_PEAK_RATIO = 0.4
-    # MAX_DURATION plus room for stress-ng install and per-window overhead.
+    # MAX_DURATION plus room for stress-ng install and the cumulative startup
+    # and teardown overhead of launching one stress-ng process per window.
     TIMEOUT = 14400
 
     @TestCaseMetadata(
@@ -97,7 +99,8 @@ class CpuOversubscription(TestSuite):
 
         Runbook variables "cpu_oversub_duration" (max 10800) and
         "cpu_oversub_window" override the total duration and window length in
-        seconds. A remainder shorter than one window runs as a final window.
+        seconds. The duration must be divisible by the window so all samples
+        have equal length.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -111,25 +114,28 @@ class CpuOversubscription(TestSuite):
         result: TestResult,
     ) -> None:
         duration = self._get_duration(variables)
-        window = int(
-            variables.get("cpu_oversub_window", self.DEFAULT_WINDOW_IN_SECONDS)
+        window = self._get_int_variable(
+            variables, "cpu_oversub_window", self.DEFAULT_WINDOW_IN_SECONDS
         )
         assert_that(window).described_as(
             "cpu_oversub_window must be a positive number of seconds no larger "
             "than cpu_oversub_duration. Fix the runbook variable."
         ).is_greater_than(0).is_less_than_or_equal_to(duration)
-        full_windows, remainder = divmod(duration, window)
-        window_lengths = [window] * full_windows + ([remainder] if remainder else [])
-        window_count = len(window_lengths)
+        assert_that(duration % window).described_as(
+            "cpu_oversub_duration must be divisible by cpu_oversub_window so "
+            "all performance samples use equal durations. Fix the runbook "
+            "variables."
+        ).is_equal_to(0)
+        window_count = duration // window
         thread_count = node.tools[Lscpu].get_thread_count()
         stress_ng = node.tools[StressNg]
 
         throughputs: List[float] = []
         steal_percents: List[float] = []
-        for index, window_length in enumerate(window_lengths):
+        for index in range(window_count):
             steal_before, total_before = self._read_cpu_stat(node)
             throughput = stress_ng.launch_cpu_with_metrics(
-                num_workers=thread_count, timeout_in_seconds=window_length
+                num_workers=thread_count, timeout_in_seconds=window
             )
             steal_after, total_after = self._read_cpu_stat(node)
             total_delta = total_after - total_before
@@ -146,7 +152,7 @@ class CpuOversubscription(TestSuite):
             )
 
         max_throughput = max(throughputs)
-        min_ratio = min(throughputs) / max_throughput if max_throughput else 0.0
+        min_to_peak_ratio = min(throughputs) / max_throughput if max_throughput else 0.0
         metrics = {
             "steal_percent_p50": (self._percentile(steal_percents, 50), "%"),
             "steal_percent_p90": (self._percentile(steal_percents, 90), "%"),
@@ -154,7 +160,7 @@ class CpuOversubscription(TestSuite):
             "steal_percent_max": (max(steal_percents), "%"),
             "cpu_bogo_ops_per_sec_p50": (self._percentile(throughputs, 50), "ops/s"),
             "cpu_bogo_ops_per_sec_min": (min(throughputs), "ops/s"),
-            "cpu_throughput_min_to_peak_ratio": (min_ratio, ""),
+            "cpu_throughput_min_to_peak_ratio": (min_to_peak_ratio, ""),
         }
         for name, (value, unit) in metrics.items():
             relativity = (
@@ -178,19 +184,20 @@ class CpuOversubscription(TestSuite):
             f"{metrics['steal_percent_p50'][0]:.2f}/"
             f"{metrics['steal_percent_p90'][0]:.2f}/"
             f"{metrics['steal_percent_max'][0]:.2f}%, "
-            f"min-to-peak throughput ratio = {min_ratio:.2f}"
+            f"min-to-peak throughput ratio = {min_to_peak_ratio:.2f}"
         )
-        if min_ratio < self.PROVISIONAL_MIN_TO_PEAK_RATIO:
+        if min_to_peak_ratio < self.PROVISIONAL_MIN_TO_PEAK_RATIO:
             log.warning(
-                f"cpu oversubscription min-to-peak throughput ratio {min_ratio:.2f} "
+                f"cpu oversubscription min-to-peak throughput ratio "
+                f"{min_to_peak_ratio:.2f} "
                 f"on '{node.name}' is below provisional guardrail "
                 f"{self.PROVISIONAL_MIN_TO_PEAK_RATIO}. Compare with a run on the "
                 f"corresponding base D-series size."
             )
 
     def _get_duration(self, variables: Dict[str, Any]) -> int:
-        duration = int(
-            variables.get("cpu_oversub_duration", self.DEFAULT_DURATION_IN_SECONDS)
+        duration = self._get_int_variable(
+            variables, "cpu_oversub_duration", self.DEFAULT_DURATION_IN_SECONDS
         )
         assert_that(duration).described_as(
             f"cpu_oversub_duration must be between 1 and "
@@ -198,6 +205,18 @@ class CpuOversubscription(TestSuite):
             f"timeout. Fix the runbook variable."
         ).is_greater_than(0).is_less_than_or_equal_to(self.MAX_DURATION_IN_SECONDS)
         return duration
+
+    def _get_int_variable(
+        self, variables: Dict[str, Any], name: str, default: int
+    ) -> int:
+        value = variables.get(name, default)
+        try:
+            return int(value)
+        except (TypeError, ValueError) as error:
+            raise LisaException(
+                f"runbook variable '{name}' has invalid value '{value}'. "
+                f"Set it to a whole number of seconds, e.g. {default}."
+            ) from error
 
     def _get_kernel_error_lines(self, dmesg: Dmesg) -> List[str]:
         output = dmesg.check_kernel_errors(force_run=True, throw_error=False)
