@@ -92,7 +92,8 @@ class OpenVmmTests(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Git, Cargo, Curl, Ls]
+        # Native execution resolves Cargo lazily; container runs need no host Rust.
+        return [Git, Curl, Ls]
 
     @classmethod
     def create(cls, node: Any, *args: Any, **kwargs: Any) -> "OpenVmmTests":
@@ -377,17 +378,20 @@ class OpenVmmTests(Tool):
             self._wrap_container_command(
                 "test -r /dev/mshv && test -w /dev/mshv && "
                 "test -r /dev/vhost-vsock && test -w /dev/vhost-vsock && "
-                "rustup update stable && "
-                "rustup target add x86_64-unknown-linux-musl "
-                "aarch64-unknown-linux-musl x86_64-pc-windows-gnu && "
-                "rustup component add rust-src"
+                "cargo --version && rustc --version && "
+                "targets=$(rustup target list --installed) && "
+                "for target in x86_64-unknown-linux-musl "
+                "aarch64-unknown-linux-musl x86_64-pc-windows-gnu; do "
+                'printf \'%s\\n\' "$targets" | grep -Fxq "$target" || '
+                '{ echo "Missing Rust target: $target" >&2; exit 1; }; done && '
+                "rustup component list --installed | grep -q '^rust-src'"
             ),
             sudo=True,
             shell=True,
             timeout=self.RESTORE_TIMEOUT,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
-                "failed to prepare MSHV container devices or Rust cross targets"
+                "MSHV container device access or installed Rust prerequisites failed"
             ),
         )
 
