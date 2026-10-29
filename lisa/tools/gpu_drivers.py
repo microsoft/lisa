@@ -24,6 +24,7 @@ from lisa.operating_system import (
 from lisa.tools.df import Df
 from lisa.tools.echo import Echo
 from lisa.tools.gpu_smi import GpuSmi
+from lisa.tools.lspci import Lspci
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.mokutil import Mokutil
 from lisa.tools.usermod import Usermod
@@ -294,6 +295,11 @@ class NvidiaCudaDriver(GpuDriver):
     CUDA drivers are used for general purpose GPU computing on Tesla GPUs
     (K80, P100, V100, P40, etc.).
 
+    Debian/Ubuntu repository installations lock Pascal and Volta GPUs to R580,
+    their final supported driver branch. Newer GPUs use the current driver
+    metapackage. Ubuntu Secure Boot installations use hardware-compatible
+    signed modules for the running kernel instead.
+
     Reference:
     https://learn.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup#nvidia-cuda-drivers
     """
@@ -327,7 +333,7 @@ class NvidiaCudaDriver(GpuDriver):
         if result.exit_code == 0 and result.stdout.strip():
             return True
 
-        self._log.warning(
+        self._log.info(
             "NVIDIA CUDA driver is not usable; attempting driver installation. "
             f"nvidia-smi -L exit code: {result.exit_code}, "
             f"stdout: {result.stdout}, stderr: {result.stderr}"
@@ -552,7 +558,11 @@ class NvidiaCudaDriver(GpuDriver):
             expected_exit_code=0,
             expected_exit_code_failure_message="Failed to discover Ubuntu GPU drivers",
         )
-        kernel = self.node.tools[Uname].get_linux_information().kernel_version_raw
+        kernel = (
+            self.node.tools[Uname]
+            .get_linux_information(force_run=True)
+            .kernel_version_raw
+        )
         for line in drivers.stdout.splitlines():
             match = re.match(r"^nvidia-driver-(\d+(?:-server)?(?:-open)?)(?:,|$)", line)
             if not match:
@@ -640,8 +650,23 @@ class NvidiaCudaDriver(GpuDriver):
             expected_exit_code_failure_message="Failed to update CUDA repository",
         )
 
-        # Versioned package names can lag behind the current unversioned branch.
-        # Let APT resolve the driver and libraries through the metapackage.
+        devices = self.node.tools[Lspci].get_gpu_devices(force_run=True)
+        if not devices:
+            raise LisaException("No NVIDIA GPUs found for CUDA driver selection")
+
+        if any(
+            re.search(
+                r"\b(?:GP10\d\w*|GV100\w*|P(?:4|40|100)|V100)\b",
+                device.device_info,
+                re.IGNORECASE,
+            )
+            for device in devices
+        ):
+            self._log.info("Locking Pascal/Volta NVIDIA GPU drivers to branch R580")
+            # A versioned metapackage alone allows newer dependency branches.
+            # Install NVIDIA's branch pin before resolving the driver packages.
+            self.node.os.install_packages("nvidia-driver-pinning-580")
+
         self.node.os.install_packages(self.DEFAULT_CUDA_PACKAGE)
 
     def _install_cuda_mariner(self) -> None:
