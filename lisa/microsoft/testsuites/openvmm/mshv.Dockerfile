@@ -7,7 +7,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     --no-install-recommends \
     binutils build-essential ca-certificates cmake curl git \
     gcc-mingw-w64-x86-64-win32 \
-    libssl-dev pkg-config sudo unzip zip zstd \
+    libarchive-tools libssl-dev pkg-config sudo unzip zip zstd \
     && rm -rf /var/lib/apt/lists/*
 
 ARG HOST_UID

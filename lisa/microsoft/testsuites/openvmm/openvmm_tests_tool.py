@@ -42,9 +42,11 @@ class OpenVmmTests(Tool):
     # spurious timeouts when running the complete suite.
     VMM_TIMEOUT = 43200
     NEXTEST_LINUX_X64_TARGET = "x86_64-unknown-linux-gnu"
+    # Flowey puts Unix sockets below --dir/temp; Linux socket paths must fit 108 bytes.
+    CONTAINER_ARTIFACT_ROOT = "/lisa-openvmm"
     _ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
     _SUMMARY_PATTERN = re.compile(
-        r"Summary \[[^\]\r\n]+\]\s+(?P<run>\d+)(?:/(?P<total>\d+))? tests run:"
+        r"Summary \[[^\]\r\n]+\]\s+(?P<run>\d+)(?:/(?P<total>\d+))? tests? run:"
         r"[ \t]*(?P<counts>[^\r\n]+)"
     )
     _FAILED_TEST_PATTERN = re.compile(
@@ -163,7 +165,11 @@ class OpenVmmTests(Tool):
                 "--target",
                 "linux-x64",
                 "--dir",
-                str(output_dir),
+                (
+                    f"{self.CONTAINER_ARTIFACT_ROOT}/vmm-tests-run"
+                    if ci_profile
+                    else str(output_dir)
+                ),
             ]
             if install_missing_deps:
                 command.append("--install-missing-deps")
@@ -296,7 +302,7 @@ class OpenVmmTests(Tool):
                 "--no-compat-igvm",
             ]
             if ci_profile:
-                restore_args.append("x64")
+                restore_args.append("x86-64")
             self._run_logged_command(
                 name="openvmm_restore_packages",
                 command=shlex.join(restore_args),
@@ -348,8 +354,11 @@ class OpenVmmTests(Tool):
             "--device /dev/mshv --device /dev/vhost-vsock "
             '--group-add "$(stat -c %g /dev/mshv)" '
             '--group-add "$(stat -c %g /dev/vhost-vsock)" '
+            "--sysctl net.ipv6.conf.all.disable_ipv6=0 "
             "--security-opt seccomp=unconfined "
             f"--volume {shlex.quote(f'{self.repo_root}:{self.repo_root}')} "
+            "--volume "
+            f"{shlex.quote(f'{self._artifact_root}:{self.CONTAINER_ARTIFACT_ROOT}')} "
             f"--workdir {shlex.quote(str(self.repo_root))} "
             f"{image_name} sleep infinity",
             shell=True,
