@@ -23,13 +23,14 @@ from lisa.tools.lscpu import CpuType
 from lisa.tools.usermod import Usermod
 from lisa.util import LisaException, SkippedException
 
-# Mirrors checkin_gates.rs's standard_filter for the GitHub Intel MSHV job.
-_MSHV_CI_FILTER = (
+# Upstream Intel MSHV exclusions, additionally omitting its QEMU-backed cases.
+_MSHV_FILTER = (
     "all() & !test(very_heavy)"
     " & !test(openvmm_openhcl_uefi_x64_windows_datacenter_core_2025_x64_prepped_vbs)"
     " & !test(hyperv_openhcl_pcat)"
     " & !(test(servicing) & test(hyperv))"
     " & !test(pcat_x64)"
+    " & !test(qemu)"
 )
 
 
@@ -99,11 +100,11 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         and openvmm_vmm_tests_filter for any additional nextest filter expression.
         Native Linux hosts automatically exclude PCAT coverage because upstream
         PCAT firmware discovery depends on Windows or WSL-hosted firmware paths.
-        Set openvmm_vmm_tests_profile=linux-intel-mshv for upstream CI coverage
-        across all guest operating systems, release builds and the CI nextest
+        Set openvmm_vmm_tests_profile=linux-intel-mshv for MSHV-only coverage
+        across Linux and Windows guests, release builds and the CI nextest
         profile. This builds and runs in an Ubuntu container on the MSHV host,
-        including ARM64 nested-test and Windows guest build prerequisites,
-        rather than downloading upstream CI test binaries.
+        with Windows guest build prerequisites. QEMU-backed cases from the
+        upstream job are excluded; no ARM64 emulation or binfmt setup is needed.
         """,
         priority=2,
         # The full upstream vmm_tests suite can take up to 12 hours on slower
@@ -291,7 +292,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
                     "The linux-intel-mshv profile requires all guests and no custom "
                     "filter. Use the custom profile for a restricted test selection."
                 )
-            return _MSHV_CI_FILTER
+            return _MSHV_FILTER
 
         guest_filters = {
             "": "",

@@ -296,7 +296,7 @@ class OpenVmmTests(Tool):
                 "--no-compat-igvm",
             ]
             if ci_profile:
-                restore_args.extend(["x64", "aarch64"])
+                restore_args.append("x64")
             self._run_logged_command(
                 name="openvmm_restore_packages",
                 command=shlex.join(restore_args),
@@ -319,20 +319,6 @@ class OpenVmmTests(Tool):
         if len(identity) != 2 or not all(value.isdecimal() for value in identity):
             raise LisaException("failed to determine the MSHV checkout owner's UID/GID")
         host_uid, host_gid = identity
-        node_os = cast(Posix, self.node.os)
-        node_os.install_packages("qemu-user-static-aarch64")
-        # Flowey executes nested ARM64 discovery binaries directly, not via Cargo.
-        self.node.execute(
-            "systemctl restart systemd-binfmt && "
-            "grep -q '^enabled$' /proc/sys/fs/binfmt_misc/qemu-aarch64 && "
-            "grep -q '^flags:.*F' /proc/sys/fs/binfmt_misc/qemu-aarch64",
-            shell=True,
-            sudo=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "ARM64 binfmt registration with a fixed interpreter is required"
-            ),
-        )
         build_dir = self._artifact_root / "container-build"
         self.node.execute(
             f"mkdir -p {shlex.quote(str(build_dir))}",
@@ -380,8 +366,7 @@ class OpenVmmTests(Tool):
                 "test -r /dev/vhost-vsock && test -w /dev/vhost-vsock && "
                 "cargo --version && rustc --version && "
                 "targets=$(rustup target list --installed) && "
-                "for target in x86_64-unknown-linux-musl "
-                "aarch64-unknown-linux-musl x86_64-pc-windows-gnu; do "
+                "for target in x86_64-unknown-linux-musl x86_64-pc-windows-gnu; do "
                 'printf \'%s\\n\' "$targets" | grep -Fxq "$target" || '
                 '{ echo "Missing Rust target: $target" >&2; exit 1; }; done && '
                 "rustup component list --installed | grep -q '^rust-src'"

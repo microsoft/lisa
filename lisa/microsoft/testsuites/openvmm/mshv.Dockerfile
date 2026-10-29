@@ -6,8 +6,8 @@ FROM ubuntu:24.04
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     --no-install-recommends \
     binutils build-essential ca-certificates cmake curl git \
-    gcc-aarch64-linux-gnu gcc-mingw-w64-x86-64-win32 \
-    libssl-dev pkg-config qemu-user-static sudo unzip zip zstd \
+    gcc-mingw-w64-x86-64-win32 \
+    libssl-dev pkg-config sudo unzip zip zstd \
     && rm -rf /var/lib/apt/lists/*
 
 ARG HOST_UID
@@ -31,7 +31,7 @@ RUN curl --fail --silent --show-error --connect-timeout 30 --max-time 120 \
         https://sh.rustup.rs -o /tmp/rustup-init.sh \
     && for attempt in 1 2 3; do \
         if sh /tmp/rustup-init.sh -y --profile minimal --component rust-src \
-            --target x86_64-unknown-linux-musl,aarch64-unknown-linux-musl,x86_64-pc-windows-gnu; then \
+            --target x86_64-unknown-linux-musl,x86_64-pc-windows-gnu; then \
             rm /tmp/rustup-init.sh; exit 0; \
         fi; \
         if [ "$attempt" -eq 3 ]; then \
