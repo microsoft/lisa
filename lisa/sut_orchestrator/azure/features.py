@@ -1869,6 +1869,7 @@ class Disk(AzureFeatureMixin, features.Disk):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         super()._initialize(*args, **kwargs)
         self._initialize_information(self._node)
+        self._get_vm_with_disk_state()
 
     def get_hardware_disk_controller_type(self) -> Any:
         azure_platform: AzurePlatform = self._platform  # type: ignore
@@ -2079,6 +2080,15 @@ class Disk(AzureFeatureMixin, features.Disk):
         )
         async_vm_update.wait()
 
+    def _get_vm_with_disk_state(self) -> Any:
+        azure_platform: AzurePlatform = self._platform  # type: ignore
+        vm = get_vm(azure_platform, self._node)
+        if vm.storage_profile.data_disks is None:
+            vm.storage_profile.data_disks = []
+        assert self._node.capability.disk
+        self._node.capability.disk.data_disk_count = len(vm.storage_profile.data_disks)
+        return vm
+
     def add_data_disk(
         self,
         count: int,
@@ -2086,6 +2096,9 @@ class Disk(AzureFeatureMixin, features.Disk):
         size_in_gb: int = 20,
         lun: int = -1,
     ) -> List[str]:
+        assert_that(
+            count, "Data disk add count must not be negative"
+        ).is_greater_than_or_equal_to(0)
         if lun != -1:
             assert_that(
                 count,
@@ -2095,16 +2108,47 @@ class Disk(AzureFeatureMixin, features.Disk):
         disk_sku = _disk_type_mapping.get(disk_type, None)
         assert disk_sku
         assert self._node.capability.disk
-        assert isinstance(self._node.capability.disk.data_disk_count, int)
-        current_disk_count = self._node.capability.disk.data_disk_count
+        assert isinstance(self._node.capability.disk.max_data_disk_count, int)
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
         node_context = self._node.capability.get_extended_runbook(AzureNodeSchema)
+        vm = self._get_vm_with_disk_state()
+        data_disks = vm.storage_profile.data_disks
+        occupied_luns = {disk.lun for disk in data_disks}
+        max_disk_count = self._node.capability.disk.max_data_disk_count
+        if count > max_disk_count - len(data_disks):
+            raise LisaException(
+                f"Cannot add {count} data disks: {len(data_disks)} of "
+                f"{max_disk_count} disks are already attached to {vm.name}"
+            )
+        if lun != -1:
+            if lun in occupied_luns:
+                raise LisaException(f"LUN {lun} is already occupied on {vm.name}")
+            luns = [lun]
+        else:
+            luns = [
+                value for value in range(max_disk_count) if value not in occupied_luns
+            ][:count]
+        existing_names = {
+            disk.name
+            for disk in compute_client.disks.list_by_resource_group(
+                self._resource_group_name
+            )
+        }
+        existing_names.update(disk.name for disk in data_disks)
+        existing_names.update(self.disks)
 
         # create managed disk
         managed_disks = []
-        for i in range(count):
-            name = f"lisa_data_disk_{i + current_disk_count}_{self._node.name}"
+        disk_index = len(data_disks)
+        for _ in luns:
+            name = f"lisa_data_disk_{disk_index}_{self._node.name}"
+            while name in existing_names:
+                disk_index += 1
+                name = f"lisa_data_disk_{disk_index}_{self._node.name}"
+            existing_names.add(name)
+            # Keep failed or timed-out creations visible to after_case cleanup.
+            self.disks.append(name)
             async_disk_update = compute_client.disks.begin_create_or_update(
                 self._resource_group_name,
                 name,
@@ -2118,13 +2162,7 @@ class Disk(AzureFeatureMixin, features.Disk):
             managed_disks.append(async_disk_update.result())
 
         # attach managed disk
-        azure_platform: AzurePlatform = self._platform  # type: ignore
-        vm = get_vm(azure_platform, self._node)
-        for i, managed_disk in enumerate(managed_disks):
-            if lun != -1:
-                lun_temp = lun
-            else:
-                lun_temp = i + current_disk_count
+        for lun_temp, managed_disk in zip(luns, managed_disks):
             self._log.debug(f"attaching disk {managed_disk.name} at lun #{lun_temp}")
             vm.storage_profile.data_disks.append(
                 {
@@ -2140,8 +2178,7 @@ class Disk(AzureFeatureMixin, features.Disk):
 
         # update data disk count
         add_disk_names = [managed_disk.name for managed_disk in managed_disks]
-        self.disks += add_disk_names
-        self._node.capability.disk.data_disk_count += len(managed_disks)
+        self._node.capability.disk.data_disk_count = len(vm.storage_profile.data_disks)
 
         return add_disk_names
 
@@ -2149,33 +2186,52 @@ class Disk(AzureFeatureMixin, features.Disk):
         assert self._node.capability.disk
         platform: AzurePlatform = self._platform  # type: ignore
         compute_client = get_compute_client(platform)
+        vm = self._get_vm_with_disk_state()
 
-        # if names is None, remove all data disks
         if names is None:
-            names = self.disks
-
-        # detach managed disk
-        azure_platform: AzurePlatform = self._platform  # type: ignore
-        vm = get_vm(azure_platform, self._node)
+            # Recover this VM's hot-add disks after in-memory tracking is lost.
+            disk_name_pattern = re.compile(
+                rf"lisa_data_disk_\d+_{re.escape(self._node.name)}"
+            )
+            recovered_names = [
+                disk.name
+                for disk in vm.storage_profile.data_disks
+                if disk_name_pattern.fullmatch(disk.name)
+            ]
+            recovered_names += [
+                disk.name
+                for disk in compute_client.disks.list_by_resource_group(
+                    self._resource_group_name
+                )
+                if disk_name_pattern.fullmatch(disk.name)
+                and (not disk.managed_by or disk.managed_by.lower() == vm.id.lower())
+            ]
+            names = self.disks + recovered_names
+        names = list(dict.fromkeys(names))
 
         # remove managed disk
         data_disks = vm.storage_profile.data_disks
-        data_disks[:] = [disk for disk in data_disks if disk.name not in names]
+        remaining_disks = [disk for disk in data_disks if disk.name not in names]
 
         # update vm
-        self._update_vm_disks(compute_client, self._resource_group_name, vm.name, vm)
+        if len(remaining_disks) != len(data_disks):
+            vm.storage_profile.data_disks = remaining_disks
+            self._update_vm_disks(
+                compute_client, self._resource_group_name, vm.name, vm
+            )
+        self._node.capability.disk.data_disk_count = len(remaining_disks)
 
         # delete managed disk
         for name in names:
-            async_disk_delete = compute_client.disks.begin_delete(
-                self._resource_group_name, name
-            )
-            async_disk_delete.wait()
+            try:
+                async_disk_delete = compute_client.disks.begin_delete(
+                    self._resource_group_name, name
+                )
+                async_disk_delete.wait()
+            except ResourceNotFoundError:
+                self._log.debug(f"Managed disk {name} is already absent")
+            self.disks = [disk_name for disk_name in self.disks if disk_name != name]
 
-        # update data disk count
-        assert isinstance(self._node.capability.disk.data_disk_count, int)
-        self.disks = [name for name in self.disks if name not in names]
-        self._node.capability.disk.data_disk_count -= len(names)
         self._node.close()
 
     # verify that resource disk is mounted
