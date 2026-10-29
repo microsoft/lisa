@@ -461,7 +461,7 @@ resource nodes_data_disks_with_vhds 'Microsoft.Compute/disks@2022-03-02' = [
 resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in range(0, node_count): {
   name: nodes[i].name
   location: nodes[i].location
-  tags: combined_vm_tags
+  tags: union(combined_vm_tags, nodes[i].vm_tags)
   plan: nodes[i].purchase_plan
   properties: {
     availabilitySet: availability_set_value

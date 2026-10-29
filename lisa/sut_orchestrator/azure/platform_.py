@@ -570,6 +570,7 @@ class AzurePlatform(Platform):
             features.SecurityProfile,
             features.ACC,
             features.IsolatedResource,
+            features.Hsm,
             features.HyperVGeneration,
             features.Architecture,
             features.Nfs,
@@ -2902,7 +2903,11 @@ class AzurePlatform(Platform):
         # all nodes support following features
         all_features = self.supported_features()
         node_space.features.update(
-            [schema.FeatureSettings.create(x.name()) for x in all_features]
+            [
+                schema.FeatureSettings.create(x.name())
+                for x in all_features
+                if x != features.Hsm
+            ]
         )
         convert_to_azure_node_space(node_space)
 
