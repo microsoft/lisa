@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from pathlib import PurePosixPath
-from typing import cast
+from typing import Tuple, cast
 
 from retry import retry
 
@@ -27,6 +27,10 @@ from .echo import Echo
 class Chrony(Tool):
     # Leap status     : Normal
     __leap_status_pattern = re.compile(r"Leap status\s*:\s*Normal")
+    # System time     : 0.000001234 seconds slow of NTP time
+    __system_time_pattern = re.compile(
+        r"System time\s*:\s*(?P<offset>[\d.]+) seconds (?:fast|slow) of NTP time"
+    )
     __no_server_set = "Number of sources = 0"
     __service_not_ready = "503 No such source"
 
@@ -72,6 +76,22 @@ class Chrony(Tool):
                 f"Leap status of {self.command} tracking is not expected,"
                 " please check the service status of chrony."
             )
+
+    def get_tracking_status(self) -> Tuple[float, bool]:
+        """
+        Returns the absolute system clock offset from NTP time in seconds, and
+        whether the leap status is Normal (i.e. chrony is synchronized).
+        """
+        cmd_result = self.run("tracking", force_run=True, sudo=True)
+        cmd_result.assert_exit_code()
+        match = self.__system_time_pattern.search(cmd_result.stdout)
+        if not match:
+            raise LisaException(
+                f"failed to parse 'System time' from chronyc tracking output: "
+                f"'{cmd_result.stdout}'. Check that chronyd is running."
+            )
+        is_synchronized = bool(self.__leap_status_pattern.search(cmd_result.stdout))
+        return float(match.group("offset")), is_synchronized
 
     def set_server_setting(self) -> None:
         cmd_result = self.run("sources", shell=True, sudo=True, force_run=True)

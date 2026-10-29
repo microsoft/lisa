@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from collections import Counter
 from typing import Any, Dict, List, Tuple
 
@@ -17,8 +18,8 @@ from lisa.base_tools import Cat
 from lisa.messages import MetricRelativity, send_unified_perf_message
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
-from lisa.tools import Dmesg, Lscpu, StressNg
-from lisa.util import LisaException
+from lisa.tools import Chrony, Dmesg, Lscpu, StressNg
+from lisa.util import LisaException, SkippedException
 
 
 @TestSuiteMetadata(
@@ -47,6 +48,16 @@ class CpuOversubscription(TestSuite):
     # MAX_DURATION plus room for stress-ng install and the cumulative startup
     # and teardown overhead of launching one stress-ng process per window.
     TIMEOUT = 14400
+    # Provisional bound on chrony's system clock offset under load. Azure's
+    # PTP-based sync normally keeps the offset well under 1 ms, so 100 ms
+    # indicates a real clock disruption rather than normal jitter.
+    PROVISIONAL_MAX_CLOCK_OFFSET_IN_SECONDS = 0.1
+    # Kernel messages indicating the guest clocksource was disrupted.
+    _clocksource_error_pattern = re.compile(
+        r"clocksource.*unstable|Marking clocksource .* as unstable|"
+        r"TSC.*(unstable|halts)|timekeeping watchdog",
+        re.IGNORECASE,
+    )
 
     @TestCaseMetadata(
         description="""
@@ -113,19 +124,7 @@ class CpuOversubscription(TestSuite):
         variables: Dict[str, Any],
         result: TestResult,
     ) -> None:
-        duration = self._get_duration(variables)
-        window = self._get_int_variable(
-            variables, "cpu_oversub_window", self.DEFAULT_WINDOW_IN_SECONDS
-        )
-        assert_that(window).described_as(
-            "cpu_oversub_window must be a positive number of seconds no larger "
-            "than cpu_oversub_duration. Fix the runbook variable."
-        ).is_greater_than(0).is_less_than_or_equal_to(duration)
-        assert_that(duration % window).described_as(
-            "cpu_oversub_duration must be divisible by cpu_oversub_window so "
-            "all performance samples use equal durations. Fix the runbook "
-            "variables."
-        ).is_equal_to(0)
+        duration, window = self._get_duration_and_window(variables)
         window_count = duration // window
         thread_count = node.tools[Lscpu].get_thread_count()
         stress_ng = node.tools[StressNg]
@@ -194,6 +193,132 @@ class CpuOversubscription(TestSuite):
                 f"{self.PROVISIONAL_MIN_TO_PEAK_RATIO}. Compare with a run on the "
                 f"corresponding base D-series size."
             )
+
+    @TestCaseMetadata(
+        description="""
+        Verifies guest time sync stays accurate while all vCPUs are busy.
+        Existing timesync tests run on an idle VM; CPU throttling or live
+        migration on oversubscribed hosts can cause clock drift or jumps that
+        only show under load.
+
+        Runs back-to-back stress-ng cpu windows on all vCPUs and, between
+        windows, reads chrony's system clock offset and leap status. Fails if
+        the offset exceeds a provisional 100 ms bound, chrony loses sync, or the
+        kernel logs new clocksource instability messages. Publishes max and p99
+        offset as perf metrics.
+
+        Runbook variables "cpu_oversub_duration" (max 10800) and
+        "cpu_oversub_window" set the total duration and sampling interval in
+        seconds; the duration must be divisible by the window.
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=simple_requirement(unsupported_os=[BSD, Windows]),
+    )
+    def verify_timesync_under_cpu_pressure(
+        self,
+        node: Node,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        duration, window = self._get_duration_and_window(variables)
+        window_count = duration // window
+        thread_count = node.tools[Lscpu].get_thread_count()
+        stress_ng = node.tools[StressNg]
+        dmesg = node.tools[Dmesg]
+        chrony = node.tools[Chrony]
+
+        try:
+            chrony.check_tracking()
+        except LisaException as error:
+            raise SkippedException(
+                f"chrony is not synchronized on '{node.name}' before the load, "
+                f"so offsets under load cannot be judged. Run "
+                f"verify_timesync_chrony to diagnose: {error}"
+            ) from error
+
+        clock_errors_before = self._get_clocksource_error_lines(dmesg)
+        offsets: List[float] = []
+        unsynchronized_samples: List[int] = []
+        log.info(
+            f"starting {duration}s timesync-under-load check on {thread_count} "
+            f"vCPUs of node '{node.name}', sampling every {window}s"
+        )
+        for index in range(window_count):
+            stress_ng.launch_cpu(num_cores=thread_count, timeout_in_seconds=window)
+            offset, is_synchronized = chrony.get_tracking_status()
+            offsets.append(offset)
+            if not is_synchronized:
+                unsynchronized_samples.append(index + 1)
+            log.debug(
+                f"timesync under load window {index + 1}/{window_count}: "
+                f"offset {offset * 1000:.3f} ms, synchronized {is_synchronized}"
+            )
+        clock_errors_after = self._get_clocksource_error_lines(dmesg)
+
+        max_offset = max(offsets)
+        for name, value in {
+            "clock_offset_ms_p99": self._percentile(offsets, 99) * 1000,
+            "clock_offset_ms_max": max_offset * 1000,
+        }.items():
+            send_unified_perf_message(
+                node=node,
+                test_result=result,
+                test_case_name="verify_timesync_under_cpu_pressure",
+                metric_name=name,
+                metric_value=value,
+                metric_unit="ms",
+                metric_relativity=MetricRelativity.LowerIsBetter,
+                tool="chrony",
+            )
+        log.info(
+            f"timesync under load summary on '{node.name}' over {window_count} "
+            f"samples: max offset {max_offset * 1000:.3f} ms, "
+            f"unsynchronized samples {len(unsynchronized_samples)}"
+        )
+
+        new_clock_errors = list(
+            (Counter(clock_errors_after) - Counter(clock_errors_before)).elements()
+        )
+        assert_that(new_clock_errors).described_as(
+            "the guest kernel reported clocksource instability during sustained "
+            "CPU pressure. Review host contention and reproduce on the "
+            "corresponding base VM size."
+        ).is_empty()
+        assert_that(unsynchronized_samples).described_as(
+            "chrony lost synchronization (leap status not Normal) at these "
+            "sample numbers during CPU pressure. Check 'chronyc tracking' and "
+            "the PTP clock source on this VM."
+        ).is_empty()
+        assert_that(max_offset).described_as(
+            "guest clock offset from NTP time exceeded the provisional bound "
+            "during CPU pressure. Compare with the corresponding base VM size "
+            "to tell oversubscription effects from image issues."
+        ).is_less_than_or_equal_to(self.PROVISIONAL_MAX_CLOCK_OFFSET_IN_SECONDS)
+
+    def _get_duration_and_window(self, variables: Dict[str, Any]) -> Tuple[int, int]:
+        duration = self._get_duration(variables)
+        window = self._get_int_variable(
+            variables, "cpu_oversub_window", self.DEFAULT_WINDOW_IN_SECONDS
+        )
+        assert_that(window).described_as(
+            "cpu_oversub_window must be a positive number of seconds no larger "
+            "than cpu_oversub_duration. Fix the runbook variable."
+        ).is_greater_than(0).is_less_than_or_equal_to(duration)
+        assert_that(duration % window).described_as(
+            "cpu_oversub_duration must be divisible by cpu_oversub_window so "
+            "all samples use equal durations. Fix the runbook variables."
+        ).is_equal_to(0)
+        return duration, window
+
+    def _get_clocksource_error_lines(self, dmesg: Dmesg) -> List[str]:
+        output = dmesg.get_output(force_run=True)
+        return [
+            line
+            for line in output.splitlines()
+            if self._clocksource_error_pattern.search(line)
+        ]
 
     def _get_duration(self, variables: Dict[str, Any]) -> int:
         duration = self._get_int_variable(
