@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from pathlib import Path
 from typing import cast
 
@@ -117,6 +118,38 @@ class StressNg(Tool):
 
         cmd += f" --timeout {timeout_in_seconds} "
         self.run(cmd, force_run=True, timeout=timeout_in_seconds)
+
+    def launch_cpu_with_metrics(
+        self, num_workers: int, timeout_in_seconds: int
+    ) -> float:
+        """
+        Runs cpu stressors and returns the aggregated bogo ops/s (real time).
+        """
+        # stress-ng writes metrics to stderr, so merge it into stdout.
+        result = self.run(
+            f"--cpu {num_workers} --timeout {timeout_in_seconds} --metrics-brief 2>&1",
+            force_run=True,
+            shell=True,
+            # extra time for stress-ng startup and teardown
+            timeout=timeout_in_seconds + 120,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="stress-ng cpu stressor failed",
+        )
+        # e.g. "stress-ng: info: [123] cpu  1234567  60.00  479.62  0.10  20576.07
+        #       2573.72" (single line)
+        # columns: bogo ops, real time, usr time, sys time,
+        # bogo ops/s (real time), bogo ops/s (usr+sys time)
+        match = self._cpu_metrics_pattern.search(result.stdout)
+        if not match:
+            raise LisaException(
+                f"failed to parse stress-ng cpu metrics from output: "
+                f"'{result.stdout}'. Verify stress-ng supports --metrics-brief."
+            )
+        return float(match.group("ops_per_sec_real"))
+
+    _cpu_metrics_pattern = re.compile(
+        r"\]\s+cpu\s+\d+\s+[\d.]+\s+[\d.]+\s+[\d.]+\s+(?P<ops_per_sec_real>[\d.]+)"
+    )
 
     def launch_job_async(self, job_file: str, sudo: bool = False) -> Process:
         job_cmd = f"--job {job_file}"
