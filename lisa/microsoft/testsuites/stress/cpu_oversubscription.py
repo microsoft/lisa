@@ -145,7 +145,7 @@ class CpuOversubscription(TestSuite):
             )
             throughputs.append(throughput)
             steal_percents.append(steal_percent)
-            log.debug(
+            log.info(
                 f"cpu oversubscription window {index + 1}/{window_count}: "
                 f"{throughput:.2f} bogo ops/s, steal {steal_percent:.2f}%"
             )
@@ -177,13 +177,12 @@ class CpuOversubscription(TestSuite):
                 metric_relativity=relativity,
                 tool="stress-ng",
             )
+        metric_summary = ", ".join(
+            f"{name}={value:.3f}{unit}" for name, (value, unit) in metrics.items()
+        )
         log.info(
-            f"cpu oversubscription summary on '{node.name}' over {window_count} "
-            f"windows: steal p50/p90/max = "
-            f"{metrics['steal_percent_p50'][0]:.2f}/"
-            f"{metrics['steal_percent_p90'][0]:.2f}/"
-            f"{metrics['steal_percent_max'][0]:.2f}%, "
-            f"min-to-peak throughput ratio = {min_to_peak_ratio:.2f}"
+            f"cpu oversubscription summary on '{node.name}' ({thread_count} vCPUs, "
+            f"{window_count} x {window}s windows): {metric_summary}"
         )
         if min_to_peak_ratio < self.PROVISIONAL_MIN_TO_PEAK_RATIO:
             log.warning(
@@ -273,9 +272,11 @@ class CpuOversubscription(TestSuite):
                 tool="chrony",
             )
         log.info(
-            f"timesync under load summary on '{node.name}' over {window_count} "
-            f"samples: max offset {max_offset * 1000:.3f} ms, "
-            f"unsynchronized samples {len(unsynchronized_samples)}"
+            f"timesync under load summary on '{node.name}' ({thread_count} vCPUs, "
+            f"{window_count} x {window}s samples): clock_offset_ms_p99="
+            f"{self._percentile(offsets, 99) * 1000:.3f}, clock_offset_ms_max="
+            f"{max_offset * 1000:.3f}, unsynchronized_samples="
+            f"{len(unsynchronized_samples)}"
         )
 
         new_clock_errors = list(
