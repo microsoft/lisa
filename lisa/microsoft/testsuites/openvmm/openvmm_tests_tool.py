@@ -2,17 +2,18 @@
 # Licensed under the MIT license.
 
 import hashlib
+import json
 import re
 import shlex
 import xml.etree.ElementTree as ETree
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
-from typing import Any, Dict, List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, Tuple, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Posix
-from lisa.tools import Cargo, Curl, Git, Ls
-from lisa.util import LisaException, UnsupportedDistroException
+from lisa.tools import Cargo, Curl, Git, Ls, Uname
+from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 
 
 def _new_str_list() -> List[str]:
@@ -189,6 +190,275 @@ class OpenVmmTests(Tool):
         self._set_repo_paths()
         self._prepared_ref = None
         self._repo_prepared = False
+
+    def run_vmm_tests_prebuilt_binary(
+        self,
+        log_path: Path,
+        binary_path: str,
+        ref: str = "",
+        release: bool = False,
+        test_filter: str = "",
+        install_missing_deps: bool = True,
+        skip_vhd_prompt: bool = True,
+    ) -> _JUnitSummary:
+        if not binary_path or not PurePath(binary_path).is_absolute():
+            raise LisaException(
+                "openvmm_prebuilt_binary_path must explicitly name an absolute "
+                "path to the packaged OpenVMM executable."
+            )
+        node_os = cast(Posix, self.node.os)
+        if not node_os.package_exists("openvmm"):
+            if not node_os.is_package_in_repo("openvmm"):
+                raise SkippedException(
+                    "The openvmm RPM is not installed and is unavailable in the "
+                    "configured OS package repositories."
+                )
+            self._log.info(
+                "Installing the prebuilt OpenVMM package from the OS repository"
+            )
+            node_os.install_packages("openvmm")
+        original_identity = self._get_prebuilt_binary_identity(binary_path)
+        try:
+            ref, ref_source = self._resolve_prebuilt_tests_ref(ref)
+            env = self._prepare_repo(log_path, ref)
+            # Petri creates Unix sockets beneath this path (limited to 108 bytes).
+            output_dir = self.node.get_pure_path(
+                self.node.execute(
+                    "mktemp -d /tmp/ovmm-XXXXXXXX",
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "failed to create a short OpenVMM test output directory"
+                    ),
+                ).stdout.strip()
+            )
+            self._log.info(f"Prebuilt OpenVMM test output directory: {output_dir}")
+            command = [
+                self.node.tools[Cargo].command,
+                "xflowey",
+                "vmm-tests-run",
+                "--target",
+                "linux-x64",
+                "--dir",
+                str(output_dir),
+                "--build-only",
+                "--ci-profile",
+            ]
+            if install_missing_deps:
+                command.append("--install-missing-deps")
+            if skip_vhd_prompt:
+                command.append("--skip-vhd-prompt")
+            if release:
+                command.append("--release")
+            if test_filter:
+                command.extend(["--filter", test_filter])
+            self._run_logged_command(
+                name="openvmm_prebuilt_prepare",
+                command=shlex.join(command),
+                log_path=log_path,
+                timeout=self.VMM_TIMEOUT,
+                update_envs=env,
+            )
+            self._select_prebuilt_binary(original_identity[0], output_dir)
+            remote_junit = output_dir / "target" / "nextest" / "ci" / "junit.xml"
+            self.node.execute(
+                f"test -f {shlex.quote(str(output_dir / 'run.sh'))} && "
+                f"rm -f -- {shlex.quote(str(remote_junit))}",
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Flowey build-only preparation did not produce the test launcher"
+                ),
+            )
+            self._record_prebuilt_test_details(
+                log_path, binary_path, original_identity, ref, ref_source
+            )
+            name = "openvmm_vmm_tests_prebuilt_binary"
+            local_junit = log_path / f"{name}.junit.xml"
+            local_junit.unlink(missing_ok=True)
+            try:
+                self._run_logged_command(
+                    name=name,
+                    command=self._wrap_command_for_group(
+                        f"bash {shlex.quote(str(output_dir / 'run.sh'))}"
+                    ),
+                    log_path=log_path,
+                    timeout=self.VMM_TIMEOUT,
+                    update_envs=env,
+                )
+            finally:
+                self._copy_back_if_exists(remote_junit, local_junit)
+            if not local_junit.exists():
+                raise LisaException(
+                    "Prebuilt OpenVMM validation requires a fresh nextest JUnit "
+                    "report; check harness compatibility and artifact copy-back."
+                )
+            summary = self._check_vmm_tests_results(
+                name, log_path / f"{name}.log", local_junit
+            )
+            if not summary.passed_tests:
+                raise LisaException(
+                    "Prebuilt OpenVMM validation executed no passing tests. "
+                    "An empty or entirely ignored selection is not validation."
+                )
+            return summary
+        finally:
+            if self._get_prebuilt_binary_identity(binary_path) != original_identity:
+                raise LisaException(
+                    "The selected prebuilt OpenVMM binary path or SHA256 changed "
+                    "during validation."
+                )
+
+    def _resolve_prebuilt_tests_ref(self, ref: str) -> Tuple[str, str]:
+        if ref.strip():
+            self._log.info(f"Using explicit OpenVMM harness reference: {ref.strip()}")
+            return ref.strip(), "explicit"
+
+        version = self.node.execute(
+            "rpm -q --queryformat '%{VERSION}' openvmm",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to query the installed OpenVMM RPM version"
+            ),
+        ).stdout.strip()
+        if not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.+_~-]*", version):
+            raise LisaException(f"Invalid installed OpenVMM RPM version: {version!r}")
+
+        tag = f"openvmm-v{version}"
+        tag_ref = f"refs/tags/{tag}"
+        parameters: List[str] = []
+        if self.auth_token:
+            parameters.extend(
+                ["-c", f"http.extraheader=AUTHORIZATION: bearer {self.auth_token}"]
+            )
+        parameters.extend(
+            ["ls-remote", "--exit-code", "--tags", "--refs", self.repo_url, tag_ref]
+        )
+        result = self.node.tools[Git].run(
+            shlex.join(parameters),
+            shell=True,
+            force_run=True,
+            update_envs={"GIT_TERMINAL_PROMPT": "0"},
+            timeout=120,
+        )
+        if result.exit_code == 2:
+            self._log.warning(
+                f"No upstream tag {tag} found for installed OpenVMM RPM {version}; "
+                "using main for the harness. The latest harness may be incompatible "
+                "with this package."
+            )
+            return "main", "missing-package-tag"
+        result.assert_exit_code(
+            message=(
+                f"Failed to look up OpenVMM harness tag {tag}: "
+                f"stdout={result.stdout}\nstderr={result.stderr}"
+            )
+        )
+        if not re.fullmatch(
+            rf"[0-9a-f]{{40,64}}\s+{re.escape(tag_ref)}", result.stdout.strip()
+        ):
+            raise LisaException(
+                f"Unexpected response looking up OpenVMM harness tag {tag}: "
+                f"stdout={result.stdout}\nstderr={result.stderr}"
+            )
+        self._log.info(
+            f"Selected OpenVMM harness tag {tag} for installed RPM version {version}"
+        )
+        return tag, "package-version"
+
+    def _get_prebuilt_binary_identity(self, binary_path: str) -> Tuple[str, str]:
+        if not binary_path or not PurePath(binary_path).is_absolute():
+            raise LisaException(
+                "openvmm_prebuilt_binary_path must explicitly name an absolute "
+                "path to an installed OpenVMM executable."
+            )
+        quoted_path = shlex.quote(binary_path)
+        resolved_path = self.node.execute(
+            f"test -f {quoted_path} && test -x {quoted_path} && "
+            f"readlink -f -- {quoted_path}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Prebuilt OpenVMM executable is missing or not executable: "
+                f"{binary_path}. No source-build fallback is permitted."
+            ),
+        ).stdout.strip()
+        checksum_output = self.node.execute(
+            f"sha256sum -- {shlex.quote(resolved_path)}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failed to hash prebuilt OpenVMM",
+        ).stdout.split()
+        if not checksum_output or not re.fullmatch(r"[0-9a-f]{64}", checksum_output[0]):
+            raise LisaException("Invalid SHA256 output for the prebuilt OpenVMM binary")
+        return resolved_path, checksum_output[0]
+
+    def _select_prebuilt_binary(self, binary_path: str, content_dir: PurePath) -> None:
+        # Petri checks these content paths before falling back to Cargo outputs.
+        commands = []
+        for target in ("x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"):
+            directory = content_dir / target
+            commands.extend(
+                [
+                    f"mkdir -p {shlex.quote(str(directory))}",
+                    f"ln -sfnT -- {shlex.quote(binary_path)} "
+                    f"{shlex.quote(str(directory / 'openvmm'))}",
+                    f"test {shlex.quote(binary_path)} -ef "
+                    f"{shlex.quote(str(directory / 'openvmm'))}",
+                ]
+            )
+        self.node.execute(
+            " && ".join(commands),
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to replace Flowey's staged OpenVMM with the packaged binary"
+            ),
+        )
+
+    def _record_prebuilt_test_details(
+        self,
+        log_path: Path,
+        binary_path: str,
+        identity: Tuple[str, str],
+        ref: str,
+        ref_source: str,
+    ) -> None:
+        version = self.node.execute(
+            f"{shlex.quote(identity[0])} --version",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to query prebuilt OpenVMM version"
+            ),
+        ).stdout.strip()
+        package = self.node.execute(
+            f"rpm -qf -- {shlex.quote(identity[0])}",
+            shell=True,
+            expected_exit_code=None,
+        )
+        provenance = {
+            "binary_path": binary_path,
+            "resolved_binary_path": identity[0],
+            "sha256": identity[1],
+            "binary_version": version,
+            "rpm_query_exit_code": package.exit_code,
+            "rpm_query_stdout": package.stdout,
+            "rpm_query_stderr": package.stderr,
+            "host_os": str(self.node.os.information),
+            "host_kernel": self.node.tools[Uname]
+            .get_linux_information()
+            .kernel_version_raw,
+            "harness_ref": ref,
+            "harness_ref_source": ref_source,
+            "harness_sha": self.node.tools[Git].get_current_commit_hash(self.repo_root),
+        }
+        rendered = json.dumps(provenance, indent=2)
+        self._log.info(f"Prebuilt OpenVMM validation provenance:\n{rendered}")
+        (log_path / "openvmm_prebuilt_provenance.json").write_text(
+            rendered + "\n", encoding="utf-8"
+        )
 
     def _get_repo_dir_name(self) -> str:
         repo_hash = hashlib.sha256(self.repo_url.encode("utf-8")).hexdigest()[:8]
