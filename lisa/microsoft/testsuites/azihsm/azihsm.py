@@ -59,7 +59,8 @@ _STATE_LOCK = Lock()
 
     These tests assume that the packages to be tested are available via testing
     or preview releases in packages.microsoft.com.  The needed URLs will be
-    added to the system and the package installed via apt or tdnf.
+    added to the system and the package installed via apt or tdnf. Azure Linux
+    also needs its image-provided RPM signing key imported for driver packages.
     """,
     maturity="preview",
     requirement=simple_requirement(
@@ -207,6 +208,7 @@ class AziHsm(TestSuite):
                     ),
                     repo_name="AZIHSM Packages",
                     keys_location=[
+                        "/etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY",
                         "https://packages.microsoft.com/keys/microsoft.asc",
                         "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                     ],
@@ -219,6 +221,7 @@ class AziHsm(TestSuite):
                     ),
                     repo_name="AZIHSM Packages Non-OSS",
                     keys_location=[
+                        "/etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY",
                         "https://packages.microsoft.com/keys/microsoft.asc",
                         "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                     ],
@@ -232,6 +235,7 @@ class AziHsm(TestSuite):
                     ),
                     repo_name="AZIHSM Packages",
                     keys_location=[
+                        "/etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY",
                         "https://packages.microsoft.com/keys/microsoft.asc",
                         "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                     ],
