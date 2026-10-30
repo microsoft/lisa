@@ -33,7 +33,7 @@ A LISA test case is a **declarative validation** of a Linux capability, run in a
 - **One class per file**, PascalCase, inherits `TestSuite`, named after the feature
 - **Methods**: Prefix `verify_` or `test_`, name describes the scenario
 - **Type hints required**: At minimum `node: Node` and `-> None`. Also use `log: Logger`, `log_path: Path`, `environment: Environment` as needed.
-- **Self-test scope**: Do not add self-test files (including files under `selftests/`) for TestSuite, Tool, or Feature changes. Add self-test files only when the change modifies framework-level behavior.
+- **Self-test scope**: Do not add new self-tests or self-test files (including files under `selftests/`) unless the user explicitly requests them. This applies to TestSuite, Tool, Feature, and framework changes.
 
 ---
 
@@ -193,7 +193,7 @@ CI runs `black`, `isort`, `flake8`, `mypy`, `pylint`, `unittest discover` on eve
 
 **Test infrastructure**
 - TestSuite files must use LISA test discovery (`TestSuite` and metadata decorators), not `unittest` discovery. Don't add `if __name__ == "__main__":`.
-- Running existing self-tests does not require adding new self-test files. Add self-test files only for framework-level changes, not for TestSuite, Tool, or Feature changes.
+- Run existing self-tests where relevant, but do not add new self-tests or self-test files unless the user explicitly requests them, even for framework-level changes.
 - All `time.sleep(...)` calls → `check_till_timeout()` / `retry_without_exceptions()` (CI doesn't ban it directly, but reviewers will).
 
 ### Local commands the agent must run before reporting done
@@ -220,7 +220,7 @@ If any command fails:
 - [ ] Class inherits `TestSuite`; method has `@TestCaseMetadata`
 - [ ] All params and return type are annotated
 - [ ] No `time.sleep`, no bare `except:`, no `print()`, no warning-level logging
-- [ ] No new self-test files unless framework-level behavior is modified
+- [ ] No new self-tests or self-test files unless explicitly requested by the user
 - [ ] Imports grouped & sorted (stdlib / third-party / `lisa` / `microsoft`)
 - [ ] Line length ≤ 88
 - [ ] `black --check`, `isort --check`, `flake8`, `mypy`, `pylint` all pass on the new file
