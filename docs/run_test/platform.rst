@@ -313,6 +313,18 @@ deployment.
   location. To test multiple locations together, the :ref:`combinator
   <combinator>` is needed.
 * **vm_size**. Specify which vm_size is used to deploy.
+
+  VM families of the Ddsv5/Dadsv5 generation and newer (family version v5 and
+  later, e.g. ``standardDDSv5Family`` or ``StandardDpdsv7Family``) require
+  Accelerated Networking and cannot use a synthetic-only network configuration.
+  Azure's SKU API reports Accelerated Networking support, but does not report
+  whether it can be disabled, so LISA infers it from the VM family version. When
+  such a family supports Accelerated Networking, it advertises only the
+  Accelerated Networking data path. Tests requiring ``Synthetic()`` are skipped
+  before deployment; Accelerated Networking tests remain eligible. Families that
+  don't support Accelerated Networking keep the synthetic data path. Refresh any
+  existing Azure location capability cache after updating LISA.
+
 * **maximize_capability**. True means to ignore test requirement, and try best to
   run all test cases. Notice, there are some features are conflict by natural,
   so some test cases may not be picked up. This setting is useful to force run
