@@ -557,22 +557,19 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
     Install GPU driver using either Azure extension or direct driver tools.
 
     This function attempts to install the driver in the following order:
-    1. Use signed Ubuntu CUDA modules directly when Secure Boot is enabled
+    1. Use direct driver installation when Secure Boot is enabled
     2. Otherwise try Azure GPU Extension (platform-specific)
     3. Fall back to direct driver installation via tools
 
     The driver type is determined by the Gpu feature based on VM SKU.
+    Secure Boot support depends on the selected driver installer.
     """
     gpu_feature = node.features[Gpu]
     if gpu_feature.is_module_loaded():
         return
 
-    if (
-        isinstance(node.os, Ubuntu)
-        and _get_supported_driver(node) == ComputeSDK.CUDA
-        and node.tools[Mokutil].is_secure_boot_enabled()
-    ):
-        log.info("Installing signed Ubuntu CUDA drivers for Secure Boot")
+    if node.tools[Mokutil].is_secure_boot_enabled():
+        log.info("Secure Boot enabled; installing GPU drivers directly")
         __install_driver_using_sdk(node, log, log_path)
         return
 
