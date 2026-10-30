@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import json
 import re
-from typing import Dict, List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
@@ -273,20 +273,7 @@ class Nvmecli(Tool):
         #     "PhysicalSize" : 68719476736,
         #     "SectorSize" : 512
         #   }
-        nvme_list = self.run(
-            "list -o json 2>/dev/null",
-            shell=True,
-            sudo=True,
-            force_run=force_run,
-            no_error_log=True,
-        )
-        # NVMe list command returns empty string when no NVMe devices are found.
-        if not nvme_list.stdout:
-            raise LisaException(
-                "No NVMe devices found. "
-                "The 'nvme list' command returned an empty string."
-            )
-        nvme_devices = json.loads(nvme_list.stdout)["Devices"]
+        nvme_devices = self._get_list_json(force_run=force_run)["Devices"]
         device_paths_namespace_ids = {}
 
         def _add(device_path: str, namespace_id: int) -> None:
@@ -334,6 +321,51 @@ class Nvmecli(Tool):
             )
         return device_paths_namespace_ids
 
+    def _get_list_json(self, force_run: bool = False) -> Dict[str, Any]:
+        # The captured stdout can occasionally be truncated even though the
+        # command exits with 0, e.g. sudo-rs in use_pty mode may drop the tail
+        # of the output when the command exits right after writing it. Re-run
+        # the command instead of failing on the first incomplete JSON.
+        attempts = 3
+        last_error = ""
+        for attempt in range(1, attempts + 1):
+            nvme_list = self.run(
+                "list -o json 2>/dev/null",
+                shell=True,
+                sudo=True,
+                force_run=force_run or attempt > 1,
+                no_error_log=True,
+            )
+            # NVMe list command returns empty string when no NVMe devices are found.
+            if not nvme_list.stdout:
+                raise LisaException(
+                    "No NVMe devices found. "
+                    "The 'nvme list' command returned an empty string."
+                )
+            try:
+                result = json.loads(nvme_list.stdout)
+            except json.JSONDecodeError as e:
+                last_error = (
+                    f"{e}. exit code: {nvme_list.exit_code}, "
+                    f"stdout length: {len(nvme_list.stdout)}, "
+                    f"stdout tail: {nvme_list.stdout[-200:]!r}"
+                )
+                self._log.debug(
+                    f"Invalid JSON from 'nvme list -o json' "
+                    f"(attempt {attempt}/{attempts}): {last_error}"
+                )
+                continue
+            if not isinstance(result, dict):
+                raise LisaException(
+                    "Unexpected 'nvme list -o json' output, expected a JSON "
+                    f"object but got {type(result).__name__}."
+                )
+            return result
+        raise LisaException(
+            f"'nvme list -o json' returned invalid JSON after {attempts} "
+            f"attempts. Last error: {last_error}"
+        )
+
     def get_disks(self, force_run: bool = False) -> List[str]:
         device_paths = sorted(self.get_devices(force_run=force_run).keys())
         return device_paths
@@ -351,19 +383,10 @@ class Nvmecli(Tool):
                 "/dev/nvme1n1": "Microsoft NVMe Direct Disk v2",
             }
         """
-        nvme_list = self.run(
-            "list -o json 2>/dev/null",
-            shell=True,
-            sudo=True,
-            force_run=force_run,
-            no_error_log=True,
-        )
-        if not nvme_list.stdout:
-            return {}
-
         try:
-            nvme_devices = json.loads(nvme_list.stdout)["Devices"]
-        except (json.JSONDecodeError, KeyError, TypeError):
+            nvme_devices = self._get_list_json(force_run=force_run)["Devices"]
+        except (LisaException, KeyError, TypeError) as e:
+            self._log.debug(f"Failed to get NVMe device models: {e}")
             return {}
 
         if not isinstance(nvme_devices, list):
