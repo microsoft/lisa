@@ -4,7 +4,7 @@
 import re
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, List, Pattern, Type
+from typing import Any, Dict, List, Pattern, Type
 
 from dataclasses_json import dataclass_json
 
@@ -50,6 +50,9 @@ class Nvme(Feature):
 
     # /dev/nvme0n1p15 -> /dev/nvme0n1
     NVME_DEVICE_PATTERN = re.compile(r"/dev/nvme[0-9]+", re.M)
+
+    # /dev/nvme0 (controller path only, not a namespace or partition)
+    _controller_path_pattern = re.compile(r"^/dev/nvme[0-9]+$")
 
     _pci_device_name = "Non-Volatile memory controller"
 
@@ -158,6 +161,10 @@ class Nvme(Feature):
                 # disk_list may contain controller paths (e.g., /dev/nvme0) or
                 # namespace paths. For controller paths, check if ANY namespace
                 # under that controller is a remote "Accelerator" disk.
+                controller_models: Dict[str, str] = {}
+                if any(self._controller_path_pattern.match(d) for d in disk_list):
+                    controller_models = self._get_controller_models()
+
                 def _is_remote(disk: str) -> bool:
                     # Direct match (namespace path like /dev/nvme0n1)
                     model = device_models.get(disk, "")
@@ -171,7 +178,10 @@ class Nvme(Feature):
                         if ns_path.startswith(f"{disk}n") and ns_model:
                             if "nvme accelerator" in ns_model.lower():
                                 return True
-                    return False
+                    # A remote disk controller may have no namespaces (e.g.
+                    # no data disk attached), so nvme-cli reports nothing
+                    # for it. Fall back to the controller model from sysfs.
+                    return "nvme accelerator" in controller_models.get(disk, "").lower()
 
                 disk_list[:] = [disk for disk in disk_list if not _is_remote(disk)]
                 return disk_list
@@ -183,6 +193,40 @@ class Nvme(Feature):
                 if os_disk_nvme_device in disk:
                     disk_list.remove(disk)
         return disk_list
+
+    def _get_controller_models(self) -> Dict[str, str]:
+        """
+        Return a mapping of NVMe controller paths to their model names,
+        read from sysfs. It covers controllers without namespaces.
+        Example return:
+            {
+                "/dev/nvme0": "MSFT NVMe Accelerator v1.0",
+                "/dev/nvme1": "MSFT NVMe Accelerator v1.0",
+                "/dev/nvme2": "Microsoft NVMe Direct Disk v2",
+            }
+        """
+        result = self._node.execute(
+            "for ctrl in /sys/class/nvme/nvme*; do "
+            'if [ -f "$ctrl/model" ]; then '
+            'echo "$(basename "$ctrl"):$(cat "$ctrl/model")"; '
+            "fi; done",
+            shell=True,
+            no_error_log=True,
+        )
+        if result.exit_code != 0:
+            self._log.debug(
+                "Failed to read NVMe controller models from sysfs. "
+                f"exit code: {result.exit_code}, stdout: {result.stdout}, "
+                f"stderr: {result.stderr}"
+            )
+            return {}
+
+        controller_models: Dict[str, str] = {}
+        for line in result.stdout.splitlines():
+            name, separator, model = line.partition(":")
+            if separator and name.strip():
+                controller_models[f"/dev/{name.strip()}"] = model.strip()
+        return controller_models
 
     def get_namespaces_from_cli(self) -> List[str]:
         namespaces_list = self._node.tools[Nvmecli].get_namespaces(force_run=True)
