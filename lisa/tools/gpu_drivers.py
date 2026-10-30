@@ -24,7 +24,7 @@ from lisa.operating_system import (
 from lisa.tools.df import Df
 from lisa.tools.echo import Echo
 from lisa.tools.gpu_smi import GpuSmi
-from lisa.tools.lspci import Lspci
+from lisa.tools.lspci import VENDOR_ID_NVIDIA, Lspci, PciDevice
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.mokutil import Mokutil
 from lisa.tools.usermod import Usermod
@@ -308,6 +308,16 @@ class NvidiaCudaDriver(GpuDriver):
     DEFAULT_CUDA_PACKAGE = "cuda-drivers"
     NVIDIA_CUDA_REPO_BASE_URL = (
         "https://developer.download.nvidia.com/compute/cuda/repos"
+    )
+
+    # PCI device ID blocks of NVIDIA Pascal (GP100, GP10x) and Volta (GV100) GPUs.
+    # Device IDs are used because the lspci name database may not know the device.
+    # The next block, 0x1E00 and above, starts with Turing, which current drivers
+    # support.
+    _LEGACY_GPU_DEVICE_ID_RANGES = (
+        (0x15C0, 0x15FF),
+        (0x1720, 0x172F),
+        (0x1B00, 0x1DFF),
     )
 
     @classmethod
@@ -654,20 +664,33 @@ class NvidiaCudaDriver(GpuDriver):
         if not devices:
             raise LisaException("No NVIDIA GPUs found for CUDA driver selection")
 
-        if any(
-            re.search(
-                r"\b(?:GP10\d\w*|GV100\w*|P(?:4|40|100)|V100)\b",
-                device.device_info,
-                re.IGNORECASE,
-            )
-            for device in devices
-        ):
+        extra_args: Optional[List[str]] = None
+        if any(self._is_legacy_gpu(device) for device in devices):
             self._log.info("Locking Pascal/Volta NVIDIA GPU drivers to branch R580")
             # A versioned metapackage alone allows newer dependency branches.
             # Install NVIDIA's branch pin before resolving the driver packages.
             self.node.os.install_packages("nvidia-driver-pinning-580")
+            # Repairing a partial installation of a newer driver requires the
+            # downgrade directed by the pin; APT refuses it with -y otherwise.
+            extra_args = ["--allow-downgrades"]
 
-        self.node.os.install_packages(self.DEFAULT_CUDA_PACKAGE)
+        self.node.os.install_packages(self.DEFAULT_CUDA_PACKAGE, extra_args=extra_args)
+
+    def _is_legacy_gpu(self, device: PciDevice) -> bool:
+        """Whether the GPU's last supported driver branch is R580 (Pascal, Volta)."""
+        if device.vendor_id.lower() != VENDOR_ID_NVIDIA:
+            return False
+
+        if not re.fullmatch(r"[0-9a-fA-F]{4}", device.device_id):
+            raise LisaException(
+                f"Cannot select the CUDA driver branch: invalid PCI device ID "
+                f"'{device.device_id}' for {device}"
+            )
+
+        device_id = int(device.device_id, 16)
+        return any(
+            low <= device_id <= high for low, high in self._LEGACY_GPU_DEVICE_ID_RANGES
+        )
 
     def _install_cuda_mariner(self) -> None:
         """Install CUDA driver on CBL-Mariner"""
