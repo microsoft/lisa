@@ -1478,7 +1478,8 @@ class Dpdk(TestSuite):
             raise SkippedException(err)
 
     @TestCaseMetadata(
-        description=("""
+        description=(
+            """
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1487,7 +1488,8 @@ class Dpdk(TestSuite):
                 a network virtual appliance setup, firewall, or other data
                 plane
                 tool for managing network traffic with DPDK.
-        """),
+        """
+        ),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(
@@ -1519,7 +1521,8 @@ class Dpdk(TestSuite):
         )
 
     @TestCaseMetadata(
-        description=("""
+        description=(
+            """
                 Run the L3 forwarding test for DPDK.
                 This test creates a DPDK port forwarding setup between
                 two NICs on the same VM. It forwards packets from a sender on
@@ -1528,7 +1531,8 @@ class Dpdk(TestSuite):
                 a network virtual appliance setup, firewall, or other data
                 plane
                 tool for managing network traffic with DPDK.
-        """),
+        """
+        ),
         priority=3,
         maturity="preview",
         requirement=simple_requirement(

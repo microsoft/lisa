@@ -1031,7 +1031,6 @@ def verify_dpdk_send_receive(
     check_sender_packet_drops: bool = False,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
-
     should_grade_drops = True
     external_ips = []
     for node in environment.nodes.list():
