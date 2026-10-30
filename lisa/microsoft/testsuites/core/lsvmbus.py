@@ -24,6 +24,7 @@ from lisa.schema import DiskControllerType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.tools import Cat, Ethtool, Ls, Lscpu, Lsvmbus
+from lisa.tools.lscpu import CpuType
 from lisa.tools.lsvmbus import VmBusDevice
 from lisa.util import LisaException, UnsupportedOperationException
 from lisa.util.perf_timer import create_timer
@@ -55,6 +56,9 @@ class VmbusDeviceNames:
             or SecurityProfileType.Stateless == settings.security_profile
         ):
             self.names = lcvmbus_device_names
+            if node.tools[Lscpu].get_cpu_type() == CpuType.Intel:
+                # Intel TDX guests do not expose the Hyper-V timesync device.
+                self.names.remove("Time Synchronization")
         else:
             self.names = lcvmbus_device_names + [
                 "Data Exchange",
@@ -97,7 +101,7 @@ class LsVmBus(TestSuite):
         This test case will
         1. Check expected vmbus device names presented in the lsvmbus output.
             - Operating system shutdown
-            - Time Synchronization
+            - Time Synchronization (except Intel TDX confidential guests)
             - Heartbeat
             - Synthetic network adapter
             - Synthetic SCSI Controller

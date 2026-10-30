@@ -48,6 +48,7 @@ class GenericVmExtension(VmExtensionTestBase):  # type: ignore[misc]
             # both Linux/Posix and Windows nodes to run this test.
             unsupported_os=[],
         ),
+        maturity="preview",
     )
     def verify_vm_extension_install_uninstall(
         self,

@@ -70,7 +70,12 @@ from azure.mgmt.privatedns.models import (
 )
 from azure.mgmt.resource import ResourceManagementClient, SubscriptionClient
 from azure.mgmt.storage import StorageManagementClient
-from azure.mgmt.storage.models import Sku, StorageAccountCreateParameters
+from azure.mgmt.storage.models import (
+    DeleteRetentionPolicy,
+    FileServiceProperties,
+    Sku,
+    StorageAccountCreateParameters,
+)
 from azure.storage.blob import (
     BlobClient,
     BlobSasPermissions,
@@ -287,6 +292,7 @@ class AzureImageSchema(schema.ImageSchema):
                     SecurityProfileType.SecureBoot,
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
+                    SecurityProfileType.TrustedLaunchNoSecureBoot,
                 ],
             ),
             required=False,
@@ -379,7 +385,11 @@ class AzureImageSchema(schema.ImageSchema):
         encrypt_capability: List[bool] = [False]
         if security_profile in ["TrustedLaunchSupported", "TrustedLaunch"]:
             security_profile_capabilities.extend(
-                [SecurityProfileType.Standard, SecurityProfileType.SecureBoot]
+                [
+                    SecurityProfileType.Standard,
+                    SecurityProfileType.SecureBoot,
+                    SecurityProfileType.TrustedLaunchNoSecureBoot,
+                ]
             )
         elif (
             security_profile == "TrustedLaunchAndConfidentialVmSupported"
@@ -391,6 +401,7 @@ class AzureImageSchema(schema.ImageSchema):
                     SecurityProfileType.SecureBoot,
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
+                    SecurityProfileType.TrustedLaunchNoSecureBoot,
                 ]
             )
             encrypt_capability.append(True)
@@ -588,6 +599,7 @@ class VhdSchema(AzureImageSchema):
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
                     SecurityProfileType.SecureBoot,
+                    SecurityProfileType.TrustedLaunchNoSecureBoot,
                 ],
             )
             self.encrypt_disk = search_space.SetSpace(True, [True, False])
@@ -597,6 +609,7 @@ class VhdSchema(AzureImageSchema):
                 [
                     SecurityProfileType.Standard,
                     SecurityProfileType.SecureBoot,
+                    SecurityProfileType.TrustedLaunchNoSecureBoot,
                 ],
             )
             self.encrypt_disk = search_space.SetSpace(True, [False])
@@ -1137,6 +1150,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
     disk_controller_type: str = ""
     ephemeral_disk_placement_type: str = ""
     security_profile: Dict[str, Any] = field(default_factory=dict)
+    vm_tags: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_node_runbook(cls, runbook: AzureNodeSchema) -> "AzureNodeArmParameter":
@@ -2293,6 +2307,40 @@ def list_file_shares(
         return []
 
 
+def _disable_share_soft_delete(
+    credential: Any,
+    subscription_id: str,
+    cloud: Cloud,
+    account_name: str,
+    resource_group_name: str,
+    log: Logger,
+) -> None:
+    try:
+        storage_client = get_storage_client(credential, subscription_id, cloud)
+        current_props = storage_client.file_services.get_service_properties(
+            resource_group_name=resource_group_name,
+            account_name=account_name,
+        )
+        retention_policy = current_props.share_delete_retention_policy
+        if retention_policy and retention_policy.enabled:
+            log.debug(
+                f"Disabling share soft-delete on storage account {account_name} "
+                f"to prevent provisioned capacity leaks from previous test runs"
+            )
+            storage_client.file_services.set_service_properties(
+                resource_group_name=resource_group_name,
+                account_name=account_name,
+                parameters=FileServiceProperties(
+                    share_delete_retention_policy=DeleteRetentionPolicy(
+                        enabled=False,
+                    )
+                ),
+            )
+            log.debug(f"Disabled share soft-delete on storage account {account_name}")
+    except Exception as e:
+        log.debug(f"Failed to disable share soft-delete on {account_name}: {e}")
+
+
 def get_or_create_file_share(
     credential: Any,
     subscription_id: str,
@@ -2326,6 +2374,17 @@ def get_or_create_file_share(
     StandardV2_LRS, StandardV2_ZRS, StandardV2_GRS, or StandardV2_GZRS.
     PV2 minimum quota is 32 GiB (vs 100 GiB for PV1).
     """
+    # Disable share soft-delete to prevent soft-deleted shares from previous
+    # test runs consuming provisioned capacity, which causes
+    # TotalSharesProvisionedCapacityExceedsAccountLimit errors.
+    _disable_share_soft_delete(
+        credential=credential,
+        subscription_id=subscription_id,
+        cloud=cloud,
+        account_name=account_name,
+        resource_group_name=resource_group_name,
+        log=log,
+    )
     # For NFS, use ARM API because NFS storage accounts don't allow shared key access
     if protocols.upper() == "NFS":
         storage_client = get_storage_client(credential, subscription_id, cloud)
