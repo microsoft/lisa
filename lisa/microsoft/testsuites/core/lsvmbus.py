@@ -1,6 +1,6 @@
 import math
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from assertpy import assert_that
 
@@ -25,7 +25,7 @@ from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.tools import Cat, Ethtool, Ls, Lscpu, Lsvmbus
 from lisa.tools.lsvmbus import VmBusDevice
-from lisa.util import LisaException
+from lisa.util import LisaException, UnsupportedOperationException
 from lisa.util.perf_timer import create_timer
 
 
@@ -190,16 +190,28 @@ class LsVmBus(TestSuite):
                         f"No network interface found for VMBus device "
                         f"{vmbus_device.device_id}"
                     )
-                max_channels = (
-                    node.tools[Ethtool].get_device_channels_info(nic.name).max_channels
-                )
-                assert_that(max_channels).described_as(
-                    f"Maximum channel count for {nic.name}"
-                ).is_positive()
-                log.info(f"Device '{nic.name}' maximum channels: {max_channels}")
-                allowed_channels = {
-                    min(count, max_channels) for count in allowed_channels
-                }
+                max_channels: Optional[int] = None
+                try:
+                    max_channels = (
+                        node.tools[Ethtool]
+                        .get_device_channels_info(nic.name)
+                        .max_channels
+                    )
+                except UnsupportedOperationException as e:
+                    log.warning(
+                        f"Could not determine maximum channels for {nic.name}; "
+                        f"using formula-only validation: {e}"
+                    )
+                else:
+                    assert_that(max_channels).described_as(
+                        f"Maximum channel count for {nic.name}"
+                    ).is_positive()
+                    log.info(
+                        f"Device '{nic.name}' maximum channels: {max_channels}"
+                    )
+                    allowed_channels = {
+                        min(count, max_channels) for count in allowed_channels
+                    }
                 log.info(f"Allowed channel counts: {sorted(allowed_channels)}")
                 assert_that(actual_channels).described_as(
                     f"netvsc channel count {actual_channels} not in allowed "
