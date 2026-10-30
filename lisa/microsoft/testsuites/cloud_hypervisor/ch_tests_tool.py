@@ -7,7 +7,7 @@ import shlex
 import xml.etree.ElementTree as ETree  # noqa: N817
 from dataclasses import dataclass
 from pathlib import Path, PurePath, PurePosixPath
-from typing import Any, Dict, List, Optional, Set, Tuple, Type, cast
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Type, cast
 
 from assertpy.assertpy import assert_that, fail
 
@@ -42,6 +42,30 @@ from lisa.util import (
     check_test_panic,
     find_groups_in_lines,
 )
+
+
+def validate_subtest_selection(
+    requested: Sequence[str], selected: Sequence[str]
+) -> None:
+    """Require a nonempty, duplicate-free expansion of exactly the requested names."""
+    for label, names in (("requested", requested), ("selected", selected)):
+        if not names or any(not name.strip() for name in names):
+            raise LisaException(
+                f"Strict Cloud Hypervisor selection requires nonempty {label} names."
+            )
+        if len(set(names)) != len(names):
+            raise LisaException(
+                f"Strict Cloud Hypervisor selection has duplicate {label} names: "
+                f"{list(names)}."
+            )
+
+    missing = sorted(set(requested) - set(selected))
+    unexpected = sorted(set(selected) - set(requested))
+    if missing or unexpected:
+        raise LisaException(
+            "Strict Cloud Hypervisor selection does not match the requested names: "
+            f"missing={missing}, unexpected={unexpected}."
+        )
 
 
 @dataclass
@@ -230,9 +254,13 @@ class CloudHypervisorTests(Tool):
         hypervisor: str,
         only: Optional[List[str]],
         skip: Optional[List[str]],
+        strict_selection: bool = False,
     ) -> Dict[str, Any]:
         """Prepare subtests and skip arguments."""
-        subtests = self._list_subtests(hypervisor, test_type)
+        requested = list(only or [])
+        subtests = self._list_subtests(
+            hypervisor, test_type, strict_selection=strict_selection
+        )
         # Store the ordered list for diagnostic purposes
         self._ordered_subtests = subtests.copy()
 
@@ -249,10 +277,19 @@ class CloudHypervisorTests(Tool):
             # Add everything except 'only' to skip list
             skip += [t for t in subtests if t not in only]
         if skip is not None:
-            subtests = [t for t in subtests if t not in skip]
+            if strict_selection:
+                # The runner's --skip arguments match substrings, not exact names.
+                subtests = [
+                    t for t in subtests if not any(skipped in t for skipped in skip)
+                ]
+            else:
+                subtests = [t for t in subtests if t not in skip]
             skip_args = " ".join(map(lambda t: f"--skip {t}", skip))
         else:
             skip_args = ""
+
+        if strict_selection:
+            validate_subtest_selection(requested, subtests)
 
         if test_type == self.CVM_INTEGRATION_TEST_TYPE and not subtests:
             raise LisaException(
@@ -271,8 +308,11 @@ class CloudHypervisorTests(Tool):
         cli_test_filter: str,
         only: Optional[List[str]],
         skip: Optional[List[str]],
+        strict_selection: bool = False,
     ) -> Dict[str, Any]:
-        subtests = self._list_subtests(hypervisor, test_type)
+        subtests = self._list_subtests(
+            hypervisor, test_type, strict_selection=strict_selection
+        )
         self._ordered_subtests = subtests.copy()
 
         filtered_subtests = [
@@ -286,6 +326,9 @@ class CloudHypervisorTests(Tool):
             filtered_subtests = [
                 subtest for subtest in filtered_subtests if subtest not in skip
             ]
+
+        if strict_selection:
+            validate_subtest_selection(only or [], filtered_subtests)
 
         if not filtered_subtests:
             # An empty match is a legitimate "nothing to run" precondition, not a
@@ -466,6 +509,7 @@ class CloudHypervisorTests(Tool):
         log_path: Path,
         subtests: Set[str],
         test_name: str,
+        strict_selection: bool = False,
     ) -> None:
         """Process test results and handle various failure scenarios."""
         # Prefer nextest JUnit output when present. If nextest was invoked
@@ -495,9 +539,21 @@ class CloudHypervisorTests(Tool):
 
         if junit_files:
             self._log.info(f"Parsing nextest JUnit output ({len(junit_files)} file(s))")
-            results = self._extract_test_results_from_junit(junit_files, subtests)
+            results = self._extract_test_results_from_junit(
+                junit_files, subtests, strict_selection=strict_selection
+            )
         else:
-            results = self._extract_test_results(result.stdout, log_path, subtests)
+            results = self._extract_test_results(
+                result.stdout, log_path, subtests, strict_selection=strict_selection
+            )
+        if strict_selection:
+            # nextest may report filtered-out children as skipped in JUnit.
+            results = [
+                r
+                for r in results
+                if r.name in subtests or r.status != TestStatus.SKIPPED
+            ]
+            validate_subtest_selection(list(subtests), [r.name for r in results])
         hung_tests = [r.name for r in results if r.hung]
         failures = [
             r.name
@@ -547,6 +603,7 @@ class CloudHypervisorTests(Tool):
         only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
         cli_test_filter: Optional[str] = None,
+        strict_selection: bool = False,
     ) -> None:
         self.validate_integration_test_type(test_type, hypervisor)
         if test_type == self.CVM_INTEGRATION_TEST_TYPE:
@@ -562,6 +619,7 @@ class CloudHypervisorTests(Tool):
                 cli_test_filter,
                 only,
                 skip,
+                strict_selection=strict_selection,
             )
         else:
             subtests = self._prepare_subtests(
@@ -569,6 +627,7 @@ class CloudHypervisorTests(Tool):
                 hypervisor,
                 only,
                 skip,
+                strict_selection=strict_selection,
             )
         self._configure_environment_if_needed(hypervisor)
 
@@ -629,6 +688,7 @@ class CloudHypervisorTests(Tool):
             log_path,
             subtests["subtest_set"],
             test_name,
+            strict_selection=strict_selection,
         )
 
     def run_metrics_tests(
@@ -640,15 +700,23 @@ class CloudHypervisorTests(Tool):
         only: Optional[str] = None,
         skip: Optional[str] = None,
         subtest_timeout: Optional[int] = None,
+        strict_selection: bool = False,
     ) -> None:
         # Reset per-run state in case this Tool instance is reused across runs.
         self._metrics_disk_device = ""
+        requested = only.split(",") if only else []
 
         if ref:
             self.node.tools[Git].checkout(ref, self.repo_root)
 
         # Pick disk first so warmup targets the actual metrics disk (pmem vs nvme)
         self._setup_disk_for_metrics(log_path)
+
+        if strict_selection:
+            selected = self._list_perf_metrics_tests(
+                hypervisor, only=only, skip=skip, strict_selection=True
+            )
+            validate_subtest_selection(requested, selected)
 
         # Initialize perf-stable profile (one-time per metrics test run)
         # Metrics tests always use perf-stable setup
@@ -682,7 +750,9 @@ class CloudHypervisorTests(Tool):
         report_error = ""
         try:
             self.node.shell.copy_back(remote_report, local_report)
-            per_test_results = self._parse_metrics_report(local_report)
+            per_test_results = self._parse_metrics_report(
+                local_report, requested=requested if strict_selection else None
+            )
         except Exception as e:
             report_error = f"Failed to retrieve metrics report: {e}"
 
@@ -709,7 +779,9 @@ class CloudHypervisorTests(Tool):
             fail(report_error)
 
         for testcase, entry in per_test_results.items():
-            status, metrics, trace = self._classify_test_result(testcase, entry)
+            status, metrics, trace = self._classify_test_result(
+                testcase, entry, strict_selection=strict_selection
+            )
 
             if status == TestStatus.FAILED:
                 failed_testcases.append(testcase)
@@ -854,7 +926,9 @@ class CloudHypervisorTests(Tool):
             cmd_args = f"{cmd_args} --timeout {subtest_timeout}"
         return cmd_args
 
-    def _parse_metrics_report(self, report_path: Path) -> Dict[str, Any]:
+    def _parse_metrics_report(
+        self, report_path: Path, requested: Optional[Sequence[str]] = None
+    ) -> Dict[str, Any]:
         """Parse a metrics JSON report file into per-test result dicts.
 
         The report file is a well-formed JSON document produced by the
@@ -881,6 +955,13 @@ class CloudHypervisorTests(Tool):
         with open(report_path, "r") as f:
             report = json.load(f)
 
+        if requested is not None:
+            # Validate before reducing the report to a name-keyed dictionary.
+            validate_subtest_selection(
+                requested,
+                [entry.get("name", "") for entry in report.get("results", [])],
+            )
+
         per_test: Dict[str, Any] = {}
         for entry in report.get("results", []):
             name = entry.get("name", "")
@@ -892,6 +973,7 @@ class CloudHypervisorTests(Tool):
         self,
         testcase: str,
         result_entry: Dict[str, Any],
+        strict_selection: bool = False,
     ) -> Tuple[TestStatus, str, str]:
         """Determine pass/fail for a single test from the metrics run.
 
@@ -902,6 +984,12 @@ class CloudHypervisorTests(Tool):
                 TestStatus.FAILED,
                 "",
                 f"Testcase '{testcase}' reported status FAILED.",
+            )
+
+        if strict_selection and result_entry.get("status") != "PASSED":
+            raise LisaException(
+                f"Strict Cloud Hypervisor metrics result '{testcase}' has "
+                f"an unsupported status: {result_entry.get('status')!r}."
             )
 
         metrics = f'"results": [{json.dumps(result_entry)}]'
@@ -1650,7 +1738,9 @@ exit $ec
         except Exception as e:
             self._log.debug(f"Could not cache VMM version: {e}")
 
-    def _list_subtests(self, hypervisor: str, test_type: str) -> List[str]:
+    def _list_subtests(
+        self, hypervisor: str, test_type: str, strict_selection: bool = False
+    ) -> List[str]:
         # Cloud Hypervisor's integration tests run under cargo-nextest, which
         # rejects the libtest "-- -- --list" flag ("failed to parse test binary
         # arguments `--list`: arguments are unsupported"). Enumerate the subtests
@@ -1703,9 +1793,16 @@ exit $ec
             update_envs=enhanced_env_vars,
         )
         discovery_output = f"{result.stdout}\n{result.stderr}".strip()
-        if test_type == self.CVM_INTEGRATION_TEST_TYPE and result.exit_code != 0:
+        if strict_selection and result.is_timeout:
             raise LisaException(
-                "Cloud Hypervisor integration-cvm discovery failed with exit "
+                f"Cloud Hypervisor {test_type} discovery timed out: "
+                f"{discovery_output[-1000:]}"
+            )
+        if (
+            strict_selection or test_type == self.CVM_INTEGRATION_TEST_TYPE
+        ) and result.exit_code != 0:
+            raise LisaException(
+                f"Cloud Hypervisor {test_type} discovery failed with exit "
                 f"code {result.exit_code}: {discovery_output[-1000:]}"
             )
 
@@ -1752,7 +1849,11 @@ exit $ec
         return []
 
     def _extract_test_results(
-        self, output: str, log_path: Path, subtests: Set[str]
+        self,
+        output: str,
+        log_path: Path,
+        subtests: Set[str],
+        strict_selection: bool = False,
     ) -> List[CloudHypervisorTestResult]:
         results: List[CloudHypervisorTestResult] = []
         subtest_status: Dict[str, TestStatus] = {t: TestStatus.QUEUED for t in subtests}
@@ -1769,7 +1870,9 @@ exit $ec
 
         for test_result in test_results:
             test_status = test_result["status"].strip().lower()
-            test_name = test_result["test_name"].strip().lower()
+            test_name = test_result["test_name"].strip()
+            if not strict_selection:
+                test_name = test_name.lower()
 
             if test_status == "started":
                 status = TestStatus.RUNNING
@@ -1795,7 +1898,10 @@ exit $ec
         if hung_candidates:
             finished_pattern = r"test\s+(\S+)\s+\.\.\.\s+(ok|FAILED|ignored)"
             finished_matches = re.findall(finished_pattern, output)
-            finished_tests = {match[0].strip().lower() for match in finished_matches}
+            finished_tests = {
+                match[0].strip() if strict_selection else match[0].strip().lower()
+                for match in finished_matches
+            }
 
             for name in hung_candidates:
                 normalized = name.strip()
@@ -1811,7 +1917,7 @@ exit $ec
         messages = {
             TestStatus.QUEUED: "Subtest did not start",
         }
-        for subtest in subtests:
+        for subtest in subtest_status if strict_selection else subtests:
             hung = False
             status = subtest_status[subtest]
 
@@ -1917,6 +2023,7 @@ exit $ec
         self,
         junit_files: List[Path],
         subtests: Set[str],
+        strict_selection: bool = False,
     ) -> List[CloudHypervisorTestResult]:
         """Parse nextest JUnit XML files into per-subtest results.
 
@@ -1950,8 +2057,12 @@ exit $ec
             for testcase in root.iter("testcase"):
                 raw_name = testcase.attrib.get("name", "").strip()
                 if not raw_name:
+                    if strict_selection:
+                        raise LisaException(
+                            "Strict Cloud Hypervisor JUnit result has no child name."
+                        )
                     continue
-                name = raw_name.lower()
+                name = raw_name if strict_selection else raw_name.lower()
 
                 failure_el = testcase.find("failure")
                 error_el = testcase.find("error")
@@ -2017,10 +2128,21 @@ exit $ec
             message = message[:max_len] + "..."
         return message
 
-    def _list_perf_metrics_tests(self, hypervisor: str = "kvm") -> List[str]:
+    def _list_perf_metrics_tests(
+        self,
+        hypervisor: str = "kvm",
+        only: Optional[str] = None,
+        skip: Optional[str] = None,
+        strict_selection: bool = False,
+    ) -> List[str]:
         tests_list = []
+        cmd_args = f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests"
+        if only:
+            cmd_args += f" --test-filter {shlex.quote(only)}"
+        if skip:
+            cmd_args += f" --test-exclude {shlex.quote(skip)}"
         result = self.run(
-            f"tests --hypervisor {hypervisor} --metrics -- -- --list-tests",
+            cmd_args,
             timeout=self.PERF_CMD_TIME_OUT,
             force_run=True,
             cwd=self.repo_root,
@@ -2028,6 +2150,14 @@ exit $ec
             expected_exit_code=0,
             update_envs=self.env_vars,
         )
+
+        if strict_selection and (result.exit_code != 0 or result.is_timeout):
+            discovery_output = f"{result.stdout}\n{result.stderr}".strip()
+            raise LisaException(
+                "Cloud Hypervisor metrics discovery failed with exit "
+                f"code {result.exit_code}, timed out={result.is_timeout}: "
+                f"{discovery_output[-1000:]}"
+            )
 
         stdout = result.stdout
 
@@ -2041,6 +2171,14 @@ exit $ec
 
         pattern = re.compile(regex)
         tests_list = [match[0] for match in pattern.findall(stdout)]
+
+        if strict_selection:
+            listed_names = re.findall(r'^\s*"([^"]*)"', stdout, re.MULTILINE)
+            if listed_names != tests_list:
+                raise LisaException(
+                    "Cloud Hypervisor metrics discovery could not parse every "
+                    "listed subtest."
+                )
 
         self._log.debug(f"Testcases found: {tests_list}")
         return tests_list
@@ -2501,7 +2639,10 @@ exit $ec
             # Validate path: must be absolute and not contain shell metacharacters
             if not precond_file.startswith("/"):
                 self._log.debug(
-                    "CH_PRECOND_FILE must be absolute path, " "skipping preconditioning"
+                    (
+                        "CH_PRECOND_FILE must be absolute path, "
+                        "skipping preconditioning"
+                    )
                 )
             elif any(c in precond_file for c in [";", "&", "|", "$", "`", "\n"]):
                 self._log.debug(
@@ -2552,7 +2693,10 @@ exit $ec
         """
         # Ensure irqbalance is running
         self.node.execute(
-            "sudo systemctl is-active irqbalance || " "sudo systemctl start irqbalance",
+            (
+                "sudo systemctl is-active irqbalance || "
+                "sudo systemctl start irqbalance"
+            ),
             shell=True,
             sudo=True,
         )

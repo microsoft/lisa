@@ -142,6 +142,32 @@ If you want to verify on specified conditions, like to select some VM size in
 azure, or select test cases by names, learn more from :doc:`runbook reference
 <runbook>`.
 
+Cloud Hypervisor child selection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``ch_test_selection_strict: true`` to validate Cloud Hypervisor child
+selection before executing any child. Supply a nonempty comma-separated list
+of full child names in the applicable ``ch_integration_tests_included``,
+``ch_live_migration_tests_included``, or ``ch_perf_tests_included`` variable.
+For example, a targeted performance run can use
+``ch_perf_tests_included: virtio_net_latency_us,block_multi_queue_write_MiBps``.
+
+Strict mode requires successful discovery and rejects empty, duplicate,
+missing, or unexpected selected names. Performance filters remain literal
+substrings, not regular expressions: even a full name can match another
+child, in which case strict mode fails rather than running the extra child.
+Integration validation also accounts for substring-based ``--skip`` arguments;
+live migration retains its exact-name nextest include/exclude filters.
+
+Strict reporting omits unrequested children explicitly marked skipped, rejects
+unexpected executed names, and preserves requested skipped or not-started
+statuses. Metrics results must explicitly report ``PASSED`` or ``FAILED``.
+Raw upstream result artifacts are retained.
+
+The default is ``false``, which preserves existing selection and reporting
+behavior. Discovery may prepare images and build binaries, but does not execute
+children. This option does not change workload timeouts.
+
 Test cases specification
 ------------------------
 
