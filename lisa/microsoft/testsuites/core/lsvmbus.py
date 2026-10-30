@@ -206,9 +206,7 @@ class LsVmBus(TestSuite):
                     assert_that(max_channels).described_as(
                         f"Maximum channel count for {nic.name}"
                     ).is_positive()
-                    log.info(
-                        f"Device '{nic.name}' maximum channels: {max_channels}"
-                    )
+                    log.info(f"Device '{nic.name}' maximum channels: {max_channels}")
                     allowed_channels = {
                         min(count, max_channels) for count in allowed_channels
                     }
