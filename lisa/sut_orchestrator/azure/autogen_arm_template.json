@@ -5,8 +5,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.44.1.10279",
-      "templateHash": "4479114314922377252"
+      "version": "0.48.1.52935",
+      "templateHash": "6885709635422046319"
     }
   },
   "functions": [
@@ -22,7 +22,7 @@
           ],
           "output": {
             "type": "bool",
-            "value": "[bool(and(not(empty(parameters('node').vhd)), not(empty(parameters('node').vhd.cvm_gueststate_path))))]"
+            "value": "[bool(not(empty(tryGet(tryGet(parameters('node'), 'vhd'), 'cvm_gueststate_path'))))]"
           }
         },
         "isVhd": {
@@ -701,7 +701,7 @@
         "name": "nodes_image",
         "count": "[length(range(0, variables('node_count')))]"
       },
-      "condition": "[and(__bicep.isVhd(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]]), empty(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_gueststate_path))]",
+      "condition": "[and(__bicep.isVhd(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]]), empty(tryGet(tryGet(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]], 'vhd'), 'cvm_gueststate_path')))]",
       "type": "Microsoft.Compute/images",
       "apiVersion": "2019-03-01",
       "name": "[format('{0}-image', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name)]",
@@ -743,8 +743,8 @@
         "creationData": {
           "createOption": "ImportSecure",
           "storageAccountId": "[resourceId(parameters('shared_resource_group_name'), 'Microsoft.Storage/storageAccounts', parameters('vhd_storage_name'))]",
-          "securityDataUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_gueststate_path]",
-          "securityMetadataUri": "[if(empty(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_metadata_path), null(), parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.cvm_metadata_path)]",
+          "securityDataUri": "[tryGet(tryGet(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]], 'vhd'), 'cvm_gueststate_path')]",
+          "securityMetadataUri": "[if(empty(tryGet(tryGet(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]], 'vhd'), 'cvm_metadata_path')), null(), tryGet(tryGet(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]], 'vhd'), 'cvm_metadata_path'))]",
           "sourceUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vhd_path]"
         }
       },
@@ -905,8 +905,8 @@
           "metadata": {
             "_generator": {
               "name": "bicep",
-              "version": "0.44.1.10279",
-              "templateHash": "8902632392324556597"
+              "version": "0.48.1.52935",
+              "templateHash": "5952549825050948697"
             }
           },
           "functions": [
