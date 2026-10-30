@@ -11,9 +11,9 @@ from dataclasses_json import dataclass_json
 from lisa import schema, search_space
 from lisa.feature import Feature
 from lisa.features import Disk
-from lisa.operating_system import BSD
+from lisa.operating_system import BSD, Linux
 from lisa.schema import FeatureSettings
-from lisa.tools import Ls, Lspci, Nvmecli
+from lisa.tools import Cat, Ls, Lspci, Nvmecli
 from lisa.tools.lspci import PciDevice
 from lisa.util import LisaException, field_metadata, get_matched_str
 from lisa.util.constants import DEVICE_TYPE_NVME
@@ -126,7 +126,7 @@ class Nvme(Feature):
 
     # With disk controller type NVMe, OS disk along with all remote iSCSI devices
     # appears as NVMe.
-    # All remote data disks share the same NVMe controller as OS disk.
+    # Remote data disks may use additional controllers without attached namespaces.
     # This method removes OS disk and all remote disks from the list of NVMe devices.
     # Sample output of lsblk command on a ASAP enabled VM:
     # lisa [ ~ ]$ lsblk
@@ -171,6 +171,15 @@ class Nvme(Feature):
                         if ns_path.startswith(f"{disk}n") and ns_model:
                             if "nvme accelerator" in ns_model.lower():
                                 return True
+                    # nvme list omits controllers without attached namespaces.
+                    if isinstance(
+                        self._node.os, Linux
+                    ) and self.NVME_CONTROLLER_PATTERN.fullmatch(disk):
+                        controller = disk.rsplit("/", 1)[-1]
+                        model = self._node.tools[Cat].read(
+                            f"/sys/class/nvme/{controller}/model", force_run=True
+                        )
+                        return "nvme accelerator" in model.lower()
                     return False
 
                 disk_list[:] = [disk for disk in disk_list if not _is_remote(disk)]
