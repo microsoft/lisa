@@ -1668,6 +1668,7 @@ class Platform(TypedSchema, ExtendableSchemaMixin):
     admin_private_key_file: str = ""
 
     guest_enabled: bool = False
+    guest_count_from_requirement: bool = False
     guests: List[Any] = field(default_factory=list)
 
     # no/False: means to delete the environment regardless case fail or pass

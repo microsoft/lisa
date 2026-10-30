@@ -1,11 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
+import shlex
+from pathlib import PurePosixPath
+from typing import Iterator, List, cast
 
 from lisa.base_tools import Cat, Sed, Service
 from lisa.executable import Tool
-from lisa.operating_system import Ubuntu
 from lisa.util import LisaException, find_patterns_groups_in_lines
+from lisa.util.shell import SshShell
 
 from .echo import Echo
 from .find import Find
@@ -89,7 +92,8 @@ class Ssh(Tool):
     def set_max_session(self, count: int = 200) -> None:
         config_path = self.get_default_sshd_config_path()
         sed = self.node.tools[Sed]
-        sed.append(f"MaxSessions {count}", config_path, sudo=True)
+        # sshd uses the first value, including values from Include directives.
+        sed.insert_line_beginning(f"MaxSessions {count}", config_path, sudo=True)
         service = self.node.tools[Service]
         if service.check_service_exists("sshd"):
             service.restart_service("sshd")
@@ -102,30 +106,102 @@ class Ssh(Tool):
         # close the current connection.
         self.node.close()
 
-    def get(self, setting: str) -> str:
+    def get(self, setting: str, connection_context: bool = False) -> str:
         # Firstly, using command "sshd -T" to get the effective configuration
         # Take ClientAliveInterval as an example, if the value is "60m" in the config
         # file, sshd -T can show the effective value which is 3600.
-        result = self.node.execute(
-            f"sshd -T | grep {setting.lower()}", sudo=True, shell=True
-        )
-        if result.exit_code == 0:
-            settings = result.stdout
-            # The pattern needs to match "clientaliveinterval 120"
-            pattern = re.compile(rf"^{setting.lower()}\s+(?P<value>.*)", re.M)
-        else:
-            config_path = self.get_default_sshd_config_path()
-            settings = self.node.tools[Cat].read(config_path, True, True)
-            if isinstance(self.node.os, Ubuntu):
-                extra_sshd_config = "/etc/ssh/sshd_config.d/50-cloudimg-settings.conf"
-                path_exist = self.node.execute(f"ls -lt {extra_sshd_config}", sudo=True)
-                if path_exist.exit_code == 0:
-                    settings += self.node.tools[Cat].read(extra_sshd_config, True, True)
-            # The pattern needs to match: "ClientAliveInterval 120" or
-            # "ClientAliveInterval 120 # this is a comment"
-            pattern = re.compile(rf"^{setting}\s+(?P<value>[^#\n]*)", re.M)
+        command = "sshd -T"
+        if connection_context:
+            connection = self.node.execute(
+                "printf '%s' \"${SSH_CONNECTION:-}\"", shell=True
+            ).stdout.split()
+            connection_info = cast(SshShell, self.node.shell).connection_info
+            username = connection_info.username
+            if len(connection) != 4 or not username:
+                raise LisaException(
+                    "Cannot determine the active SSH connection context for "
+                    "connection-specific sshd configuration"
+                )
+            client_address, _, server_address, server_port = connection
+            context = (
+                f"user={username},addr={client_address},laddr={server_address},"
+                f"lport={server_port}"
+            )
+            command += f" -C {shlex.quote(context)}"
 
-        matches = find_patterns_groups_in_lines(settings, [pattern])
-        if not matches[0]:
-            return ""
-        return (matches[0][-1])["value"]
+        result = self.node.execute(command, sudo=True)
+        if result.exit_code == 0:
+            # The pattern needs to match "clientaliveinterval 120"
+            pattern = re.compile(
+                rf"^{re.escape(setting.lower())}\s+(?P<value>.*)", re.M
+            )
+            matches = find_patterns_groups_in_lines(result.stdout, [pattern])
+            return matches[0][0]["value"].strip() if matches[0] else ""
+
+        self._log.warning(
+            f"sshd -T failed ({result.exit_code}): {result.stderr}. "
+            "Reading SSH configuration directly."
+        )
+        config_path = self.get_default_sshd_config_path()
+        config = list(self._iter_sshd_config(PurePosixPath(config_path)))
+        if connection_context and any(fields[0] == "match" for fields in config):
+            raise LisaException(
+                "Cannot determine connection-specific SSH settings because "
+                "sshd -T -C failed and the configuration contains Match blocks"
+            )
+        for fields in config:
+            if fields[0] == "match":
+                break
+            if fields[0] == setting.lower():
+                return " ".join(fields[1:])
+        return ""
+
+    def _iter_sshd_config(
+        self, path: PurePosixPath, depth: int = 0
+    ) -> Iterator[List[str]]:
+        if depth > 16:
+            raise LisaException(f"SSH Include maximum depth exceeded at '{path}'")
+        content = self.node.tools[Cat].read(
+            shlex.quote(str(path)), force_run=True, sudo=True
+        )
+        for line in content.splitlines():
+            if not line.strip() or line.lstrip().startswith("#"):
+                continue
+            match = re.match(r"^\s*([A-Za-z][A-Za-z0-9]*)\s*(?:=\s*)?(.*)$", line)
+            if not match:
+                raise LisaException(f"Invalid SSH configuration in '{path}': {line}")
+            keyword = match[1].lower()
+            arguments = shlex.split(match[2], comments=True)
+            if keyword == "include":
+                for pattern in arguments:
+                    for included_path in self._expand_sshd_include(pattern):
+                        yield from self._iter_sshd_config(included_path, depth + 1)
+            else:
+                yield [keyword, *arguments]
+
+    def _expand_sshd_include(self, pattern: str) -> List[PurePosixPath]:
+        path = PurePosixPath(pattern)
+        if not path.is_absolute():
+            path = PurePosixPath("/etc/ssh") / path
+        # Quote shell syntax while retaining only pathname-expansion characters.
+        shell_pattern = "".join(
+            char if char in "*?[]!" else shlex.quote(char) for char in str(path)
+        )
+        result = self.node.execute(
+            f"for config in {shell_pattern}; do "
+            'if [ -e "$config" ]; then printf \'%s\\0\' "$config"; fi; done',
+            shell=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"Failed to expand SSH Include '{path}'",
+        )
+        return [
+            PurePosixPath(name)
+            for name in sorted(filter(None, result.stdout.split("\0")))
+        ]
+
+
+class Sshd(Ssh):
+    @property
+    def command(self) -> str:
+        return "sshd"
