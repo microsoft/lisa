@@ -474,7 +474,7 @@ def perf_ntttcp(  # noqa: C901
                 if client_nic_name
                 else client.nics.get_primary_nic().pci_device_name
             )
-            dev_differentiator = "mlx"
+            dev_differentiator = get_sriov_dev_differentiator(client)
             if mtu != 0:
                 # set mtu for AN nics, MTU needs to be set on both AN and non-AN nics
                 client_ip.set_mtu(client_nic_name, mtu)
@@ -1054,3 +1054,11 @@ def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
         f"VF count inside VM (without IB) is {pci_nic_count}, "
         f"actual sriov nic count is {sriov_count}. "
     ).is_equal_to(sriov_count)
+
+
+def get_sriov_dev_differentiator(node: RemoteNode) -> str:
+    # ntttcp counts the /proc/interrupts lines containing this string. MANA VF
+    # interrupts are named mana_q*/mana_hwc*, Mellanox ones mlx*.
+    if "mana" in node.nics.get_used_modules(["hv_netvsc"]):
+        return "mana"
+    return "mlx"

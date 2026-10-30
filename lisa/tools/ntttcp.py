@@ -243,7 +243,8 @@ class Ntttcp(Tool):
             cmd += " -N "
 
         process = self.node.execute_async(
-            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 204800 && {self._get_pre_command(nic_name)}"
+            f"{self.command} {cmd}",
             shell=True,
             sudo=True,
             no_debug_log=no_debug_log,
@@ -345,6 +346,56 @@ class Ntttcp(Tool):
             expected_exit_code_failure_message="fail to launch ntttcp server",
         )
 
+    def _get_pre_command(self, nic_name: str) -> str:
+        # On multi-NUMA VMs ntttcp is pinned to NUMA node 0 by default. VF
+        # drivers place their interrupts starting from the NUMA node the VF is
+        # attached to, so when that is another node, every packet crosses NUMA
+        # nodes and the measured throughput drops. Pin ntttcp to the NIC's
+        # NUMA node instead.
+        if not self.pre_command or not nic_name:
+            return self.pre_command
+        if nic_name not in self._nic_pre_commands:
+            pre_command = self.pre_command
+            numa_node = self._get_nic_numa_node(nic_name)
+            if numa_node > 0:
+                try:
+                    start_cpu_index, end_cpu_index = self.node.tools[
+                        Lscpu
+                    ].get_cpu_range_in_numa_node(numa_node)
+                    pre_command = (
+                        f"{self.node.tools[TaskSet].command} "
+                        f"-c {start_cpu_index}-{end_cpu_index} "
+                    )
+                except ValueError:
+                    self._log.debug(f"NUMA node {numa_node} has no CPUs")
+            self._log.debug(
+                f"{nic_name} is on NUMA node {numa_node}, "
+                f"ntttcp command: {pre_command}{self.command}"
+            )
+            self._nic_pre_commands[nic_name] = pre_command
+        return self._nic_pre_commands[nic_name]
+
+    def _get_nic_numa_node(self, nic_name: str) -> int:
+        # Only PCI devices (VFs) report the NUMA node they are attached to,
+        # return -1 for synthetic NICs or when the NUMA node is unknown.
+        device_path = f"/sys/class/net/{nic_name}/device"
+        result = self.node.execute(
+            f"readlink -f {device_path}/subsystem && cat {device_path}/numa_node",
+            shell=True,
+            no_error_log=True,
+        )
+        lines = result.stdout.splitlines()
+        if (
+            result.exit_code != 0
+            or len(lines) != 2
+            or not lines[0].strip().endswith("/pci")
+        ):
+            return -1
+        try:
+            return int(lines[1].strip())
+        except ValueError:
+            return -1
+
     def run_as_client_async(
         self,
         nic_name: str,
@@ -380,7 +431,8 @@ class Ntttcp(Tool):
         if source_ip:
             cmd += f" -a {source_ip} "
         process = self.node.execute_async(
-            f"ulimit -n 204800 && {self.pre_command}{self.command} {cmd}",
+            f"ulimit -n 204800 && {self._get_pre_command(nic_name)}"
+            f"{self.command} {cmd}",
             shell=True,
             sudo=True,
             no_debug_log=no_debug_log,
@@ -838,6 +890,7 @@ class Ntttcp(Tool):
             self.pre_command = (
                 f"{taskset.command} -c {start_cpu_index}-{end_cpu_index} "
             )
+        self._nic_pre_commands: Dict[str, str] = {}
         self._log.debug(f"Numa Node Count: {numa_node_count}")
         self._log.debug(f"ntttcp command: {self.pre_command}{self.command}")
 
