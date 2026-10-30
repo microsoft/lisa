@@ -621,13 +621,17 @@ class NvidiaCudaDriver(GpuDriver):
         """
         self._log.debug(f"Installing CUDA driver for {release}")
 
-        assert isinstance(self.node.os, Posix), "CUDA installation requires Posix OS"
+        assert isinstance(
+            self.node.os, Debian
+        ), "Debian-based CUDA installation requires a Debian-based OS"
 
         # Install CUDA public GPG key
         cuda_keyring = "cuda-keyring_1.1-1_all.deb"
         self.node.tools[Wget].get(
             f"{self.NVIDIA_CUDA_REPO_BASE_URL}/{release}/x86_64/{cuda_keyring}"
         )
+        # A freshly booted VM can still hold the dpkg lock in a background job.
+        self.node.os.wait_running_package_process()
         self.node.execute(
             f"dpkg -i {cuda_keyring}",
             sudo=True,
@@ -653,6 +657,7 @@ class NvidiaCudaDriver(GpuDriver):
         )
 
         # Update apt cache to fetch packages from the new repository
+        self.node.os.wait_running_package_process()
         self.node.execute(
             "apt-get update",
             sudo=True,
