@@ -562,9 +562,14 @@ class AzureImageStandard(TestSuite):
         if isinstance(node.os, Fedora):
             if not node.shell.exists(PurePosixPath(self._ifcfg_eth0_path)):
                 # Check if the autoconnect is enabled for eth0
+                connection_uuid = node.execute(
+                    "nmcli -g GENERAL.CON-UUID device show eth0",
+                    shell=True,
+                    expected_exit_code=0,
+                ).stdout.strip()
                 autoconnect_result = node.execute(
                     "nmcli -g connection.autoconnect connection show"
-                    " 'cloud-init eth0'",
+                    f" uuid '{connection_uuid}'",
                     shell=True,
                     expected_exit_code=0,
                 )
@@ -574,7 +579,8 @@ class AzureImageStandard(TestSuite):
                 ).is_equal_to("yes")
                 # Check if the connection is set to use DHCP
                 dhcp_result = node.execute(
-                    "nmcli -g ipv4.method connection show 'cloud-init eth0'",
+                    "nmcli -g ipv4.method connection show"
+                    f" uuid '{connection_uuid}'",
                     shell=True,
                     expected_exit_code=0,
                 )
