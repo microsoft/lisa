@@ -72,6 +72,9 @@ class Ip(Tool):
             r"(.*(?:\s+inet (?P<ip_addr>[\d.]+)\/(?P<subnet_mask>\d+).*\n))?"
         )
     )
+    __global_ipv6_address_pattern = re.compile(
+        r"\s+inet6\s+(?P<ip_addr>[0-9a-fA-F:]+)/\d+\s+scope\s+global"
+    )
     # capturing from ip route show
     # ex:
     #    default via 10.57.0.1 dev eth0 proto dhcp src 10.57.0.4 metric 100
@@ -468,6 +471,16 @@ class Ip(Tool):
         matched = self._get_matched_dict(result.stdout)
         assert "ip_addr" in matched, f"not find ip address for nic {nic_name}"
         return matched["ip_addr"]
+
+    def get_global_ipv6_address(self, nic_name: str) -> str:
+        result = self.run(
+            f"-6 addr show dev {nic_name} scope global",
+            force_run=True,
+            sudo=True,
+        )
+        matched = self.__global_ipv6_address_pattern.search(result.stdout)
+        assert matched, f"not find global IPv6 address for nic {nic_name}"
+        return matched.group("ip_addr")
 
     def get_subnet_address(self, nic_name: str) -> str:
         """
