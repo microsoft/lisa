@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, Union
 
 from lisa.executable import CustomScript, CustomScriptBuilder, ExecutableResult, Tool
+from lisa.operating_system import CoreOs
 from lisa.tools import Cat, Dhclient
 from lisa.tools.dmesg import Dmesg
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KLDStat
 from lisa.tools.lsmod import Lsmod
 from lisa.tools.modinfo import Modinfo
-from lisa.util import UnsupportedOperationException
+from lisa.util import SkippedException, UnsupportedOperationException
 from lisa.util.perf_timer import create_timer
 
 from .whoami import Whoami
@@ -149,7 +150,31 @@ class Modprobe(Tool):
             return {"module_exists": False}
         if not self.is_module_loaded(mod_name, force_run=True):
             return {}
-        dhclient_command = self.node.tools[Dhclient].command
+        dhclient_command = "dhclient"
+        if mod_name == "hv_netvsc":
+            if isinstance(self.node.os, CoreOs):
+                dhclient = Dhclient.create(self.node)
+                dhclient.initialize()
+                if dhclient.exists:
+                    dhclient_command = dhclient.command
+                elif (
+                    self.node.execute(
+                        "command -v networkctl && "
+                        "systemctl is-active --quiet systemd-networkd",
+                        shell=True,
+                        sudo=True,
+                    ).exit_code
+                    == 0
+                ):
+                    dhclient_command = "networkctl"
+                else:
+                    raise SkippedException(
+                        "Network module reload requires dhclient, dhcpcd, or active "
+                        "systemd-networkd with networkctl for DHCP recovery, but "
+                        "none is available on this CoreOS image."
+                    )
+            else:
+                dhclient_command = self.node.tools[Dhclient].command
 
         username = self.node.tools[Whoami].get_username()
         unique_id = uuid.uuid4()

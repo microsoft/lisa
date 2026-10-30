@@ -57,6 +57,8 @@ class NetInterface(TestSuite):
             # Unload and load hv_netvsc
             try:
                 network_interface_feature.reload_module()
+            except SkippedException:
+                raise
             except Exception as e:
                 # It has two kinds of known exceptions. One is SSHException "SSH session
                 # not active". Another is "cannot connect to TCP port". The SSHException
