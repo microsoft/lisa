@@ -115,7 +115,8 @@ class NvmeTestSuite(TestSuite):
         description="""
         This test case will
         1. Get nvme devices and nvme namespaces from /dev/ folder,
-         compare the count of nvme namespaces and nvme devices.
+         exclude remote disks and controllers, and compare the count
+         of local nvme namespaces and nvme devices.
 
         2. Compare the count of nvme namespaces return from `nvme list`
           and list nvme namespaces under /dev/.
@@ -123,8 +124,8 @@ class NvmeTestSuite(TestSuite):
         3. Compare nvme devices count return from `lspci`
           and list nvme devices under /dev/.
 
-        4. Azure platform only, nvme devices count should equal to
-          actual vCPU count / 8.
+        4. Azure platform only, local nvme namespace count should match
+          the disk count from the platform capability.
         """,
         priority=1,
         requirement=simple_requirement(
