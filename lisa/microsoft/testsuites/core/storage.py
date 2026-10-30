@@ -32,7 +32,7 @@ from lisa.features.security_profile import (
     SecurityProfileType,
 )
 from lisa.node import Node
-from lisa.operating_system import BSD, Debian, Fedora, Posix, Windows
+from lisa.operating_system import BSD, CoreOs, Debian, Fedora, Posix, Windows
 from lisa.schema import DiskControllerType, DiskOptionSettings, DiskType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.features import (
@@ -352,8 +352,9 @@ class Storage(TestSuite):
 
         Steps:
         1. Get the partition identifier from `blkid` command.
-        2. Verify that the partition identifier from `blkid` is present in dmesg.
-        3. Verify that the partition identifier from `blkid` is present in fstab output.
+        2. Match the device, UUID, PARTUUID or LABEL against boot logs or /proc/cmdline.
+        3. Verify the root entry in fstab. Flatcar/CoreOS images without fstab
+        must instead match the currently booted kernel command line.
         """,
         priority=1,
         requirement=simple_requirement(
@@ -381,49 +382,50 @@ class Storage(TestSuite):
             log.debug("Confidential computing is detected to be enabled.")
             is_cvm = True
 
-        # verify that root=<name> or root=uuid=<uuid> or root=partuuid=<part_uuid> is
-        # present in dmesg or journalctl logs
         dmesg = node.tools[Dmesg].run(sudo=True).stdout
-        dmesg_root_present = self._check_root_partition_in_log(
+        root_present = self._check_root_partition_in_log(
             dmesg, os_partition_info, is_cvm
         )
 
-        if not dmesg_root_present:
+        if not root_present:
             journalctl_out = node.tools[Journalctl].first_n_logs_from_boot()
-            journal_root_present = self._check_root_partition_in_log(
+            root_present = self._check_root_partition_in_log(
                 journalctl_out, os_partition_info, is_cvm
             )
-        if not (dmesg_root_present or journal_root_present):
+
+        cat = node.tools[Cat]
+        fstab_missing_on_coreos = isinstance(node.os, CoreOs) and not node.shell.exists(
+            node.get_pure_path("/etc/fstab")
+        )
+        if not root_present or fstab_missing_on_coreos:
+            cmdline = cat.read("/proc/cmdline", sudo=True)
+            root_present = self._check_root_partition_in_log(
+                cmdline, os_partition_info, is_cvm
+            )
+        if not root_present:
             raise LisaException(
-                f"One of root={os_partition_info.name} or "
-                f"root=UUID={os_partition_info.uuid} or "
-                f"root=PARTUUID={os_partition_info.part_uuid} or "
-                f"snapd_recovery_mode={os_partition_info.label} "
-                "should be present in dmesg/journalctl output"
+                "No matching root partition identifier in dmesg, journalctl or "
+                f"/proc/cmdline: {os_partition_info}"
             )
 
-        # verify that "<uuid> /" or "<name> /"or "<part_uuid> /" present in /etc/fstab
-        fstab = node.tools[Cat].run("/etc/fstab", sudo=True).stdout
-        if (
-            not get_matched_str(
-                fstab,
-                re.compile(
-                    rf".*{os_partition_info.name}\s+/",
-                ),
+        if fstab_missing_on_coreos:
+            log.info(
+                "Root partition identity validated using /proc/cmdline; "
+                "this Flatcar/CoreOS image does not provide /etc/fstab."
             )
-            and not get_matched_str(
+            return
+
+        fstab = cat.read("/etc/fstab", sudo=True)
+        identifiers = self._get_root_partition_identifiers(os_partition_info)
+        if not any(
+            re.search(
+                rf"(?m)^[ \t]*{re.escape(identifier)}[ \t]+/[ \t]+",
                 fstab,
-                re.compile(rf".*UUID={os_partition_info.uuid}\s+/"),
             )
-            and not get_matched_str(
-                fstab,
-                re.compile(rf".*PARTUUID={os_partition_info.part_uuid}\s+/"),
-            )
+            for identifier in identifiers
         ):
             raise LisaException(
-                f"One of '{os_partition_info.name} /' or "
-                "'UUID={os_partition_info.uuid} /' or "
-                "'PARTUUID={os_partition_info.part_uuid} /' should be present in fstab"
+                f"One of {identifiers} should identify the root mount in /etc/fstab"
             )
 
     @TestCaseMetadata(
@@ -1206,38 +1208,33 @@ class Storage(TestSuite):
         regex = re.compile(rf".*\s+\/dev\/(?P<partition>\D+).*\s+{mount_point}.*")
         return regex
 
+    def _get_root_partition_identifiers(
+        self, os_partition_info: PartitionInfo
+    ) -> List[str]:
+        identifiers = [os_partition_info.name] if os_partition_info.name else []
+        for prefix, value in (
+            ("UUID", os_partition_info.uuid),
+            ("PARTUUID", os_partition_info.part_uuid),
+            ("LABEL", os_partition_info.label),
+        ):
+            if value:
+                identifiers.append(f"{prefix}={value}")
+        return identifiers
+
     def _check_root_partition_in_log(
         self, log: str, os_partition_info: PartitionInfo, is_cvm: bool = False
     ) -> bool:
         if is_cvm:
-            # CVM log doesn't have root=/root=UUID/root=PARTUUID info
-            # instead it should have snapd_recovery_mode=<label>
-            if not get_matched_str(
-                log,
-                re.compile(
-                    rf".*snapd_recovery_mode={os_partition_info.label}",
-                ),
-            ):
+            if not os_partition_info.label:
                 return False
-        elif (
-            not get_matched_str(
-                log,
-                re.compile(
-                    rf".*BOOT_IMAGE=.*root={os_partition_info.name}",
-                ),
-            )
-            and not get_matched_str(
-                log, re.compile(rf".*BOOT_IMAGE=.*root=UUID={os_partition_info.uuid}")
-            )
-            and not get_matched_str(
-                log,
-                re.compile(
-                    rf".*BOOT_IMAGE=.*root=PARTUUID={os_partition_info.part_uuid}"
-                ),
-            )
-        ):
-            return False
-        return True
+            tokens = [f"snapd_recovery_mode={os_partition_info.label}"]
+        else:
+            identifiers = self._get_root_partition_identifiers(os_partition_info)
+            tokens = [f"root={identifier}" for identifier in identifiers]
+        return any(
+            re.search(rf"(?:^|\s){re.escape(token)}(?=\s|$)", log) is not None
+            for token in tokens
+        )
 
     def _verify_disk_controller_type(
         self, node: RemoteNode, disk_controller_type: DiskControllerType
