@@ -1,6 +1,6 @@
 import math
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from assertpy import assert_that
 
@@ -23,10 +23,10 @@ from lisa.operating_system import BSD, Windows
 from lisa.schema import DiskControllerType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.tools import VmGeneration
-from lisa.tools import Cat, Ls, Lscpu, Lsvmbus
+from lisa.tools import Cat, Ethtool, Ls, Lscpu, Lsvmbus
 from lisa.tools.lscpu import CpuType
 from lisa.tools.lsvmbus import VmBusDevice
-from lisa.util import LisaException
+from lisa.util import LisaException, UnsupportedOperationException
 from lisa.util.perf_timer import create_timer
 
 
@@ -131,7 +131,8 @@ class LsVmBus(TestSuite):
                         https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=646f071d315b75e87583de290d333478d42ccde1
                 - Test logic:
                   The code computes a set of allowed channel counts covering
-                  legacy (min(vCPUs, 8)) and post-646f071d formulas, then
+                  legacy (min(vCPUs, 8)) and post-646f071d formulas, clamps each
+                  count to the device maximum reported by ethtool -l, then
                   asserts the actual count is in that set.
             2.2 Check expected channel count of each storvsc SCSI device is min (num of
                  vcpu/4, 64).
@@ -180,11 +181,45 @@ class LsVmBus(TestSuite):
                 else:
                     allowed_channels.add(min(64, max(16, core_count // 2)))
                     allowed_channels.add(min(64, max(16, thread_count // 2)))
+                nic = next(
+                    (
+                        nic
+                        for nic in node.nics.nics.values()
+                        if nic.dev_uuid.lower() == vmbus_device.device_id.lower()
+                    ),
+                    None,
+                )
+                if nic is None:
+                    raise LisaException(
+                        f"No network interface found for VMBus device "
+                        f"{vmbus_device.device_id}"
+                    )
+                max_channels: Optional[int] = None
+                try:
+                    max_channels = (
+                        node.tools[Ethtool]
+                        .get_device_channels_info(nic.name)
+                        .max_channels
+                    )
+                except UnsupportedOperationException as e:
+                    log.warning(
+                        f"Could not determine maximum channels for {nic.name}; "
+                        f"using formula-only validation: {e}"
+                    )
+                else:
+                    assert_that(max_channels).described_as(
+                        f"Maximum channel count for {nic.name}"
+                    ).is_positive()
+                    log.info(f"Device '{nic.name}' maximum channels: {max_channels}")
+                    allowed_channels = {
+                        min(count, max_channels) for count in allowed_channels
+                    }
                 log.info(f"Allowed channel counts: {sorted(allowed_channels)}")
                 assert_that(actual_channels).described_as(
                     f"netvsc channel count {actual_channels} not in allowed "
                     f"values {sorted(allowed_channels)} "
-                    f"(thread_count={thread_count}, core_count={core_count})"
+                    f"(thread_count={thread_count}, core_count={core_count}, "
+                    f"max_channels={max_channels})"
                 ).is_in(*sorted(allowed_channels))
             if vmbus_device.name == "Synthetic SCSI Controller":
                 if (
