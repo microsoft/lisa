@@ -78,6 +78,8 @@ from lisa.util import (
     """,
 )
 class AzureImageStandard(TestSuite):
+    _ifcfg_eth0_path = "/etc/sysconfig/network-scripts/ifcfg-eth0"
+
     # These modules are essential for Hyper-V / Azure platform.
     _essential_modules_configuration = {
         "wdt": "CONFIG_WATCHDOG",
@@ -458,9 +460,9 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test will verify that network file exists in /etc/sysconfig and networking
-        is enabled on Fedora based distros. For Fedora version > 39, it checks if
-        /etc/NetworkManager/system-connections/ exists and is enabled.
+        This test verifies networking configuration on Fedora based distros.
+        Images with ifcfg-eth0 use /etc/sysconfig/network; images without it
+        must have an active NetworkManager keyfile connection for eth0.
 
         Steps:
         1. Verify that network file exists.
@@ -474,9 +476,7 @@ class AzureImageStandard(TestSuite):
     )
     def verify_network_file_configuration(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
-            if node.os.information.version >= "39.0.0":
-                # Fedora 39 and later use NetworkManager
-                # Check if /etc/NetworkManager/system-connections/ exists
+            if not node.shell.exists(PurePosixPath(self._ifcfg_eth0_path)):
                 nm_connections_path = "/etc/NetworkManager/system-connections"
                 eth0_exists = node.shell.exists(
                     PurePosixPath(f"{nm_connections_path}/eth0.nmconnection")
@@ -488,21 +488,24 @@ class AzureImageStandard(TestSuite):
                     "A NetworkManager connection profile for eth0 or cloud-init-eth0"
                     "should exist in /etc/NetworkManager/system-connections",
                 ).is_true()
-                connections = node.execute("nmcli -g NAME connection show", shell=True)
+                connections = node.execute(
+                    "nmcli -g NAME connection show", shell=True, expected_exit_code=0
+                )
                 assert_that(
                     "eth0" in connections.stdout
                     or "cloud-init eth0" in connections.stdout,
                     "A network connection for eth0 should exist in NetworkManager",
                 ).is_true()
                 # Check if the connections is active
-                eth0_active = node.execute("nmcli -g DEVICE,STATE device", shell=True)
+                eth0_active = node.execute(
+                    "nmcli -g DEVICE,STATE device", shell=True, expected_exit_code=0
+                )
                 assert_that(
                     "eth0:connected" in eth0_active.stdout
                     or "cloud-init eth0:connected" in eth0_active.stdout,
                     "The eth0 connection should be active in NetworkManager",
                 ).is_true()
             else:
-                # For fedora < 39, check if /etc/sysconfig/network file exists
                 network_file_path = "/etc/sysconfig/network"
                 file_exists = node.shell.exists(PurePosixPath(network_file_path))
 
@@ -540,11 +543,14 @@ class AzureImageStandard(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test will verify contents of ifcfg-eth0 file on Fedora based distros.
+        This test verifies autoconnect and DHCP configuration for eth0 on
+        Fedora based distros, using ifcfg-eth0 when present or NetworkManager
+        when the legacy file is absent.
 
         Steps:
-        1. Read the ifcfg-eth0 file and verify that "DEVICE=eth0", "BOOTPROTO=dhcp" and
-        "ONBOOT=yes" is present in network file.
+        1. Check whether ifcfg-eth0 exists.
+        2. Verify DEVICE, BOOTPROTO and ONBOOT in the legacy file, or verify
+        connection.autoconnect and ipv4.method in NetworkManager.
         """,
         priority=1,
         requirement=simple_requirement(
@@ -554,13 +560,18 @@ class AzureImageStandard(TestSuite):
     )
     def verify_ifcfg_eth0(self, node: Node) -> None:
         if isinstance(node.os, Fedora):
-            # Fedora 39 and later use NetworkManager and do not have ifcfg-eth0
-            if node.os.information.version >= "39.0.0":
+            if not node.shell.exists(PurePosixPath(self._ifcfg_eth0_path)):
                 # Check if the autoconnect is enabled for eth0
+                connection_uuid = node.execute(
+                    "nmcli -g GENERAL.CON-UUID device show eth0",
+                    shell=True,
+                    expected_exit_code=0,
+                ).stdout.strip()
                 autoconnect_result = node.execute(
                     "nmcli -g connection.autoconnect connection show"
-                    " 'cloud-init eth0'",
+                    f" uuid '{connection_uuid}'",
                     shell=True,
+                    expected_exit_code=0,
                 )
                 assert_that(
                     autoconnect_result.stdout.strip(),
@@ -568,17 +579,17 @@ class AzureImageStandard(TestSuite):
                 ).is_equal_to("yes")
                 # Check if the connection is set to use DHCP
                 dhcp_result = node.execute(
-                    "nmcli -g ipv4.method connection show 'cloud-init eth0'", shell=True
+                    "nmcli -g ipv4.method connection show"
+                    f" uuid '{connection_uuid}'",
+                    shell=True,
+                    expected_exit_code=0,
                 )
                 assert_that(
                     dhcp_result.stdout.strip(),
                     "connection.ipv4.method should be 'auto' for eth0",
                 ).is_equal_to("auto")
             else:
-                # For Fedora versions < 39, check ifcfg-eth0 file
-                ifcfg_eth0 = node.tools[Cat].read(
-                    "/etc/sysconfig/network-scripts/ifcfg-eth0"
-                )
+                ifcfg_eth0 = node.tools[Cat].read(self._ifcfg_eth0_path)
 
                 assert_that(
                     ifcfg_eth0,
