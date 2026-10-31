@@ -79,8 +79,8 @@ class OsVersionMigrationTestCase(TestCase):
                         42,
                     ),
                     ("MicrosoftCBLMariner azure-linux-3 azure-linux-3 latest", 31),
-                    ("microsoftazurelinux azurelinux-4 4 latest", 15),
-                    ("microsoftazurelinux azurelinux-4 4-arm64 latest", 15),
+                    ("microsoftazurelinux azurelinux-4 4 latest", 14),
+                    ("microsoftazurelinux azurelinux-4 4-arm64 latest", 14),
                 ),
             ),
             (
@@ -90,7 +90,7 @@ class OsVersionMigrationTestCase(TestCase):
                     ("redhat RHEL 8_3 latest", 1),
                     ("redhat RHEL 810-gen2 latest", 1),
                     ("redhat RHEL 9_5 latest", 4),
-                    ("redhat RHEL 100-gen2 latest", 7),
+                    ("redhat RHEL 100-gen2 latest", 6),
                 ),
             ),
         ):

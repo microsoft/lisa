@@ -51,15 +51,12 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
-            # Exact major versions and architecture are checked in before_case.
+            # Release and architecture support are checked in before_case.
             unsupported_os=[
                 Windows,
-                OsRequirement(Ubuntu, min_version="22.04"),
                 OsRequirement(Ubuntu, max_version="16.04"),
                 OsRequirement(CBLMariner, max_version="2.0"),
-                OsRequirement(CBLMariner, min_version="4.0"),
                 OsRequirement(Redhat, max_version="7.0"),
-                OsRequirement(Redhat, min_version="10.0"),
             ],
         ),
     )
