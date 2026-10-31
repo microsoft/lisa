@@ -19,6 +19,7 @@ from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -35,7 +36,9 @@ from lisa.util import SkippedException, UnsupportedDistroException
     description="Release-gate tests for ant on Azure Linux.",
     tags=["ai-generated"],
     owner="azurelinux",
-    requirement=simple_requirement(supported_os=[CBLMariner]),
+    requirement=simple_requirement(
+        supported_os=[OsRequirement(CBLMariner, min_version="4.0")]
+    ),
     maturity="preview",
 )
 class AntSuite(TestSuite):
@@ -70,7 +73,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_archive_workflows_jar_manifest(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/archive-workflows/jar-manifest."""
@@ -217,7 +219,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_archive_workflows_patterned_extraction(
         self, node: Node, log: Logger
@@ -405,7 +406,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_archive_workflows_zip_selection(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/archive-workflows/zip-selection."""
@@ -534,7 +534,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_build_reporting(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/build-reporting."""
@@ -608,7 +607,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_conditional_flow(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/conditional-flow."""
@@ -680,7 +678,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_copy_resources_filtered_text(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/copy-resources/filtered-text."""
@@ -750,7 +747,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_dependency_order(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/dependency-order."""
@@ -899,7 +895,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_directory_preparation(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/directory-preparation."""
@@ -981,7 +976,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_failure_handling_deliberate_diagnostic(
         self, node: Node, log: Logger
@@ -1055,7 +1049,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_failure_handling_keep_going(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/failure-handling/keep-going."""
@@ -1134,7 +1127,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_incremental_compilation(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/incremental-compilation."""
@@ -1374,7 +1366,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_platform_command(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/platform-command."""
@@ -1477,7 +1468,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_portable_paths(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/portable-paths."""
@@ -1575,7 +1565,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_property_customization(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/property-customization."""
@@ -1664,7 +1653,6 @@ class AntSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_selected_removal(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:ant/selected-removal."""

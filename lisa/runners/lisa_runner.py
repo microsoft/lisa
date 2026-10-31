@@ -138,6 +138,7 @@ class LisaRunner(BaseRunner):
             filters=self._runbook.testcase,
             target_os=target.os_type if target else None,
             target_os_version=target.version if target else None,
+            target_os_version_precision=target.version_precision if target else "minor",
             target_platforms=target_platforms,
             target_capabilities=target_capabilities,
         )

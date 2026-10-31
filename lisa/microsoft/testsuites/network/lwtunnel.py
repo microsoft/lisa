@@ -12,6 +12,7 @@ from assertpy import assert_that
 
 from lisa import (
     Node,
+    OsRequirement,
     SkippedException,
     TestCaseMetadata,
     TestSuite,
@@ -34,7 +35,7 @@ from lisa.util import UnsupportedDistroException
     """,
     requirement=simple_requirement(
         supported_platform_type=[AZURE, READY, HYPERV],
-        supported_os=[CBLMariner],
+        supported_os=[OsRequirement(CBLMariner, min_version="3.0")],
     ),
 )
 class LwtunnelSuite(TestSuite):

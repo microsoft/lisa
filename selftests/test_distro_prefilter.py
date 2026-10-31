@@ -184,7 +184,6 @@ class UbuntuVersionPrefilterTestCase(TestCase):
             "/images/ubuntu-linux-azure_6.8.0-1071.79.22.04.1/versions/22.04",
             "Canonical UbuntuServer 22_04-lts latest,"
             "Canonical UbuntuServer 24_04-lts latest",
-            "redhat rhel 9_5 latest",
             "debian debian-12 12-gen2 latest",
         ]
         for image in images:
@@ -267,8 +266,10 @@ class UbuntuVersionPrefilterTestCase(TestCase):
         for minimum in ("22.04", "24.04"):
             with self.assertRaises(LisaException):
                 OsRequirement(Ubuntu, min_version=minimum, max_version="22.04")
-        for distro in (Debian, Linux, Redhat):
-            with self.assertRaisesRegex(LisaException, "Ubuntu only"):
+        for distro in (Debian, Linux, SLES):
+            with self.assertRaisesRegex(
+                LisaException, "Ubuntu, Redhat and CBLMariner only"
+            ):
                 OsRequirement(distro, min_version="22.04")
         with self.assertRaises(LisaException):
             simple_requirement(

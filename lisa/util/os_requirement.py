@@ -3,27 +3,33 @@
 
 import re
 from dataclasses import dataclass, field
-from typing import Optional, Sequence, Type, Union
+from typing import Literal, Optional, Sequence, Type, Union
 
 from semver import VersionInfo
 
-from lisa.operating_system import OperatingSystem, Ubuntu
+from lisa.operating_system import CBLMariner, OperatingSystem, Redhat, Ubuntu
 from lisa.util import LisaException, parse_version
 
+ReleasePrecision = Literal["major", "minor"]
 
-def _parse_release(value: str) -> VersionInfo:
-    if not isinstance(value, str) or not re.fullmatch(
-        r"[0-9]{2}\.(?:0[1-9]|1[0-2])", value
-    ):
+
+def _parse_release(value: str, os_type: Type[OperatingSystem]) -> VersionInfo:
+    pattern = (
+        r"[0-9]{2}\.(?:0[1-9]|1[0-2])"
+        if os_type is Ubuntu
+        else r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+    )
+    if not isinstance(value, str) or not re.fullmatch(pattern, value):
+        expected = "YY.MM (for example 22.04)" if os_type is Ubuntu else "major.minor"
         raise LisaException(
-            f"Invalid Ubuntu release '{value}': expected YY.MM (for example 22.04)"
+            f"Invalid {os_type.__name__} release '{value}': expected {expected}"
         )
     return parse_version(value)
 
 
 @dataclass(frozen=True)
 class OsRequirement:
-    """OS restriction with optional Ubuntu release bounds: [min, max)."""
+    """OS restriction with optional distro release bounds: [min, max)."""
 
     os_type: Type[OperatingSystem]
     min_version: Optional[str] = None
@@ -36,13 +42,19 @@ class OsRequirement:
             self.os_type, OperatingSystem
         ):
             raise LisaException("OsRequirement requires an OperatingSystem class")
-        if self.has_version and self.os_type is not Ubuntu:
-            raise LisaException("OS version requirements currently support Ubuntu only")
+        if self.has_version and self.os_type not in (Ubuntu, Redhat, CBLMariner):
+            raise LisaException(
+                "OS version requirements support Ubuntu, Redhat and CBLMariner only"
+            )
         minimum = (
-            _parse_release(self.min_version) if self.min_version is not None else None
+            _parse_release(self.min_version, self.os_type)
+            if self.min_version is not None
+            else None
         )
         maximum = (
-            _parse_release(self.max_version) if self.max_version is not None else None
+            _parse_release(self.max_version, self.os_type)
+            if self.max_version is not None
+            else None
         )
         if minimum is not None and maximum is not None and minimum >= maximum:
             raise LisaException(
@@ -66,8 +78,22 @@ class OsRequirement:
     def has_version(self) -> bool:
         return self.min_version is not None or self.max_version is not None
 
-    def matches_release(self, version: VersionInfo) -> bool:
+    def matches_release(
+        self, version: VersionInfo, precision: ReleasePrecision = "minor"
+    ) -> Optional[bool]:
         release = parse_version(f"{version.major}.{version.minor}")
+        if precision == "major":
+            release = parse_version(f"{version.major}.0")
+            end = parse_version(f"{version.major + 1}.0")
+            if (self._minimum is not None and end <= self._minimum) or (
+                self._maximum is not None and release >= self._maximum
+            ):
+                return False
+            if (self._minimum is None or release >= self._minimum) and (
+                self._maximum is None or end <= self._maximum
+            ):
+                return True
+            return None
         return (self._minimum is None or release >= self._minimum) and (
             self._maximum is None or release < self._maximum
         )
@@ -82,6 +108,7 @@ def matches_os_requirement(
     version: Optional[VersionInfo] = None,
     *,
     prefilter: bool = False,
+    version_precision: ReleasePrecision = "minor",
 ) -> Optional[bool]:
     """None means the inferred target is too imprecise to decide."""
     required_os = entry.os_type if isinstance(entry, OsRequirement) else entry
@@ -91,9 +118,16 @@ def matches_os_requirement(
     if not direct_match and not (prefilter and issubclass(required_os, target_os)):
         return False
     if isinstance(entry, OsRequirement) and entry.has_version:
+        # These release namespaces are concrete products, not their descendants.
+        if (
+            direct_match
+            and required_os in (Redhat, CBLMariner)
+            and target_os is not required_os
+        ):
+            return False
         if not direct_match or version is None:
             return None
-        return entry.matches_release(version)
+        return entry.matches_release(version, version_precision)
     return True
 
 
@@ -104,9 +138,16 @@ def is_os_supported(
     version: Optional[VersionInfo] = None,
     *,
     prefilter: bool = False,
+    version_precision: ReleasePrecision = "minor",
 ) -> bool:
     matches = [
-        matches_os_requirement(entry, target_os, version, prefilter=prefilter)
+        matches_os_requirement(
+            entry,
+            target_os,
+            version,
+            prefilter=prefilter,
+            version_precision=version_precision,
+        )
         for entry in entries
     ]
     if is_allow_set:

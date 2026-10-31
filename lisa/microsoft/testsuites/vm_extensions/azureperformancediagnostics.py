@@ -74,6 +74,10 @@ class AzurePerformanceDiagnostics(TestSuite):
                 OsRequirement(Ubuntu, min_version="17.01", max_version="18.01"),
                 OsRequirement(Ubuntu, min_version="19.01", max_version="20.01"),
                 OsRequirement(Ubuntu, min_version="21.01"),
+                OsRequirement(CBLMariner, max_version="2.0"),
+                OsRequirement(CBLMariner, min_version="3.0"),
+                OsRequirement(Redhat, max_version="7.0"),
+                OsRequirement(Redhat, min_version="9.0"),
             ],
         ),
     )

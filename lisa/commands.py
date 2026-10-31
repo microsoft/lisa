@@ -88,6 +88,9 @@ def list_start(args: Namespace) -> int:
             cases: Iterable[TestCaseRuntimeData] = select_testcases(
                 target_os=target_os,
                 target_os_version=target_os_version,
+                target_os_version_precision=target.version_precision
+                if target
+                else "minor",
                 target_capabilities=target_capabilities,
                 apply_stable_gate=False,
             )
@@ -98,6 +101,9 @@ def list_start(args: Namespace) -> int:
                 criteria,
                 target_os=target_os,
                 target_os_version=target_os_version,
+                target_os_version_precision=target.version_precision
+                if target
+                else "minor",
                 target_capabilities=target_capabilities,
             )
         for case_data in cases:

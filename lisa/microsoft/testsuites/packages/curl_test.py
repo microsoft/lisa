@@ -19,6 +19,7 @@ from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -35,7 +36,9 @@ from lisa.util import SkippedException, UnsupportedDistroException, check_till_t
     description="Release-gate tests for curl on Azure Linux.",
     tags=["ai-generated"],
     owner="azurelinux",
-    requirement=simple_requirement(supported_os=[CBLMariner]),
+    requirement=simple_requirement(
+        supported_os=[OsRequirement(CBLMariner, min_version="4.0")]
+    ),
     maturity="preview",
 )
 class CurlSuite(TestSuite):
@@ -235,7 +238,6 @@ class CurlSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_authenticate_server_request(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/authenticate-server-request."""
@@ -263,7 +265,6 @@ class CurlSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_download_to_named_file(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/download-to-named-file."""
@@ -321,7 +322,6 @@ class CurlSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_fail_on_http_error(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/fail-on-http-error."""
@@ -376,7 +376,6 @@ class CurlSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_follow_http_redirect(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/follow-http-redirect."""
@@ -412,7 +411,6 @@ class CurlSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_request_through_proxy(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/request-through-proxy."""
@@ -443,7 +441,6 @@ class CurlSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_resume_partial_download(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/resume-partial-download."""
@@ -501,7 +498,6 @@ class CurlSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_retrieve_response_headers(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/retrieve-response-headers."""
@@ -541,7 +537,6 @@ class CurlSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_retry_transient_http_response(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/retry-transient-http-response."""
@@ -590,7 +585,6 @@ class CurlSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_send_json_post(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/send-json-post."""
@@ -624,7 +618,6 @@ class CurlSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_submit_multipart_form(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/submit-multipart-form."""
@@ -680,7 +673,6 @@ class CurlSuite(TestSuite):
         ),
         priority=3,
         timeout=120,
-        requirement=simple_requirement(supported_os=[CBLMariner]),
     )
     def verify_upload_local_file(self, node: Node, log: Logger) -> None:
         """Verify obligation pkg:curl/upload-local-file."""

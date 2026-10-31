@@ -9,6 +9,7 @@ from assertpy import assert_that
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -54,7 +55,7 @@ class OpenSSLTestSuite(TestSuite):
         """,
         priority=3,
         requirement=simple_requirement(
-            supported_os=[CBLMariner],
+            supported_os=[OsRequirement(CBLMariner, min_version="3.0")],
         ),
     )
     def verify_golang_sys_crypto(self, node: Node) -> None:

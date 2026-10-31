@@ -6,6 +6,7 @@ from typing import Any, List
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -132,7 +133,9 @@ def _parse_test_result(
     These tests interact with both iptables & nftables as backend.
     The testsuite is provided by the firewalld-test rpm.
     """,
-    requirement=simple_requirement(supported_os=[CBLMariner]),
+    requirement=simple_requirement(
+        supported_os=[OsRequirement(CBLMariner, min_version="3.0")]
+    ),
 )
 class FirewalldSuite(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:

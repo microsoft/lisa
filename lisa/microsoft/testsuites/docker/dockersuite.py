@@ -9,6 +9,7 @@ from assertpy import assert_that
 
 from lisa import (
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -84,6 +85,9 @@ class DockerTestSuite(TestSuite):
             4. Check results of docker run against dotnet string identifier
         """,
         priority=1,
+        requirement=simple_requirement(
+            unsupported_os=[Windows, OsRequirement(Redhat, max_version="7.0")]
+        ),
     )
     def verify_docker_dotnet31_app(self, node: Node) -> None:
         self._execute_docker_test(
@@ -101,6 +105,9 @@ class DockerTestSuite(TestSuite):
             4. Check results of docker run against dotnet string identifier
         """,
         priority=2,
+        requirement=simple_requirement(
+            unsupported_os=[Windows, OsRequirement(Redhat, max_version="7.0")]
+        ),
     )
     def verify_docker_dotnet50_app(self, node: Node) -> None:
         self._execute_docker_test(
@@ -118,6 +125,9 @@ class DockerTestSuite(TestSuite):
             4. Check results of docker run against java string identifier
     """,
         priority=2,
+        requirement=simple_requirement(
+            unsupported_os=[Windows, OsRequirement(Redhat, max_version="7.0")]
+        ),
     )
     def verify_docker_java_app(self, node: Node) -> None:
         self._execute_docker_test(
@@ -139,6 +149,9 @@ class DockerTestSuite(TestSuite):
             4. Check results of docker run against python string identifier
         """,
         priority=3,
+        requirement=simple_requirement(
+            unsupported_os=[Windows, OsRequirement(Redhat, max_version="7.0")]
+        ),
     )
     def verify_docker_python_app(self, node: Node) -> None:
         self._execute_docker_test(

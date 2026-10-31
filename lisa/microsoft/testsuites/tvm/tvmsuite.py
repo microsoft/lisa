@@ -52,7 +52,11 @@ class TvmTest(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_features=[SecureBootEnabled()],
-            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="18.04")],
+            unsupported_os=[
+                Windows,
+                OsRequirement(Ubuntu, max_version="18.04"),
+                OsRequirement(Redhat, max_version="8.3"),
+            ],
         ),
     )
     def verify_secureboot_compatibility(self, node: Node) -> None:
@@ -100,7 +104,11 @@ class TvmTest(TestSuite):
         priority=2,
         requirement=simple_requirement(
             supported_features=[SecureBootEnabled()],
-            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="18.04")],
+            unsupported_os=[
+                Windows,
+                OsRequirement(Ubuntu, max_version="18.04"),
+                OsRequirement(Redhat, max_version="8.3"),
+            ],
         ),
     )
     def verify_measuredboot_compatibility(self, node: Node) -> None:

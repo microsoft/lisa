@@ -42,13 +42,18 @@ class ApplicationHealthRequirementTestCase(TestCase):
     def test_unknown_ubuntu_release_is_retained(self) -> None:
         self.assertTrue(_is_os_compatible(self.case, Ubuntu))
 
-    def test_non_ubuntu_filtering_is_unchanged(self) -> None:
-        for distro in (Redhat, CentOs, Oracle, Debian, Suse, SLES, CBLMariner):
+    def test_other_distro_filtering_is_unchanged(self) -> None:
+        for distro in (CentOs, Oracle, Debian, Suse, SLES):
             for version in ("1.0", "99.0"):
                 with self.subTest(distro=distro, version=version):
                     self.assertTrue(
                         _is_os_compatible(self.case, distro, parse_version(version))
                     )
+        for distro in (Redhat, CBLMariner):
+            for version in ("1.0", "99.0"):
+                self.assertFalse(
+                    _is_os_compatible(self.case, distro, parse_version(version))
+                )
         self.assertFalse(_is_os_compatible(self.case, Windows))
 
     def test_marketplace_prefilter_and_disabled_gate(self) -> None:

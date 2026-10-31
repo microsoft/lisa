@@ -13,16 +13,7 @@ from lisa.microsoft.testsuites.vm_extensions.azsecpack import AzSecPack
 from lisa.microsoft.testsuites.vm_extensions.azureperformancediagnostics import (
     AzurePerformanceDiagnostics,
 )
-from lisa.operating_system import (
-    BSD,
-    CBLMariner,
-    Debian,
-    OsInformation,
-    Redhat,
-    Suse,
-    Ubuntu,
-    Windows,
-)
+from lisa.operating_system import BSD, Debian, OsInformation, Suse, Ubuntu, Windows
 from lisa.sut_orchestrator.azure.tools import VmGeneration
 from lisa.testselector import _is_os_compatible, select_testcases
 from lisa.testsuite import TestCaseMetadata, get_cases_metadata
@@ -87,7 +78,7 @@ class AdditionalUbuntuRequirementTestCase(TestCase):
         ]
         for case in cases:
             self.assertTrue(_is_os_compatible(case, Ubuntu))
-            for distro in (Debian, Redhat, Suse, CBLMariner):
+            for distro in (Debian, Suse):
                 self.assertTrue(_is_os_compatible(case, distro, parse_version("1.0")))
             is_azsecpack = case is _AZSECPACK
             self.assertEqual(is_azsecpack, _is_os_compatible(case, Windows))
