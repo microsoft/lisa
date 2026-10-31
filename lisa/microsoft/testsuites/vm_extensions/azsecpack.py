@@ -8,6 +8,7 @@ from retry import retry
 from lisa import (
     Logger,
     Node,
+    OsRequirement,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -75,7 +76,16 @@ class AzSecPack(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_features=[AzureExtension], unsupported_os=[BSD]
+            supported_features=[AzureExtension],
+            # Exclude only pre-18 releases; runtime checks other majors and ARM64.
+            unsupported_os=[
+                BSD,
+                OsRequirement(Ubuntu, max_version="18.01"),
+                OsRequirement(CBLMariner, max_version="2.0"),
+                OsRequirement(CBLMariner, min_version="4.0"),
+                OsRequirement(Redhat, max_version="7.0"),
+                OsRequirement(Redhat, min_version="10.0"),
+            ],
         ),
     )
     def verify_azsecpack(self, node: Node, log: Logger, result: TestResult) -> None:

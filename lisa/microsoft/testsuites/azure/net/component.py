@@ -7,6 +7,7 @@ from typing import Any, cast
 from lisa import (
     Environment,
     Logger,
+    OsRequirement,
     RemoteNode,
     TestCaseMetadata,
     TestSuite,
@@ -26,7 +27,9 @@ from lisa.util import LisaException, SkippedException, UnsupportedDistroExceptio
     such as conntrack, ipset, and iptables. It ensures that connection tracking,
     IP-based filtering, and custom rule management operate as expected
     """,
-    requirement=simple_requirement(supported_os=[CBLMariner]),
+    requirement=simple_requirement(
+        supported_os=[OsRequirement(CBLMariner, min_version="3.0")]
+    ),
 )
 class NetworkComponentTest(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
@@ -60,20 +63,20 @@ class NetworkComponentTest(TestSuite):
     ]
     IPSETTESTDELETERULES = ["OUTPUT -j ACCEPT"]
     PREROUTINGCHAIN = [
-        '-A PREROUTING -i eth0 -p tcp -m comment --comment "collection: tcp name: tcptraffic" -j allowlayer4', # noqa E501
-        '-A PREROUTING -i eth0 -p udp -m comment --comment "collection: udp name: udptraffic" -j allowlayer4', # noqa E501
-        '-A PREROUTING -i eth0 -p icmp -m comment --comment "collection: icmp name: icmptraffic" -j allowlayer4', # noqa E501
+        '-A PREROUTING -i eth0 -p tcp -m comment --comment "collection: tcp name: tcptraffic" -j allowlayer4',  # noqa E501
+        '-A PREROUTING -i eth0 -p udp -m comment --comment "collection: udp name: udptraffic" -j allowlayer4',  # noqa E501
+        '-A PREROUTING -i eth0 -p icmp -m comment --comment "collection: icmp name: icmptraffic" -j allowlayer4',  # noqa E501
     ]
     FORWARDCHAIN = [
-        '-A FORWARD -i eth0 -p tcp -m conntrack --ctstate NEW -m comment --comment "collection: tcp name: tcptraffic" -j LOG --log-prefix "allowlayer4: " --log-level 6', # noqa E501
-        '-A FORWARD -i eth0 -p udp -m conntrack --ctstate NEW -m comment --comment "collection: udp name: udptraffic" -j LOG --log-prefix "allowlayer4: " --log-level 6', # noqa E501
-        '-A FORWARD -i eth0 -p icmp -m conntrack --ctstate NEW -m comment --comment "collection: icmp name: icmptraffic" -j LOG --log-prefix "allowlayer4: " --log-level 6', # noqa E501
-        '-A FORWARD -i eth0 -p tcp -m conntrack --ctstate NEW,ESTABLISHED --ctdir ORIGINAL -m comment --comment "collection: tcp name: tcptraffic" -j MARK_ALLOWED_AND_ACCEPT', # noqa E501
-        '-A FORWARD -i eth0 -p udp -m conntrack --ctstate NEW,ESTABLISHED --ctdir ORIGINAL -m comment --comment "collection: udp name: udptraffic" -j MARK_ALLOWED_AND_ACCEPT', # noqa E501
-        '-A FORWARD -i eth0 -p icmp -m conntrack --ctstate NEW,ESTABLISHED --ctdir ORIGINAL -m comment --comment "collection: icmp name: icmptraffic" -j MARK_ALLOWED_AND_ACCEPT', # noqa E501
-        '-A FORWARD -i eth0 -p tcp -m conntrack --ctstate ESTABLISHED --ctdir REPLY -m comment --comment "collection: tcp name: tcptraffic" -j MARK_ALLOWED_AND_ACCEPT', # noqa E501
-        '-A FORWARD -i eth0 -p udp -m conntrack --ctstate ESTABLISHED --ctdir REPLY -m comment --comment "collection: udp name: udptraffic" -j MARK_ALLOWED_AND_ACCEPT', # noqa E501
-        '-A FORWARD -i eth0 -p icmp -m conntrack --ctstate ESTABLISHED --ctdir REPLY -m comment --comment "collection: icmp name: icmptraffic" -j MARK_ALLOWED_AND_ACCEPT', # noqa E501
+        '-A FORWARD -i eth0 -p tcp -m conntrack --ctstate NEW -m comment --comment "collection: tcp name: tcptraffic" -j LOG --log-prefix "allowlayer4: " --log-level 6',  # noqa E501
+        '-A FORWARD -i eth0 -p udp -m conntrack --ctstate NEW -m comment --comment "collection: udp name: udptraffic" -j LOG --log-prefix "allowlayer4: " --log-level 6',  # noqa E501
+        '-A FORWARD -i eth0 -p icmp -m conntrack --ctstate NEW -m comment --comment "collection: icmp name: icmptraffic" -j LOG --log-prefix "allowlayer4: " --log-level 6',  # noqa E501
+        '-A FORWARD -i eth0 -p tcp -m conntrack --ctstate NEW,ESTABLISHED --ctdir ORIGINAL -m comment --comment "collection: tcp name: tcptraffic" -j MARK_ALLOWED_AND_ACCEPT',  # noqa E501
+        '-A FORWARD -i eth0 -p udp -m conntrack --ctstate NEW,ESTABLISHED --ctdir ORIGINAL -m comment --comment "collection: udp name: udptraffic" -j MARK_ALLOWED_AND_ACCEPT',  # noqa E501
+        '-A FORWARD -i eth0 -p icmp -m conntrack --ctstate NEW,ESTABLISHED --ctdir ORIGINAL -m comment --comment "collection: icmp name: icmptraffic" -j MARK_ALLOWED_AND_ACCEPT',  # noqa E501
+        '-A FORWARD -i eth0 -p tcp -m conntrack --ctstate ESTABLISHED --ctdir REPLY -m comment --comment "collection: tcp name: tcptraffic" -j MARK_ALLOWED_AND_ACCEPT',  # noqa E501
+        '-A FORWARD -i eth0 -p udp -m conntrack --ctstate ESTABLISHED --ctdir REPLY -m comment --comment "collection: udp name: udptraffic" -j MARK_ALLOWED_AND_ACCEPT',  # noqa E501
+        '-A FORWARD -i eth0 -p icmp -m conntrack --ctstate ESTABLISHED --ctdir REPLY -m comment --comment "collection: icmp name: icmptraffic" -j MARK_ALLOWED_AND_ACCEPT',  # noqa E501
         "-A FORWARD -i eth0 -j LOG_DROP_OTHER",
     ]
 
@@ -139,9 +142,7 @@ class NetworkComponentTest(TestSuite):
         iptables.add_iptable_rules(
             table_name=self.FILTERTABLE, rules=self.IPSETTESTADDRULE
         )
-        iptables.remove_iptable_rules(
-            rules=self.IPSETTESTDELETERULES
-        )
+        iptables.remove_iptable_rules(rules=self.IPSETTESTDELETERULES)
 
         # Send traffic to verify whether traffic is being blocked using ipset or not
         log.info(
@@ -151,9 +152,7 @@ class NetworkComponentTest(TestSuite):
         ping = test_node.tools[Ping]
         result = ping.ping_async(target=self.IPSETIP, count=self.PACKETCOUNT, sudo=True)
         ping_result = result.wait_result()
-        log.debug(
-            f"ICMP traffic result for destination {self.IPSETIP}:{ping_result} "
-        )
+        log.debug(f"ICMP traffic result for destination {self.IPSETIP}:{ping_result} ")
         if "100% packet loss" not in ping_result.stdout:
             raise LisaException(
                 "ICMP traffic is being allowed eventhough the IPTables rules "

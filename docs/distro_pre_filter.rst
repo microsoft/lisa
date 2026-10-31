@@ -32,6 +32,275 @@ Goals
 -  Gracefully fall back to the existing runtime mechanism when the
    target OS cannot be determined.
 
+OS Release Requirements
+-----------------------
+
+``supported_os`` and ``unsupported_os`` accept OS classes as before, and
+``OsRequirement`` entries with optional Ubuntu, RHEL (``Redhat``), or
+Azure Linux / Mariner (``CBLMariner``) release bounds:
+
+Selection and range comparison are shared across supported distros.
+Release syntax and image-name parsing remain distro-specific.
+
+.. code-block:: python
+
+   from lisa import OsRequirement, simple_requirement
+   from lisa.operating_system import Oracle, Ubuntu
+
+   requirement = simple_requirement(
+       unsupported_os=[
+           OsRequirement(Ubuntu, max_version="22.04"),
+           Oracle,
+       ],
+   )
+
+This excludes Ubuntu releases older than 22.04 and every Oracle release.
+``min_version`` is inclusive and ``max_version`` is exclusive. For example,
+``OsRequirement(Ubuntu, min_version="22.04", max_version="24.04")`` matches
+Ubuntu releases from 22.04 up to, but not including, 24.04. In a supported
+list it allows that range; in an unsupported list it excludes that range.
+Entries in each list are alternatives. Both lists cannot be nonempty.
+
+Ubuntu bounds must use ``YY.MM`` format. RHEL and CBLMariner bounds use
+``major.minor``, for example ``8.3`` or ``4.0``. Comparison uses the
+major/minor release, so Ubuntu 22.04.5 belongs to the 22.04 release.
+Patch, kernel and image publication versions are not supported bounds.
+Malformed bounds, empty/reversed ranges and bounds on other OS classes
+raise a configuration error.
+
+Class-only requirements retain their existing inheritance behavior.
+Version-qualified ``Redhat`` and ``CBLMariner`` requirements apply to
+those concrete classes, not their descendants: a RHEL release constraint
+must not implicitly become an Oracle Linux or CentOS constraint. Broader
+inferred families are retained for runtime checking. Version-qualified
+Ubuntu requirements retain their existing subclass-matching behavior for
+compatibility.
+
+Version pre-filtering uses the existing ``enable_distro_pre_filtering``
+switch. Ubuntu-specific image inference recognizes:
+
+* Marketplace SKU releases such as ``16.04-LTS``, ``22_04-lts-gen2`` and
+  ``pro-fips-22_04-arm64``.
+* Marketplace offers such as ``ubuntu-24_04-lts`` and ``ubuntu-25_10``.
+* Ubuntu codenames xenial (16.04), bionic (18.04), focal (20.04), jammy
+  (22.04), noble (24.04), questing (25.10) and resolute (26.04).
+* Clearly identified Ubuntu release/codename tokens in gallery image
+  names and VHD filenames.
+
+Ubuntu Gen1/Gen2, ARM64, FIPS and CVM variants share the same release rules.
+
+Marketplace publication versions (the fourth field), gallery publication
+versions, URL query strings and kernel versions are not used as releases.
+The OS and release must come from the same image variable.
+
+Unknown or conflicting release hints retain the test for runtime checking;
+an unknown release must not turn a versioned exclusion into an exclusion of
+all releases of the target distro. OS families without release-aware
+support, including SUSE/SLES, keep distro-only filtering.
+Debug logs explain deferred release inference and show the requirements
+of dropped cases.
+Both ``lisa run`` and ``lisa list`` use the same gated target resolution.
+As with distro-only filtering, ``list --all`` does not bypass the pre-filter.
+
+The actual connected guest's release is checked against the same
+requirements at runtime, even when pre-filtering is disabled. Existing
+runtime guards remain useful for conditions not expressed by this metadata.
+
+Ubuntu-specific examples of these requirements include SGX and
+Secure/Measured Boot (Ubuntu 18.04 minimum), PTP time sync (Ubuntu 19.10
+minimum), and release restrictions for the Azure Security Pack and
+Performance Diagnostics extensions. Ubuntu major-version allowlists use
+January boundaries to preserve the whole supported release year, rather
+than restricting support to LTS releases. This calendar-based convention
+does not apply to RHEL or CBLMariner bounds. Architecture, generation and
+kernel-dependent guards remain runtime checks for all distros.
+
+RHEL and Azure Linux Images
+---------------------------
+
+Both ``publisher offer sku version`` and
+``publisher:offer:sku:version`` Marketplace identifiers are recognized
+case-insensitively. Selection is offline: it does not query Azure to
+resolve ``latest`` or infer the guest release from a publication version.
+
+* ``MicrosoftCBLMariner azure-linux-3 azure-linux-3-gen2 latest`` and
+  ``microsoftazurelinux azurelinux-4 4-arm64 latest`` both map to the
+  existing ``CBLMariner`` OS class. Their names establish major releases
+  3 and 4 respectively, not precise minor releases.
+* ``MicrosoftCBLMariner cbl-mariner-test cbl-mariner-2-test latest``
+  identifies major 2, but the same offer also contains
+  ``cbl-mariner-3-cvm-test`` (major 3). The SKU, not the publisher or the
+  versionless test offer, provides the release.
+* ``redhat rhel 810-gen2 latest`` and
+  ``redhat rhel-byos rhel-lvm810-gen2 latest`` identify RHEL 8.10.
+  Compact ``100`` and ``102`` release tokens mean 10.0 and 10.2,
+  not 1.00 or 10.02.
+* RHEL parsing covers the RHEL, BYOS, EDEWE, HA, RAW, SAP, SAP-APPS,
+  SAP-HA, ARM64, CVM and CVM-test offer families. For example,
+  ``102sapapps-gen2`` and ``rhel_10_2_with_ha_add_on-gen2`` identify 10.2.
+  Unrecognized prefix/suffix combinations defer release filtering.
+* Floating RHEL names such as ``8-LVM``, ``rhel-lvm8`` and ``9-raw``
+  establish only a major release. Architecture, generation, FIPS, CVM,
+  test, ACL and kernel-variant suffixes do not establish an OS minor version.
+
+A major-only image is treated as a range of possible releases. For
+example, Azure Linux major 4 means ``[4.0,5.0)``. It satisfies a minimum
+of 4.0 and cannot satisfy a maximum of 4.0. A boundary inside that range,
+such as 4.1, is undecidable: keep the case unless the available evidence
+proves incompatibility. This applies to both allowlists and exclusions.
+Logs include the inferred release precision and image variable key,
+without exposing full image URLs or SAS query strings.
+
+For example:
+
+.. code-block:: python
+
+   from lisa import OsRequirement, simple_requirement
+   from lisa.operating_system import CBLMariner, Redhat, Windows
+
+   # Suite-wide minimum, inherited by cases without their own requirements.
+   requirement = simple_requirement(
+       supported_os=[OsRequirement(CBLMariner, min_version="4.0")],
+   )
+
+   # Exclude old RHEL releases, preserving the default Windows exclusion.
+   requirement = simple_requirement(
+       unsupported_os=[Windows, OsRequirement(Redhat, max_version="8.3")],
+   )
+
+Ant and Curl use the CBLMariner 4.0 minimum. Libbpf cases allow major 3
+only. Other migrated guards include BPF, core scheduling, zram, network
+components, Go crypto, time sync, secure/measured boot, Docker app tests
+and release-only portions of VM-extension support tables. Existing
+runtime checks remain, including architecture and patch-level exceptions.
+Mixed allowlist/exclusion policies that cannot be represented safely,
+such as the Fedora-family NetworkManager check and RHEL bounds on ADE's
+provisioning case, remain runtime checks.
+
+RHEL and CBLMariner Custom Image Names
+------------------------------------
+
+For gallery images put an explicit distro/release token in the image
+definition name; for VHDs put it in the filename. Examples:
+
+.. code-block:: text
+
+   rhel-8.10-x64-gen2
+   rhel_8_10_arm64_gen2
+   azurelinux-4.0-arm64-gen2
+   azure-linux-3.0-x64-gen2
+   cblmariner-2.0-x64-gen2
+
+These names provide major/minor precision. Missing or conflicting tokens
+retain the case. Storage domains, gallery names, gallery publication
+versions, kernel version strings and URL queries are not release evidence.
+The same rules apply through the existing Marketplace, shared/community
+gallery, VHD and generic image variables; variable precedence is unchanged.
+
+SIG Image Naming for Ubuntu Release Inference
+--------------------------------------------
+
+For Shared Image Gallery (SIG/Azure Compute Gallery) images, include
+``ubuntu`` and a recognizable release or codename in the **image definition
+name**. Do not rely on the gallery name or image publication version to
+identify the Ubuntu release.
+
+The recommended naming convention is
+``ubuntu-<YY.MM>-<architecture>-<generation>``, for example:
+
+.. code-block:: text
+
+   ubuntu-22.04-x64-gen2
+   ubuntu-24.04-arm64-gen2
+   ubuntu_22_04_x64_gen1
+   ubuntu_26_04_arm64_gen2
+
+Numeric release names follow the pattern ``ubuntu[-_]YY[._]MM``:
+
+* Use a hyphen or underscore between ``ubuntu`` and the release.
+* Use a dot or underscore between the two-digit year and two-digit month.
+  For example, use ``22.04`` or ``22_04``, not ``22.4`` or ``22-04``.
+* Put ``ubuntu`` at the start of the name or after a separator. Separate
+  trailing labels such as ``arm64`` or ``gen2`` with a hyphen or underscore.
+* Matching is case-insensitive. Architecture, generation, FIPS and CVM
+  labels do not change the inferred release.
+
+Alternatively, include a supported codename as a separate token:
+
+.. code-block:: text
+
+   ubuntu-jammy-gen2
+   ubuntu_noble_arm64
+   ubuntu-resolute-x64-gen2
+
+.. list-table:: Supported Ubuntu codenames
+   :header-rows: 1
+   :widths: 50 50
+
+   * - Codename
+     - Release
+   * - xenial
+     - 16.04
+   * - bionic
+     - 18.04
+   * - focal
+     - 20.04
+   * - jammy
+     - 22.04
+   * - noble
+     - 24.04
+   * - questing
+     - 25.10
+   * - resolute
+     - 26.04
+
+Include ``ubuntu`` as well as the codename: ``jammy-gen2`` alone does not
+identify the OS. A custom image definition such as
+``ubuntu_jammy_linux-azure_6.8.0-1071.79.22.04.1_x64_gen1`` resolves to
+Ubuntu 22.04 through ``jammy``, not through the embedded kernel version.
+
+Example runbook variables:
+
+.. code-block:: yaml
+
+   variable:
+     - name: enable_distro_pre_filtering
+       value: true
+     - name: shared_gallery
+       value: "<subscription>/<resource-group>/<gallery>/ubuntu-22.04-gen2/1.0.0"
+
+Wire ``$(shared_gallery)`` to the Azure node requirement's ``shared_gallery``
+field as usual. The resolver reads the variable named ``shared_gallery``.
+In this example, ``1.0.0`` is the SIG publication version and is ignored for
+Ubuntu release inference. For a full Azure resource ID, the resolver uses
+the image definition name after ``/images/``, not the value after
+``/versions/``.
+
+.. list-table:: Image definition patterns to avoid
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Image definition name
+     - Current inference
+   * - ``ubuntu-server-22.04-gen2``
+     - Ubuntu detected, release unknown: the numeric release must immediately
+       follow ``ubuntu-`` or ``ubuntu_``.
+   * - ``ubuntu-22-04-gen2``
+     - Release unknown: a hyphen is not a supported year/month separator.
+   * - ``ubuntu-22.04.5-gen2``
+     - Release unknown: point-release syntax is not recognized for image names.
+   * - ``jammy-gen2``
+     - OS not identified from this name alone.
+   * - ``ubuntu-jammy-ubuntu-24.04``
+     - Conflicting recognized releases: version pre-filtering is deferred.
+   * - ``ubuntu-jammy-24.04``
+     - Resolves to 22.04 through ``jammy``; the standalone ``24.04`` is not
+       recognized as an Ubuntu numeric release pattern.
+
+Avoid inconsistent labels even when only one label is recognized.
+Unknown releases and conflicting recognized releases retain cases for
+runtime validation rather than dropping them through version pre-filtering.
+
 How It Works
 ------------
 
@@ -255,8 +524,9 @@ This is a **v1 opportunistic optimization**, not a final architecture.
      - Dual: ``supported_os`` metadata + ``isinstance`` runtime guard
      - Single ``@requires_distro`` decorator driving both
    * - Image resolution
-     - Name-based heuristic (substring matching on image string)
-     - Structured metadata from Azure API (publisher/offer/sku fields)
+     - Known publisher/offer/SKU and custom-image naming patterns, with
+       alias-based distro fallback
+     - Validated image metadata from the platform API
    * - Failure mode
      - Graceful — unknown image = no pre-filter, falls back to current
        behavior
@@ -268,9 +538,11 @@ This is a **v1 opportunistic optimization**, not a final architecture.
 
 **Key limitations:**
 
-1. **Heuristic-based inference** — The OS resolver uses substring
-   matching on image strings. Unusual image names or typos may not be
-   recognized, in which case the pre-filter is silently skipped.
+1. **Name-based inference** — The resolver recognizes supported
+   publisher/offer/SKU and custom-image naming patterns, with alias
+   matching as a fallback for distro identification. Unrecognized or
+   conflicting releases defer version filtering to runtime checks.
+   Distro-only filtering can still apply when the OS class is known.
 
 2. **DRY trade-off** — The ``supported_os`` metadata and runtime
    ``isinstance`` guards can drift if an author updates one but not the

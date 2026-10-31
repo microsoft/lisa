@@ -10,6 +10,7 @@ from packaging.version import Version
 
 from lisa import (
     Node,
+    OsRequirement,
     RemoteNode,
     TestCaseMetadata,
     TestSuite,
@@ -39,6 +40,7 @@ from lisa.operating_system import (
     Suse,
     SuseRepositoryInfo,
     Ubuntu,
+    Windows,
 )
 from lisa.sut_orchestrator import AZURE, HYPERV, QEMU, READY
 from lisa.sut_orchestrator.azure.common import is_cloud_init_enabled
@@ -1067,7 +1069,8 @@ class AzureImageStandard(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_platform_type=[AZURE, READY, HYPERV, QEMU]
+            supported_platform_type=[AZURE, READY, HYPERV, QEMU],
+            unsupported_os=[Windows, OsRequirement(CBLMariner, max_version="2.0")],
         ),
     )
     def verify_serial_console_is_enabled(self, node: Node) -> None:
@@ -1296,7 +1299,7 @@ class AzureImageStandard(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            supported_os=[CBLMariner],
+            supported_os=[OsRequirement(CBLMariner, min_version="2.0")],
             supported_platform_type=[AZURE, READY, HYPERV],
         ),
     )
