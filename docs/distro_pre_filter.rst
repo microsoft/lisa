@@ -32,11 +32,15 @@ Goals
 -  Gracefully fall back to the existing runtime mechanism when the
    target OS cannot be determined.
 
-Ubuntu Release Requirements
----------------------------
+OS Release Requirements
+-----------------------
 
 ``supported_os`` and ``unsupported_os`` accept OS classes as before, and
-``OsRequirement`` entries with optional Ubuntu release bounds:
+``OsRequirement`` entries with optional Ubuntu, RHEL (``Redhat``), or
+Azure Linux / Mariner (``CBLMariner``) release bounds:
+
+Selection and range comparison are shared across supported distros.
+Release syntax and image-name parsing remain distro-specific.
 
 .. code-block:: python
 
@@ -57,16 +61,23 @@ Ubuntu releases from 22.04 up to, but not including, 24.04. In a supported
 list it allows that range; in an unsupported list it excludes that range.
 Entries in each list are alternatives. Both lists cannot be nonempty.
 
-Bounds must use ``YY.MM`` format. Comparison uses the Ubuntu major/minor
-release, so Ubuntu 22.04.5 belongs to the 22.04 release. Point releases,
-kernel versions and image publication versions are not supported bounds.
-Malformed bounds, empty/reversed ranges and bounds on a non-Ubuntu OS
-raise a configuration error. Class-only requirements retain their existing
-inheritance behavior; Ubuntu release numbers are never compared against
-Debian or another distro's release numbers.
+Ubuntu bounds must use ``YY.MM`` format. RHEL and CBLMariner bounds use
+``major.minor``, for example ``8.3`` or ``4.0``. Comparison uses the
+major/minor release, so Ubuntu 22.04.5 belongs to the 22.04 release.
+Patch, kernel and image publication versions are not supported bounds.
+Malformed bounds, empty/reversed ranges and bounds on other OS classes
+raise a configuration error.
+
+Class-only requirements retain their existing inheritance behavior.
+Version-qualified ``Redhat`` and ``CBLMariner`` requirements apply to
+those concrete classes, not their descendants: a RHEL release constraint
+must not implicitly become an Oracle Linux or CentOS constraint. Broader
+inferred families are retained for runtime checking. Version-qualified
+Ubuntu requirements retain their existing subclass-matching behavior for
+compatibility.
 
 Version pre-filtering uses the existing ``enable_distro_pre_filtering``
-switch and is implemented only for Ubuntu. It recognizes:
+switch. Ubuntu-specific image inference recognizes:
 
 * Marketplace SKU releases such as ``16.04-LTS``, ``22_04-lts-gen2`` and
   ``pro-fips-22_04-arm64``.
@@ -76,30 +87,115 @@ switch and is implemented only for Ubuntu. It recognizes:
 * Clearly identified Ubuntu release/codename tokens in gallery image
   names and VHD filenames.
 
-Gen1/Gen2, ARM64, FIPS and CVM variants share the same release rules.
+Ubuntu Gen1/Gen2, ARM64, FIPS and CVM variants share the same release rules.
+
 Marketplace publication versions (the fourth field), gallery publication
 versions, URL query strings and kernel versions are not used as releases.
 The OS and release must come from the same image variable.
 
 Unknown or conflicting release hints retain the test for runtime checking;
 an unknown release must not turn a versioned exclusion into an exclusion of
-all Ubuntu versions. Non-Ubuntu targets keep the existing distro-only
-filtering, without version checks. Debug logs explain unrecognized or
-conflicting Ubuntu release hints and show the requirements of dropped cases.
+all releases of the target distro. OS families without release-aware
+support, including SUSE/SLES, keep distro-only filtering.
+Debug logs explain deferred release inference and show the requirements
+of dropped cases.
 Both ``lisa run`` and ``lisa list`` use the same gated target resolution.
 As with distro-only filtering, ``list --all`` does not bypass the pre-filter.
 
-The actual connected Ubuntu guest's release is checked against the same
+The actual connected guest's release is checked against the same
 requirements at runtime, even when pre-filtering is disabled. Existing
 runtime guards remain useful for conditions not expressed by this metadata.
 
-Examples of existing tests using these requirements include SGX and
+Ubuntu-specific examples of these requirements include SGX and
 Secure/Measured Boot (Ubuntu 18.04 minimum), PTP time sync (Ubuntu 19.10
-minimum), and the Azure Security Pack and Performance Diagnostics
-extensions (discrete supported Ubuntu major versions). Major-version
-allowlists use January boundaries to preserve the whole supported release
-year, rather than restricting support to LTS releases. Architecture,
-generation and kernel-dependent guards remain runtime checks.
+minimum), and release restrictions for the Azure Security Pack and
+Performance Diagnostics extensions. Ubuntu major-version allowlists use
+January boundaries to preserve the whole supported release year, rather
+than restricting support to LTS releases. This calendar-based convention
+does not apply to RHEL or CBLMariner bounds. Architecture, generation and
+kernel-dependent guards remain runtime checks for all distros.
+
+RHEL and Azure Linux Images
+---------------------------
+
+Both ``publisher offer sku version`` and
+``publisher:offer:sku:version`` Marketplace identifiers are recognized
+case-insensitively. Selection is offline: it does not query Azure to
+resolve ``latest`` or infer the guest release from a publication version.
+
+* ``MicrosoftCBLMariner azure-linux-3 azure-linux-3-gen2 latest`` and
+  ``microsoftazurelinux azurelinux-4 4-arm64 latest`` both map to the
+  existing ``CBLMariner`` OS class. Their names establish major releases
+  3 and 4 respectively, not precise minor releases.
+* ``MicrosoftCBLMariner cbl-mariner-test cbl-mariner-2-test latest``
+  identifies major 2, but the same offer also contains
+  ``cbl-mariner-3-cvm-test`` (major 3). The SKU, not the publisher or the
+  versionless test offer, provides the release.
+* ``redhat rhel 810-gen2 latest`` and
+  ``redhat rhel-byos rhel-lvm810-gen2 latest`` identify RHEL 8.10.
+  Compact ``100`` and ``102`` release tokens mean 10.0 and 10.2,
+  not 1.00 or 10.02.
+* RHEL parsing covers the RHEL, BYOS, EDEWE, HA, RAW, SAP, SAP-APPS,
+  SAP-HA, ARM64, CVM and CVM-test offer families. For example,
+  ``102sapapps-gen2`` and ``rhel_10_2_with_ha_add_on-gen2`` identify 10.2.
+  Unrecognized prefix/suffix combinations defer release filtering.
+* Floating RHEL names such as ``8-LVM``, ``rhel-lvm8`` and ``9-raw``
+  establish only a major release. Architecture, generation, FIPS, CVM,
+  test, ACL and kernel-variant suffixes do not establish an OS minor version.
+
+A major-only image is treated as a range of possible releases. For
+example, Azure Linux major 4 means ``[4.0,5.0)``. It satisfies a minimum
+of 4.0 and cannot satisfy a maximum of 4.0. A boundary inside that range,
+such as 4.1, is undecidable: keep the case unless the available evidence
+proves incompatibility. This applies to both allowlists and exclusions.
+Logs include the inferred release precision and image variable key,
+without exposing full image URLs or SAS query strings.
+
+For example:
+
+.. code-block:: python
+
+   from lisa import OsRequirement, simple_requirement
+   from lisa.operating_system import CBLMariner, Redhat, Windows
+
+   # Suite-wide minimum, inherited by cases without their own requirements.
+   requirement = simple_requirement(
+       supported_os=[OsRequirement(CBLMariner, min_version="4.0")],
+   )
+
+   # Exclude old RHEL releases, preserving the default Windows exclusion.
+   requirement = simple_requirement(
+       unsupported_os=[Windows, OsRequirement(Redhat, max_version="8.3")],
+   )
+
+Ant and Curl use the CBLMariner 4.0 minimum. Libbpf cases allow major 3
+only. Other migrated guards include BPF, core scheduling, zram, network
+components, Go crypto, time sync, secure/measured boot, Docker app tests
+and release-only portions of VM-extension support tables. Existing
+runtime checks remain, including architecture and patch-level exceptions.
+Mixed allowlist/exclusion policies that cannot be represented safely,
+such as the Fedora-family NetworkManager check and RHEL bounds on ADE's
+provisioning case, remain runtime checks.
+
+RHEL and CBLMariner Custom Image Names
+------------------------------------
+
+For gallery images put an explicit distro/release token in the image
+definition name; for VHDs put it in the filename. Examples:
+
+.. code-block:: text
+
+   rhel-8.10-x64-gen2
+   rhel_8_10_arm64_gen2
+   azurelinux-4.0-arm64-gen2
+   azure-linux-3.0-x64-gen2
+   cblmariner-2.0-x64-gen2
+
+These names provide major/minor precision. Missing or conflicting tokens
+retain the case. Storage domains, gallery names, gallery publication
+versions, kernel version strings and URL queries are not release evidence.
+The same rules apply through the existing Marketplace, shared/community
+gallery, VHD and generic image variables; variable precedence is unchanged.
 
 SIG Image Naming for Ubuntu Release Inference
 --------------------------------------------
@@ -428,8 +524,9 @@ This is a **v1 opportunistic optimization**, not a final architecture.
      - Dual: ``supported_os`` metadata + ``isinstance`` runtime guard
      - Single ``@requires_distro`` decorator driving both
    * - Image resolution
-     - Name-based heuristic (substring matching on image string)
-     - Structured metadata from Azure API (publisher/offer/sku fields)
+     - Known publisher/offer/SKU and custom-image naming patterns, with
+       alias-based distro fallback
+     - Validated image metadata from the platform API
    * - Failure mode
      - Graceful — unknown image = no pre-filter, falls back to current
        behavior
@@ -441,9 +538,11 @@ This is a **v1 opportunistic optimization**, not a final architecture.
 
 **Key limitations:**
 
-1. **Heuristic-based inference** — The OS resolver uses substring
-   matching on image strings. Unusual image names or typos may not be
-   recognized, in which case the pre-filter is silently skipped.
+1. **Name-based inference** — The resolver recognizes supported
+   publisher/offer/SKU and custom-image naming patterns, with alias
+   matching as a fallback for distro identification. Unrecognized or
+   conflicting releases defer version filtering to runtime checks.
+   Distro-only filtering can still apply when the OS class is known.
 
 2. **DRY trade-off** — The ``supported_os`` metadata and runtime
    ``isinstance`` guards can drift if an author updates one but not the

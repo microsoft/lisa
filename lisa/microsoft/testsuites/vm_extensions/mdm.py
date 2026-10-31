@@ -40,6 +40,8 @@ class MetricsExtension(TestSuite):
                 Windows,
                 OsRequirement(Ubuntu, min_version="20.10"),
                 OsRequirement(Ubuntu, max_version="18.04"),
+                OsRequirement(CBLMariner, max_version="1.0"),
+                OsRequirement(CBLMariner, min_version="3.0"),
             ],
         ),
     )

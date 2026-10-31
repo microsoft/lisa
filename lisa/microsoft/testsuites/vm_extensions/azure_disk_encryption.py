@@ -95,6 +95,11 @@ class AzureDiskEncryption(TestSuite):
                 Windows,
                 OsRequirement(Ubuntu, min_version="22.10"),
                 OsRequirement(Ubuntu, max_version="18.04"),
+                OsRequirement(CBLMariner, max_version="2.0"),
+                OsRequirement(CBLMariner, min_version="3.0"),
+                OsRequirement(Redhat, max_version="7.4"),
+                OsRequirement(Redhat, min_version="8.0", max_version="8.1"),
+                OsRequirement(Redhat, min_version="10.0"),
             ],
         ),
     )
@@ -158,7 +163,13 @@ class AzureDiskEncryption(TestSuite):
         priority=1,
         requirement=simple_requirement(
             min_memory_mb=MIN_REQUIRED_MEMORY_MB,
-            supported_os=[Redhat, CentOs, Oracle, Ubuntu, CBLMariner],
+            supported_os=[
+                Redhat,
+                CentOs,
+                Oracle,
+                Ubuntu,
+                OsRequirement(CBLMariner, min_version="2.0", max_version="3.0"),
+            ],
             supported_features=[AzureExtension, CvmDisabled()],
             supported_platform_type=[AZURE],
         ),

@@ -81,6 +81,10 @@ class AzSecPack(TestSuite):
             unsupported_os=[
                 BSD,
                 OsRequirement(Ubuntu, max_version="18.01"),
+                OsRequirement(CBLMariner, max_version="2.0"),
+                OsRequirement(CBLMariner, min_version="4.0"),
+                OsRequirement(Redhat, max_version="7.0"),
+                OsRequirement(Redhat, min_version="10.0"),
             ],
         ),
     )

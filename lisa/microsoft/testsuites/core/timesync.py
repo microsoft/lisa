@@ -109,7 +109,11 @@ class TimeSync(TestSuite):
         """,
         priority=2,
         requirement=simple_requirement(
-            unsupported_os=[Windows, OsRequirement(Ubuntu, max_version="19.10")],
+            unsupported_os=[
+                Windows,
+                OsRequirement(Ubuntu, max_version="19.10"),
+                OsRequirement(Redhat, max_version="8.0"),
+            ],
         ),
     )
     def verify_timesync_ptp(self, node: Node) -> None:
@@ -398,6 +402,9 @@ class TimeSync(TestSuite):
             7. Check local time is synchronised with time server using `ntpstat`.
         """,
         priority=2,
+        requirement=simple_requirement(
+            unsupported_os=[Windows, OsRequirement(Redhat, min_version="8.0")]
+        ),
     )
     def verify_timesync_ntp(self, node: Node) -> None:
         # On higher distro version, ntp is replaced by chrony. So skip this test.

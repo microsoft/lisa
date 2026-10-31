@@ -23,7 +23,7 @@ from lisa.operating_system import OperatingSystem
 from lisa.testsuite import TestCaseMetadata, TestCaseRuntimeData, get_cases_metadata
 from lisa.util import LisaException, constants, set_filtered_fields
 from lisa.util.logger import get_logger
-from lisa.util.os_requirement import is_os_supported
+from lisa.util.os_requirement import ReleasePrecision, is_os_supported
 
 _get_logger = partial(get_logger, "init", "selector")
 
@@ -32,6 +32,7 @@ def _is_os_compatible(
     case: TestCaseMetadata,
     target_os: Type[OperatingSystem],
     target_os_version: Optional[VersionInfo] = None,
+    target_os_version_precision: ReleasePrecision = "minor",
 ) -> bool:
     """Return True if the case's declared OS requirement is compatible with
     the target OS class. The check uses bidirectional ``issubclass`` so that
@@ -52,6 +53,7 @@ def _is_os_compatible(
         target_os,
         target_os_version,
         prefilter=True,
+        version_precision=target_os_version_precision,
     )
 
 
@@ -59,16 +61,24 @@ def _prefilter_by_target_os(
     full_list: Dict[str, TestCaseMetadata],
     target_os: Type[OperatingSystem],
     target_os_version: Optional[VersionInfo] = None,
+    target_os_version_precision: ReleasePrecision = "minor",
 ) -> Dict[str, TestCaseMetadata]:
     """Drop cases from ``full_list`` whose ``requirement.os_type`` declares
     they cannot run on ``target_os``. Logs a one-line summary so partners
     can see how many cases were skipped at selection time.
     """
     log = _get_logger()
+    if target_os_version is not None and target_os_version_precision == "major":
+        log.debug(
+            "pre-filter: major-only release evidence; "
+            "cases with undecidable minor-version bounds are retained"
+        )
     kept: Dict[str, TestCaseMetadata] = {}
     dropped_names: List[str] = []
     for name, metadata in full_list.items():
-        if _is_os_compatible(metadata, target_os, target_os_version):
+        if _is_os_compatible(
+            metadata, target_os, target_os_version, target_os_version_precision
+        ):
             kept[name] = metadata
         else:
             dropped_names.append(f"{name} ({metadata.requirement.os_type})")
@@ -76,6 +86,7 @@ def _prefilter_by_target_os(
         log.info(
             f"pre-filter: dropped {len(dropped_names)} case(s) incompatible "
             f"with target_os={target_os.__name__}, version={target_os_version}"
+            f", precision={target_os_version_precision}"
         )
         log.debug(f"pre-filter dropped cases: {dropped_names}")
     return kept
@@ -169,6 +180,7 @@ def select_testcases(  # noqa: C901
     target_capabilities: Optional[List[str]] = None,
     apply_stable_gate: bool = True,
     target_os_version: Optional[VersionInfo] = None,
+    target_os_version_precision: ReleasePrecision = "minor",
 ) -> List[TestCaseRuntimeData]:
     """
     Select test cases based on filters. When ``apply_stable_gate`` is True
@@ -190,7 +202,9 @@ def select_testcases(  # noqa: C901
     else:
         full_list = get_cases_metadata()
     if target_os is not None:
-        full_list = _prefilter_by_target_os(full_list, target_os, target_os_version)
+        full_list = _prefilter_by_target_os(
+            full_list, target_os, target_os_version, target_os_version_precision
+        )
     if target_platforms:
         full_list = _prefilter_by_target_platforms(full_list, target_platforms)
     if target_capabilities is not None:
