@@ -131,6 +131,59 @@ _RHEL_SKUS = {
 }
 
 
+def _infer_redhat_marketplace_release(
+    offer: str, sku: str
+) -> Optional[Tuple[VersionInfo, ReleasePrecision]]:
+    pattern = _RHEL_SKUS.get(offer)
+    match = re.fullmatch(pattern, sku) if pattern else None
+    if not match:
+        return None
+    release = match["release"]
+    if "." in release or "_" in release:
+        return parse_version(release.replace("_", ".")), "minor"
+    if release in ("6", "7", "8", "9", "10"):
+        return parse_version(release), "major"
+    compact = re.fullmatch(r"(10|[6-9])(0|[1-9][0-9]*)", release)
+    if compact:
+        return parse_version(f"{compact[1]}.{compact[2]}"), "minor"
+    return None
+
+
+def _infer_cblmariner_marketplace_release(
+    publisher: str, offer: str, sku: str
+) -> Optional[Tuple[VersionInfo, ReleasePrecision]]:
+    if publisher == "microsoftazurelinux":
+        offer_match = re.fullmatch(r"azurelinux-([1-9][0-9]*)", offer)
+        sku_match = re.fullmatch(r"([1-9][0-9]*)(?:-arm64)?", sku)
+    elif publisher == "microsoftcblmariner":
+        offer_match = re.fullmatch(r"azure-linux-([1-9][0-9]*)", offer)
+        if offer == "cbl-mariner-test":
+            sku_match = re.fullmatch(
+                r"cbl-mariner-([1-9][0-9]*)(?:-arm64|-gen2|-fips|-cvm)*-test",
+                sku,
+            )
+        else:
+            sku_match = (
+                re.fullmatch(
+                    r"azure-linux-([1-9][0-9]*)"
+                    r"(?:-arm64|-gen1|-gen2|-acl|-fips|-cvm"
+                    r"|-kernel-hwe|-kernel-mshv)*",
+                    sku,
+                )
+                if offer_match
+                else None
+            )
+    else:
+        return None
+
+    if sku_match and (
+        (offer_match and offer_match[1] == sku_match[1])
+        or (publisher == "microsoftcblmariner" and offer == "cbl-mariner-test")
+    ):
+        return parse_version(sku_match[1]), "major"
+    return None
+
+
 def _infer_other_release(
     image: str, os_type: Type[OperatingSystem]
 ) -> Optional[Tuple[VersionInfo, ReleasePrecision]]:
@@ -138,47 +191,9 @@ def _infer_other_release(
     if len(parts) == 4:
         publisher, offer, sku, _ = parts
         if os_type is Redhat and publisher == "redhat":
-            pattern = _RHEL_SKUS.get(offer)
-            match = re.fullmatch(pattern, sku) if pattern else None
-            if match:
-                release = match["release"]
-                if "." in release or "_" in release:
-                    return parse_version(release.replace("_", ".")), "minor"
-                if release in ("6", "7", "8", "9", "10"):
-                    return parse_version(release), "major"
-                compact = re.fullmatch(r"(10|[6-9])(0|[1-9][0-9]*)", release)
-                if compact:
-                    return parse_version(f"{compact[1]}.{compact[2]}"), "minor"
-        elif os_type is CBLMariner:
-            if publisher == "microsoftazurelinux":
-                offer_match = re.fullmatch(r"azurelinux-([1-9][0-9]*)", offer)
-                sku_match = re.fullmatch(r"([1-9][0-9]*)(?:-arm64)?", sku)
-            elif publisher == "microsoftcblmariner":
-                offer_match = re.fullmatch(r"azure-linux-([1-9][0-9]*)", offer)
-                if offer == "cbl-mariner-test":
-                    sku_match = re.fullmatch(
-                        r"cbl-mariner-([1-9][0-9]*)"
-                        r"(?:-arm64|-gen2|-fips|-cvm)*-test",
-                        sku,
-                    )
-                else:
-                    sku_match = (
-                        re.fullmatch(
-                            r"azure-linux-([1-9][0-9]*)"
-                            r"(?:-arm64|-gen1|-gen2|-acl|-fips|-cvm"
-                            r"|-kernel-hwe|-kernel-mshv)*",
-                            sku,
-                        )
-                        if offer_match
-                        else None
-                    )
-            else:
-                return None
-            if sku_match and (
-                (offer_match and offer_match[1] == sku_match[1])
-                or (publisher == "microsoftcblmariner" and offer == "cbl-mariner-test")
-            ):
-                return parse_version(sku_match[1]), "major"
+            return _infer_redhat_marketplace_release(offer, sku)
+        if os_type is CBLMariner:
+            return _infer_cblmariner_marketplace_release(publisher, offer, sku)
         return None
 
     name = _image_name(image)
@@ -247,7 +262,7 @@ def _infer_ubuntu_release(image: str) -> Optional[VersionInfo]:
             releases.add(parse_version(f"{match[1]}.{match[2]}"))
     if len(releases) == 1:
         return releases.pop()
-    _log.debug("Ubuntu version pre-filter deferred: " "unknown or conflicting release")
+    _log.debug("Ubuntu version pre-filter deferred: unknown or conflicting release")
     return None
 
 

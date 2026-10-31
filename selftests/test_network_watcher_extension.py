@@ -42,11 +42,18 @@ class NetworkWatcherRequirementTestCase(TestCase):
                     )
         self.assertTrue(_is_os_compatible(self.case, Ubuntu))
 
-    def test_non_ubuntu_filtering_is_unchanged(self) -> None:
-        for distro in (Redhat, CentOs, Oracle, Debian, Suse, SLES, CBLMariner):
+    def test_non_ubuntu_release_boundaries(self) -> None:
+        for distro in (CentOs, Oracle, Debian, Suse, SLES):
             for version in ("1.0", "99.0"):
                 self.assertTrue(
                     _is_os_compatible(self.case, distro, parse_version(version))
+                )
+        for restricted_distro in (Redhat, CBLMariner):
+            for version in ("1.0", "99.0"):
+                self.assertFalse(
+                    _is_os_compatible(
+                        self.case, restricted_distro, parse_version(version)
+                    )
                 )
         self.assertFalse(_is_os_compatible(self.case, Windows))
 
