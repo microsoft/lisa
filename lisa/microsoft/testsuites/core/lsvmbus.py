@@ -202,7 +202,7 @@ class LsVmBus(TestSuite):
                         .max_channels
                     )
                 except UnsupportedOperationException as e:
-                    log.warning(
+                    log.info(
                         f"Could not determine maximum channels for {nic.name}; "
                         f"using formula-only validation: {e}"
                     )
