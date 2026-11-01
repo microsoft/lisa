@@ -324,10 +324,12 @@ class Nvmecli(Tool):
     def _get_list_json(self, force_run: bool = False) -> Dict[str, Any]:
         # The captured stdout can occasionally be truncated even though the
         # command exits with 0, e.g. sudo-rs in use_pty mode may drop the tail
-        # of the output when the command exits right after writing it. Re-run
-        # the command instead of failing on the first incomplete JSON.
+        # of the output when the command exits right after writing it, or drop
+        # it entirely. Re-run the command instead of failing on the first empty
+        # or incomplete JSON.
         attempts = 3
         last_error = ""
+        empty_count = 0
         for attempt in range(1, attempts + 1):
             nvme_list = self.run(
                 "list -o json 2>/dev/null",
@@ -336,12 +338,19 @@ class Nvmecli(Tool):
                 force_run=force_run or attempt > 1,
                 no_error_log=True,
             )
-            # NVMe list command returns empty string when no NVMe devices are found.
+            # NVMe list command returns empty string when no NVMe devices are
+            # found, but an empty capture can also be lost output, so retry.
             if not nvme_list.stdout:
-                raise LisaException(
-                    "No NVMe devices found. "
-                    "The 'nvme list' command returned an empty string."
+                empty_count += 1
+                last_error = (
+                    f"empty output, exit code: {nvme_list.exit_code}, "
+                    f"stderr: {nvme_list.stderr!r}"
                 )
+                self._log.debug(
+                    f"Empty output from 'nvme list -o json' "
+                    f"(attempt {attempt}/{attempts}): {last_error}"
+                )
+                continue
             try:
                 result = json.loads(nvme_list.stdout)
             except json.JSONDecodeError as e:
@@ -361,9 +370,15 @@ class Nvmecli(Tool):
                     f"object but got {type(result).__name__}."
                 )
             return result
+        if empty_count == attempts:
+            raise LisaException(
+                "No NVMe devices found. "
+                f"The 'nvme list' command returned an empty string in all "
+                f"{attempts} attempts."
+            )
         raise LisaException(
-            f"'nvme list -o json' returned invalid JSON after {attempts} "
-            f"attempts. Last error: {last_error}"
+            f"'nvme list -o json' returned invalid or empty JSON after "
+            f"{attempts} attempts. Last error: {last_error}"
         )
 
     def get_disks(self, force_run: bool = False) -> List[str]:
