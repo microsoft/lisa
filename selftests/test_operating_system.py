@@ -6,11 +6,24 @@ from unittest.mock import MagicMock
 from assertpy import assert_that
 
 from lisa.base_tools import Cat, Sed
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, CoreOs
 from lisa.tools import GrubConfig
+from lisa.util import SkippedException
 
 
 class OperatingSystemTestCase(TestCase):
+    def test_coreos_update_packages_is_skipped(self) -> None:
+        core_os = CoreOs.__new__(CoreOs)
+        core_os._node = MagicMock()
+        core_os._node.os.name = "CoreOs"
+        core_os._node.os.information.full_version = "Flatcar test"
+
+        with self.assertRaisesRegex(
+            SkippedException,
+            "Updating packages for this distro not supported in LISA",
+        ):
+            core_os._update_packages()
+
     def _create_mariner(
         self, grub_default_exists: bool
     ) -> Tuple[CBLMariner, MagicMock]:

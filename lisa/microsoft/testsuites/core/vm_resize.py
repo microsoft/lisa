@@ -154,6 +154,8 @@ class VmResize(TestSuite):
                     or "Following SKUs have failed for Capacity Restrictions" in str(e)
                 ):
                     last_error = str(e)
+                    if retry == maxretry - 1:
+                        raise
                     retry = retry + 1
                 else:
                     raise e

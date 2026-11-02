@@ -8,7 +8,10 @@ times="${4:-1}"                                 # Default number of iterations
 dhclient_command="${5:-dhclient}"               # Default DHCP client command
 interface="${6:-eth0}"                          # Default network interface
 
-if [ "$dhclient_command" = "dhcpcd" ]; then
+if [ "$dhclient_command" = "networkctl" ]; then
+  dhcp_stop_command="networkctl reconfigure $interface"
+  dhcp_start_command="networkctl renew $interface"
+elif [ "$dhclient_command" = "dhcpcd" ]; then
     dhcp_stop_command="dhcpcd -k $interface"
     dhcp_start_command="dhcpcd $interface"
 else

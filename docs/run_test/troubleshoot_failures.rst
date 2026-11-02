@@ -200,6 +200,11 @@ be easier to read.
   environment folder.  The serial console log will be uploaded when the
   guest is in a bad state.
 
+  Serial console logs retain the original bytes.  When checking deployment
+  failures for kernel panics or root filesystem mount failures, invalid UTF-8
+  bytes are replaced with replacement characters so corrupt console output
+  does not hide the deployment error.
+
 .. figure:: ../img/serial_console_logs.png
    :alt: serial_console_logs
 

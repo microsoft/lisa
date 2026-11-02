@@ -19,6 +19,7 @@ class SecurityProfileType(str, Enum):
     CVM = constants.SECURITY_PROFILE_CVM
     Stateless = constants.SECURITY_PROFILE_STATELESS
     SecureBoot = constants.SECURITY_PROFILE_BOOT
+    TrustedLaunchNoSecureBoot = constants.SECURITY_PROFILE_TRUSTED_LAUNCH_NO_SECURE_BOOT
 
 
 security_profile_priority: List[SecurityProfileType] = [
@@ -26,6 +27,7 @@ security_profile_priority: List[SecurityProfileType] = [
     SecurityProfileType.SecureBoot,
     SecurityProfileType.CVM,
     SecurityProfileType.Stateless,
+    SecurityProfileType.TrustedLaunchNoSecureBoot,
 ]
 
 encrypt_disk_priority: List[bool] = [False, True]
@@ -45,6 +47,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
                 SecurityProfileType.SecureBoot,
                 SecurityProfileType.CVM,
                 SecurityProfileType.Stateless,
+                SecurityProfileType.TrustedLaunchNoSecureBoot,
             ],
         ),
         metadata=field_metadata(
@@ -56,6 +59,7 @@ class SecurityProfileSettings(schema.FeatureSettings):
                     SecurityProfileType.SecureBoot,
                     SecurityProfileType.CVM,
                     SecurityProfileType.Stateless,
+                    SecurityProfileType.TrustedLaunchNoSecureBoot,
                 ],
             )
         ),
@@ -156,7 +160,12 @@ CvmEnabled = partial(
 CvmDisabled = partial(
     SecurityProfileSettings,
     security_profile=search_space.SetSpace(
-        True, [SecurityProfileType.Standard, SecurityProfileType.SecureBoot]
+        True,
+        [
+            SecurityProfileType.Standard,
+            SecurityProfileType.SecureBoot,
+            SecurityProfileType.TrustedLaunchNoSecureBoot,
+        ],
     ),
     encrypt_disk=search_space.SetSpace(True, [False]),
 )

@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import re
-from pathlib import PurePath
+from pathlib import PurePosixPath
 from typing import cast
 
 from retry import retry
@@ -12,6 +12,7 @@ from lisa.operating_system import (
     BSD,
     Cat,
     CBLMariner,
+    CoreOs,
     Debian,
     Fedora,
     Posix,
@@ -50,6 +51,7 @@ class Chrony(Tool):
             isinstance(self.node.os, Redhat)
             or isinstance(self.node.os, Suse)
             or isinstance(self.node.os, CBLMariner)
+            or isinstance(self.node.os, CoreOs)
             or isinstance(self.node.os, BSD)
             or isinstance(self.node.os, Fedora)
         ):
@@ -105,5 +107,5 @@ class Chrony(Tool):
 
         # write back to /etc/chrony.conf
         self.node.tools[Echo].write_to_file(
-            content, PurePath("/etc/chrony.conf"), sudo=True
+            content, PurePosixPath("/etc/chrony.conf"), sudo=True, ignore_error=False
         )

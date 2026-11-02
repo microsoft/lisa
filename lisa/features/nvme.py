@@ -52,7 +52,6 @@ class Nvme(Feature):
     NVME_DEVICE_PATTERN = re.compile(r"/dev/nvme[0-9]+", re.M)
 
     _pci_device_name = "Non-Volatile memory controller"
-    _ls_devices: str = ""
 
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
@@ -67,8 +66,7 @@ class Nvme(Feature):
 
     def get_devices(self) -> List[str]:
         devices_list = []
-        self._get_device_from_ls()
-        for row in self._ls_devices.splitlines():
+        for row in self._get_device_from_ls().splitlines():
             matched_result = self._device_pattern.match(row)
             if matched_result:
                 devices_list.append(matched_result.group("device_name"))
@@ -76,8 +74,7 @@ class Nvme(Feature):
 
     def get_namespaces(self) -> List[str]:
         namespaces = []
-        self._get_device_from_ls()
-        for row in self._ls_devices.splitlines():
+        for row in self._get_device_from_ls().splitlines():
             if isinstance(self._node.os, BSD):
                 matched_result = self._namespace_pattern_bsd.match(row)
             else:
@@ -154,7 +151,7 @@ class Nvme(Feature):
             # Try model-based detection first if nvme-cli is available,
             # as it's more reliable. If not, fallback to legacy behavior.
             nvme_cli = self._node.tools[Nvmecli]
-            device_models = nvme_cli.get_device_models()
+            device_models = nvme_cli.get_device_models(force_run=True)
             if device_models:
                 # Remove any disk whose model contains "NVMe Accelerator".
                 # device_models keys are namespace paths (e.g., /dev/nvme0n1).
@@ -188,7 +185,7 @@ class Nvme(Feature):
         return disk_list
 
     def get_namespaces_from_cli(self) -> List[str]:
-        namespaces_list = self._node.tools[Nvmecli].get_namespaces()
+        namespaces_list = self._node.tools[Nvmecli].get_namespaces(force_run=True)
         return self._remove_nvme_remote_disks(namespaces_list)
 
     def get_os_disk_nvme_namespace(self) -> str:
@@ -234,12 +231,12 @@ class Nvme(Feature):
         nvme_namespaces = self.get_namespaces()
         return nvme_namespaces
 
-    def _get_device_from_ls(self, force_run: bool = False) -> None:
-        if (not self._ls_devices) or force_run:
-            execute_results = self._node.tools[Ls].run(
-                "-l /dev/nvme*", shell=True, sudo=True
-            )
-            self._ls_devices = execute_results.stdout
+    def _get_device_from_ls(self) -> str:
+        # PCI rescind can renumber controllers and namespaces between test cases.
+        execute_results = self._node.tools[Ls].run(
+            "-l /dev/nvme*", shell=True, sudo=True, force_run=True
+        )
+        return execute_results.stdout
 
 
 @dataclass_json()
