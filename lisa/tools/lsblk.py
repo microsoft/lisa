@@ -173,6 +173,20 @@ class Lsblk(Tool):
             )
         return self._check_exists()
 
+    def get_size_in_bytes(self, device: str) -> int:
+        """Return the exact capacity of a disk or partition without rounding."""
+        result = self.run(
+            f"-bdno SIZE {device}",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"failed to get size of {device}",
+        )
+        size = result.stdout.strip()
+        if not size.isdigit() or int(size) <= 0:
+            raise LisaException(f"invalid byte size for {device}: {result.stdout}")
+        return int(size)
+
     def _parse_partition(self, entry: Dict[str, Any]) -> PartitionInfo:
         return PartitionInfo(
             name=entry["name"],
@@ -389,6 +403,21 @@ class BSDLsblk(Lsblk):
         assert isinstance(self.node.os, BSD)
         self.node.os.install_packages("lsblk")
         return self._check_exists()
+
+    def get_size_in_bytes(self, device: str) -> int:
+        result = self.node.execute(
+            f"diskinfo {device}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=f"failed to get size of {device}",
+        )
+        fields = result.stdout.split()
+        # diskinfo reports device, sector size, then media size in bytes.
+        if len(fields) < 3 or not fields[2].isdigit() or int(fields[2]) <= 0:
+            raise LisaException(
+                f"invalid diskinfo output for {device}: {result.stdout}"
+            )
+        return int(fields[2])
 
     def get_disks(self, force_run: bool = False) -> List[DiskInfo]:
         disks: List[DiskInfo] = []

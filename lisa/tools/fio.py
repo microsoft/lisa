@@ -139,6 +139,7 @@ class Fio(Tool):
         per_file_jobs: bool = False,
         offset_increment_mb: int = 0,
     ) -> FIOResult:
+        """Run fio, distributing the total numjob across files in per-file mode."""
         cmd = self._get_command(
             name,
             filename,
@@ -171,13 +172,8 @@ class Fio(Tool):
         )
         if result.exit_code != 0:
             raise LisaException(f"fail to run {cmd} with {result.stdout}")
-        # In per-file mode numjob is per file, so report the total job count to
-        # keep qdepth as the total number of outstanding I/Os.
-        total_jobs = numjob
-        if per_file_jobs:
-            total_jobs = max(numjob, 1) * len(self._split_filenames(filename))
         fio_result = self.get_result_from_raw_output(
-            mode, result.stdout, iodepth, total_jobs
+            mode, result.stdout, iodepth, numjob
         )
         return fio_result
 
@@ -402,7 +398,7 @@ class Fio(Tool):
             cmd += f" --runtime={time}"
         if block_size:
             cmd += f" --bs={block_size}"
-        if numjob:
+        if numjob and not per_file_jobs:
             cmd += f" --numjob={numjob}"
         if direct:
             cmd += " --direct=1"
@@ -435,8 +431,17 @@ class Fio(Tool):
                 raise LisaException(
                     f"no file found in '{filename}' for per-file fio jobs"
                 )
+            if numjob < len(files):
+                raise SkippedException(
+                    f"per-file fio needs at least one job per file: "
+                    f"{numjob} jobs requested for {len(files)} files"
+                )
+            jobs_per_file, remainder = divmod(numjob, len(files))
             for index, file in enumerate(files):
-                cmd += f" --name={name}_{index} --filename={file}"
+                file_jobs = jobs_per_file + (1 if index < remainder else 0)
+                cmd += (
+                    f" --name={name}_{index} --filename={file}" f" --numjob={file_jobs}"
+                )
 
         return cmd
 

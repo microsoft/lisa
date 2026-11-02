@@ -40,6 +40,7 @@ from lisa.tools import (
     Iperf3,
     Kill,
     Lagscope,
+    Lsblk,
     Lscpu,
     Mdadm,
     Netperf,
@@ -150,7 +151,6 @@ def perf_disk(
     # This limitation is only needed for 'libaio' ioengine but not for 'io_uring'.
     if ioengine == IoEngine.LIBAIO:
         numjob = min(numjob, 256)
-    per_disk_file_count = len([f for f in filename.split(":") if f])
     modes = [mode.name for mode in FIOMODES] if fio_modes is None else fio_modes
     for mode in modes:
         iodepth = start_iodepth
@@ -158,14 +158,6 @@ def perf_disk(
         while iodepth <= max_iodepth:
             if num_jobs:
                 numjob = num_jobs[numjobindex]
-            launch_numjob = numjob
-            offset_increment_mb = 0
-            if per_disk_jobs:
-                # Split the total job count across disks so the overall number of
-                # outstanding I/Os stays the same as the shared-file layout, and
-                # give each job on a disk its own region.
-                launch_numjob = max(1, numjob // max(per_disk_file_count, 1))
-                offset_increment_mb = size_mb
             fio_result = fio.launch(
                 name=f"iteration{numjobiterator}",
                 filename=filename,
@@ -175,11 +167,11 @@ def perf_disk(
                 block_size=f"{block_size}K",
                 iodepth=iodepth,
                 overwrite=overwrite,
-                numjob=launch_numjob,
+                numjob=numjob,
                 cwd=cwd,
                 ioengine=ioengine,
                 per_file_jobs=per_disk_jobs,
-                offset_increment_mb=offset_increment_mb,
+                offset_increment_mb=size_mb if per_disk_jobs else 0,
             )
             fio_result_list.append(fio_result)
             iodepth = iodepth * 2
@@ -962,14 +954,19 @@ def perf_premium_datadisks(
     assert_that(disk_count).described_as(
         "At least 1 data disk for fio testing."
     ).is_greater_than(0)
-    partition_disks = reset_partitions(node, data_disks)
-    filename = ":".join(partition_disks)
     cpu = node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
     # Each fio job targets one disk (see perf_disk per_disk_jobs). Cap the
     # per-job region so all jobs on a disk fit without overlapping.
     total_jobs = min(thread_count, 256) if ioengine == IoEngine.LIBAIO else thread_count
-    jobs_per_disk = max(1, total_jobs // disk_count)
+    if total_jobs < disk_count:
+        raise SkippedException(
+            f"per-disk fio needs at least one job per data disk: "
+            f"{total_jobs} jobs available for {disk_count} disks"
+        )
+    partition_disks = reset_partitions(node, data_disks)
+    filename = ":".join(partition_disks)
+    jobs_per_disk = (total_jobs + disk_count - 1) // disk_count
     size_mb = min(
         8192, _get_min_partition_size_mb(node, partition_disks) // jobs_per_disk
     )
@@ -997,18 +994,8 @@ def perf_premium_datadisks(
 
 
 def _get_min_partition_size_mb(node: Node, partitions: List[str]) -> int:
-    result = node.execute(
-        f"lsblk -bdno SIZE {' '.join(partitions)}",
-        sudo=True,
-        shell=True,
-        expected_exit_code=0,
-        expected_exit_code_failure_message="failed to get data disk partition sizes",
-    )
-    sizes = [int(line) for line in result.stdout.split() if line.strip().isdigit()]
-    if len(sizes) != len(partitions):
-        raise LisaException(
-            f"expected {len(partitions)} partition sizes, got: {result.stdout}"
-        )
+    lsblk = node.tools[Lsblk]
+    sizes = [lsblk.get_size_in_bytes(partition) for partition in partitions]
     return min(sizes) // (1024 * 1024)
 
 
@@ -1082,7 +1069,7 @@ def calculate_middle_average(values: List[Union[float, int]]) -> float:
     return total / (len(values) - 2)
 
 
-@retry(exceptions=AssertionError, tries=30, delay=2)  # type:ignore
+@retry(exceptions=AssertionError, tries=30, delay=2)  # type: ignore
 def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info = node.nics
     node_nic_info.reload()
