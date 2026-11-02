@@ -132,7 +132,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
             host.tools[Lscpu].get_cpu_type() != CpuType.Intel
             or not host.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
         ):
-            raise LisaException(
+            raise SkippedException(
                 "The linux-intel-mshv profile requires an Intel host with /dev/mshv"
             )
         command_group = self._ensure_vmm_tests_supported(host)
