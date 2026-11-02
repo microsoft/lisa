@@ -579,8 +579,7 @@ class AzureImageStandard(TestSuite):
                 ).is_equal_to("yes")
                 # Check if the connection is set to use DHCP
                 dhcp_result = node.execute(
-                    "nmcli -g ipv4.method connection show"
-                    f" uuid '{connection_uuid}'",
+                    f"nmcli -g ipv4.method connection show uuid '{connection_uuid}'",
                     shell=True,
                     expected_exit_code=0,
                 )
