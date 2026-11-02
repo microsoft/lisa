@@ -23,6 +23,22 @@ Fix: uninstall the Microsoft Store version and install the standalone
 version from https://www.python.org/downloads/windows/
 
 
+Debian 11 security repository
+-----------------------------
+
+Debian 11 (Bullseye) reached the end of official LTS support on August 31, 2026.
+Its stock ``debian-archive.trafficmanager.net/debian-security`` mirror can
+reference package files that return HTTP 404 even when ``apt-get update`` succeeds.
+Before initializing package installation on Debian 11, LISA redirects that
+specific HTTP or HTTPS mirror to ``https://archive.debian.org/debian-security``
+in ``/etc/apt/sources.list`` and ``.list`` or ``.sources`` files under
+``/etc/apt/sources.list.d``. Other repository URLs and distributions are unchanged.
+
+The archive provides historical packages, not ongoing official security updates.
+APT signature and validity checks remain enabled. LISA does not automatically
+repair broken dependencies with ``apt-get --fix-broken install``.
+
+
 Using VSCode
 ------------
 
