@@ -951,11 +951,15 @@ def perf_premium_datadisks(
     if verify_max_disks:
         # choose_max_value affects provisioning, not matching reused environments.
         # Verify guest-visible disks so a max-disk test cannot pass with fewer disks.
-        assert node.capability.disk, "Disk capability is required"
-        max_count = node.capability.disk.max_data_disk_count
-        assert (
-            isinstance(max_count, int) and max_count > 0
-        ), f"Expected a resolved positive maximum data-disk count, got {max_count}"
+        assert_that(node.capability.disk).described_as(
+            "Disk capability is required; check the Azure node capability."
+        ).is_not_none()
+        disk_capability = cast(schema.DiskOptionSettings, node.capability.disk)
+        max_count = disk_capability.max_data_disk_count
+        assert_that(isinstance(max_count, int) and max_count > 0).described_as(
+            f"Expected a resolved positive maximum data-disk count, got {max_count}. "
+            "Check the Azure SKU disk capability before running max-disk tests."
+        ).is_true()
         assert_that(disk_count).described_as(
             f"Visible data-disk count must match the VM's maximum ({max_count}) "
             "before fio"
