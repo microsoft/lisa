@@ -14,7 +14,7 @@ from lisa.messages import (
     send_unified_perf_message,
 )
 from lisa.operating_system import BSD, CBLMariner, CentOs, Debian, Posix, Redhat, Suse
-from lisa.util import LisaException, RepoNotExistException, constants
+from lisa.util import LisaException, RepoNotExistException, SkippedException, constants
 from lisa.util.process import Process
 
 from .git import Git
@@ -85,6 +85,33 @@ class Fio(Tool):
         if not self._check_exists():
             self._install_from_src()
         return self._check_exists()
+
+    def ensure_ioengine(self, ioengine: IoEngine) -> None:
+        if self._is_ioengine_available(ioengine):
+            return
+
+        if ioengine == IoEngine.LIBAIO and isinstance(self.node.os, Redhat):
+            package = "fio-engine-libaio"
+            if self.node.os.is_package_in_repo(package):
+                self.node.os.install_packages(package)
+                if self._is_ioengine_available(ioengine, force_run=True):
+                    return
+
+        raise SkippedException(
+            f"fio IO engine '{ioengine.value}' is not available on this image "
+            "(fio --enghelp)."
+        )
+
+    def _is_ioengine_available(
+        self, ioengine: IoEngine, force_run: bool = False
+    ) -> bool:
+        result = self.run("--enghelp", force_run=force_run, sudo=True)
+        result.assert_exit_code(
+            message="Failed to query available fio IO engines", include_output=True
+        )
+        return any(
+            line.strip() == ioengine.value for line in result.stdout.splitlines()
+        )
 
     def launch(
         self,
@@ -341,6 +368,8 @@ class Fio(Tool):
     ) -> str:
         if isinstance(self.node.os, BSD):
             ioengine = IoEngine.POSIXAIO
+
+        self.ensure_ioengine(ioengine)
 
         cmd = (
             f"--ioengine={ioengine.value} --filename={filename} "

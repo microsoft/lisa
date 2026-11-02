@@ -38,6 +38,8 @@ from lisa.util.process import Process
     description="""
     A suite for running the various classes of stressors provided
     by stress-ng.
+
+    Class-based tests allow up to two hours for setup and sequential stressors.
     """,
 )
 class StressNgTestSuite(TestSuite):
@@ -93,6 +95,7 @@ class StressNgTestSuite(TestSuite):
     @TestCaseMetadata(
         description="Runs stress-ng's 'memory' class stressors for 60s each.",
         priority=4,
+        timeout=7200,
     )
     def stress_ng_memory_stressors(
         self,
@@ -104,6 +107,7 @@ class StressNgTestSuite(TestSuite):
     @TestCaseMetadata(
         description="Runs stress-ng's 'vm' class stressors for 60s each.",
         priority=4,
+        timeout=7200,
     )
     def stress_ng_vm_stressors(
         self,
@@ -115,6 +119,7 @@ class StressNgTestSuite(TestSuite):
     @TestCaseMetadata(
         description="Runs stress-ng's 'io' class stressors for 60s each.",
         priority=4,
+        timeout=7200,
     )
     def stress_ng_io_stressors(
         self,
@@ -126,6 +131,7 @@ class StressNgTestSuite(TestSuite):
     @TestCaseMetadata(
         description="Runs stress-ng's 'network' class stressors for 60s each.",
         priority=4,
+        timeout=7200,
     )
     def stress_ng_network_stressors(
         self,

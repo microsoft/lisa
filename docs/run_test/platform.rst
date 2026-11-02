@@ -179,6 +179,11 @@ be specified in the runbook.
 
    lisa -r ./microsoft/runbook/azure.yml <other required variables, like subscription id> -v deploy:false -v resource_group_name:"<resource group name>"
 
+By default, LISA doesn't delete any resources in a user-specified resource
+group. With ``deploy:true``, use ``-v keep_environment:nothing`` to also delete
+the VMs (and their NICs, public IPs, disks) that LISA deployed there. The
+resource group itself is kept.
+
 Set other Azure parameters
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 

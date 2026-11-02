@@ -790,6 +790,8 @@ class AzureImageStandard(TestSuite):
 
         Steps:
         1. Verify the repository configuration depending on the distro type.
+           Azure Linux 4 uses base, cloud-native, and microsoft repositories;
+           Azure Linux 3 and Mariner 1/2 retain their version-specific names.
         """,
         priority=1,
         requirement=simple_requirement(
@@ -1005,7 +1007,13 @@ class AzureImageStandard(TestSuite):
                 cast(RPMRepositoryInfo, repo) for repo in repositories
             ]
 
-            if 3 == node.os.information.version.major:
+            if 4 == node.os.information.version.major:
+                expected_repo_list = [
+                    "azurelinux-base",
+                    "azurelinux-cloud-native",
+                    "azurelinux-microsoft",
+                ]
+            elif 3 == node.os.information.version.major:
                 expected_repo_list = [
                     "azurelinux-official-base",
                     "azurelinux-official-ms-non-oss",
