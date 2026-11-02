@@ -1191,6 +1191,24 @@ class Debian(Linux):
         self._disable_unattended_upgrades()
         # wait running system package process.
         self.wait_running_package_process()
+        if type(self) is Debian and self.information.version.major == 11:
+            # Bullseye is EOL; the stock security mirror references missing packages.
+            self._log.info("Checking Debian 11 sources for the retired security mirror")
+            self._node.execute(
+                "for file in /etc/apt/sources.list "
+                "/etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do "
+                'if [ -f "$file" ]; then '
+                r"sed -i.bak 's#https\?://debian-archive\.trafficmanager\.net"
+                r"/debian-security\([/[:space:]]\|$\)"
+                r"#https://archive.debian.org/debian-security\1#g' "
+                '"$file" || exit; fi; done',
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to migrate the Debian 11 security repository"
+                ),
+            )
         result = self._node.execute("apt-get update", sudo=True, timeout=1800)
         if result.exit_code != 0:
             not_available_keys = self._key_not_available_pattern.findall(result.stdout)
