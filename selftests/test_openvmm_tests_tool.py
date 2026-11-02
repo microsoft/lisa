@@ -8,11 +8,62 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from lisa.microsoft.testsuites.openvmm.openvmm_tests_tool import OpenVmmTests
-from lisa.tools import Curl
+from lisa.tools import Curl, Docker
 from lisa.util import LisaException
 
 
 class OpenVmmTestsToolTestCase(TestCase):
+    def test_ci_startup_failure_removes_image(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        docker = MagicMock()
+        docker.command = "docker"
+        image_names = []
+        container_names = []
+
+        def run_docker(command: str, **kwargs: object) -> SimpleNamespace:
+            if command.startswith("run --detach"):
+                image_names.append(tool._image_name)
+                container_names.append(tool._container_name)
+                raise LisaException("container startup failed")
+            return SimpleNamespace(exit_code=0, stderr="")
+
+        docker.run.side_effect = run_docker
+        tool.node = MagicMock()
+        tool.node.tools = {Docker: docker}
+        tool.node.execute.return_value = SimpleNamespace(
+            stdout="1000\n1000", exit_code=0
+        )
+        tool._artifact_root = PurePosixPath("/repo/target/lisa-openvmm-tests")
+        tool.repo_root = PurePosixPath("/repo/openvmm")
+        tool._repo_prepared = True
+
+        with patch.object(
+            tool, "_run_logged_command"
+        ), patch.object(
+            tool,
+            "_prepare_repo",
+            side_effect=lambda log_path, ref, ci_profile: tool._prepare_ci_container(
+                log_path
+            ),
+        ), self.assertRaisesRegex(LisaException, "container startup failed"):
+            tool.run_vmm_tests(log_path=Path("."))
+
+        self.assertEqual(1, len(image_names))
+        self.assertEqual(1, len(container_names))
+        self.assertEqual("", container_names[0])
+        self.assertEqual(
+            [["rmi", "--force"]],
+            [
+                call_args.args[0].split()[0:2]
+                for call_args in docker.run.call_args_list[1:]
+            ],
+        )
+        self.assertIn(
+            f"rmi --force {image_names[0]}", docker.run.call_args_list[1].args[0]
+        )
+        self.assertEqual("", tool._container_name)
+        self.assertEqual("", tool._image_name)
+
     def test_set_repo_paths_uses_repo_url_hash(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
 

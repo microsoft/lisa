@@ -67,6 +67,7 @@ class OpenVmmTests(Tool):
     auth_token = ""
     command_group = ""
     _container_name = ""
+    _image_name = ""
 
     _distro_package_mapping = {
         CBLMariner.__name__: [
@@ -201,19 +202,36 @@ class OpenVmmTests(Tool):
                 junit_file=local_junit,
             )
         finally:
-            if self._container_name:
-                container_name = self._container_name
-                self._container_name = ""
+            container_name = self._container_name
+            image_name = self._image_name
+            self._container_name = ""
+            self._image_name = ""
+            if container_name:
                 self._repo_prepared = False
-                self.node.tools[Docker].run(
-                    f"rm --force {shlex.quote(container_name)}",
-                    sudo=True,
-                    force_run=True,
-                    expected_exit_code=0,
-                    expected_exit_code_failure_message=(
-                        "failed to remove the OpenVMM MSHV test container"
-                    ),
-                )
+            try:
+                if container_name:
+                    self.node.tools[Docker].run(
+                        f"rm --force {shlex.quote(container_name)}",
+                        sudo=True,
+                        force_run=True,
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message=(
+                            "failed to remove the OpenVMM MSHV test container"
+                        ),
+                    )
+            finally:
+                if image_name:
+                    result = self.node.tools[Docker].run(
+                        f"rmi --force {shlex.quote(image_name)}",
+                        sudo=True,
+                        force_run=True,
+                        expected_exit_code=None,
+                    )
+                    if result.exit_code != 0:
+                        self._log.warning(
+                            f"failed to remove the OpenVMM MSHV test image "
+                            f"{image_name}: {result.stderr}"
+                        )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._set_repo_paths()
@@ -335,6 +353,7 @@ class OpenVmmTests(Tool):
             Path(__file__).with_name("mshv.Dockerfile"), build_dir / "Dockerfile"
         )
         image_name = f"lisa-openvmm-mshv:{uuid.uuid4().hex}"
+        self._image_name = image_name
         self._run_logged_command(
             name="openvmm_build_container",
             command=(
