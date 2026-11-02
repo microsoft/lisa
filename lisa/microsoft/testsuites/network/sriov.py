@@ -1,9 +1,14 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import json
 import re
+from contextlib import ExitStack, contextmanager
 from decimal import Decimal
+from ipaddress import ip_address
 from pathlib import Path, PurePosixPath
-from typing import Any, Dict, List, Optional, Tuple, cast
+from time import monotonic
+from types import TracebackType
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, cast
 
 from assertpy import assert_that
 
@@ -15,6 +20,7 @@ from lisa import (
     SkippedException,
     TcpConnectionException,
     TestCaseMetadata,
+    TestResult,
     TestSuite,
     TestSuiteMetadata,
     constants,
@@ -44,6 +50,7 @@ from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.tools import (
     Cat,
+    Date,
     Dmesg,
     Ethtool,
     FileSystem,
@@ -55,6 +62,7 @@ from lisa.tools import (
     Kill,
     Ls,
     Lscpu,
+    Lsof,
     Lspci,
     Mount,
     NetShaper,
@@ -71,6 +79,7 @@ from lisa.util import (
     UnsupportedOperationException,
     check_till_timeout,
 )
+from lisa.util.process import ExecutableResult, Process
 from lisa.util.shell import wait_tcp_port_ready
 
 
@@ -127,6 +136,20 @@ class Sriov(TestSuite):
     # `timeout` reports 124 when it has to signal the child, and 137 when that
     # signal had to be escalated to KILL. Either way the read never answered.
     DEBUGFS_READ_TIMEOUT_EXIT_CODES = (-124, -137)
+    # Two minutes provide baseline samples before the servicing transition.
+    _SERVICING_BASELINE_SECONDS = 120
+    # Observe each confirmed synthetic/restored path for at least 30 seconds.
+    _SERVICING_PHASE_SECONDS = 30
+    # Reserve one minute beyond all transition and observation windows.
+    _SERVICING_COMPLETION_MARGIN_SECONDS = 60
+    # Allow final iperf control exchange and output collection after traffic ends.
+    _SERVICING_EXIT_TIMEOUT = 30
+    _SERVICING_INTERVAL_SECONDS = 1
+    # Ignore a short final partial interval when checking progress.
+    _SERVICING_MIN_INTERVAL_SECONDS = 0.5
+    # Recovery is diagnostic: five full intervals within 10% of baseline.
+    _SERVICING_RECOVERY_RATIO = 0.9
+    _SERVICING_RECOVERY_INTERVALS = 5
     # Failed to rename network interface 3 from 'eth1' to 'enP45159s1': Device or resource busy # noqa: E501
     _device_rename_pattern = re.compile(
         r"Failed to rename network interface .* from '.*' "
@@ -136,6 +159,19 @@ class Sriov(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         environment: Environment = kwargs.pop("environment")
+        result = cast(TestResult, kwargs["result"])
+        if result.runtime_data.name == "verify_network_servicing_validation":
+            # Validate every VM before changing any firewall or AN setting.
+            for node in environment.nodes.list():
+                nic_count = len(
+                    node.features[NetworkInterface].get_all_primary_nics_ip_info()
+                )
+                if nic_count != 1:
+                    raise SkippedException(
+                        "Network servicing requires exactly one Azure NIC per VM; "
+                        f"{node.name} has {nic_count}. Use a single-NIC environment "
+                        "to avoid changing unrelated NIC settings."
+                    )
         for node in environment.nodes.list():
             node.tools[Firewall].stop()
             node.features[NetworkInterface].switch_sriov(
@@ -334,6 +370,591 @@ class Sriov(TestSuite):
         skip_if_pci_only_nics(environment)
 
         sriov_disable_enable(environment)
+
+    @TestCaseMetadata(
+        description="""
+        Validate one accelerated-to-synthetic-to-accelerated servicing cycle under
+        uninterrupted, paced UDP and TCP traffic between two IPv4 Linux VMs,
+        each with exactly one Azure NIC (the paired VF is not a separate NIC).
+
+        Establish a 120-second baseline, request AN disable on the receiver,
+        hold the confirmed synthetic path for 30 seconds, then re-enable AN.
+        Confirm VF receive counters increase and observe at least 30 more seconds.
+        Require zero receiver-reported UDP loss, matching sent/received datagram
+        counts, continuing receiver progress, and successful TCP completion.
+        IP addresses, routes, and existing kernel-error state must be preserved.
+
+        Each stream offers 1 Mbit/sec, not a capacity benchmark. Report throughput
+        differences and recovery timing without a performance pass/fail threshold.
+        Traffic has a 1140-second overall budget and completes naturally to preserve
+        final receiver loss accounting. Individual servicing waits allow 300 seconds.
+        This simulates the guest network-path transition, not host servicing.
+        Save raw results, kernel diagnostics, and phase timings in the log directory.
+        """,
+        priority=4,  # Keep the long-running servicing scenario out of P0-P3 runs.
+        maturity="preview",
+        timeout=2400,
+        requirement=simple_requirement(
+            min_count=2,
+            network_interface=features.Sriov(nic_count=1),
+            supported_platform_type=[AZURE],
+            unsupported_os=[BSD, Windows],
+        ),
+    )
+    def verify_network_servicing_validation(
+        self, environment: Environment, log: Logger, log_path: Path
+    ) -> None:
+        receiver = cast(RemoteNode, environment.nodes[0])
+        sender = cast(RemoteNode, environment.nodes[1])
+        nodes = [receiver, sender]
+        if any(ip_address(node.internal_address).version != 4 for node in nodes):
+            raise SkippedException(
+                "Network servicing validation supports IPv4 only; select an "
+                "IPv4 environment for NIC discovery, traffic, and route validation"
+            )
+        skip_if_pci_only_nics(environment)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
+        ports = {"udp": 5201, "tcp": 5202}
+        baseline_duration = self._SERVICING_BASELINE_SECONDS
+        # Budget disable, enable, and VF receive-progress waits independently.
+        duration = (
+            baseline_duration
+            + 3 * self.TIME_OUT
+            + 2 * self._SERVICING_PHASE_SECONDS
+            + self._SERVICING_COMPLETION_MARGIN_SECONDS
+        )
+        processes: Dict[str, Process] = {}
+        phases: Dict[str, Tuple[float, float]] = {}
+        results: Dict[str, Dict[str, Any]] = {}
+        network = receiver.features[NetworkInterface]
+        original_enabled = network.is_enabled_sriov()
+        routes: Dict[str, str] = {}
+        kernel_errors: Dict[str, str] = {}
+        for node in nodes:
+            for port in ports.values():
+                if node.tools[Lsof].is_port_opened(port):
+                    raise SkippedException(
+                        f"Servicing test port {port} is already in use on {node.name}"
+                    )
+        for node in nodes:
+            # Finish package installation before either traffic stream starts.
+            _ = node.tools[Iperf3]
+            routes[node.name] = self._servicing_routes(node)
+            kernel_errors[node.name] = node.tools[Dmesg].check_kernel_errors(
+                force_run=True, throw_error=False
+            )
+            (log_path / f"{node.name}-dmesg-before.log").write_text(
+                node.tools[Dmesg].get_output(force_run=True), encoding="utf-8"
+            )
+
+        baseline_vf = self._servicing_nic(receiver).lower
+        assert_that(baseline_vf).described_as(
+            "Receiver must have a paired VF before servicing; inspect NIC discovery"
+        ).is_not_empty()
+        baseline_packets = receiver.nics.get_packets(baseline_vf, "rx_packets")
+        receiver.mark_dirty()
+        with self._servicing_cleanup(log) as cleanup:
+            cleanup.callback(self._servicing_save_buffers, processes, log_path)
+            for node in nodes:
+                for port in ports.values():
+                    cleanup.callback(self._servicing_stop_traffic, node, port)
+                cleanup.callback(self._servicing_save_dmesg, node, log_path)
+            # ExitStack is LIFO: restore AN before any SSH-dependent cleanup.
+            cleanup.callback(self._servicing_switch, receiver, original_enabled, {})
+            for protocol, port in ports.items():
+                processes[f"{protocol}_receiver"] = receiver.tools[
+                    Iperf3
+                ].run_as_server_async(
+                    port=port,
+                    report_periodic=self._SERVICING_INTERVAL_SECONDS,
+                    use_json_format=True,
+                    one_connection_only=True,
+                    daemon=False,
+                    interface_ip=receiver.internal_address,
+                )
+                processes[f"{protocol}_sender"] = sender.tools[
+                    Iperf3
+                ].run_as_client_async(
+                    server_ip=receiver.internal_address,
+                    client_ip=sender.internal_address,
+                    port=port,
+                    bitrate="1M",
+                    buffer_length=1200,  # Avoid fragmentation with standard MTUs.
+                    report_periodic=self._SERVICING_INTERVAL_SECONDS,
+                    output_json=True,
+                    udp_mode=protocol == "udp",
+                    run_time_seconds=duration,
+                )
+
+            baseline_start = receiver.tools[Date].current().timestamp()
+            log.info(
+                f"Observing {baseline_duration} seconds of traffic before disabling AN"
+            )
+            self._servicing_wait(processes, baseline_duration)
+            baseline_end = receiver.tools[Date].current().timestamp()
+            phases["baseline"] = (baseline_start, baseline_end)
+            assert_that(
+                receiver.nics.get_packets(baseline_vf, "rx_packets")
+            ).described_as(
+                "Baseline VF must receive traffic; inspect VF counters and iperf logs"
+            ).is_greater_than(
+                baseline_packets
+            )
+
+            log.info("Disabling AN while UDP and TCP traffic remain active")
+            disable_start = monotonic()
+            synthetic_vf = self._servicing_switch(receiver, False, processes)
+            disable_seconds = monotonic() - disable_start
+            synthetic_start = receiver.tools[Date].current().timestamp()
+            synthetic_nic = self._servicing_nic(receiver)
+            assert_that(synthetic_vf).described_as(
+                "VF must detach after AN disable; inspect NIC discovery and Azure state"
+            ).is_empty()
+            synthetic_packets = receiver.nics.get_packets(
+                synthetic_nic.name, "rx_packets"
+            )
+            self._servicing_wait(processes, self._SERVICING_PHASE_SECONDS)
+            assert_that(
+                receiver.nics.get_packets(synthetic_nic.name, "rx_packets")
+            ).described_as(
+                "Synthetic NIC must receive traffic; inspect counters and iperf logs"
+            ).is_greater_than(
+                synthetic_packets
+            )
+            self._servicing_check_network(receiver, routes[receiver.name])
+            enable_requested = receiver.tools[Date].current().timestamp()
+            phases["synthetic"] = (synthetic_start, enable_requested)
+
+            log.info("Re-enabling AN without restarting either traffic stream")
+            enable_start = monotonic()
+            restored_vf = self._servicing_switch(receiver, True, processes)
+            vf_present_seconds = monotonic() - enable_start
+            assert_that(restored_vf).described_as(
+                "VF must return after AN enable; inspect NIC discovery and Azure state"
+            ).is_not_empty()
+            receive_deadline = monotonic() + self.TIME_OUT
+            restored_packets = self._servicing_rx_packets(
+                receiver, restored_vf, receive_deadline
+            )
+
+            def vf_receiving() -> bool:
+                self._servicing_check_running(processes)
+                return (
+                    self._servicing_rx_packets(receiver, restored_vf, receive_deadline)
+                    > restored_packets
+                )
+
+            check_till_timeout(
+                vf_receiving,
+                timeout_message="restored VF must receive active traffic",
+                timeout=self._servicing_remaining(receive_deadline),
+            )
+            vf_traffic_seconds = monotonic() - enable_start
+            restored_start = receiver.tools[Date].current().timestamp()
+            self._servicing_wait(processes, self._SERVICING_PHASE_SECONDS)
+            phases["restored"] = (
+                restored_start,
+                receiver.tools[Date].current().timestamp(),
+            )
+            log.info(
+                f"AN disable confirmed in {disable_seconds:.3f}s; "
+                f"VF restored in {vf_present_seconds:.3f}s after enable request; "
+                f"VF receive progress observed in {vf_traffic_seconds:.3f}s. "
+                "Waiting for natural traffic completion and receiver loss reports."
+            )
+            for protocol in ports:
+                for role in ["sender", "receiver"]:
+                    name = f"{protocol}_{role}"
+                    result = processes[name].wait_result(
+                        timeout=(
+                            duration + self._SERVICING_EXIT_TIMEOUT
+                            if role == "sender"
+                            else self._SERVICING_EXIT_TIMEOUT
+                        )
+                    )
+                    result.save_stdout_to_file(log_path / f"{name}.json")
+                    result.assert_exit_code(0, include_output=True)
+                    results[name] = self._servicing_iperf_result(result)
+                    log.info(f"{name} completed successfully with exit code 0")
+
+            receiver.nics.reload()
+            for node in nodes:
+                self._servicing_check_network(node, routes[node.name])
+                errors = node.tools[Dmesg].check_kernel_errors(
+                    force_run=True, throw_error=False
+                )
+                new_errors = set(errors.splitlines()) - set(
+                    kernel_errors[node.name].splitlines()
+                )
+                assert_that(new_errors).described_as(
+                    f"No new detected kernel errors on {node.name}; "
+                    "compare before/after dmesg logs"
+                ).is_empty()
+                log.info(
+                    f"{node.name}: internal IP {node.internal_address} and routes "
+                    "unchanged; no new detected kernel errors"
+                )
+            sriov_basic_test(environment)
+            self._servicing_report(results, phases, enable_requested, log, log_path)
+
+    @staticmethod
+    @contextmanager
+    def _servicing_cleanup(log: Logger) -> Iterator[ExitStack]:
+        primary_error: Optional[BaseException] = None
+        primary_traceback: Optional[TracebackType] = None
+
+        def remember_failure(
+            _error_type: Optional[Type[BaseException]],
+            error: Optional[BaseException],
+            traceback: Optional[TracebackType],
+        ) -> bool:
+            nonlocal primary_error, primary_traceback
+            primary_error, primary_traceback = error, traceback
+            return False
+
+        def preserve_failure(
+            _error_type: Optional[Type[BaseException]],
+            error: Optional[BaseException],
+            traceback: Optional[TracebackType],
+        ) -> bool:
+            if error is not None and error is not primary_error:
+                log.error(
+                    "Network servicing cleanup failed; inspect the chained "
+                    "exceptions and collected traffic/NIC diagnostics",
+                    exc_info=(type(error), error, traceback),
+                )
+                if primary_error is not None:
+                    raise primary_error.with_traceback(primary_traceback) from error
+            return False
+
+        with ExitStack() as cleanup:
+            cleanup.push(preserve_failure)
+            # Capture the body failure before running any registered cleanup.
+            with ExitStack() as failure_capture:
+                failure_capture.push(remember_failure)
+                yield cleanup
+
+    @staticmethod
+    def _servicing_check_running(processes: Dict[str, Process]) -> None:
+        for name, process in processes.items():
+            if not process.is_running():
+                result = process.wait_result(timeout=10)
+                raise LisaException(
+                    f"{name} exited before servicing observation completed: "
+                    f"exit={result.exit_code}, stdout={result.stdout}, "
+                    f"stderr={result.stderr}"
+                )
+
+    def _servicing_wait(self, processes: Dict[str, Process], seconds: int) -> None:
+        started = monotonic()
+
+        def elapsed() -> bool:
+            self._servicing_check_running(processes)
+            return monotonic() - started >= seconds
+
+        check_till_timeout(
+            elapsed,
+            timeout_message=f"observe active traffic for {seconds} seconds",
+            timeout=seconds + 10,
+        )
+
+    def _servicing_switch(
+        self,
+        receiver: RemoteNode,
+        enable: bool,
+        processes: Dict[str, Process],
+    ) -> str:
+        self._servicing_check_running(processes)
+        nic = self._servicing_nic(receiver)
+        ls = receiver.tools[Ls]
+        nic_path = receiver.get_pure_path("/sys/class/net") / nic.name
+        # Submit the Azure change without entering its nested guest-state retries.
+        # Keep SSH open so the same traffic sessions survive the transition.
+        deadline = monotonic() + self.TIME_OUT
+        receiver.features[NetworkInterface].switch_sriov(
+            enable=enable, wait=False, reset_connections=False
+        )
+        vf_name = ""
+
+        def completed() -> bool:
+            nonlocal vf_name
+            self._servicing_check_running(processes)
+            # One sysfs listing avoids unbounded commands inside Nics.reload().
+            result = ls.run(
+                f"-1 {nic_path}",
+                force_run=True,
+                timeout=self._servicing_remaining(deadline),
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"Cannot probe VF pairing on {receiver.name}; "
+                    f"inspect {nic_path} and the SSH connection"
+                ),
+            )
+            lower = [
+                entry[len("lower_") :]
+                for entry in result.stdout.splitlines()
+                if entry.startswith("lower_")
+            ]
+            if lower:
+                assert_that(lower).described_as(
+                    f"Expected one paired VF on {receiver.name}; inspect {nic_path}"
+                ).is_length(1)
+            vf_name = lower[0] if lower else ""
+            return bool(vf_name) == enable
+
+        check_till_timeout(
+            completed,
+            timeout_message=(
+                f"AN servicing enable={enable} on {receiver.name}; "
+                "inspect Azure NIC state and guest VF discovery"
+            ),
+            timeout=self._servicing_remaining(deadline),
+        )
+        return vf_name
+
+    @staticmethod
+    def _servicing_remaining(deadline: float) -> int:
+        # Round down so an individual command never receives more than remains.
+        remaining = int(deadline - monotonic())
+        if remaining <= 0:
+            raise LisaTimeoutException(
+                "Network servicing phase budget exhausted; inspect VF state, "
+                "receive counters, and the SSH connection"
+            )
+        return remaining
+
+    def _servicing_rx_packets(
+        self, node: RemoteNode, vf_name: str, deadline: float
+    ) -> int:
+        path = (
+            node.get_pure_path("/sys/class/net") / vf_name / "statistics" / "rx_packets"
+        )
+        result = node.tools[Cat].run(
+            str(path),
+            force_run=True,
+            timeout=self._servicing_remaining(deadline),
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Cannot read VF receive progress on {node.name}; inspect {path}"
+            ),
+        )
+        value = result.stdout.strip()
+        assert_that(value.isdigit()).described_as(
+            f"Expected a numeric VF packet counter, got {value!r}; inspect {path}"
+        ).is_true()
+        return int(value)
+
+    @staticmethod
+    def _servicing_nic(node: RemoteNode) -> NicInfo:
+        matches = [
+            nic
+            for nic in node.nics.nics.values()
+            if nic.ip_addr == node.internal_address and not nic.is_infiniband
+        ]
+        assert_that(matches).described_as(
+            f"Expected one NIC with internal IP {node.internal_address}; "
+            "inspect guest NIC discovery"
+        ).is_length(1)
+        return matches[0]
+
+    @staticmethod
+    def _servicing_routes(node: RemoteNode) -> str:
+        result = node.tools[Ip].run("route show", force_run=True, expected_exit_code=0)
+        return "\n".join(sorted(result.stdout.splitlines()))
+
+    def _servicing_check_network(self, node: RemoteNode, routes: str) -> None:
+        nic = self._servicing_nic(node)
+        assert_that(node.tools[Ip].get_ip_address(nic.name)).described_as(
+            f"Internal address must remain unchanged on {node.name}; inspect ip addr"
+        ).is_equal_to(node.internal_address)
+        assert_that(self._servicing_routes(node)).described_as(
+            f"Routes must remain unchanged on {node.name}; compare ip route output"
+        ).is_equal_to(routes)
+
+    @staticmethod
+    def _servicing_stop_traffic(node: RemoteNode, port: int) -> None:
+        result = node.tools[Lsof].run(
+            f"-t -a -c iperf3 -i :{port}", sudo=True, force_run=True
+        )
+        result.assert_exit_code([0, 1], include_output=True)
+        for pid in set(result.stdout.split()):
+            assert_that(pid.isdigit()).described_as(
+                f"Expected numeric iperf3 PID, got {pid!r}; inspect lsof output"
+            ).is_true()
+            node.tools[Kill].by_pid(pid, signum=constants.SIGINT, ignore_not_exist=True)
+
+    @classmethod
+    def _servicing_save_buffers(
+        cls, processes: Dict[str, Process], log_path: Path
+    ) -> None:
+        timed_out: List[str] = []
+        for name, process in processes.items():
+            result = process.wait_result(
+                timeout=cls._SERVICING_EXIT_TIMEOUT, raise_on_timeout=False
+            )
+            result.save_stdout_to_file(log_path / f"{name}.json")
+            (log_path / f"{name}-stderr.log").write_text(
+                result.stderr, encoding="utf-8"
+            )
+            (log_path / f"{name}.log").write_text(
+                process.log_buffer.getvalue(), encoding="utf-8"
+            )
+            if result.is_timeout:
+                timed_out.append(name)
+        assert_that(timed_out).described_as(
+            "Traffic must stop during cleanup; inspect iperf process and stderr logs"
+        ).is_empty()
+
+    @staticmethod
+    def _servicing_save_dmesg(node: RemoteNode, log_path: Path) -> None:
+        (log_path / f"{node.name}-dmesg.log").write_text(
+            node.tools[Dmesg].get_output(force_run=True), encoding="utf-8"
+        )
+
+    @classmethod
+    def _servicing_iperf_result(cls, result: ExecutableResult) -> Dict[str, Any]:
+        data: Dict[str, Any] = json.loads(result.stdout)
+        assert_that(data).described_as(
+            "iperf3 JSON must be an object; inspect the saved process output"
+        ).is_instance_of(dict)
+        assert_that(data).described_as(
+            "iperf3 must complete without errors; inspect saved JSON and stderr"
+        ).does_not_contain("error")
+        assert_that(data["intervals"]).described_as(
+            "iperf3 intervals must be a list; inspect saved JSON"
+        ).is_instance_of(list).is_not_empty()
+        for interval in data["intervals"]:
+            sample = interval["sum"]
+            assert_that(sample["seconds"]).described_as(
+                f"iperf3 interval must have positive duration; inspect sample {sample}"
+            ).is_greater_than(0)
+            if sample["seconds"] >= cls._SERVICING_MIN_INTERVAL_SECONDS:
+                assert_that(sample["bytes"]).described_as(
+                    "Traffic must progress in every full interval; "
+                    f"inspect sample {sample}"
+                ).is_greater_than(0)
+        assert_that(data["end"]).described_as(
+            "iperf3 must produce a final summary; inspect saved JSON and stderr"
+        ).is_instance_of(dict).is_not_empty()
+        return data
+
+    @classmethod
+    def _servicing_report(
+        cls,
+        results: Dict[str, Dict[str, Any]],
+        phases: Dict[str, Tuple[float, float]],
+        enable_requested: float,
+        log: Logger,
+        log_path: Path,
+    ) -> None:
+        udp_end = results["udp_receiver"]["end"]
+        udp_summary = (
+            udp_end["sum_received"] if "sum_received" in udp_end else udp_end["sum"]
+        )
+        sent_end = results["udp_sender"]["end"]
+        sent_summary = (
+            sent_end["sum_sent"] if "sum_sent" in sent_end else sent_end["sum"]
+        )
+        assert_that(udp_summary["packets"]).described_as(
+            "UDP receiver must receive datagrams; inspect receiver JSON"
+        ).is_greater_than(0)
+        assert_that(udp_summary["lost_packets"]).described_as(
+            f"Receiver must report zero UDP loss; inspect summary {udp_summary}"
+        ).is_zero()
+        assert_that(udp_summary["packets"]).described_as(
+            f"UDP counts must match; inspect sender summary {sent_summary}"
+        ).is_equal_to(sent_summary["packets"])
+        assert_that(results["tcp_sender"]["end"]["sum_sent"]["bytes"]).described_as(
+            "TCP sender must complete a transfer; inspect sender JSON"
+        ).is_greater_than(0)
+        assert_that(
+            results["tcp_receiver"]["end"]["sum_received"]["bytes"]
+        ).described_as(
+            "TCP receiver must complete a transfer; inspect receiver JSON"
+        ).is_greater_than(
+            0
+        )
+        log.info(
+            f"UDP validation passed: sent={sent_summary['packets']}, "
+            f"received={udp_summary['packets']}, lost={udp_summary['lost_packets']}"
+        )
+        log.info(
+            "TCP validation passed: "
+            f"sent_bytes={results['tcp_sender']['end']['sum_sent']['bytes']}, "
+            "received_bytes="
+            f"{results['tcp_receiver']['end']['sum_received']['bytes']}; "
+            "all full traffic intervals made progress"
+        )
+        summary: Dict[str, Any] = {
+            "phases_epoch_seconds": phases,
+            "udp_receiver": udp_summary,
+            "offered_bitrate_per_stream": "1M",
+            "capacity_benchmark": False,
+            "throughput": {},
+        }
+        for protocol in ["udp", "tcp"]:
+            data = results[f"{protocol}_receiver"]
+            origin = data["start"]["timestamp"]["timesecs"]
+            samples = [interval["sum"] for interval in data["intervals"]]
+            rates: Dict[str, float] = {}
+            for phase, (start, end) in phases.items():
+                # Receiver epochs have one-second resolution; exclude boundaries.
+                selected = [
+                    sample
+                    for sample in samples
+                    if origin + sample["start"]
+                    >= start + cls._SERVICING_INTERVAL_SECONDS
+                    and origin + sample["end"] <= end - cls._SERVICING_INTERVAL_SECONDS
+                ]
+                assert_that(selected).described_as(
+                    f"Expected {protocol} receiver samples for {phase}; "
+                    "inspect phase timestamps and receiver intervals"
+                ).is_not_empty()
+                rates[phase] = (
+                    sum(sample["bytes"] for sample in selected)
+                    * 8
+                    / sum(sample["seconds"] for sample in selected)
+                )
+            assert_that(rates["baseline"]).described_as(
+                f"Expected positive {protocol} baseline throughput; "
+                "inspect receiver JSON"
+            ).is_greater_than(0)
+            change = 100 * (rates["restored"] / rates["baseline"] - 1)
+            consecutive = 0
+            recovery: Optional[float] = None
+            for sample in samples:
+                if (
+                    origin + sample["start"]
+                    < phases["restored"][0] + cls._SERVICING_INTERVAL_SECONDS
+                ):
+                    continue
+                if sample["seconds"] < cls._SERVICING_MIN_INTERVAL_SECONDS:
+                    continue
+                if (
+                    sample["bits_per_second"]
+                    >= rates["baseline"] * cls._SERVICING_RECOVERY_RATIO
+                ):
+                    consecutive += 1
+                else:
+                    consecutive = 0
+                if consecutive == cls._SERVICING_RECOVERY_INTERVALS:
+                    recovery = origin + sample["end"] - enable_requested
+                    break
+            summary["throughput"][protocol] = {
+                "receiver_bps": rates,
+                "restored_change_bps": rates["restored"] - rates["baseline"],
+                "restored_change_percent": change,
+                "five_intervals_at_90_percent_seconds_after_enable": recovery,
+            }
+            log.info(
+                f"{protocol.upper()} receiver throughput (offered load, not capacity): "
+                f"{rates}; restored change={change:+.2f}%; "
+                f"five-interval 90% recovery after enable={recovery}s (diagnostic only)"
+            )
+        (log_path / "network_servicing_summary.json").write_text(
+            json.dumps(summary, indent=2), encoding="utf-8"
+        )
 
     @TestCaseMetadata(
         description="""
@@ -2312,6 +2933,10 @@ class Sriov(TestSuite):
                 ).is_greater_than(unused_cpu)
 
     def after_case(self, log: Logger, **kwargs: Any) -> None:
+        result = cast(TestResult, kwargs["result"])
+        if result.runtime_data.name == "verify_network_servicing_validation":
+            # This case owns port-scoped cleanup; a pre-traffic skip owns nothing.
+            return
         environment: Environment = kwargs.pop("environment")
         cleanup_iperf3(environment)
 
