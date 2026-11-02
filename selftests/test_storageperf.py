@@ -153,6 +153,7 @@ class StoragePerformanceTestCase(TestCase):
             self.suite.perf_premium_datadisks_4k_max_disks(self.node, self.result)
 
         partition.assert_called_once_with(self.node, devices)
+        perf.assert_called_once()
         self.assertEqual(":".join(devices), perf.call_args.args[3])
         self.assertEqual(64, perf.call_args.kwargs["disk_count"])
         self.assertEqual(
@@ -178,18 +179,48 @@ class StoragePerformanceTestCase(TestCase):
         self.disk.add_data_disk.assert_not_called()
         self.disk.remove_data_disk.assert_not_called()
 
-    def test_unresolved_maximum_fails_before_partitioning(self) -> None:
-        self.node.capability.disk = schema.DiskOptionSettings(
-            max_data_disk_count=search_space.IntRange()
-        )
+    def test_invalid_maximum_fails_before_partitioning(self) -> None:
+        self.disk.get_raw_data_disks.return_value = ["/dev/data0"]
+        for max_count in [None, 0, -1, "4", search_space.IntRange()]:
+            with self.subTest(max_count=max_count), patch.object(
+                common, "reset_partitions"
+            ) as partition, patch.object(common, "perf_disk") as perf:
+                self.node.capability.disk = MagicMock(max_data_disk_count=max_count)
+                with self.assertRaisesRegex(
+                    AssertionError, "resolved positive maximum"
+                ):
+                    perf_premium_datadisks(
+                        self.node, self.result, verify_max_disks=True
+                    )
+                partition.assert_not_called()
+                perf.assert_not_called()
+
+    def test_missing_disk_capability_fails_before_partitioning(self) -> None:
+        self.node.capability.disk = None
         self.disk.get_raw_data_disks.return_value = ["/dev/data0"]
         with patch.object(common, "reset_partitions") as partition, patch.object(
             common, "perf_disk"
         ) as perf:
-            with self.assertRaisesRegex(AssertionError, "resolved positive maximum"):
-                self.suite.perf_premium_datadisks_4k_max_disks(self.node, self.result)
+            with self.assertRaisesRegex(AssertionError, "Disk capability is required"):
+                perf_premium_datadisks(self.node, self.result, verify_max_disks=True)
             partition.assert_not_called()
             perf.assert_not_called()
+
+    def test_default_path_does_not_require_disk_capability(self) -> None:
+        self.node.capability.disk = None
+        devices = ["/dev/data0"]
+        partitions = ["/dev/data0p1"]
+        self.disk.get_raw_data_disks.return_value = devices
+        self.node.tools.__getitem__.return_value.get_thread_count.return_value = 4
+        with patch.object(
+            common, "reset_partitions", return_value=partitions
+        ) as partition, patch.object(common, "perf_disk") as perf:
+            perf_premium_datadisks(self.node, self.result)
+
+        partition.assert_called_once_with(self.node, devices)
+        perf.assert_called_once()
+        self.assertEqual(partitions[0], perf.call_args.args[3])
+        self.assertEqual(1, perf.call_args.kwargs["disk_count"])
 
     def test_original_variants_do_not_require_maximum_disks(self) -> None:
         self.node.capability.disk = schema.DiskOptionSettings(max_data_disk_count=64)
