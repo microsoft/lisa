@@ -4,6 +4,7 @@
 import hashlib
 import re
 import shlex
+import uuid
 import xml.etree.ElementTree as ETree
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
@@ -11,7 +12,7 @@ from typing import Any, Dict, List, Optional, Type, cast
 
 from lisa.executable import Tool
 from lisa.operating_system import CBLMariner, Posix
-from lisa.tools import Cargo, Curl, Git, Ls
+from lisa.tools import Cargo, Curl, Docker, Git, Ls
 from lisa.util import LisaException, UnsupportedDistroException
 
 
@@ -27,6 +28,7 @@ class _JUnitSummary:
     failures: int = 0
     errors: int = 0
     skipped: int = 0
+    has_nextest_summary: bool = False
     failed_tests: List[str] = field(default_factory=_new_str_list)
     passed_tests: List[str] = field(default_factory=_new_str_list)
 
@@ -39,20 +41,24 @@ class OpenVmmTests(Tool):
     # Individual filtered runs are faster, but allow the full ceiling to avoid
     # spurious timeouts when running the complete suite.
     VMM_TIMEOUT = 43200
-    NEXTEST_VERSION = "0.9.101"
     NEXTEST_LINUX_X64_TARGET = "x86_64-unknown-linux-gnu"
+    # Flowey puts Unix sockets below --dir/temp; Linux socket paths must fit 108 bytes.
+    CONTAINER_ARTIFACT_ROOT = "/lisa-openvmm"
     _ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
     _SUMMARY_PATTERN = re.compile(
-        r"Summary \[\s*[\d.]+s\]\s+(?P<run>\d+)(?:/(?P<total>\d+))? tests run:\s+"
-        r"(?P<passed>\d+) passed,\s+(?P<failed>\d+) failed,\s+"
-        r"(?P<skipped>\d+) skipped"
+        r"Summary \[[^\]\r\n]+\]\s+(?P<run>\d+)(?:/(?P<total>\d+))? tests? run:"
+        r"[ \t]*(?P<counts>[^\r\n]+)"
     )
     _FAILED_TEST_PATTERN = re.compile(
-        r"^\s*FAIL\s+\[[^\]]+\]\s+\S+\s+(?P<name>.+?)\s*$",
+        r"^[ \t]*(?:FAIL|TIMEOUT|EXECFAIL|ABORT)[ \t]+\[[^\]\r\n]+\][ \t]+"
+        r"(?:\([ \t]*\d+/\d+\)[ \t]+)?"
+        r"(?P<name>\S+(?:[ \t]+|[ \t]*\r?\n[ \t]+)\S[^\r\n]*)$",
         re.MULTILINE,
     )
     _PASSED_TEST_PATTERN = re.compile(
-        r"^\s*PASS\s+\[[^\]]+\]\s+\S+\s+(?P<name>.+?)\s*$",
+        r"^[ \t]*PASS[ \t]+\[[^\]\r\n]+\][ \t]+"
+        r"(?:\([ \t]*\d+/\d+\)[ \t]+)?"
+        r"(?P<name>\S+(?:[ \t]+|[ \t]*\r?\n[ \t]+)\S[^\r\n]*)$",
         re.MULTILINE,
     )
 
@@ -60,6 +66,7 @@ class OpenVmmTests(Tool):
     repo_url = DEFAULT_REPO
     auth_token = ""
     command_group = ""
+    _container_name = ""
 
     _distro_package_mapping = {
         CBLMariner.__name__: [
@@ -87,7 +94,8 @@ class OpenVmmTests(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        return [Git, Cargo, Curl, Ls]
+        # Native execution resolves Cargo lazily; container runs need no host Rust.
+        return [Git, Curl, Ls]
 
     @classmethod
     def create(cls, node: Any, *args: Any, **kwargs: Any) -> "OpenVmmTests":
@@ -133,57 +141,79 @@ class OpenVmmTests(Tool):
         test_filter: str = "",
         install_missing_deps: bool = True,
         skip_vhd_prompt: bool = True,
+        ci_profile: bool = False,
     ) -> _JUnitSummary:
-        cargo = self.node.tools[Cargo]
-        env = self._prepare_repo(log_path, ref)
-        output_dir = self._artifact_root / "vmm-tests-run"
-        self.node.execute(
-            (
-                f"rm -rf {shlex.quote(str(output_dir))} && "
-                f"mkdir -p {shlex.quote(str(output_dir))}"
-            ),
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "failed to prepare OpenVMM vmm-tests output directory"
-            ),
-        )
+        try:
+            env = self._prepare_repo(log_path, ref, ci_profile=ci_profile)
+            output_dir = self._artifact_root / "vmm-tests-run"
+            self.node.execute(
+                (
+                    f"rm -rf {shlex.quote(str(output_dir))} && "
+                    f"mkdir -p {shlex.quote(str(output_dir))}"
+                ),
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to prepare OpenVMM vmm-tests output directory"
+                ),
+            )
 
-        command = [
-            cargo.command,
-            "xflowey",
-            "vmm-tests-run",
-            "--target",
-            "linux-x64",
-            "--dir",
-            str(output_dir),
-        ]
-        if install_missing_deps:
-            command.append("--install-missing-deps")
-        if skip_vhd_prompt:
-            command.append("--skip-vhd-prompt")
-        if release:
-            command.append("--release")
-        if test_filter:
-            command.extend(["--filter", test_filter])
+            command = [
+                "cargo" if ci_profile else self.node.tools[Cargo].command,
+                "xflowey",
+                "vmm-tests-run",
+                "--target",
+                "linux-x64",
+                "--dir",
+                (
+                    f"{self.CONTAINER_ARTIFACT_ROOT}/vmm-tests-run"
+                    if ci_profile
+                    else str(output_dir)
+                ),
+            ]
+            if install_missing_deps:
+                command.append("--install-missing-deps")
+            if skip_vhd_prompt:
+                command.append("--skip-vhd-prompt")
+            if release:
+                command.append("--release")
+            if ci_profile:
+                command.extend(["--ci-profile", "--no-reuse-prepped-vhds"])
+            if test_filter:
+                command.extend(["--filter", test_filter])
 
-        wrapped_command = self._wrap_command_for_group(shlex.join(command))
+            wrapped_command = shlex.join(command)
+            if not ci_profile:
+                wrapped_command = self._wrap_command_for_group(wrapped_command)
+            self._run_logged_command(
+                name="openvmm_vmm_tests",
+                command=wrapped_command,
+                log_path=log_path,
+                timeout=self.VMM_TIMEOUT,
+                update_envs=env,
+            )
 
-        self._run_logged_command(
-            name="openvmm_vmm_tests",
-            command=wrapped_command,
-            log_path=log_path,
-            timeout=self.VMM_TIMEOUT,
-            update_envs=env,
-        )
-
-        local_junit = log_path / "openvmm_vmm_tests.junit.xml"
-        self._copy_back_if_exists(output_dir / "junit.xml", local_junit)
-        return self._check_vmm_tests_results(
-            name="openvmm_vmm_tests",
-            log_file=log_path / "openvmm_vmm_tests.log",
-            junit_file=local_junit,
-        )
+            local_junit = log_path / "openvmm_vmm_tests.junit.xml"
+            self._copy_back_if_exists(output_dir / "junit.xml", local_junit)
+            return self._check_vmm_tests_results(
+                name="openvmm_vmm_tests",
+                log_file=log_path / "openvmm_vmm_tests.log",
+                junit_file=local_junit,
+            )
+        finally:
+            if self._container_name:
+                container_name = self._container_name
+                self._container_name = ""
+                self._repo_prepared = False
+                self.node.tools[Docker].run(
+                    f"rm --force {shlex.quote(container_name)}",
+                    sudo=True,
+                    force_run=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "failed to remove the OpenVMM MSHV test container"
+                    ),
+                )
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._set_repo_paths()
@@ -230,7 +260,9 @@ class OpenVmmTests(Tool):
 
         return self.node.tools[Ls].path_exists(str(self.repo_root))
 
-    def _prepare_repo(self, log_path: Path, ref: str) -> Dict[str, str]:
+    def _prepare_repo(
+        self, log_path: Path, ref: str, ci_profile: bool = False
+    ) -> Dict[str, str]:
         git = self.node.tools[Git]
         if not self._check_exists() and not self._install():
             raise LisaException(
@@ -238,8 +270,7 @@ class OpenVmmTests(Tool):
                 f"{self.repo_url}"
             )
 
-        cargo_env = self._get_cargo_environment()
-
+        cargo_env = {} if ci_profile else self._get_cargo_environment()
         if ref and self._prepared_ref != ref:
             git.checkout(ref, self.repo_root)
             self.node.execute(
@@ -260,18 +291,21 @@ class OpenVmmTests(Tool):
             f"requested ref: {ref or '<default>'}, HEAD: {openvmm_commit}"
         )
 
+        if ci_profile:
+            self._prepare_ci_container(log_path)
+
         if not self._repo_prepared:
-            restore_command = shlex.join(
-                [
-                    self.node.tools[Cargo].command,
-                    "xflowey",
-                    "restore-packages",
-                    "--no-compat-igvm",
-                ]
-            )
+            restore_args = [
+                "cargo" if ci_profile else self.node.tools[Cargo].command,
+                "xflowey",
+                "restore-packages",
+                "--no-compat-igvm",
+            ]
+            if ci_profile:
+                restore_args.append("x86-64")
             self._run_logged_command(
                 name="openvmm_restore_packages",
-                command=restore_command,
+                command=shlex.join(restore_args),
                 log_path=log_path,
                 timeout=self.RESTORE_TIMEOUT,
                 update_envs=cargo_env,
@@ -282,6 +316,86 @@ class OpenVmmTests(Tool):
         self._ensure_cargo_nextest(log_path, cargo_env)
 
         return cargo_env
+
+    def _prepare_ci_container(self, log_path: Path) -> None:
+        docker = self.node.tools[Docker]
+        identity = self.node.execute(
+            "id -u && id -g", shell=True, expected_exit_code=0
+        ).stdout.split()
+        if len(identity) != 2 or not all(value.isdecimal() for value in identity):
+            raise LisaException("failed to determine the MSHV checkout owner's UID/GID")
+        host_uid, host_gid = identity
+        build_dir = self._artifact_root / "container-build"
+        self.node.execute(
+            f"mkdir -p {shlex.quote(str(build_dir))}",
+            shell=True,
+            expected_exit_code=0,
+        )
+        self.node.shell.copy(
+            Path(__file__).with_name("mshv.Dockerfile"), build_dir / "Dockerfile"
+        )
+        image_name = f"lisa-openvmm-mshv:{uuid.uuid4().hex}"
+        self._run_logged_command(
+            name="openvmm_build_container",
+            command=(
+                f"{docker.command} build --pull "
+                f"--build-arg HOST_UID={host_uid} --build-arg HOST_GID={host_gid} "
+                f"--tag {image_name} {shlex.quote(str(build_dir))}"
+            ),
+            log_path=log_path,
+            timeout=self.RESTORE_TIMEOUT,
+            update_envs={},
+            sudo=True,
+        )
+        container_name = f"lisa-openvmm-{uuid.uuid4().hex}"
+        # io_uring and AF_VSOCK are needed by OpenVMM but blocked by Docker seccomp.
+        docker.run(
+            f"run --detach --rm --init --name {container_name} "
+            "--device /dev/mshv --device /dev/vhost-vsock "
+            '--group-add "$(stat -c %g /dev/mshv)" '
+            '--group-add "$(stat -c %g /dev/vhost-vsock)" '
+            "--sysctl net.ipv6.conf.all.disable_ipv6=0 "
+            "--security-opt seccomp=unconfined "
+            f"--volume {shlex.quote(f'{self.repo_root}:{self.repo_root}')} "
+            "--volume "
+            f"{shlex.quote(f'{self._artifact_root}:{self.CONTAINER_ARTIFACT_ROOT}')} "
+            f"--workdir {shlex.quote(str(self.repo_root))} "
+            f"{image_name} sleep infinity",
+            shell=True,
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failed to start MSHV test container",
+        )
+        self._container_name = container_name
+        self._repo_prepared = False
+        self.node.execute(
+            self._wrap_container_command(
+                "test -r /dev/mshv && test -w /dev/mshv && "
+                "test -r /dev/vhost-vsock && test -w /dev/vhost-vsock && "
+                "cargo --version && rustc --version && "
+                "targets=$(rustup target list --installed) && "
+                "for target in x86_64-unknown-linux-musl x86_64-pc-windows-gnu; do "
+                'printf \'%s\\n\' "$targets" | grep -Fxq "$target" || '
+                '{ echo "Missing Rust target: $target" >&2; exit 1; }; done && '
+                "rustup component list --installed | grep -q '^rust-src'"
+            ),
+            sudo=True,
+            shell=True,
+            timeout=self.RESTORE_TIMEOUT,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "MSHV container device access or installed Rust prerequisites failed"
+            ),
+        )
+
+    def _wrap_container_command(self, command: str) -> str:
+        if not self._container_name:
+            return command
+        return (
+            f"{self.node.tools[Docker].command} exec "
+            f"{shlex.quote(self._container_name)} bash -c {shlex.quote(command)}"
+        )
 
     def _get_cargo_environment(self) -> Dict[str, str]:
         cargo = self.node.tools[Cargo]
@@ -367,7 +481,9 @@ class OpenVmmTests(Tool):
         timeout: int,
         update_envs: Dict[str, str],
         artifact_dir: Optional[PurePath] = None,
+        sudo: bool = False,
     ) -> None:
+        command = self._wrap_container_command(command)
         remote_log = self._artifact_root / f"{name}.log"
         command_result = self.node.execute(
             (
@@ -378,6 +494,7 @@ class OpenVmmTests(Tool):
                 )
             ),
             shell=True,
+            sudo=sudo or bool(self._container_name),
             cwd=self.repo_root,
             timeout=timeout,
             update_envs=update_envs,
@@ -415,15 +532,16 @@ class OpenVmmTests(Tool):
         log_path: Path,
         update_envs: Dict[str, str],
     ) -> None:
-        if self._has_cargo_nextest(update_envs):
+        version = self._get_nextest_version()
+        if self._has_cargo_nextest(update_envs, version):
             return
 
         self._log.debug(
-            "cargo-nextest was not available after restore-packages; "
+            f"cargo-nextest {version} was not available after restore-packages; "
             "installing the upstream pinned standalone binary"
         )
         install_dir = self._artifact_root / "cargo-nextest-install"
-        release_name = f"cargo-nextest-{self.NEXTEST_VERSION}"
+        release_name = f"cargo-nextest-{version}"
         asset_name = f"{release_name}-{self.NEXTEST_LINUX_X64_TARGET}"
         archive_name = f"{asset_name}.tar.gz"
         sha256_name = f"{asset_name}.sha256"
@@ -432,7 +550,7 @@ class OpenVmmTests(Tool):
         )
         download_url = f"{release_url}/{archive_name}"
         sha256_url = f"{release_url}/{sha256_name}"
-        curl_command = self.node.tools[Curl].command
+        curl_command = "curl" if self._container_name else self.node.tools[Curl].command
         install_command = (
             f"rm -rf {shlex.quote(str(install_dir))} && "
             f"mkdir -p {shlex.quote(str(install_dir))} ~/.cargo/bin && "
@@ -459,23 +577,51 @@ class OpenVmmTests(Tool):
             update_envs=update_envs,
         )
 
-        if not self._has_cargo_nextest(update_envs):
+        if not self._has_cargo_nextest(update_envs, version):
             raise LisaException(
                 "cargo-nextest is still unavailable after the fallback install. "
                 "See openvmm_install_cargo_nextest.log for details."
             )
 
-    def _has_cargo_nextest(self, update_envs: Dict[str, str]) -> bool:
+    def _get_nextest_version(self) -> str:
         result = self.node.execute(
-            "cargo nextest --version",
+            "cat flowey/flowey_lib_hvlite/src/_jobs/cfg_versions.rs",
             shell=True,
+            cwd=self.repo_root,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to read the upstream cargo-nextest version pin"
+            ),
+            no_info_log=True,
+        )
+        match = re.search(
+            r'pub const NEXTEST:\s*&str\s*=\s*"(?P<version>\d+\.\d+\.\d+)";',
+            result.stdout,
+        )
+        if not match:
+            raise LisaException(
+                "The OpenVMM checkout has no recognized cargo-nextest version pin "
+                "in flowey/flowey_lib_hvlite/src/_jobs/cfg_versions.rs"
+            )
+        return match.group("version")
+
+    def _has_cargo_nextest(self, update_envs: Dict[str, str], version: str) -> bool:
+        result = self.node.execute(
+            self._wrap_container_command("cargo nextest --version"),
+            shell=True,
+            sudo=bool(self._container_name),
             cwd=self.repo_root,
             update_envs=update_envs,
             expected_exit_code=None,
             no_info_log=True,
             no_error_log=True,
         )
-        return result.exit_code == 0
+        return result.exit_code == 0 and bool(
+            re.search(
+                rf"\bcargo-nextest {re.escape(version)}(?:\s|$)",
+                f"{result.stdout}\n{result.stderr}",
+            )
+        )
 
     def _archive_remote_directory(
         self,
@@ -528,10 +674,11 @@ class OpenVmmTests(Tool):
         log_file: Path,
         junit_file: Optional[Path],
     ) -> _JUnitSummary:
+        summary: Optional[_JUnitSummary] = None
         if junit_file and junit_file.exists():
             try:
                 summary = self._parse_junit_summary(junit_file)
-            except ETree.ParseError as identifier:
+            except (ETree.ParseError, ValueError) as identifier:
                 raise LisaException(
                     f"{name} produced an unreadable JUnit report at {junit_file}: "
                     f"{identifier}"
@@ -542,23 +689,48 @@ class OpenVmmTests(Tool):
                     f"{name} reported test failures.\n"
                     f"{self.format_run_summary(summary)}"
                 )
-            return summary
-
         if log_file.exists():
-            summary = self._extract_log_summary(log_file)
-            failure_summary = self._extract_failure_summary_from_log(log_file, summary)
+            log_summary = self._extract_log_summary(log_file)
+            failure_summary = self._extract_failure_summary_from_log(
+                log_file, log_summary
+            )
             if failure_summary:
                 raise LisaException(
                     f"{name} reported test failures.\n{failure_summary}"
                 )
 
-            return summary
+            # Nextest's JUnit omits filtered tests. Its terminal summary retains them.
+            if log_summary.has_nextest_summary:
+                if summary and (
+                    summary.tests != log_summary.tests
+                    or summary.passed != log_summary.passed
+                ):
+                    raise LisaException(
+                        f"{name} produced conflicting JUnit and nextest "
+                        "execution counts. Check that both reports are complete "
+                        "and belong to the same run."
+                    )
+                summary = log_summary
 
-        raise LisaException(
-            f"{name} did not produce a local JUnit report or log file. "
-            f"Checked JUnit path: {junit_file}, log path: {log_file}. "
-            "Verify the test run completed and artifact copy-back succeeded."
-        )
+        if summary is None:
+            raise LisaException(
+                f"{name} did not produce a recognized nextest summary or JUnit "
+                f"report. Checked JUnit path: {junit_file}, log path: {log_file}. "
+                "Verify the test run completed and artifact copy-back succeeded."
+            )
+        if summary.tests <= 0:
+            raise LisaException(
+                f"{name} executed no tests. Check the nextest filter and test assets.\n"
+                f"{self.format_run_summary(summary)}"
+            )
+        if summary.passed != summary.tests or (
+            summary.total and summary.tests != summary.total
+        ):
+            raise LisaException(
+                f"{name} produced incomplete or inconsistent test results.\n"
+                f"{self.format_run_summary(summary)}"
+            )
+        return summary
 
     def format_run_summary(
         self,
@@ -578,9 +750,7 @@ class OpenVmmTests(Tool):
         elif summary.tests:
             # Derive passed count from totals when individual names aren't captured
             # (e.g. JUnit reports that record counts but omit per-case elements).
-            passed_count = max(
-                0, summary.tests - summary.failures - summary.errors - summary.skipped
-            )
+            passed_count = max(0, summary.tests - summary.failures - summary.errors)
         else:
             passed_count = 0
         tests_run = summary.tests or (passed_count + failed_count)
@@ -628,11 +798,17 @@ class OpenVmmTests(Tool):
             suites = [root]
 
         for suite in suites:
-            summary.tests += int(suite.attrib.get("tests", "0") or 0)
-            summary.failures += int(suite.attrib.get("failures", "0") or 0)
-            summary.errors += int(suite.attrib.get("errors", "0") or 0)
+            for attribute in ("tests", "failures", "errors", "skipped", "disabled"):
+                value = suite.get(attribute)
+                if value is not None and not value.isdigit():
+                    raise LisaException(
+                        f"Invalid JUnit {attribute} count {value!r} in {junit_file}"
+                    )
+            summary.tests += int(suite.attrib.get("tests", "0"))
+            summary.failures += int(suite.attrib.get("failures", "0"))
+            summary.errors += int(suite.attrib.get("errors", "0"))
             summary.skipped += int(
-                suite.attrib.get("skipped", suite.attrib.get("disabled", "0")) or 0
+                suite.attrib.get("skipped", suite.attrib.get("disabled", "0"))
             )
 
         for testcase in root.iter("testcase"):
@@ -650,7 +826,13 @@ class OpenVmmTests(Tool):
 
         summary.passed_tests = self._deduplicate_test_names(summary.passed_tests)
         summary.failed_tests = self._deduplicate_test_names(summary.failed_tests)
-        summary.passed = len(summary.passed_tests)
+        summary.tests -= summary.skipped
+        summary.passed = summary.tests - summary.failures - summary.errors
+        if summary.passed < 0:
+            raise LisaException(
+                f"Inconsistent JUnit counts in {junit_file}: "
+                "failures, errors and skipped exceed the total test count"
+            )
 
         return summary
 
@@ -686,13 +868,26 @@ class OpenVmmTests(Tool):
     def _extract_log_summary_from_content(self, content: str) -> _JUnitSummary:
         sanitized_content = self._strip_ansi_escape_sequences(content)
         summary = _JUnitSummary()
-        summary_match = self._SUMMARY_PATTERN.search(sanitized_content)
-        if summary_match:
+        summary_matches = list(self._SUMMARY_PATTERN.finditer(sanitized_content))
+        if summary_matches:
+            summary_match = summary_matches[-1]
+            summary.has_nextest_summary = True
             summary.tests = int(summary_match.group("run"))
             summary.total = int(summary_match.group("total") or 0)
-            summary.passed = int(summary_match.group("passed"))
-            summary.failures = int(summary_match.group("failed"))
-            summary.skipped = int(summary_match.group("skipped"))
+            counts = dict(
+                (status, int(count))
+                for count, status in re.findall(
+                    r"\b(\d+) (passed|failed|skipped|timed out|exec failed|aborted)\b",
+                    summary_match.group("counts"),
+                )
+            )
+            summary.passed = counts.get("passed", 0)
+            summary.failures = counts.get("failed", 0)
+            summary.skipped = counts.get("skipped", 0)
+            summary.errors = sum(
+                counts.get(status, 0)
+                for status in ("timed out", "exec failed", "aborted")
+            )
 
         summary.passed_tests = self._deduplicate_test_names(
             self._PASSED_TEST_PATTERN.findall(sanitized_content)
@@ -704,7 +899,7 @@ class OpenVmmTests(Tool):
 
     def _deduplicate_test_names(self, test_names: List[str]) -> List[str]:
         normalized_names = [
-            str(test_name).strip() for test_name in test_names if test_name
+            " ".join(test_name.split()) for test_name in test_names if test_name
         ]
         return list(dict.fromkeys(name for name in normalized_names if name))
 

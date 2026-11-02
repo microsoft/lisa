@@ -60,15 +60,19 @@ class OpenVmmTestsToolTestCase(TestCase):
         tool._log = MagicMock()
         with TemporaryDirectory() as temp_dir, patch.object(
             tool, "_has_cargo_nextest", side_effect=[False, True]
-        ), patch.object(tool, "_run_logged_command") as run_logged_command:
+        ), patch.object(
+            tool, "_get_nextest_version", return_value="0.9.133"
+        ), patch.object(
+            tool, "_run_logged_command"
+        ) as run_logged_command:
             tool._ensure_cargo_nextest(Path(temp_dir), {})
 
         install_command = run_logged_command.call_args.kwargs["command"]
         release_url = (
             "https://github.com/nextest-rs/nextest/releases/download/"
-            "cargo-nextest-0.9.101"
+            "cargo-nextest-0.9.133"
         )
-        asset_name = "cargo-nextest-0.9.101-x86_64-unknown-linux-gnu"
+        asset_name = "cargo-nextest-0.9.133-x86_64-unknown-linux-gnu"
         self.assertIn(f"{release_url}/{asset_name}.tar.gz", install_command)
         self.assertIn(f"{release_url}/{asset_name}.sha256", install_command)
 
@@ -83,7 +87,7 @@ class OpenVmmTestsToolTestCase(TestCase):
             junit_file.write_text(
                 """<?xml version="1.0" encoding="utf-8"?>
 <testsuites>
-  <testsuite name="x64-linux-vmm-tests" tests="17" failures="7" errors="0" skipped="41">
+  <testsuite name="x64-linux-vmm-tests" tests="58" failures="7" errors="0" skipped="41">
     <testcase
       classname="vmm_tests::tests"
       name="multiarch::ic::openvmm_uefi_x64_ubuntu_2504_server_x64_timesync_ic">
@@ -103,7 +107,7 @@ class OpenVmmTestsToolTestCase(TestCase):
                 )
 
             self.assertIn(
-                "17 tests run: 0 passed, 7 failed, 41 skipped",
+                "17 tests run: 10 passed, 7 failed, 41 skipped",
                 str(context.exception),
             )
             self.assertIn("Failed tests:", str(context.exception))
@@ -192,7 +196,11 @@ encountered at least one test failure!
             temp_path = Path(temp_dir)
             log_file = temp_path / "openvmm_vmm_tests.log"
             junit_file = temp_path / "openvmm_vmm_tests.junit.xml"
-            log_file.write_text("", encoding="utf-8")
+            log_file.write_text(
+                "PASS [   1.000s] ( 1/1) vmm_tests::tests multiarch::openvmm_boot\n"
+                "Summary [   1.000s] 1 tests run: 1 passed, 67 skipped\n",
+                encoding="utf-8",
+            )
             junit_file.write_text(
                 """<?xml version="1.0" encoding="utf-8"?>
 <testsuites>
@@ -213,8 +221,8 @@ encountered at least one test failure!
                 junit_file=junit_file,
             )
 
-        self.assertEqual(2, summary.tests)
-        self.assertEqual(1, summary.skipped)
+        self.assertEqual(1, summary.tests)
+        self.assertEqual(67, summary.skipped)
         self.assertEqual(
             ["vmm_tests::tests multiarch::openvmm_boot"],
             summary.passed_tests,
