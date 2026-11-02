@@ -427,7 +427,6 @@ class TimeSync(TestSuite):
             supported_os=[Ubuntu],
         ),
         tags=["ai-generated"],
-        maturity="preview",
     )
     def verify_rtc_stress(self, node: Node, log: Logger) -> None:
         dmesg = node.tools[Dmesg]
