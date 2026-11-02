@@ -17,7 +17,7 @@ from lisa import (
     TestSuiteMetadata,
     simple_requirement,
 )
-from lisa.operating_system import BSD, Windows
+from lisa.operating_system import CBLMariner
 from lisa.sut_orchestrator import AZURE, HYPERV, READY
 from lisa.tools import Cat, KernelConfig, Modprobe, Rm, Ss, Sysctl
 from lisa.util import create_timer
@@ -33,7 +33,7 @@ from lisa.util import create_timer
     """,
     requirement=simple_requirement(
         supported_platform_type=[AZURE, READY, HYPERV],
-        unsupported_os=[BSD, Windows],
+        supported_os=[CBLMariner],
     ),
 )
 class CongestionControlSuite(TestSuite):
