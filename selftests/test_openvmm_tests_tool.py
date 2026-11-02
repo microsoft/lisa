@@ -43,9 +43,7 @@ class OpenVmmTestsToolTestCase(TestCase):
             side_effect=lambda log_path, ref, ci_profile: tool._prepare_ci_container(
                 log_path
             ),
-        ), self.assertRaisesRegex(
-            LisaException, "container startup failed"
-        ):
+        ), self.assertRaisesRegex(LisaException, "container startup failed"):
             tool.run_vmm_tests(log_path=Path("."))
 
         self.assertEqual(1, len(image_names))
