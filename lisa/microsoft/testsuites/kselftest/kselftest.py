@@ -1,7 +1,9 @@
 import os
 import re
+import time
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
+from shlex import quote
 from typing import Any, Dict, List, Optional
 
 from assertpy import assert_that
@@ -12,7 +14,7 @@ from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult
-from lisa.tools import Cp, Df, Git, Ls, Make, RemoteCopy, Tar
+from lisa.tools import Cp, Df, Git, Ls, Make, Python, RemoteCopy, Tar
 from lisa.tools.chmod import Chmod
 from lisa.tools.mkdir import Mkdir
 from lisa.tools.whoami import Whoami
@@ -314,20 +316,7 @@ class Kselftest(Tool):
         timeout: int,
         env_var_dict: Dict[str, str],
     ) -> None:
-        # When neither a collection filter nor a skip list is given, run the
-        # whole suite in a single invocation.
-        if not (run_collections or skip_tests):
-            self.run(
-                f" 2>&1 | tee {result_file}",
-                cwd=work_dir,
-                sudo=run_test_as_root,
-                force_run=True,
-                shell=True,
-                timeout=timeout,
-                update_envs=env_var_dict,
-            )
-            return
-
+        start_time = time.monotonic()
         # List all available tests
         list_result = self.run(
             " -l",
@@ -388,32 +377,35 @@ class Kselftest(Tool):
             )
 
         self._log.debug(f"Running tests: {tests_to_run}")
-        # Passing every selected test as a separate "-t" argument on a single
+        runner_path = self._installed_path / "lisa_kselftest_runner.py"
+        self.node.shell.copy(
+            PurePath(__file__).with_name("kselftest_runner.py"), runner_path
+        )
+        python = self.node.tools[Python]
+        # Passing every selected test as a separate argument on a single
         # command line can produce a command tens of KB long (e.g. ~900 tests
         # => ~30KB), which fails to spawn on some nodes such as WSL
         # (SshSpawnTimeoutException). Run the tests in batches so each command
         # line stays short.
-        batch_size = 100  # number of "-t" args per invocation;
-        import time
-
-        start_time = time.monotonic()
+        batch_size = 100
         for start in range(0, len(tests_to_run), batch_size):
             batch = tests_to_run[start : start + batch_size]
-            tests_to_run_str = " ".join(f"-t {test}" for test in batch)
-            # Truncate the results file on the first batch, then append
-            # subsequent batches so all output accumulates.
-            tee = "tee" if start == 0 else "tee -a"
-
-            remaining_timeout = max(1, timeout - int(time.monotonic() - start_time))
-            self.run(
-                f" {tests_to_run_str} 2>&1 | {tee} {result_file}",
+            tests_to_run_str = " ".join(quote(test) for test in batch)
+            append = "--append" if start else ""
+            remaining_timeout = timeout - (time.monotonic() - start_time)
+            if remaining_timeout <= 0:
+                raise LisaException("kselftest execution exceeded its overall timeout")
+            python.run(
+                f"{quote(str(runner_path))} --runner {quote(self.command)}"
+                f" --result-file {quote(result_file)}"
+                f" --timeout {remaining_timeout} {append} {tests_to_run_str}",
                 cwd=work_dir,
                 sudo=run_test_as_root,
                 force_run=True,
                 shell=True,
-                timeout=remaining_timeout,
+                timeout=int(remaining_timeout) + 10,
                 update_envs=env_var_dict,
-            )
+            ).assert_exit_code(message="failed to execute the kselftest runner")
 
     def _parse_results(self, result: str) -> List[KselftestResult]:
         parsed_result: List[KselftestResult] = []
