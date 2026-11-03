@@ -498,6 +498,7 @@ class LisaRunner(BaseRunner):
             # parent as used as well.
             environment.is_new = False
 
+        was_connected = tested_environment.status == EnvironmentStatus.Connected
         test_suite.start(
             environment=tested_environment,
             case_results=test_results,
@@ -512,7 +513,11 @@ class LisaRunner(BaseRunner):
         tested_environment.nodes.close()
         # Try to connect node(s), if cannot access node(s) of this environment,
         # set the current environment as Bad. So that this environment won't be reused.
-        if not is_unittest() and not tested_environment.nodes.test_connections():
+        if (
+            was_connected
+            and not is_unittest()
+            and not tested_environment.nodes.test_connections()
+        ):
             environment.status = EnvironmentStatus.Bad
             self._log.debug(
                 f"set environment '{environment.name}' as bad, "

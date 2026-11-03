@@ -3091,7 +3091,7 @@ class AzurePlatform(Platform):
 
     def _enable_ssh_on_windows(self, node: Node) -> None:
         runbook = node.capability.get_extended_runbook(AzureNodeSchema)
-        if runbook.is_linux:
+        if runbook.is_linux or not runbook.enable_ssh:
             return
 
         context = get_node_context(node)
