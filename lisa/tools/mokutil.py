@@ -5,7 +5,7 @@ from typing import cast
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
-from lisa.util import UnsupportedDistroException
+from lisa.util import LisaException, UnsupportedDistroException
 
 
 class Mokutil(Tool):
@@ -29,6 +29,9 @@ class Mokutil(Tool):
         return self._check_exists()
 
     def is_secure_boot_enabled(self) -> bool:
+        if not self.node.shell.exists(self.node.get_pure_path("/sys/firmware/efi")):
+            return False
+
         # mokutil --sb-state returns:
         #   "SecureBoot enabled" or "SecureBoot disabled"
         cmd_result = self.run(
@@ -36,4 +39,13 @@ class Mokutil(Tool):
             force_run=True,
             sudo=True,
         )
-        return "SecureBoot enabled" in cmd_result.stdout
+        cmd_result.assert_exit_code(
+            0, "Failed to query Secure Boot state", include_output=True
+        )
+        if "SecureBoot enabled" in cmd_result.stdout:
+            return True
+        if "SecureBoot disabled" in cmd_result.stdout:
+            return False
+        raise LisaException(
+            f"Unrecognized Secure Boot state: {cmd_result.stdout}\n{cmd_result.stderr}"
+        )
