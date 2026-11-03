@@ -1150,6 +1150,7 @@ class AzureNodeArmParameter(AzureNodeSchema):
     disk_controller_type: str = ""
     ephemeral_disk_placement_type: str = ""
     security_profile: Dict[str, Any] = field(default_factory=dict)
+    vm_tags: Dict[str, str] = field(default_factory=dict)
 
     @classmethod
     def from_node_runbook(cls, runbook: AzureNodeSchema) -> "AzureNodeArmParameter":
