@@ -205,7 +205,6 @@ def _require_disk_performance(
 @TestSuiteMetadata(
     area="vm_spec",
     category="functional",
-    maturity="preview",
     description="""
     Validates that a provisioned Azure VM matches the hardware
     specification published by its container policy (Azure SKU
@@ -214,7 +213,6 @@ def _require_disk_performance(
     capacity and count, and disk IOPS / throughput.
 
     Each disk IOPS and throughput test requires a fresh environment.
-    This suite is in preview pending broader VM SKU and image validation.
     """,
     requirement=simple_requirement(supported_platform_type=[AZURE]),
 )
