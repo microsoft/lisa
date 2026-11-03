@@ -19,3 +19,4 @@ notifier:
 testcase:
   - criteria:
       name: $(test_case_name)
+      maturity: [stable, preview]

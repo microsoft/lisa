@@ -14,5 +14,6 @@ Run LISA
    Run tests on a Hyper-V host <hyperv>
    Use runbook <runbook>
    Use command line <command_line>
+   PR validation selection <pr_validation>
    Use transformers <transformers>
    Troubleshoot test failures <troubleshoot_failures>

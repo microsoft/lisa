@@ -5,12 +5,12 @@
 AI-powered test case selector for LISA PRs.
 
 This script:
-1. Reads the PR diff (changed files + patch) from environment variables
-   set by the GitHub Actions workflow.
+1. Reads the PR diff (changed files + patch) supplied by the CI pipeline.
 2. Enumerates all LISA test cases under microsoft/testsuites.
 3. Calls Azure OpenAI (GPT-4o) to decide which test cases
    are relevant to the code changes.
-4. Outputs a LISA runbook YAML fragment with the selected test cases.
+4. Protects required cases and writes an OS-compatible multi-image execution plan
+   alongside a legacy LISA runbook YAML fragment.
 """
 
 import ast
@@ -19,9 +19,11 @@ import os
 import re
 import subprocess
 import sys
+from itertools import chain
 from pathlib import Path
-from typing import Callable, Dict, List, Set, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 from urllib.error import HTTPError
+from urllib.parse import urlsplit
 
 FRAMEWORK_CHANGE_PATTERNS = (
     re.compile(r"^lisa/advanced_tools/.+\.py$"),
@@ -43,7 +45,7 @@ NON_AZURE_PLATFORM_CHANGE_PATTERNS = (
     re.compile(r"^lisa/sut_orchestrator/(aws|baremetal|hyperv|libvirt|ready)/.+\.py$"),
     re.compile(
         r"^lisa/microsoft/testsuites/"
-        r"(cloud_hypervisor|hyperv|kvm|libvirt|mshv|rust_vmm_mshv)/.+\.py$"
+        r"(cloud_hypervisor|hyperv|kvm|libvirt|mshv|rust_vmm_mshv|openvmm)/.+\.py$"
     ),
 )
 DEFAULT_MARKETPLACE_IMAGE = (
@@ -101,41 +103,6 @@ LOGIC_TOKEN_STOP_WORDS = frozenset(
         "vm",
     }
 )
-
-MARKETPLACE_IMAGES: Dict[str, Dict[str, str]] = {
-    "ubuntu": {
-        "default": "canonical 0001-com-ubuntu-server-jammy 22_04-lts-gen2 latest",
-        "arm64": "canonical 0001-com-ubuntu-server-jammy 22_04-lts-arm64 latest",
-        "gen1": "canonical ubuntu-24_04-lts server-gen1 latest",
-        "gen2": "canonical 0001-com-ubuntu-server-jammy 22_04-lts-gen2 latest",
-    },
-    "debian": {
-        "default": "debian debian-12 12 latest",
-        "arm64": "debian debian-12 12-arm64 latest",
-        "gen2": "debian debian-12 12-gen2 latest",
-    },
-    "azurelinux": {
-        "default": "microsoftcblmariner azure-linux-3 azure-linux-3 latest",
-        "arm64": "microsoftcblmariner azure-linux-3 azure-linux-3-arm64 latest",
-        "gen2": "microsoftcblmariner azure-linux-3 azure-linux-3-gen2 latest",
-    },
-    "oracle": {
-        "default": "oracle oracle-linux ol94-lvm-gen2 latest",
-        "arm64": "oracle oracle-linux ol94-arm64-lvm-gen2 latest",
-        "gen2": "oracle oracle-linux ol94-lvm-gen2 latest",
-    },
-    "rhel": {
-        "default": "redhat rhel 9_5 latest",
-        "arm64": "redhat rhel-arm64 9_5-arm64 latest",
-        "gen2": "redhat rhel 95_gen2 latest",
-    },
-    "suse": {
-        "default": "suse sles-15-sp6 gen2 latest",
-        "arm64": "suse sles-15-sp6-arm64 gen2 latest",
-        "gen1": "suse sles-15-sp6 gen1 latest",
-        "gen2": "suse sles-15-sp6 gen2 latest",
-    },
-}
 
 
 def has_relevant_code_changes(changed_files: str) -> bool:
@@ -286,6 +253,8 @@ def _extract_changed_new_lines(diff: str) -> Dict[str, Set[int]]:
             continue
 
         if line.startswith("-") and not line.startswith("---"):
+            # Deletions still affect the enclosing method/OS branch in the new file.
+            changed_lines_by_file.setdefault(current_path, set()).add(current_line)
             continue
 
         if not line.startswith("\\"):
@@ -419,6 +388,184 @@ def _decorator_name(node: ast.AST) -> str:
     if isinstance(node, ast.Attribute):
         return node.attr
     return ""
+
+
+def _test_case_methods(
+    tree: ast.Module,
+) -> Dict[Tuple[str, str], Union[ast.FunctionDef, ast.AsyncFunctionDef]]:
+    methods: Dict[Tuple[str, str], Union[ast.FunctionDef, ast.AsyncFunctionDef]] = {}
+    for suite in tree.body:
+        if not isinstance(suite, ast.ClassDef):
+            continue
+        for child in suite.body:
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and any(
+                _decorator_name(item) == "TestCaseMetadata"
+                for item in child.decorator_list
+            ):
+                key = (suite.name, child.name)
+                if key in methods:
+                    raise ValueError(f"Ambiguous test case definition: {key}")
+                methods[key] = child
+    return methods
+
+
+def _without_removed_test_cases(
+    repo_root: Path, path: str, diff: str
+) -> Tuple[str, bool, Optional[Tuple[List[str], bool]]]:
+    original_blob = re.search(r"(?m)^index ([0-9a-f]+)\.\.[0-9a-f]+", diff)
+    if not original_blob or not original_blob.group(1).strip("0"):
+        print(f"No original testsuite blob for {path}; retaining coverage.")
+        return diff, False, None
+
+    original = subprocess.run(
+        ["git", "cat-file", "blob", original_blob.group(1)],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        check=False,
+    )
+    if original.returncode:
+        raise ValueError(f"Cannot read original {path}: {original.stderr.strip()}")
+    source_path = repo_root / path
+    current_source = (
+        source_path.read_text(encoding="utf-8") if source_path.is_file() else ""
+    )
+    before = ast.parse(original.stdout, filename=f"{path} (before)")
+    after = ast.parse(current_source, filename=path)
+    old_methods = _test_case_methods(before)
+    new_methods = _test_case_methods(after)
+    remaining_methods = {
+        (suite.name, child.name)
+        for suite in after.body
+        if isinstance(suite, ast.ClassDef)
+        for child in suite.body
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    shared_removed = any(
+        (suite.name, child.name) not in remaining_methods
+        for suite in before.body
+        if isinstance(suite, ast.ClassDef)
+        for child in suite.body
+        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and (suite.name, child.name) not in old_methods
+    )
+    removed_keys = old_methods.keys() - new_methods.keys()
+    if not removed_keys:
+        return diff, False, ([], True) if shared_removed else None
+
+    remaining_classes = {
+        node.name for node in after.body if isinstance(node, ast.ClassDef)
+    }
+    removed_suites = {suite for suite, _ in removed_keys} - remaining_classes
+    removed_names = {name for _, name in removed_keys} | removed_suites
+    if any(
+        (isinstance(node, ast.Attribute) and node.attr in removed_names)
+        or (isinstance(node, ast.Name) and node.id in removed_names)
+        or (
+            isinstance(node, ast.Call)
+            and _decorator_name(node.func) in ("getattr", "hasattr")
+            and len(node.args) >= 2
+            and isinstance(node.args[1], ast.Constant)
+            and isinstance(node.args[1].value, str)
+            and node.args[1].value in removed_names
+        )
+        for node in ast.walk(after)
+    ):
+        return diff, False, ([], True)
+
+    removed = [old_methods[key] for key in removed_keys]
+    for suite in list(before.body):
+        if not isinstance(suite, ast.ClassDef):
+            continue
+        suite.body = [node for node in suite.body if node not in removed]
+        if (
+            suite.name not in remaining_classes
+            and suite.name in removed_suites
+            and any(
+                _decorator_name(item) == "TestSuiteMetadata"
+                for item in suite.decorator_list
+            )
+            and all(
+                isinstance(node, ast.Pass)
+                or (
+                    isinstance(node, ast.Expr)
+                    and isinstance(node.value, ast.Constant)
+                    and isinstance(node.value.value, str)
+                )
+                for node in suite.body
+            )
+        ):
+            before.body.remove(suite)
+
+    for tree in (before, after):
+        for suite in tree.body:
+            if isinstance(suite, ast.ClassDef):
+                suite.body = [
+                    node for node in suite.body if not isinstance(node, ast.Pass)
+                ]
+    if ast.dump(before) == ast.dump(after) or (
+        not after.body
+        and all(
+            isinstance(node, (ast.Import, ast.ImportFrom, ast.Pass))
+            or (
+                isinstance(node, ast.Expr)
+                and isinstance(node.value, ast.Constant)
+                and isinstance(node.value.value, str)
+            )
+            for node in before.body
+        )
+    ):
+        return "", True, None
+
+    # Text diff anchors can land in an unchanged neighbor after a method deletion.
+    changed_methods = [
+        method.name
+        for key, method in new_methods.items()
+        if key not in old_methods or ast.dump(old_methods[key]) != ast.dump(method)
+    ]
+    for tree, methods in ((before, old_methods), (after, new_methods)):
+        for suite in tree.body:
+            if isinstance(suite, ast.ClassDef):
+                suite.body = [
+                    node for node in suite.body if node not in methods.values()
+                ]
+    return diff, False, (changed_methods, ast.dump(before) != ast.dump(after))
+
+
+def filter_removed_test_cases(
+    repo_root: Path, changed_files: str, diff: str
+) -> Tuple[str, str, Dict[str, Tuple[List[str], bool]]]:
+    changed = {_normalize_repo_path(path) for path in changed_files.splitlines()}
+    removed_files: Set[str] = set()
+    method_changes: Dict[str, Tuple[List[str], bool]] = {}
+    remaining_diff: List[str] = []
+    for block in re.split(r"(?m)(?=^diff --git )", diff):
+        path_match = re.search(r"(?m)^\+\+\+ b/(.+)$", block) or re.search(
+            r"(?m)^--- a/(.+)$", block
+        )
+        path = _normalize_repo_path(path_match.group(1)) if path_match else ""
+        if path in changed and any(
+            pattern.match(path) for pattern in TESTSUITE_CHANGE_PATTERNS
+        ):
+            block, only_removed_cases, changes = _without_removed_test_cases(
+                repo_root, path, block
+            )
+            if only_removed_cases:
+                print(f"Only complete test cases were removed from {path}.")
+                removed_files.add(path)
+            if changes is not None:
+                method_changes[path] = changes
+        remaining_diff.append(block)
+    return (
+        "\n".join(
+            path
+            for path in changed_files.splitlines()
+            if _normalize_repo_path(path) not in removed_files
+        ),
+        "".join(remaining_diff),
+        method_changes,
+    )
 
 
 def _extract_tool_imports(tree: ast.AST) -> Dict[str, str]:
@@ -766,7 +913,9 @@ def _get_test_method_changes(
                 continue
 
             method_name = child.name
-            start_line = child.lineno
+            start_line = min(
+                [child.lineno] + [item.lineno for item in child.decorator_list]
+            )
             end_line = getattr(child, "end_lineno", child.lineno)
 
             if any(start_line <= line_no <= end_line for line_no in changed_lines):
@@ -785,6 +934,7 @@ def get_testsuite_related_cases(
     all_cases: List[Tuple[str, str, str, int, Tuple[str, ...], Tuple[str, ...]]],
     changed_files: str,
     diff: str = "",
+    method_changes: Optional[Dict[str, Tuple[List[str], bool]]] = None,
 ) -> List[str]:
     """
     Return test cases related to changed testsuite files.
@@ -829,35 +979,45 @@ def get_testsuite_related_cases(
     if not exact_match_cases:
         return suite_match_cases
 
-    for changed_file_path in changed_testsuite_files:
-        changed_lines = _changed_lines_for_file(
-            repo_root,
-            changed_file_path,
-            changed_lines_by_file,
-        )
-        if not changed_lines:
-            continue
-
-        modified_test_cases, shared_changed = _get_test_method_changes(
-            repo_root,
-            changed_file_path,
-            changed_lines,
-        )
+    related_cases: List[str] = []
+    for changed_file_path in sorted(changed_testsuite_files):
+        file_cases = [
+            name
+            for path, _, name, _, _, _ in all_cases
+            if path.replace("\\", "/") == changed_file_path
+        ]
+        if method_changes and changed_file_path in method_changes:
+            modified_test_cases, shared_changed = method_changes[changed_file_path]
+        else:
+            changed_lines = _changed_lines_for_file(
+                repo_root,
+                changed_file_path,
+                changed_lines_by_file,
+            )
+            if not changed_lines:
+                related_cases.extend(file_cases or suite_match_cases)
+                continue
+            modified_test_cases, shared_changed = _get_test_method_changes(
+                repo_root,
+                changed_file_path,
+                changed_lines,
+            )
         if shared_changed:
             print(
                 f"Detected shared/common method changes in {changed_file_path}. "
                 "Returning full suite."
             )
-            return suite_match_cases
-
-        if modified_test_cases:
+            related_cases.extend(file_cases or suite_match_cases)
+        elif modified_test_cases:
             print(
                 f"Detected specific test method changes in {changed_file_path}: "
                 f"{modified_test_cases}"
             )
-            return modified_test_cases
+            related_cases.extend(modified_test_cases)
+        else:
+            related_cases.extend(file_cases or suite_match_cases)
 
-    return exact_match_cases or suite_match_cases
+    return list(dict.fromkeys(related_cases))
 
 
 def get_feature_related_cases(
@@ -895,6 +1055,95 @@ def get_tool_related_cases(
     return related_cases
 
 
+def _case_os_calls(source: ast.Module, affected: Set[str]) -> Dict[str, Set[str]]:
+    result: Dict[str, Set[str]] = {}
+    for cls in source.body:
+        if not isinstance(cls, ast.ClassDef):
+            continue
+        functions = [
+            node
+            for node in source.body + cls.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        ]
+        direct: Dict[Tuple[str, str], Set[str]] = {}
+        self_calls: Dict[Tuple[str, str], Set[str]] = {}
+        plain_calls: Dict[Tuple[str, str], Set[str]] = {}
+        for function in functions:
+            scope = cls.name if function in cls.body else ""
+            key = (scope, function.name)
+            direct[key] = {
+                node.func.attr
+                for node in ast.walk(function)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Attribute)
+                and node.func.value.attr == "os"
+                and node.func.attr in affected
+            }
+            _, self_calls[key], plain_calls[key] = _collect_function_details(
+                function, {}
+            )
+        for child in cls.body:
+            if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if not any(
+                _decorator_name(item) == "TestCaseMetadata"
+                for item in child.decorator_list
+            ):
+                continue
+            result[child.name] = _resolve_function_tools(
+                (cls.name, child.name), direct, self_calls, plain_calls, {}, set()
+            )
+    return result
+
+
+def get_os_method_obligations(
+    repo_root: Path,
+    changed_lines: Dict[str, Set[int]],
+    all_cases: List[Tuple[str, str, str, int, Tuple[str, ...], Tuple[str, ...]]],
+) -> Dict[str, List[str]]:
+    path = "lisa/operating_system.py"
+    if path not in changed_lines:
+        return {}
+    tree = ast.parse((repo_root / path).read_text(encoding="utf-8"))
+    methods = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    ]
+    affected = {
+        node.name
+        for node in methods
+        if any(
+            node.lineno <= line <= getattr(node, "end_lineno", node.lineno)
+            for line in changed_lines[path]
+        )
+    }
+    # Private implementations are reached through public OS wrappers, e.g.
+    # Suse._update_packages -> Posix.update_packages.
+    while True:
+        callers = {
+            node.name
+            for node in methods
+            if _collect_function_details(node, {})[1].intersection(affected)
+        }
+        expanded = affected.union(callers)
+        if expanded == affected:
+            break
+        affected = expanded
+    obligations: Dict[str, List[str]] = {}
+    for file_path in sorted({item[0] for item in all_cases}):
+        source = ast.parse((repo_root / file_path).read_text(encoding="utf-8"))
+        for name, calls in _case_os_calls(source, affected).items():
+            for method in sorted(calls):
+                obligations.setdefault(method, []).append(name)
+    if not obligations:
+        print(
+            f"No direct test callers found for changed OS methods: {sorted(affected)}"
+        )
+    return obligations
+
+
 SELECTION_SYSTEM_PROMPT = (
     "You are a test selection expert for the LISA Linux VM "
     "test framework. Given a PR diff and a list of available "
@@ -909,7 +1158,7 @@ SELECTION_SYSTEM_PROMPT = (
     "- Which test areas are affected by the changed files\n"
     "- Which test cases directly test the changed functionality\n"
     "- Select only cases impacted by the modified code\n"
-    "- Use smoke_test only when no impacted case can be found\n"
+    "- Return [] if no candidate covers the change; do not substitute smoke_test\n"
     "- Include related integration tests\n"
     "- Be conservative: include cases that MIGHT be affected\n"
     "Return ONLY a JSON array of test case name strings, no explanation."
@@ -929,28 +1178,73 @@ def call_azure_openai(
     api_key: str,
     endpoint: str,
     deployment: str,
-    api_version: str,
 ) -> str:
-    """Call Azure OpenAI chat completions and return the response text."""
+    """Call the Azure OpenAI v1 Responses API using the configured API key."""
     import urllib.request
 
-    url = (
-        f"{endpoint.rstrip('/')}/openai/deployments/{deployment}"
-        f"/chat/completions?api-version={api_version}"
-    )
+    endpoint = endpoint.strip().rstrip("/")
+    parsed = urlsplit(endpoint)
+    if (
+        parsed.scheme != "https"
+        or not parsed.netloc
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in ("", "/openai/v1")
+    ):
+        raise ValueError(
+            "AZURE_OPENAI_ENDPOINT must be an HTTPS resource root or /openai/v1 URL."
+        )
+    base_url = endpoint if parsed.path else f"{endpoint}/openai/v1"
+    url = f"{base_url}/responses"
     headers = {
         "api-key": api_key,
         "Content-Type": "application/json",
     }
     payload = {
-        "messages": _selection_messages(prompt),
-        "temperature": 0.1,
+        "model": deployment,
+        "input": _selection_messages(prompt),
+        "store": False,
     }
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
-    with urllib.request.urlopen(req) as resp:
+    with urllib.request.urlopen(req, timeout=180) as resp:
         result = json.loads(resp.read().decode("utf-8"))
-    return str(result["choices"][0]["message"]["content"])
+    return responses_output_text(result)
+
+
+def responses_output_text(result: object) -> str:
+    if not isinstance(result, dict):
+        raise ValueError("Responses API returned a non-object response.")
+    if result.get("status") != "completed" or result.get("error"):
+        raise RuntimeError(
+            f"Responses API failed to complete (status={result.get('status')})."
+        )
+    output = result.get("output")
+    if not isinstance(output, list):
+        raise ValueError("Responses API returned no output array.")
+    texts: List[str] = []
+    for item in output:
+        if not isinstance(item, dict):
+            raise ValueError("Responses API returned an invalid output item.")
+        if item.get("type") != "message":
+            continue
+        content = item.get("content")
+        if not isinstance(content, list):
+            raise ValueError("Responses API returned invalid message content.")
+        for part in content:
+            if not isinstance(part, dict):
+                raise ValueError("Responses API returned an invalid content item.")
+            if part.get("type") == "refusal":
+                raise RuntimeError("Responses API refused case selection.")
+            if part.get("type") == "output_text":
+                text = part.get("text")
+                if not isinstance(text, str):
+                    raise ValueError("Responses API output_text is not a string.")
+                texts.append(text)
+    text = "".join(texts)
+    if not text.strip():
+        raise ValueError("Responses API returned no text for case selection.")
+    return text
 
 
 def select_with_model(prompt: str) -> str:
@@ -959,8 +1253,7 @@ def select_with_model(prompt: str) -> str:
     endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT", "")
     if api_key and endpoint:
         deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
-        api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
-        return call_azure_openai(prompt, api_key, endpoint, deployment, api_version)
+        return call_azure_openai(prompt, api_key, endpoint, deployment)
 
     raise RuntimeError(
         "No model credentials configured. Set AZURE_OPENAI_API_KEY and "
@@ -974,7 +1267,7 @@ def generate_runbook(case_names: List[str], marketplace_image: str = "") -> str:
         return "# No test cases selected by AI\ntestcase: []\n"
 
     lines = [
-        "# Auto-generated by AI test selector",
+        "# Auto-generated by PR validation selector",
         f"# Selected {len(case_names)} test cases",
     ]
     if marketplace_image:
@@ -1018,8 +1311,8 @@ def build_prompt(
         "IMPORTANT: Avoid selecting cases whose names start with stress_ "
         "unless the PR directly modifies stress test code or core functionality "
         "that stress tests specifically validate. Prefer lighter functional tests "
-        "over stress tests. Use smoke_test only when no impacted case can be "
-        "identified from the code changes. "
+        "over stress tests when they cover the same changed path. Return [] when "
+        "no impacted case can be identified; do not substitute smoke_test. "
     )
 
     if has_framework_changes and not has_testsuite_changes:
@@ -1229,6 +1522,7 @@ def select_candidate_cases(
     changed_features: Tuple[str, ...],
     changed_tools: Tuple[str, ...],
     max_cases: int,
+    os_cases: Optional[List[str]] = None,
 ) -> List[str]:
     candidate_names: List[str] = []
     seen: Set[str] = set()
@@ -1245,6 +1539,8 @@ def select_candidate_cases(
     for case_name in feature_related_cases:
         _add(case_name)
     for case_name in tool_related_cases:
+        _add(case_name)
+    for case_name in os_cases or []:
         _add(case_name)
 
     candidate_names = rank_logic_related_cases(
@@ -1603,37 +1899,40 @@ def minimize_framework_only_cases(
     return selected
 
 
-def select_marketplace_image(changed_files: str, diff: str) -> str:
-    """Choose a minimal marketplace image based on code-change signals."""
-    combined = f"{changed_files}\n{diff}".lower()
-
-    distro = "ubuntu"
-    if re.search(r"suse|sles|opensuse", combined):
-        distro = "suse"
-    elif re.search(r"redhat|rhel", combined):
-        distro = "rhel"
-    elif re.search(r"oracle|oracle-linux|\bol8\b|\bol9\b|\bol94\b", combined):
-        distro = "oracle"
-    elif re.search(r"azure-linux|cblmariner|mariner", combined):
-        distro = "azurelinux"
-    elif re.search(r"debian", combined):
-        distro = "debian"
-    elif re.search(r"ubuntu|jammy|noble|22\.04|24\.04", combined):
-        distro = "ubuntu"
-
-    arch = "arm64" if re.search(r"arm64|aarch64|\barm\b", combined) else "default"
-    generation = ""
-    if re.search(r"gen1|generation 1", combined):
-        generation = "gen1"
-    elif re.search(r"gen2|generation 2", combined):
-        generation = "gen2"
-
-    images = MARKETPLACE_IMAGES[distro]
-    if arch in images:
-        return images[arch]
-    if generation and generation in images:
-        return images[generation]
-    return images.get("default", DEFAULT_MARKETPLACE_IMAGE)
+def ensure_required_coverage(
+    selected: List[str],
+    testsuite_cases: List[str],
+    all_cases: List[Tuple[str, str, str, int, Tuple[str, ...], Tuple[str, ...]]],
+    changed_features: Tuple[str, ...],
+    changed_tools: Tuple[str, ...],
+    os_obligations: Optional[Dict[str, List[str]]] = None,
+) -> Tuple[List[str], Dict[str, str]]:
+    required = list(dict.fromkeys(testsuite_cases))
+    reasons = {name: "Changed test or shared testsuite code" for name in required}
+    obligations = (
+        [
+            (f"Changed feature {name}", get_feature_related_cases(all_cases, (name,)))
+            for name in changed_features
+        ]
+        + [
+            (f"Changed tool {name}", get_tool_related_cases(all_cases, (name,)))
+            for name in changed_tools
+        ]
+        + [
+            (f"Changed OS method {name}", candidates)
+            for name, candidates in (os_obligations or {}).items()
+        ]
+    )
+    for reason, candidates in obligations:
+        if not candidates:
+            raise ValueError(f"No test covers {reason}; manual validation required.")
+        name = next(
+            (item for item in required + selected if item in candidates), candidates[0]
+        )
+        if name not in required:
+            required.append(name)
+        reasons[name] = f"{reasons[name]}; {reason}" if name in reasons else reason
+    return required, reasons
 
 
 def write_outputs(
@@ -1641,99 +1940,137 @@ def write_outputs(
     all_cases: List[Tuple[str, str, str, int, Tuple[str, ...], Tuple[str, ...]]],
     marketplace_image: str,
     output_file: str,
+    required_cases: Optional[List[str]] = None,
+    reasons: Optional[Dict[str, str]] = None,
+    changed_lines: Optional[Dict[str, Set[int]]] = None,
 ) -> None:
     """Write runbook, GitHub Actions outputs, and step summary."""
-    runbook = generate_runbook(validated, marketplace_image)
+    from validation_plan import build_validation_plan, parse_explicit_images
+    from validation_report import recommendation_table
+
+    case_files: Dict[str, str] = {}
+    for path, _, name, _, _, _ in all_cases:
+        if name not in validated:
+            continue
+        if name in case_files and case_files[name] != path:
+            raise ValueError(
+                f"Selected method name {name!r} is ambiguous across suites."
+            )
+        case_files[name] = path
+    if set(validated) != set(case_files):
+        raise ValueError("Selected cases are missing from the test inventory.")
+    plan = build_validation_plan(
+        find_repo_root(),
+        case_files,
+        required_cases or [],
+        reasons or {},
+        changed_lines or {},
+        parse_explicit_images(os.environ.get("PR_VALIDATION_IMAGES", "[]")),
+    )
+    groups = plan["groups"]
+    marketplace_image = groups[0]["marketplace_image"] if len(groups) == 1 else ""
     output_path = Path(output_file)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    plan_path = output_path.with_suffix(".json")
+    plan_path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
+    print(f"Validation plan written to {plan_path}: {json.dumps(plan)}")
+    executable = [
+        name.rsplit(".", 1)[-1] for group in groups for name in group["cases"]
+    ]
+    # Do not leave a runnable legacy fragment for recommendation-only plans.
+    runbook = generate_runbook(executable, marketplace_image)
     output_path.write_text(runbook, encoding="utf-8")
     print(f"Runbook written to {output_path}")
 
     github_output = os.environ.get("GITHUB_OUTPUT", "")
     if github_output:
         with open(github_output, "a", encoding="utf-8") as f:
-            f.write(f"case_count={len(validated)}\n")
-            f.write(f"case_names={','.join(validated)}\n")
+            f.write(f"case_count={len(executable)}\n")
+            f.write(f"case_names={','.join(executable)}\n")
+            f.write(f"selection_status={plan['status']}\n")
             f.write(f"marketplace_image={marketplace_image}\n")
+            f.write(f"validation_plan={plan_path}\n")
 
     github_summary = os.environ.get("GITHUB_STEP_SUMMARY", "")
     if github_summary:
         with open(github_summary, "a", encoding="utf-8") as f:
             f.write("## AI Test Case Selection\n\n")
-            f.write(f"**Selected {len(validated)} test cases** ")
-            f.write(f"from {len(all_cases)} available\n\n")
-            f.write(f"**Marketplace image:** `{marketplace_image}`\n\n")
-            if validated:
+            recommendations = plan.get("recommendations", [])
+            f.write("| Item | Value |\n|---|---|\n")
+            f.write(f"| Selection status | `{plan['status']}` |\n")
+            f.write(f"| Selected for Azure execution | {len(executable)} |\n")
+            f.write(f"| Recommended, not executed | {len(recommendations)} |\n")
+            f.write(f"| Available cases | {len(all_cases)} |\n")
+            f.write(
+                f"| Marketplace image | {marketplace_image or 'Not applicable'} |\n\n"
+            )
+            f.write(plan["reason"] + "\n\n")
+            if recommendations:
+                f.write("### Recommended cases (NOT EXECUTED)\n\n")
+                f.write(recommendation_table(recommendations) + "\n\n")
+            for group in groups:
+                f.write(f"### `{group['marketplace_image']}`\n\n")
+                for case_name in group["cases"]:
+                    required = case_name in group["required_cases"]
+                    f.write(
+                        f"- `{case_name}` (required={required}): "
+                        f"{group['reasons'][case_name]}\n"
+                    )
+            if validated and not recommendations:
                 f.write("| # | Test Case | Area |\n")
                 f.write("|---|-----------|------|\n")
                 area_map = {name: area for _, area, name, _, _, _ in all_cases}
                 for i, name in enumerate(validated, 1):
                     f.write(f"| {i} | `{name}` | {area_map.get(name, '')} |\n")
-            else:
+            elif not validated:
                 f.write("No test cases selected.\n")
 
 
+def recover_changed_lines(
+    repo_root: Path, changed_files: str, diff: str
+) -> Dict[str, Set[int]]:
+    changed_lines = _extract_changed_new_lines(diff)
+    for path in changed_files.splitlines():
+        path = _normalize_repo_path(path)
+        if path.endswith(".py"):
+            changed_lines[path] = _changed_lines_for_file(
+                repo_root, path, changed_lines
+            )
+            if (repo_root / path).is_file() and not changed_lines[path]:
+                raise ValueError(f"No diff locations for changed Python file {path}.")
+    return changed_lines
+
+
 def main() -> None:
-    diff = os.environ.get("PR_DIFF", "")
+    diff_file = os.environ.get("PR_DIFF_FILE", "")
+    diff = (
+        Path(diff_file).read_text(encoding="utf-8")
+        if diff_file
+        else os.environ.get("PR_DIFF", "")
+    )
     changed_files = os.environ.get("PR_CHANGED_FILES", "")
     output_file = os.environ.get("RUNBOOK_OUTPUT", "ai_selected_cases.yml")
 
-    has_azure_openai = bool(
-        os.environ.get("AZURE_OPENAI_API_KEY")
-        and os.environ.get("AZURE_OPENAI_ENDPOINT")
-    )
-    if not has_azure_openai:
-        print(
-            "ERROR: model credentials are required. Set AZURE_OPENAI_API_KEY "
-            "and AZURE_OPENAI_ENDPOINT.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
     if not diff and not changed_files:
-        print(
-            "No PR diff or changed files detected (empty diff). "
-            "Falling back to smoke_test."
+        raise ValueError(
+            "Missing PR diff and changed files; cannot determine coverage."
         )
-        write_outputs(
-            ["smoke_test"],
-            [],
-            select_marketplace_image(changed_files, diff),
-            output_file,
-        )
-        return
 
     if has_only_comment_changes(diff):
         print("Only comment changes detected. No test cases will be selected.")
         write_outputs([], [], DEFAULT_MARKETPLACE_IMAGE, output_file)
         return
 
-    if not has_relevant_code_changes(changed_files):
-        print(
-            "No framework or testsuite Python changes detected. "
-            "Falling back to smoke_test."
-        )
-        write_outputs(
-            ["smoke_test"],
-            [],
-            select_marketplace_image(changed_files, diff),
-            output_file,
-        )
-        return
-
-    if has_only_unsupported_platform_changes(changed_files):
-        print(
-            "Detected non-Azure platform-only changes. " "Falling back to smoke_test."
-        )
-        write_outputs(
-            ["smoke_test"],
-            [],
-            select_marketplace_image(changed_files, diff),
-            output_file,
-        )
+    repo_root = find_repo_root()
+    changed_files, diff, method_changes = filter_removed_test_cases(
+        repo_root, changed_files, diff
+    )
+    if not has_relevant_code_changes(changed_files) or has_only_comment_changes(diff):
+        print("No remaining guest-code changes. Guest validation is not required.")
+        write_outputs([], [], "", output_file)
         return
 
     has_framework_changes, has_testsuite_changes = get_change_scope(changed_files)
-
-    repo_root = find_repo_root()
     testsuites_dir = find_testsuites_dir(repo_root)
     all_cases = list_test_cases(repo_root, testsuites_dir)
     print(f"Found {len(all_cases)} test cases")
@@ -1759,8 +2096,21 @@ def main() -> None:
         known_tools,
     )
     testsuite_related_cases = get_testsuite_related_cases(
-        all_cases, changed_files, diff
+        all_cases, changed_files, diff, method_changes
     )
+    if (
+        has_only_unsupported_platform_changes(changed_files)
+        and not testsuite_related_cases
+    ):
+        raise ValueError(
+            "Non-Azure platform changes have no mapped testsuite cases. "
+            "Add a platform-specific case mapping; Azure smoke is not a substitute."
+        )
+    changed_lines_by_file = recover_changed_lines(repo_root, changed_files, diff)
+    os_obligations = get_os_method_obligations(
+        repo_root, changed_lines_by_file, all_cases
+    )
+    os_cases = list(dict.fromkeys(chain.from_iterable(os_obligations.values())))
     feature_related_cases = get_feature_related_cases(all_cases, changed_features)
     tool_related_cases = get_tool_related_cases(all_cases, changed_tools)
     if testsuite_related_cases:
@@ -1775,17 +2125,23 @@ def main() -> None:
     # For testsuite changes, run only the cases mapped from modified tests.
     # get_testsuite_related_cases already expands to full suite for shared/common
     # method changes and narrows to specific case names for method-local edits.
-    if has_testsuite_changes and testsuite_related_cases:
+    if has_testsuite_changes and not has_framework_changes and testsuite_related_cases:
         validated = list(dict.fromkeys(testsuite_related_cases))
-        validated = filter_stress_tests(validated, changed_files)
-        validated = apply_smoke_fallback(validated, all_cases)
-        marketplace_image = select_marketplace_image(changed_files, diff)
         print(
             "Testsuite change detected. Using deterministic testsuite selection: "
             f"{validated}"
         )
-        print(f"Selected marketplace image: {marketplace_image}")
-        write_outputs(validated, all_cases, marketplace_image, output_file)
+        write_outputs(
+            validated,
+            all_cases,
+            "",
+            output_file,
+            required_cases=validated,
+            reasons={
+                name: "Changed test or shared testsuite code" for name in validated
+            },
+            changed_lines=changed_lines_by_file,
+        )
         return
 
     candidate_case_names = select_candidate_cases(
@@ -1798,19 +2154,14 @@ def main() -> None:
         changed_features,
         changed_tools,
         MAX_PROMPT_CANDIDATE_CASES,
+        os_cases,
     )
 
     if not candidate_case_names:
-        print(
-            "No impacted test cases were derived from the changed framework or "
-            "testsuite code. Falling back to smoke_test."
+        raise ValueError(
+            "No targeted test covers this change. Add a mapping or request manual "
+            "validation; smoke_test cannot prove coverage."
         )
-        validated = apply_smoke_fallback([], all_cases)
-        marketplace_image = select_marketplace_image(changed_files, diff)
-        print(f"Selected {len(validated)} valid test cases: {validated}")
-        print(f"Selected marketplace image: {marketplace_image}")
-        write_outputs(validated, all_cases, marketplace_image, output_file)
-        return
 
     case_summary = build_case_summary(all_cases, candidate_case_names)
     prompt = build_prompt(
@@ -1848,6 +2199,7 @@ def main() -> None:
             changed_features,
             changed_tools,
             MAX_PROMPT_FALLBACK_CASES,
+            os_cases,
         )
         prompt = build_prompt(
             changed_files,
@@ -1896,28 +2248,36 @@ def main() -> None:
         has_framework_changes,
         has_testsuite_changes,
     )
-    validated = prefer_verify_cases(validated)
-    validated = filter_stress_tests(validated, changed_files)
-    validated = prefer_lightweight_cases(
-        validated,
-        all_cases,
-        changed_files,
-        diff,
-        has_framework_changes,
-        has_testsuite_changes,
-    )
     validated = minimize_framework_only_cases(
         validated,
         all_cases,
         has_framework_changes,
         has_testsuite_changes,
     )
-    validated = apply_smoke_fallback(validated, all_cases)
-    marketplace_image = select_marketplace_image(changed_files, diff)
+    required_cases, reasons = ensure_required_coverage(
+        validated,
+        testsuite_related_cases,
+        all_cases,
+        changed_features,
+        changed_tools,
+        os_obligations,
+    )
+    validated = list(dict.fromkeys(required_cases + validated))
+    if not validated:
+        raise ValueError(
+            "AI selected no targeted tests; validation coverage is missing."
+        )
     print(f"Selected {len(validated)} valid test cases: {validated}")
-    print(f"Selected marketplace image: {marketplace_image}")
 
-    write_outputs(validated, all_cases, marketplace_image, output_file)
+    write_outputs(
+        validated,
+        all_cases,
+        "",
+        output_file,
+        required_cases,
+        reasons,
+        changed_lines_by_file,
+    )
 
 
 if __name__ == "__main__":
