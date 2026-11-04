@@ -425,7 +425,7 @@ class Dom0Installer(SourceInstaller):
                 )
 
         if updated != content:
-            temp_file = f"/etc/grub.d/.05_mariner_mshv_menuentry.tmp.XXXXXX"
+            temp_file = "/etc/grub.d/.05_mariner_mshv_menuentry.tmp.XXXXXX"
             node.execute(
                 f"temp_file=$(mktemp {shlex.quote(temp_file)}) || exit $?; "
                 "trap 'rm -f -- \"$temp_file\"' EXIT; "
@@ -433,7 +433,7 @@ class Dom0Installer(SourceInstaller):
                 '"$temp_file" && '
                 f"printf '%s\\n' {shlex.quote(updated)} > \"$temp_file\" && "
                 'sh -n "$temp_file" && '
-                f"mv -f -- \"$temp_file\" {shlex.quote(generator)}",
+                f'mv -f -- "$temp_file" {shlex.quote(generator)}',
                 sudo=True,
                 shell=True,
                 expected_exit_code=0,
