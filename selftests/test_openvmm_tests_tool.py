@@ -77,7 +77,7 @@ class OpenVmmTestsToolTestCase(TestCase):
         self.assertTrue(str(first_repo_root).startswith("/tools/openvmm-"))
         self.assertTrue(str(tool.repo_root).startswith("/tools/openvmm-"))
 
-    def test_run_logged_command_redirects_entire_command_to_log(self) -> None:
+    def test_run_logged_command_creates_log_before_privileged_redirect(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
         tool.repo_root = PurePosixPath("/repo/openvmm")
         tool._artifact_root = PurePosixPath("/repo/openvmm/target/lisa-openvmm-tests")
@@ -92,14 +92,22 @@ class OpenVmmTestsToolTestCase(TestCase):
                 log_path=Path(temp_dir),
                 timeout=60,
                 update_envs={},
+                sudo=True,
             )
 
-        logged_command = tool.node.execute.call_args.args[0]
+        create_log_call, logged_command_call = tool.node.execute.call_args_list
+        self.assertEqual(
+            ": > /repo/openvmm/target/lisa-openvmm-tests/openvmm_sample.log",
+            create_log_call.args[0],
+        )
+        self.assertFalse(create_log_call.kwargs.get("sudo", False))
+        logged_command = logged_command_call.args[0]
         self.assertIn(
             "{ echo before && false; } > "
             "/repo/openvmm/target/lisa-openvmm-tests/openvmm_sample.log 2>&1",
             logged_command,
         )
+        self.assertTrue(logged_command_call.kwargs["sudo"])
 
     def test_ensure_cargo_nextest_uses_release_checksum_asset(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
@@ -272,6 +280,43 @@ encountered at least one test failure!
 
         self.assertEqual(1, summary.tests)
         self.assertEqual(67, summary.skipped)
+        self.assertEqual(
+            ["vmm_tests::tests multiarch::openvmm_boot"],
+            summary.passed_tests,
+        )
+
+    def test_check_vmm_tests_results_preserves_junit_passed_names(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            log_file = temp_path / "openvmm_vmm_tests.log"
+            junit_file = temp_path / "openvmm_vmm_tests.junit.xml"
+            log_file.write_text(
+                "Summary [   1.000s] 1 tests run: 1 passed, 1 skipped\n",
+                encoding="utf-8",
+            )
+            junit_file.write_text(
+                """<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+  <testsuite name="x64-linux-vmm-tests" tests="2" failures="0" errors="0" skipped="1">
+    <testcase classname="vmm_tests::tests" name="multiarch::openvmm_boot" />
+    <testcase classname="vmm_tests::tests" name="multiarch::openvmm_skip">
+      <skipped message="filtered" />
+    </testcase>
+  </testsuite>
+</testsuites>
+""",
+                encoding="utf-8",
+            )
+
+            summary = tool._check_vmm_tests_results(
+                name="openvmm_vmm_tests",
+                log_file=log_file,
+                junit_file=junit_file,
+            )
+
+        self.assertEqual(1, summary.tests)
         self.assertEqual(
             ["vmm_tests::tests multiarch::openvmm_boot"],
             summary.passed_tests,

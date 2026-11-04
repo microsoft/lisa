@@ -803,6 +803,15 @@ class OpenVmmTests(Tool):
     ) -> None:
         command = self._wrap_container_command(command)
         remote_log = self._artifact_root / f"{name}.log"
+        self.node.execute(
+            f": > {shlex.quote(str(remote_log))}",
+            shell=True,
+            cwd=self.repo_root,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"failed to create command log as checkout owner: {remote_log}"
+            ),
+        )
         command_result = self.node.execute(
             (
                 "bash -lc "
@@ -1027,6 +1036,10 @@ class OpenVmmTests(Tool):
                         f"{name} produced conflicting JUnit and nextest "
                         "execution counts. Check that both reports are complete "
                         "and belong to the same run."
+                    )
+                if summary:
+                    log_summary.passed_tests = self._deduplicate_test_names(
+                        log_summary.passed_tests + summary.passed_tests
                     )
                 summary = log_summary
 
