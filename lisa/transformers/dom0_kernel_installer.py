@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 import os
+import shlex
 from dataclasses import dataclass, field
 from pathlib import PurePath, PurePosixPath
 from typing import List, Type
@@ -11,7 +12,7 @@ from lisa import schema
 from lisa.node import Node
 from lisa.operating_system import CBLMariner
 from lisa.tools import Cat, Chmod, Cp, Echo, Ln, Ls, Lsblk, Sed, Tar, Uname
-from lisa.util import UnsupportedDistroException, field_metadata
+from lisa.util import LisaException, UnsupportedDistroException, field_metadata
 
 from .kernel_installer import BaseInstaller, BaseInstallerSchema
 from .kernel_source_installer import SourceInstaller, SourceInstallerSchema
@@ -366,6 +367,9 @@ class Dom0Installer(SourceInstaller):
         if not node.tools[Ls].path_exists(str(mariner_cfg), sudo=True):
             node.tools[Echo].write_to_file("", mariner_cfg, sudo=True)
 
+        if isinstance(node.os, CBLMariner) and node.os.information.version.major >= 3:
+            self._configure_grub_generator()
+
         new_kernel = super().install()
 
         # If it is dom0,
@@ -382,6 +386,63 @@ class Dom0Installer(SourceInstaller):
         )
 
         return new_kernel
+
+    def _configure_grub_generator(self) -> None:
+        node = self._node
+        generator = "/etc/grub.d/05_mariner_mshv_menuentry"
+        if not node.tools[Ls].path_exists(generator, sudo=True):
+            self._log.debug("No Dom0 GRUB generator to configure")
+            return
+
+        # A sudo SSH PTY can translate the script's LF endings to CRLF.
+        content = node.tools[Cat].read(generator, sudo=True, force_run=True)
+        content = content.replace("\r\n", "\n")
+        replacements = {
+            # Independent version sorting can select a kdump image or another kernel.
+            "initrd=`version_find_latest $initrd_list`": (
+                'initrd="${dirname}/initramfs-${version}.img"\n'
+                'if [ ! -f "${initrd}" ]; then\n'
+                '    echo "Missing normal initramfs: ${initrd}" >&2\n'
+                "    exit 1\n"
+                "fi"
+            ),
+            # Persist the PARTUUID requirement already applied to the generated cfg.
+            'linux_root_device_thisversion="${LINUX_ROOT_DEVICE}"': (
+                'if [ -z "${GRUB_DEVICE_PARTUUID}" ]; then\n'
+                '    echo "Missing root partition PARTUUID for Dom0" >&2\n'
+                "    exit 1\n"
+                "fi\n"
+                'linux_root_device_thisversion="PARTUUID=${GRUB_DEVICE_PARTUUID}"'
+            ),
+        }
+        updated = content
+        for original, replacement in replacements.items():
+            if updated.count(original) == 1:
+                updated = updated.replace(original, replacement, 1)
+            elif original in updated or replacement not in updated:
+                raise LisaException(
+                    f"Unrecognized Dom0 GRUB generator in {generator}: {original}"
+                )
+
+        if updated != content:
+            node.execute(
+                f"printf '%s\\n' {shlex.quote(updated)} > {generator}",
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to configure the Dom0 GRUB generator"
+                ),
+            )
+            self._log.info(
+                "Configured persistent Dom0 kernel/initramfs pairing and PARTUUID"
+            )
+        node.execute(
+            f"sh -n {generator}",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Invalid Dom0 GRUB generator syntax",
+        )
 
 
 def _copy_kernel_binary(
