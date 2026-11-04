@@ -10,18 +10,19 @@ from unittest.mock import MagicMock, patch
 
 from lisa import microsoft as microsoft_package
 from lisa import schema
-from lisa.microsoft.testsuites.vm_extensions.runtime_extensions.hibernate_resume import (  # noqa: E501
-    HibernateResumeValidator,
-)
 from lisa.operating_system import Windows
 from lisa.sut_orchestrator.azure.features import ArchitectureSettings
 from lisa.util import LisaException
 
 sys.modules.setdefault("microsoft", microsoft_package)
+hibernate_resume_module = import_module(
+    "lisa.microsoft.testsuites.vm_extensions.runtime_extensions.hibernate_resume"
+)
 hibernate_extension_module = import_module(
     "lisa.microsoft.testsuites.vm_extensions.runtime_extensions."
     "hibernate_extension_base"
 )
+HibernateResumeValidator = hibernate_resume_module.HibernateResumeValidator
 HibernateExtensionTestBase = hibernate_extension_module.HibernateExtensionTestBase
 hibernate_extension_requirement = (
     hibernate_extension_module.hibernate_extension_requirement
@@ -89,10 +90,7 @@ class HibernateResumeValidatorTestCase(TestCase):
         assert offset is not None
         self.assertEqual(0, offset.total_seconds())
 
-    @patch(
-        "lisa.microsoft.testsuites.vm_extensions.runtime_extensions."
-        "hibernate_resume.wait_operation"
-    )
+    @patch.object(hibernate_resume_module, "wait_operation")
     def test_run_guest_command_returns_stdout(self, wait: MagicMock) -> None:
         wait.return_value = {
             "value": [
@@ -117,10 +115,7 @@ class HibernateResumeValidatorTestCase(TestCase):
         parameters = virtual_machines.begin_run_command.call_args.kwargs["parameters"]
         self.assertEqual("RunShellScript", parameters.command_id)
 
-    @patch(
-        "lisa.microsoft.testsuites.vm_extensions.runtime_extensions."
-        "hibernate_resume.wait_operation"
-    )
+    @patch.object(hibernate_resume_module, "wait_operation")
     def test_run_guest_command_rejects_failed_status(self, wait: MagicMock) -> None:
         wait.return_value = {
             "value": [
@@ -155,18 +150,9 @@ class HibernateResumeValidatorTestCase(TestCase):
         script = run_guest_command.call_args.args[0]
         self.assertIn('"${target}:$($process.PrivateMemorySize64)"', script)
 
-    @patch(
-        "lisa.microsoft.testsuites.vm_extensions.runtime_extensions."
-        "hibernate_resume.time.sleep"
-    )
-    @patch(
-        "lisa.microsoft.testsuites.vm_extensions.runtime_extensions."
-        "hibernate_resume.create_timer"
-    )
-    @patch(
-        "lisa.microsoft.testsuites.vm_extensions.runtime_extensions."
-        "hibernate_resume.wait_operation"
-    )
+    @patch.object(hibernate_resume_module.time, "sleep")
+    @patch.object(hibernate_resume_module, "create_timer")
+    @patch.object(hibernate_resume_module, "wait_operation")
     def test_vm_operation_retry_uses_fresh_timer(
         self,
         wait_operation: MagicMock,
@@ -191,14 +177,8 @@ class HibernateResumeValidatorTestCase(TestCase):
         self.assertEqual(2, create_timer.call_count)
         sleep.assert_called_once_with(10)
 
-    @patch(
-        "lisa.microsoft.testsuites.vm_extensions.runtime_extensions."
-        "hibernate_resume.time.sleep"
-    )
-    @patch(
-        "lisa.microsoft.testsuites.vm_extensions.runtime_extensions."
-        "hibernate_resume.create_timer"
-    )
+    @patch.object(hibernate_resume_module.time, "sleep")
+    @patch.object(hibernate_resume_module, "create_timer")
     def test_windows_resume_substatus_waits_for_resume(
         self,
         create_timer: MagicMock,
@@ -250,14 +230,8 @@ class HibernateResumeValidatorTestCase(TestCase):
         self.assertEqual(fresh_status_time, status_time)
         sleep.assert_called_once_with(10)
 
-    @patch(
-        "lisa.microsoft.testsuites.vm_extensions.runtime_extensions."
-        "hibernate_resume.time.sleep"
-    )
-    @patch(
-        "lisa.microsoft.testsuites.vm_extensions.runtime_extensions."
-        "hibernate_resume.create_timer"
-    )
+    @patch.object(hibernate_resume_module.time, "sleep")
+    @patch.object(hibernate_resume_module, "create_timer")
     def test_windows_resume_substatus_rejects_failed_extension(
         self,
         create_timer: MagicMock,
@@ -336,9 +310,9 @@ class HibernateExtensionTestBaseTestCase(TestCase):
             self.suite,
             "_get_azure_context",
             return_value=(None, self.compute_client),
-        ), patch(
-            "lisa.microsoft.testsuites.vm_extensions.runtime_extensions."
-            "hibernate_extension_base.get_node_context",
+        ), patch.object(
+            hibernate_extension_module,
+            "get_node_context",
             return_value=self.node_context,
         ):
             return self.suite._validate_platform_managed_candidate(
