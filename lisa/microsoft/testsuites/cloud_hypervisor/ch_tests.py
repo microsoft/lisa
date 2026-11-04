@@ -16,7 +16,7 @@ from lisa import (
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Dmesg, Journalctl, Ls, Lscpu, Modprobe, Usermod
-from lisa.util import SkippedException
+from lisa.util import SkippedException, to_bool
 
 from .ch_tests_tool import CloudHypervisorTests
 
@@ -103,6 +103,7 @@ class CloudHypervisorTestSuite(TestSuite):
             ref,
             include_list,
             exclude_list,
+            strict_selection=to_bool(variables.get("ch_test_selection_strict", False)),
         )
 
     @TestCaseMetadata(
@@ -144,6 +145,7 @@ class CloudHypervisorTestSuite(TestSuite):
             only=include_list,
             skip=exclude_list,
             cli_test_filter="live_migration",
+            strict_selection=to_bool(variables.get("ch_test_selection_strict", False)),
         )
 
     @TestCaseMetadata(
@@ -175,6 +177,7 @@ class CloudHypervisorTestSuite(TestSuite):
             include_filter,
             exclude_filter,
             subtest_timeout,
+            strict_selection=to_bool(variables.get("ch_test_selection_strict", False)),
         )
 
     def _ensure_virtualization_enabled(self, node: Node) -> None:
