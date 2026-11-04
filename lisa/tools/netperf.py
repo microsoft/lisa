@@ -118,7 +118,9 @@ class Netperf(Tool):
         self._install_dep_packages()
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
-        git.clone(self.repo, tool_path, ref=self.branch)
+        git.clone(
+            self.repo, tool_path, ref=self.branch, dir_name="netperf", max_attempts=3
+        )
         code_path = tool_path.joinpath("netperf")
         make = self.node.tools[Make]
         if self.node.shell.exists(self.node.get_pure_path(f"{code_path}/autogen.sh")):

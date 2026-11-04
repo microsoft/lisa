@@ -3,16 +3,22 @@
 
 import pathlib
 import re
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, cast
 
+from retry import retry
 from semver import VersionInfo
 
 from lisa.executable import Tool
 from lisa.operating_system import Posix
 from lisa.util import LisaException, constants, filter_ansi_escape, get_matched_str
+from lisa.util.process import ExecutableResult
 
 
 class CodeExistsException(LisaException):
+    ...
+
+
+class _CloneReceiveError(LisaException):
     ...
 
 
@@ -25,6 +31,14 @@ class Git(Tool):
     )
     CERTIFICATE_ISSUE_PATTERN = re.compile(
         r"server certificate verification failed", re.M
+    )
+    CLONE_RECEIVE_ERROR_PATTERN = re.compile(
+        r"^error: RPC failed; curl 56 .+\r?\n"
+        r"(?:error: \d+ bytes of body are still expected\r?\n)?"
+        r"fetch-pack: unexpected disconnect while reading sideband packet\r?\n"
+        r"fatal: early EOF\r?\n"
+        r"fatal: fetch-pack: invalid index-pack output\s*\Z",
+        re.M,
     )
     VERSION_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 
@@ -59,7 +73,14 @@ class Git(Tool):
         auth_token: Optional[str] = None,
         timeout: int = 600,
         shallow: bool = False,
+        max_attempts: int = 1,
     ) -> pathlib.PurePath:
+        """
+        Optionally retry interrupted receives into a new, explicit child directory.
+
+        Existing destinations are never removed or retried. Retry-enabled clones
+        fail on certificate errors instead of using the legacy TLS workaround.
+        """
         self.node.shell.mkdir(cwd, exist_ok=True)
         auth_flag = ""
         if auth_token:
@@ -73,9 +94,10 @@ class Git(Tool):
                 # checkout below still performs the standard post-clone setup.
                 cmd += f" --branch {ref}"
 
-        # git print to stderr for normal info, so set no_error_log to True.
-        result = self.run(cmd, cwd=cwd, no_error_log=True, timeout=timeout)
-        if get_matched_str(result.stdout, self.CERTIFICATE_ISSUE_PATTERN):
+        result = self._clone_with_retries(cmd, cwd, dir_name, timeout, max_attempts)
+        if max_attempts == 1 and get_matched_str(
+            result.stdout, self.CERTIFICATE_ISSUE_PATTERN
+        ):
             self.run("config --global http.sslverify false")
             result = self.run(
                 cmd,
@@ -94,7 +116,7 @@ class Git(Tool):
                 output = result.stdout
             code_dir = get_matched_str(output, self.CODE_FOLDER_PATTERN)
         else:
-            stdout = result.stdout
+            stdout = f"{result.stdout}\n{result.stderr}".strip()
             code_dir = get_matched_str(stdout, self.CODE_FOLDER_ON_EXISTS_PATTERN)
             if code_dir:
                 if fail_on_exists:
@@ -108,6 +130,73 @@ class Git(Tool):
         if ref:
             self.checkout(ref, cwd=full_path)
         return full_path
+
+    def _clone_with_retries(
+        self,
+        cmd: str,
+        cwd: pathlib.PurePath,
+        dir_name: str,
+        timeout: int,
+        max_attempts: int,
+    ) -> ExecutableResult:
+        if max_attempts < 1:
+            raise LisaException("max_attempts must be at least one")
+        if max_attempts == 1:
+            return self.run(cmd, cwd=cwd, no_error_log=True, timeout=timeout)
+
+        destination = cwd / dir_name
+        if (
+            not dir_name
+            or dir_name != destination.name
+            or dir_name == ".."
+            or destination.parent != cwd
+        ):
+            raise LisaException("clone retries require dir_name to be a direct child")
+        destination_existed = self.node.shell.exists(destination)
+        attempt = 0
+
+        @retry(  # type: ignore
+            exceptions=_CloneReceiveError,
+            tries=max_attempts,
+            delay=1,
+            backoff=2,
+            logger=None,
+        )
+        def clone_once() -> ExecutableResult:
+            nonlocal attempt
+            attempt += 1
+            result = self.run(
+                cmd, cwd=cwd, no_error_log=True, timeout=timeout, force_run=True
+            )
+            output = f"{result.stdout}\n{result.stderr}".strip()
+            if (
+                not destination_existed
+                and not result.is_timeout
+                and result.exit_code == 128
+                and self.CLONE_RECEIVE_ERROR_PATTERN.search(output)
+            ):
+                self._log.info(
+                    f"Git clone receive interrupted ({attempt}/{max_attempts})."
+                )
+                try:
+                    if self.node.shell.exists(destination):
+                        self.node.shell.remove(destination, recursive=True)
+                        if self.node.shell.exists(destination):
+                            raise LisaException("partial clone still exists")
+                except (OSError, LisaException) as error:
+                    raise LisaException(
+                        f"failed to clean partial clone: {error}. "
+                        f"Original clone failure: {output}"
+                    ) from error
+                raise _CloneReceiveError(f"failed to clone the repo. {output}")
+            return result
+
+        try:
+            return cast(ExecutableResult, clone_once())
+        except _CloneReceiveError as error:
+            raise LisaException(
+                f"Git clone receive failed after {max_attempts} attempts. {error}"
+            ) from error
 
     def checkout(
         self,
