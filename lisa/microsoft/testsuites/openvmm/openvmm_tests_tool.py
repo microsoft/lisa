@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import shlex
+import sys
 import xml.etree.ElementTree as ETree
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
@@ -218,6 +219,7 @@ class OpenVmmTests(Tool):
             )
             node_os.install_packages("openvmm")
         original_identity = self._get_prebuilt_binary_identity(binary_path)
+        output_dir: Optional[PurePath] = None
         try:
             ref, ref_source = self._resolve_prebuilt_tests_ref(ref)
             env = self._prepare_repo(log_path, ref)
@@ -285,6 +287,7 @@ class OpenVmmTests(Tool):
                     log_path=log_path,
                     timeout=self.VMM_TIMEOUT,
                     update_envs=env,
+                    artifact_dir=output_dir / "test_results",
                 )
             finally:
                 self._copy_back_if_exists(remote_junit, local_junit)
@@ -303,11 +306,37 @@ class OpenVmmTests(Tool):
                 )
             return summary
         finally:
-            if self._get_prebuilt_binary_identity(binary_path) != original_identity:
-                raise LisaException(
-                    "The selected prebuilt OpenVMM binary path or SHA256 changed "
-                    "during validation."
-                )
+            try:
+                if self._get_prebuilt_binary_identity(binary_path) != original_identity:
+                    raise LisaException(
+                        "The selected prebuilt OpenVMM binary path or SHA256 changed "
+                        "during validation."
+                    )
+            finally:
+                if output_dir is not None:
+                    # Preserve the original test error if cleanup also fails.
+                    has_error = sys.exc_info()[0] is not None
+                    try:
+                        if not re.fullmatch(
+                            r"/tmp/ovmm-[A-Za-z0-9]{8}", str(output_dir)
+                        ):
+                            raise LisaException(
+                                f"Refusing to remove unexpected test path: {output_dir}"
+                            )
+                        self.node.execute(
+                            f"rm -rf -- {shlex.quote(str(output_dir))}",
+                            shell=True,
+                            expected_exit_code=0,
+                            expected_exit_code_failure_message=(
+                                f"failed to remove OpenVMM test directory: {output_dir}"
+                            ),
+                        )
+                    except (AssertionError, LisaException, OSError) as error:
+                        self._log.error(
+                            f"OpenVMM test directory cleanup failed: {error}"
+                        )
+                        if not has_error:
+                            raise
 
     def _resolve_prebuilt_tests_ref(self, ref: str) -> Tuple[str, str]:
         if ref.strip():
@@ -343,7 +372,7 @@ class OpenVmmTests(Tool):
             timeout=120,
         )
         if result.exit_code == 2:
-            self._log.warning(
+            self._log.info(
                 f"No upstream tag {tag} found for installed OpenVMM RPM {version}; "
                 "using main for the harness. The latest harness may be incompatible "
                 "with this package."
