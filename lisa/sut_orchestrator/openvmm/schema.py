@@ -303,6 +303,7 @@ class OpenVmmGuestNodeSchema(schema.GuestNode):
     cloud_init: Optional[CloudInitSchema] = None
     lisa_working_dir: str = "/var/tmp"
     boot_mode: str = OPENVMM_BOOT_MODE_UEFI
+    kernel_boot_parameters: str = ""
     uefi: Optional[OpenVmmUefiSchema] = None
     disk_img: str = ""
     disk_img_is_remote_path: bool = False

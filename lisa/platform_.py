@@ -7,7 +7,7 @@ import copy
 from dataclasses import dataclass
 from enum import Enum
 from functools import partial
-from typing import Any, Dict, List, Type, cast
+from typing import Any, Dict, List, Optional, Type, cast
 
 from lisa import schema
 from lisa.environment import Environment, EnvironmentStatus
@@ -177,6 +177,11 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
 
     def deploy_environment(self, environment: Environment) -> None:
         platform_runbook = cast(schema.Platform, self.runbook)
+        guest_node_count = (
+            self._get_guest_node_count(environment)
+            if platform_runbook.guest_enabled
+            else None
+        )
 
         log = get_logger("deploy", parent=environment.log)
         log.info(f"deploying environment: {environment.name}")
@@ -208,7 +213,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
             )
 
             if platform_runbook.guest_enabled:
-                self._initialize_guest_nodes(node)
+                self._initialize_guest_nodes(node, guest_node_count)
 
         log.info(f"deployed in {timer}")
 
@@ -244,7 +249,41 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
     def cleanup(self) -> None:
         self._cleanup()
 
-    def _initialize_guest_nodes(self, node: Node) -> None:
+    def _get_guest_node_count(self, environment: Environment) -> Optional[int]:
+        platform_runbook = cast(schema.Platform, self.runbook)
+        if not platform_runbook.guest_count_from_requirement:
+            return None
+
+        configured_count = len(platform_runbook.guests)
+        if not environment.source_test_result:
+            raise LisaException(
+                "guest_count_from_requirement requires a generated environment "
+                "with a source test result"
+            )
+        if len(environment.capability.nodes) != 1:
+            raise LisaException(
+                "guest_count_from_requirement requires exactly one parent node"
+            )
+        requirement = (
+            environment.source_test_result.runtime_data.requirement.environment
+        )
+        if not requirement or not requirement.nodes:
+            raise LisaException(
+                "guest_count_from_requirement requires a nonempty test "
+                "environment requirement"
+            )
+        # EnvironmentSpace has already expanded each node's count requirement.
+        node_count = len(requirement.nodes)
+        if node_count > configured_count:
+            raise SkippedException(
+                f"test requires {node_count} guests, but only "
+                f"{configured_count} are configured"
+            )
+        return node_count
+
+    def _initialize_guest_nodes(
+        self, node: Node, node_count: Optional[int] = None
+    ) -> None:
         platform_runbook = cast(schema.Platform, self.runbook)
 
         if not platform_runbook.guests:
@@ -253,7 +292,7 @@ class Platform(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
                 "when guest_enabled is True."
             )
 
-        for guest_runbook in platform_runbook.guests:
+        for guest_runbook in platform_runbook.guests[:node_count]:
             # follow parent capability, so it can pass requirements validations.
             if guest_runbook.use_parent_capability:
                 guest_runbook.capability = copy.deepcopy(node.capability)

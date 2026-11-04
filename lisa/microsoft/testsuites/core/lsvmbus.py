@@ -1,6 +1,6 @@
 import math
 import time
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from assertpy import assert_that
 
@@ -23,9 +23,10 @@ from lisa.operating_system import BSD, Windows
 from lisa.schema import DiskControllerType
 from lisa.sut_orchestrator import AZURE, HYPERV
 from lisa.sut_orchestrator.azure.tools import VmGeneration
-from lisa.tools import Cat, Ls, Lscpu, Lsvmbus
+from lisa.tools import Cat, Ethtool, Ls, Lscpu, Lsvmbus
+from lisa.tools.lscpu import CpuType
 from lisa.tools.lsvmbus import VmBusDevice
-from lisa.util import LisaException
+from lisa.util import LisaException, UnsupportedOperationException
 from lisa.util.perf_timer import create_timer
 
 
@@ -55,6 +56,9 @@ class VmbusDeviceNames:
             or SecurityProfileType.Stateless == settings.security_profile
         ):
             self.names = lcvmbus_device_names
+            if node.tools[Lscpu].get_cpu_type() == CpuType.Intel:
+                # Intel TDX guests do not expose the Hyper-V timesync device.
+                self.names.remove("Time Synchronization")
         else:
             self.names = lcvmbus_device_names + [
                 "Data Exchange",
@@ -97,7 +101,7 @@ class LsVmBus(TestSuite):
         This test case will
         1. Check expected vmbus device names presented in the lsvmbus output.
             - Operating system shutdown
-            - Time Synchronization
+            - Time Synchronization (except Intel TDX confidential guests)
             - Heartbeat
             - Synthetic network adapter
             - Synthetic SCSI Controller
@@ -127,16 +131,17 @@ class LsVmBus(TestSuite):
                         https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=646f071d315b75e87583de290d333478d42ccde1
                 - Test logic:
                   The code computes a set of allowed channel counts covering
-                  legacy (min(vCPUs, 8)) and post-646f071d formulas, then
+                  legacy (min(vCPUs, 8)) and post-646f071d formulas, clamps each
+                  count to the device maximum reported by ethtool -l, then
                   asserts the actual count is in that set.
-            2.2 Check expected channel count of each storvsc SCSI device is min (num of
-                 vcpu/4, 64).
-                2.2.1 Calculate channel count of each storvsc SCSI device.
-                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n368 # noqa: E501
-                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n1936 # noqa: E501
-                2.2.2 Cap of channel count of each storvsc SCSI device,
-                      it is decided by host storage VSP driver.
-                        https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/tree/drivers/scsi/storvsc_drv.c#n952 # noqa: E501
+            2.2 Check storvsc SCSI channel counts against known host policies:
+                - One channel per vCPU, capped at 64, can be offered even when
+                  no MANA device is visible in the guest.
+                - Without MANA, also allow the legacy ceil(vCPU/4), capped at 64.
+                The guest requests subchannels up to the host-advertised limit
+                and the online CPU count minus one (the primary channel).
+                Reference: handle_multichannel_storage in storvsc_drv.c.
+                        https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/drivers/scsi/storvsc_drv.c?h=v6.17 # noqa: E501
         """,
         priority=1,
         requirement=simple_requirement(
@@ -152,12 +157,10 @@ class LsVmBus(TestSuite):
         lscpu_tool = node.tools[Lscpu]
         thread_count = lscpu_tool.get_thread_count()
         core_count = lscpu_tool.get_core_count()
-        # Each storvsc SCSI device should have "the_number_of_vCPUs / 4" channel(s)
-        #  with a cap value of 64.
-        if node.nics.is_mana_device_present():
-            expected_scsi_channel_count = min(thread_count, 64)
-        else:
-            expected_scsi_channel_count = math.ceil(min(thread_count, 256) / 4)
+        # Storage channel offers are not determined by guest-visible NICs alone.
+        allowed_scsi_channels = {min(thread_count, 64)}
+        if not node.nics.is_mana_device_present():
+            allowed_scsi_channels.add(math.ceil(min(thread_count, 256) / 4))
         for vmbus_device in vmbus_devices_list:
             if vmbus_device.name == "Synthetic network adapter":
                 actual_channels = len(vmbus_device.channel_vp_map)
@@ -176,11 +179,45 @@ class LsVmBus(TestSuite):
                 else:
                     allowed_channels.add(min(64, max(16, core_count // 2)))
                     allowed_channels.add(min(64, max(16, thread_count // 2)))
+                nic = next(
+                    (
+                        nic
+                        for nic in node.nics.nics.values()
+                        if nic.dev_uuid.lower() == vmbus_device.device_id.lower()
+                    ),
+                    None,
+                )
+                if nic is None:
+                    raise LisaException(
+                        f"No network interface found for VMBus device "
+                        f"{vmbus_device.device_id}"
+                    )
+                max_channels: Optional[int] = None
+                try:
+                    max_channels = (
+                        node.tools[Ethtool]
+                        .get_device_channels_info(nic.name)
+                        .max_channels
+                    )
+                except UnsupportedOperationException as e:
+                    log.info(
+                        f"Could not determine maximum channels for {nic.name}; "
+                        f"using formula-only validation: {e}"
+                    )
+                else:
+                    assert_that(max_channels).described_as(
+                        f"Maximum channel count for {nic.name}"
+                    ).is_positive()
+                    log.info(f"Device '{nic.name}' maximum channels: {max_channels}")
+                    allowed_channels = {
+                        min(count, max_channels) for count in allowed_channels
+                    }
                 log.info(f"Allowed channel counts: {sorted(allowed_channels)}")
                 assert_that(actual_channels).described_as(
                     f"netvsc channel count {actual_channels} not in allowed "
                     f"values {sorted(allowed_channels)} "
-                    f"(thread_count={thread_count}, core_count={core_count})"
+                    f"(thread_count={thread_count}, core_count={core_count}, "
+                    f"max_channels={max_channels})"
                 ).is_in(*sorted(allowed_channels))
             if vmbus_device.name == "Synthetic SCSI Controller":
                 if (
@@ -193,9 +230,16 @@ class LsVmBus(TestSuite):
                         "in VM with NVMe disk controller."
                     )
                     continue
-                assert_that(vmbus_device.channel_vp_map).is_length(
-                    expected_scsi_channel_count
+                actual_channels = len(vmbus_device.channel_vp_map)
+                log.info(
+                    f"storvsc actual channels: {actual_channels}, "
+                    f"allowed channel counts: {sorted(allowed_scsi_channels)}"
                 )
+                assert_that(actual_channels).described_as(
+                    f"storvsc channel count {actual_channels} not in allowed "
+                    f"values {sorted(allowed_scsi_channels)} "
+                    f"(thread_count={thread_count})"
+                ).is_in(*sorted(allowed_scsi_channels))
 
     @TestCaseMetadata(
         description="""

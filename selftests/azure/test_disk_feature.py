@@ -2,10 +2,16 @@
 # Licensed under the MIT license.
 
 import sys
+from types import SimpleNamespace
+from typing import Any
 from unittest.case import TestCase
+from unittest.mock import MagicMock, call, patch
+
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 
 from lisa import LisaException, constants, schema, search_space
 from lisa.sut_orchestrator.azure import features
+from lisa.util.logger import get_logger
 
 
 class AzureDiskFeatureTestCase(TestCase):
@@ -197,4 +203,190 @@ class AzureDiskFeatureTestCase(TestCase):
             ),
             data_disk_iops=search_space.IntRange(max=sys.maxsize),
             data_disk_size=search_space.IntRange(max=sys.maxsize),
+        )
+
+
+class AzureDiskHotAddTestCase(TestCase):
+    def setUp(self) -> None:
+        self.node = MagicMock()
+        self.node.name = "vm"
+        self.node.log = get_logger("test", "disk")
+        self.node.capability = schema.NodeSpace(
+            disk=features.AzureDiskOptionSettings(
+                data_disk_count=0, max_data_disk_count=4
+            )
+        )
+        self.node.get_context.return_value = SimpleNamespace(
+            vm_name="vm", resource_group_name="rg"
+        )
+        self.vm = SimpleNamespace(
+            name="vm",
+            id="/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/"
+            "virtualMachines/vm",
+            storage_profile=SimpleNamespace(data_disks=[]),
+        )
+        self.compute = MagicMock()
+        self.compute.disks.list_by_resource_group.return_value = []
+        self.compute.disks.begin_create_or_update.side_effect = self._create_disk
+        for name, value in (
+            ("get_compute_client", self.compute),
+            ("get_vm", self.vm),
+        ):
+            patcher = patch.object(features, name, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        self.disk = features.Disk(
+            features.AzureDiskOptionSettings(), self.node, MagicMock()
+        )
+        self.disk.initialize()
+
+    def test_initialize_avoids_reusing_a_leftover_disk(self) -> None:
+        self.vm.storage_profile.data_disks = [
+            SimpleNamespace(name="lisa_data_disk_0_vm", lun=0)
+        ]
+        disk = features.Disk(features.AzureDiskOptionSettings(), self.node, MagicMock())
+        disk.initialize()
+
+        self.assertEqual(1, self.node.capability.disk.data_disk_count)
+        names = disk.add_data_disk(3, schema.DiskType.StandardSSDLRS)
+
+        self.assertEqual(
+            ["lisa_data_disk_1_vm", "lisa_data_disk_2_vm", "lisa_data_disk_3_vm"],
+            names,
+        )
+        self.assertEqual(4, self.node.capability.disk.data_disk_count)
+
+    def test_add_uses_free_luns_with_stale_count(self) -> None:
+        self.vm.storage_profile.data_disks = [
+            SimpleNamespace(name="existing-1", lun=1),
+            SimpleNamespace(name="existing-3", lun=3),
+        ]
+
+        names = self.disk.add_data_disk(2)
+
+        self.assertEqual(
+            [0, 2],
+            [disk["lun"] for disk in self.vm.storage_profile.data_disks[2:]],
+        )
+        self.assertEqual(4, self.node.capability.disk.data_disk_count)
+        self.assertEqual(names, self.disk.disks)
+
+    def test_add_avoids_attached_and_detached_disk_names(self) -> None:
+        self.vm.storage_profile.data_disks = [
+            SimpleNamespace(name="lisa_data_disk_1_vm", lun=0)
+        ]
+        self.compute.disks.list_by_resource_group.return_value = [
+            SimpleNamespace(name="lisa_data_disk_2_vm")
+        ]
+
+        names = self.disk.add_data_disk(1, schema.DiskType.StandardSSDLRS)
+
+        self.assertEqual(["lisa_data_disk_3_vm"], names)
+        self.assertEqual(
+            "StandardSSD_LRS",
+            self.compute.disks.begin_create_or_update.call_args.args[2]["sku"]["name"],
+        )
+
+    def test_add_rejects_occupied_lun_and_exceeded_capacity(self) -> None:
+        self.vm.storage_profile.data_disks = [SimpleNamespace(name="existing", lun=2)]
+
+        with self.assertRaisesRegex(LisaException, "LUN 2 is already occupied"):
+            self.disk.add_data_disk(1, lun=2)
+        with self.assertRaisesRegex(LisaException, "1 of 4 disks are already attached"):
+            self.disk.add_data_disk(4)
+
+        self.compute.disks.begin_create_or_update.assert_not_called()
+
+    def test_cleanup_tracks_partial_disk_creation(self) -> None:
+        self.compute.disks.begin_create_or_update.side_effect = [
+            self._create_disk("rg", "lisa_data_disk_0_vm", {}),
+            MagicMock(result=MagicMock(side_effect=HttpResponseError("create failed"))),
+        ]
+
+        with self.assertRaisesRegex(HttpResponseError, "create failed"):
+            self.disk.add_data_disk(2)
+        self.assertEqual(
+            ["lisa_data_disk_0_vm", "lisa_data_disk_1_vm"], self.disk.disks
+        )
+
+        self.disk.remove_data_disk()
+
+        self.assertEqual(
+            [call("rg", "lisa_data_disk_0_vm"), call("rg", "lisa_data_disk_1_vm")],
+            self.compute.disks.begin_delete.call_args_list,
+        )
+        self.assertEqual([], self.disk.disks)
+        self.assertEqual(0, self.node.capability.disk.data_disk_count)
+        self.compute.virtual_machines.begin_create_or_update.assert_not_called()
+
+    def test_cleanup_tracks_failed_attachment(self) -> None:
+        vm_update = self.compute.virtual_machines.begin_create_or_update.return_value
+        vm_update.wait.side_effect = HttpResponseError("attach failed")
+
+        with self.assertRaisesRegex(HttpResponseError, "attach failed"):
+            self.disk.add_data_disk(1)
+        self.assertEqual(["lisa_data_disk_0_vm"], self.disk.disks)
+
+        # The update can reach Azure even when waiting for its result fails.
+        self.vm.storage_profile.data_disks = [
+            SimpleNamespace(name="lisa_data_disk_0_vm", lun=0)
+        ]
+        vm_update.wait.side_effect = None
+        self.disk.remove_data_disk()
+
+        self.assertEqual([], self.vm.storage_profile.data_disks)
+        self.assertEqual([], self.disk.disks)
+        self.assertEqual(0, self.node.capability.disk.data_disk_count)
+
+    def test_cleanup_recovers_only_this_vms_hot_add_disks(self) -> None:
+        self.vm.storage_profile.data_disks = [
+            SimpleNamespace(name="lisa_data_disk_0_vm", lun=0),
+            SimpleNamespace(name="runbook-disk", lun=2),
+        ]
+        self.compute.disks.list_by_resource_group.return_value = [
+            SimpleNamespace(name="lisa_data_disk_0_vm", managed_by=self.vm.id),
+            SimpleNamespace(name="lisa_data_disk_1_vm", managed_by=None),
+            SimpleNamespace(name="runbook-disk", managed_by=self.vm.id),
+            SimpleNamespace(name="lisa_data_disk_0_other-vm", managed_by=None),
+            SimpleNamespace(name="lisa_data_disk_2_vm", managed_by="/another/vm"),
+        ]
+
+        self.disk.remove_data_disk()
+
+        self.assertEqual(
+            ["runbook-disk"],
+            [disk.name for disk in self.vm.storage_profile.data_disks],
+        )
+        self.assertEqual(
+            [call("rg", "lisa_data_disk_0_vm"), call("rg", "lisa_data_disk_1_vm")],
+            self.compute.disks.begin_delete.call_args_list,
+        )
+        self.assertEqual(1, self.node.capability.disk.data_disk_count)
+
+    def test_cleanup_retains_failed_deletion_for_retry(self) -> None:
+        name = "lisa_data_disk_0_vm"
+        self.disk.disks = [name]
+        self.vm.storage_profile.data_disks = [SimpleNamespace(name=name, lun=0)]
+        self.compute.disks.begin_delete.return_value.wait.side_effect = (
+            HttpResponseError("delete failed")
+        )
+
+        with self.assertRaisesRegex(HttpResponseError, "delete failed"):
+            self.disk.remove_data_disk([name, name])
+        self.assertEqual([name], self.disk.disks)
+        self.assertEqual(0, self.node.capability.disk.data_disk_count)
+
+        self.compute.disks.begin_delete.side_effect = ResourceNotFoundError("not found")
+        self.disk.remove_data_disk([name])
+
+        self.assertEqual([], self.disk.disks)
+        self.assertEqual(0, self.node.capability.disk.data_disk_count)
+        self.assertEqual(2, self.compute.disks.begin_delete.call_count)
+        self.compute.virtual_machines.begin_create_or_update.assert_called_once()
+
+    def _create_disk(self, group: str, name: str, parameters: Any) -> MagicMock:
+        return MagicMock(
+            result=MagicMock(
+                return_value=SimpleNamespace(name=name, id=f"/disks/{name}")
+            )
         )

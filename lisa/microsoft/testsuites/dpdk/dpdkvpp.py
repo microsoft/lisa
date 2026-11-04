@@ -68,7 +68,10 @@ class DpdkVpp(Tool):
     def set_start_up_file(self, setting: str) -> None:
         setting = f"dpdk {{{setting}}}"
         self.node.tools[Echo].write_to_file(
-            setting, self.node.get_pure_path(self.START_UP_FILE), append=True, sudo=True
+            setting,
+            self.node.get_pure_path(self.START_UP_FILE),
+            append=True,
+            sudo=True,
         )
 
     def run_test(self) -> None:
@@ -109,7 +112,8 @@ class DpdkVpp(Tool):
             node.os.install_epel()
         node.execute(
             (
-                "curl -s https://packagecloud.io/install/repositories/fdio/release/"
+                "curl -s "
+                "https://packagecloud.io/install/repositories/fdio/release/"
                 f"script.{pkg_type}.sh | sudo bash"
             ),
             shell=True,

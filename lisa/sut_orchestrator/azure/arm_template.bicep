@@ -261,6 +261,7 @@ resource virtual_network_name_resource 'Microsoft.Network/virtualNetworks@2024-0
     subnets: [for j in range(0, subnet_count): {
       name: '${subnet_prefix}${j}'
       properties: {
+        // NOTE: changing this convention will break the DPDK suite.
         addressPrefixes: concat(
           ['10.0.${j}.0/24'],
           use_ipv6 ? ['2001:db8:${j}::/64'] : []
@@ -461,7 +462,7 @@ resource nodes_data_disks_with_vhds 'Microsoft.Compute/disks@2022-03-02' = [
 resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in range(0, node_count): {
   name: nodes[i].name
   location: nodes[i].location
-  tags: combined_vm_tags
+  tags: union(combined_vm_tags, nodes[i].vm_tags)
   plan: nodes[i].purchase_plan
   properties: {
     availabilitySet: availability_set_value

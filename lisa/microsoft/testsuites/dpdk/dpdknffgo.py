@@ -82,7 +82,7 @@ class DpdkNffGo(Tool):
             "$PATH",
             shell=True,
             expected_exit_code=0,
-            expected_exit_code_failure_message="failure to grab $PATH via echo",
+            expected_exit_code_failure_message=("failure to grab $PATH via echo"),
         ).stdout
 
         self.new_path = f"{original_path}:/usr/local/go/bin/"
