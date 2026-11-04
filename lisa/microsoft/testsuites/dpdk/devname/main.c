@@ -97,7 +97,7 @@ int main(int argc, char **argv)
 			if (rte_eth_dev_is_valid_port(portid))
 					rte_eth_dev_stop(portid);
 	}
-	
+
 	/* clean up the EAL */
 	rte_eal_cleanup();
 

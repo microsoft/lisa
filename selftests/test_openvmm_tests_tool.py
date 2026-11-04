@@ -8,11 +8,60 @@ from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
 from lisa.microsoft.testsuites.openvmm.openvmm_tests_tool import OpenVmmTests
-from lisa.tools import Curl
+from lisa.tools import Curl, Docker
 from lisa.util import LisaException
 
 
 class OpenVmmTestsToolTestCase(TestCase):
+    def test_ci_startup_failure_removes_image(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        docker = MagicMock()
+        docker.command = "docker"
+        image_names = []
+        container_names = []
+
+        def run_docker(command: str, **kwargs: object) -> SimpleNamespace:
+            if command.startswith("run --detach"):
+                image_names.append(tool._image_name)
+                container_names.append(tool._container_name)
+                raise LisaException("container startup failed")
+            return SimpleNamespace(exit_code=0, stderr="")
+
+        docker.run.side_effect = run_docker
+        tool.node = MagicMock()
+        tool.node.tools = {Docker: docker}
+        tool.node.execute.return_value = SimpleNamespace(
+            stdout="1000\n1000", exit_code=0
+        )
+        tool._artifact_root = PurePosixPath("/repo/target/lisa-openvmm-tests")
+        tool.repo_root = PurePosixPath("/repo/openvmm")
+        tool._repo_prepared = True
+
+        with patch.object(tool, "_run_logged_command"), patch.object(
+            tool,
+            "_prepare_repo",
+            side_effect=lambda log_path, ref, ci_profile: tool._prepare_ci_container(
+                log_path
+            ),
+        ), self.assertRaisesRegex(LisaException, "container startup failed"):
+            tool.run_vmm_tests(log_path=Path("."))
+
+        self.assertEqual(1, len(image_names))
+        self.assertEqual(1, len(container_names))
+        self.assertEqual("", container_names[0])
+        self.assertEqual(
+            [["rmi", "--force"]],
+            [
+                call_args.args[0].split()[0:2]
+                for call_args in docker.run.call_args_list[1:]
+            ],
+        )
+        self.assertIn(
+            f"rmi --force {image_names[0]}", docker.run.call_args_list[1].args[0]
+        )
+        self.assertEqual("", tool._container_name)
+        self.assertEqual("", tool._image_name)
+
     def test_set_repo_paths_uses_repo_url_hash(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
 
@@ -28,7 +77,7 @@ class OpenVmmTestsToolTestCase(TestCase):
         self.assertTrue(str(first_repo_root).startswith("/tools/openvmm-"))
         self.assertTrue(str(tool.repo_root).startswith("/tools/openvmm-"))
 
-    def test_run_logged_command_redirects_entire_command_to_log(self) -> None:
+    def test_run_logged_command_creates_log_before_privileged_redirect(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
         tool.repo_root = PurePosixPath("/repo/openvmm")
         tool._artifact_root = PurePosixPath("/repo/openvmm/target/lisa-openvmm-tests")
@@ -43,14 +92,22 @@ class OpenVmmTestsToolTestCase(TestCase):
                 log_path=Path(temp_dir),
                 timeout=60,
                 update_envs={},
+                sudo=True,
             )
 
-        logged_command = tool.node.execute.call_args.args[0]
+        create_log_call, logged_command_call = tool.node.execute.call_args_list
+        self.assertEqual(
+            ": > /repo/openvmm/target/lisa-openvmm-tests/openvmm_sample.log",
+            create_log_call.args[0],
+        )
+        self.assertFalse(create_log_call.kwargs.get("sudo", False))
+        logged_command = logged_command_call.args[0]
         self.assertIn(
             "{ echo before && false; } > "
             "/repo/openvmm/target/lisa-openvmm-tests/openvmm_sample.log 2>&1",
             logged_command,
         )
+        self.assertTrue(logged_command_call.kwargs["sudo"])
 
     def test_ensure_cargo_nextest_uses_release_checksum_asset(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
@@ -60,15 +117,19 @@ class OpenVmmTestsToolTestCase(TestCase):
         tool._log = MagicMock()
         with TemporaryDirectory() as temp_dir, patch.object(
             tool, "_has_cargo_nextest", side_effect=[False, True]
-        ), patch.object(tool, "_run_logged_command") as run_logged_command:
+        ), patch.object(
+            tool, "_get_nextest_version", return_value="0.9.133"
+        ), patch.object(
+            tool, "_run_logged_command"
+        ) as run_logged_command:
             tool._ensure_cargo_nextest(Path(temp_dir), {})
 
         install_command = run_logged_command.call_args.kwargs["command"]
         release_url = (
             "https://github.com/nextest-rs/nextest/releases/download/"
-            "cargo-nextest-0.9.101"
+            "cargo-nextest-0.9.133"
         )
-        asset_name = "cargo-nextest-0.9.101-x86_64-unknown-linux-gnu"
+        asset_name = "cargo-nextest-0.9.133-x86_64-unknown-linux-gnu"
         self.assertIn(f"{release_url}/{asset_name}.tar.gz", install_command)
         self.assertIn(f"{release_url}/{asset_name}.sha256", install_command)
 
@@ -83,7 +144,7 @@ class OpenVmmTestsToolTestCase(TestCase):
             junit_file.write_text(
                 """<?xml version="1.0" encoding="utf-8"?>
 <testsuites>
-  <testsuite name="x64-linux-vmm-tests" tests="17" failures="7" errors="0" skipped="41">
+  <testsuite name="x64-linux-vmm-tests" tests="58" failures="7" errors="0" skipped="41">
     <testcase
       classname="vmm_tests::tests"
       name="multiarch::ic::openvmm_uefi_x64_ubuntu_2504_server_x64_timesync_ic">
@@ -103,7 +164,7 @@ class OpenVmmTestsToolTestCase(TestCase):
                 )
 
             self.assertIn(
-                "17 tests run: 0 passed, 7 failed, 41 skipped",
+                "17 tests run: 10 passed, 7 failed, 41 skipped",
                 str(context.exception),
             )
             self.assertIn("Failed tests:", str(context.exception))
@@ -192,7 +253,11 @@ encountered at least one test failure!
             temp_path = Path(temp_dir)
             log_file = temp_path / "openvmm_vmm_tests.log"
             junit_file = temp_path / "openvmm_vmm_tests.junit.xml"
-            log_file.write_text("", encoding="utf-8")
+            log_file.write_text(
+                "PASS [   1.000s] ( 1/1) vmm_tests::tests multiarch::openvmm_boot\n"
+                "Summary [   1.000s] 1 tests run: 1 passed, 67 skipped\n",
+                encoding="utf-8",
+            )
             junit_file.write_text(
                 """<?xml version="1.0" encoding="utf-8"?>
 <testsuites>
@@ -213,8 +278,45 @@ encountered at least one test failure!
                 junit_file=junit_file,
             )
 
-        self.assertEqual(2, summary.tests)
-        self.assertEqual(1, summary.skipped)
+        self.assertEqual(1, summary.tests)
+        self.assertEqual(67, summary.skipped)
+        self.assertEqual(
+            ["vmm_tests::tests multiarch::openvmm_boot"],
+            summary.passed_tests,
+        )
+
+    def test_check_vmm_tests_results_preserves_junit_passed_names(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+
+        with TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            log_file = temp_path / "openvmm_vmm_tests.log"
+            junit_file = temp_path / "openvmm_vmm_tests.junit.xml"
+            log_file.write_text(
+                "Summary [   1.000s] 1 tests run: 1 passed, 1 skipped\n",
+                encoding="utf-8",
+            )
+            junit_file.write_text(
+                """<?xml version="1.0" encoding="utf-8"?>
+<testsuites>
+  <testsuite name="x64-linux-vmm-tests" tests="2" failures="0" errors="0" skipped="1">
+    <testcase classname="vmm_tests::tests" name="multiarch::openvmm_boot" />
+    <testcase classname="vmm_tests::tests" name="multiarch::openvmm_skip">
+      <skipped message="filtered" />
+    </testcase>
+  </testsuite>
+</testsuites>
+""",
+                encoding="utf-8",
+            )
+
+            summary = tool._check_vmm_tests_results(
+                name="openvmm_vmm_tests",
+                log_file=log_file,
+                junit_file=junit_file,
+            )
+
+        self.assertEqual(1, summary.tests)
         self.assertEqual(
             ["vmm_tests::tests multiarch::openvmm_boot"],
             summary.passed_tests,
