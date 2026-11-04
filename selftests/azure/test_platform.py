@@ -49,6 +49,26 @@ class AzureSerialConsoleTestCase(TestCase):
             patch.object(platform_, "save_console_log")
         )
 
+    def test_remote_connection_defaults_to_required(self) -> None:
+        self._environment.source_test_result = None
+
+        self.assertTrue(
+            self._platform._is_remote_connection_required(self._environment)
+        )
+
+    def test_remote_connection_uses_source_test_requirement(self) -> None:
+        self._environment.source_test_result = SimpleNamespace(
+            runtime_data=SimpleNamespace(
+                metadata=SimpleNamespace(
+                    requirement=SimpleNamespace(remote_connection_required=False)
+                )
+            )
+        )
+
+        self.assertFalse(
+            self._platform._is_remote_connection_required(self._environment)
+        )
+
     def test_serial_checks_receive_readable_text(self) -> None:
         cases = [
             (b"boot complete\n", "boot complete\n"),

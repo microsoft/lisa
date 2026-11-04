@@ -71,6 +71,88 @@ class RunnerTestCase(TestCase):
         test_testsuite.cleanup_cases_metadata()  # Necessary side effects!
         flush_notifications()
 
+    def test_run_test_task_respects_remote_connection_requirement(self) -> None:
+        for remote_connection_required in [False, True]:
+            with self.subTest(remote_connection_required=remote_connection_required):
+                runner = generate_runner(None)
+                runner._guest_enabled = False
+                environment = MagicMock()
+                environment.name = "mock_environment"
+                environment.status = EnvironmentStatus.Connected
+                environment.is_dirty = False
+                environment.nodes.test_connections.return_value = False
+
+                test_suite = MagicMock()
+                suite_metadata = SimpleNamespace(
+                    test_class=MagicMock(return_value=test_suite)
+                )
+                test_result = MagicMock()
+                test_result.name = "mock_test"
+                test_result.status = TestStatus.PASSED
+                test_result.runtime_data = SimpleNamespace(
+                    metadata=SimpleNamespace(
+                        suite=suite_metadata,
+                        requirement=simple_requirement(
+                            remote_connection_required=remote_connection_required
+                        ),
+                    )
+                )
+
+                with patch(
+                    "lisa.runners.lisa_runner.is_unittest",
+                    return_value=False,
+                ), patch.object(
+                    runner, "_delete_environment_task"
+                ) as delete_environment_task:
+                    runner._run_test_task(
+                        environment=environment,
+                        test_results=[test_result],
+                        case_variables={},
+                    )
+
+                test_suite.start.assert_called_once_with(
+                    environment=environment,
+                    case_results=[test_result],
+                    case_variables={},
+                )
+                if remote_connection_required:
+                    environment.nodes.test_connections.assert_called_once_with()
+                    self.assertEqual(EnvironmentStatus.Bad, environment.status)
+                    delete_environment_task.assert_called_once_with(
+                        environment=environment,
+                        test_results=[test_result],
+                    )
+                else:
+                    environment.nodes.test_connections.assert_not_called()
+                    self.assertEqual(EnvironmentStatus.Connected, environment.status)
+                    delete_environment_task.assert_not_called()
+
+    def test_deploy_environment_sets_source_test_result(self) -> None:
+        runner = generate_runner(None)
+        test_result = MagicMock()
+        environment = MagicMock()
+        environment.status = EnvironmentStatus.Prepared
+        environment.source_test_result = None
+
+        observed_source_test_results: List[Any] = []
+
+        def deploy_environment(deployed_environment: MagicMock) -> None:
+            observed_source_test_results.append(deployed_environment.source_test_result)
+            deployed_environment.status = EnvironmentStatus.Deployed
+
+        runner.platform = MagicMock()
+        runner.platform.deploy_environment.side_effect = deploy_environment
+
+        with patch.object(runner, "_reset_awaitable_timer"):
+            runner._deploy_environment_task(
+                environment=environment,
+                test_results=[test_result],
+            )
+
+        test_result.subscribe_log.assert_called_once_with(environment.log)
+        test_result.unsubscribe_log.assert_called_once_with(environment.log)
+        self.assertListEqual([test_result], observed_source_test_results)
+
     def test_merge_req_create_on_new(self) -> None:
         # if no predefined envs, can generate from requirement
         env_runbook = generate_env_runbook(is_single_env=False)
