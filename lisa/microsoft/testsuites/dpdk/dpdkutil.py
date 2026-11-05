@@ -76,6 +76,7 @@ from lisa.tools import (
     Ip,
     KernelConfig,
     Kill,
+    Ls,
     Lscpu,
     Lsmod,
     Lspci,
@@ -87,7 +88,7 @@ from lisa.tools import (
 )
 from lisa.tools.hugepages import HugePageSize
 from lisa.tools.lscpu import CpuArchitecture
-from lisa.util import sleep
+from lisa.util import LisaTimeoutException, check_till_timeout, sleep
 from lisa.util.constants import DEVICE_TYPE_SRIOV, SIGINT
 from lisa.util.parallel import run_in_parallel
 
@@ -209,7 +210,11 @@ def _set_forced_source_by_distro(node: Node, variables: Dict[str, Any]) -> None:
     # guests. Force stable source build on this platform.
     # Default to 20.11 unless another version is provided by the
     # user. 20.11 is the latest dpdk version for 18.04.
-    if isinstance(node.os, Ubuntu) and node.os.information.version < "20.4.0":
+    if (
+        isinstance(node.os, Ubuntu)
+        and node.os.information.version < "20.4.0"
+        and not node.nics.is_mana_device_present()
+    ):
         variables["dpdk_source"] = variables.get("dpdk_source", DPDK_STABLE_GIT_REPO)
         variables["dpdk_branch"] = variables.get("dpdk_branch", "v20.11")
     else:
@@ -739,18 +744,145 @@ def do_pmd_driver_setup(
         # doing things twice.
         bound: List[str] = []
         for nic in test_nics:
-            if nic.dev_uuid not in bound:
+            if nic.dev_uuid in bound:
+                continue
+            if _is_bound_to_uio_hv_generic(node, nic):
+                node.log.warning(
+                    f"do_pmd_driver_setup: {nic.name} (vmbus {nic.dev_uuid}) is "
+                    "already bound to uio_hv_generic. PMD setup appears to have "
+                    "run twice for this nic, this is likely a test bug. "
+                    "Skipping rebind."
+                )
+            else:
                 node.nics.unbind(nic)
                 node.nics.bind(nic, UIO_HV_GENERIC_SYSFS_PATH)
-                bound.append(nic.dev_uuid)
+            bound.append(nic.dev_uuid)
 
     # if mana is present, set VF interface down.
     # FIXME: add mana dpdk docs link when it's available.
     if testpmd.is_mana:
         ip = node.tools[Ip]
         for test_nic in test_nics:
-            if test_nic.lower and ip.is_device_up(test_nic.lower):
+            if not test_nic.lower:
+                continue
+            _resolve_vf_netdev(node, test_nic, rebind_on_missing=pmd == Pmd.NETVSC)
+            if ip.is_device_up(test_nic.lower):
                 ip.down(test_nic.lower)
+
+
+def _is_bound_to_uio_hv_generic(node: Node, nic: NicInfo) -> bool:
+    if not nic.dev_uuid:
+        return False
+    return node.tools[Ls].path_exists(
+        f"{UIO_HV_GENERIC_SYSFS_PATH}/{nic.dev_uuid}", sudo=True
+    )
+
+
+_PCI_SLOT_REGEX = re.compile(r"^[0-9a-fA-F]{4,}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]$")
+
+
+def _list_vf_netdevs(node: Node) -> List[Tuple[str, str, str, str]]:
+    # returns (name, mac, pci_slot, master) for every PCI backed netdev.
+    # master is empty if the VF isn't enslaved to a synthetic interface.
+    result = node.execute(
+        "for d in /sys/class/net/*; do "
+        '[ -e "$d/device" ] || continue; '
+        'm=""; [ -e "$d/master" ] && m=$(basename "$(readlink -f "$d/master")"); '
+        'echo "$(basename "$d") $(cat "$d/address") '
+        '$(basename "$(readlink -f "$d/device")") $m"; '
+        "done",
+        shell=True,
+        sudo=True,
+    )
+    vfs: List[Tuple[str, str, str, str]] = []
+    for line in result.stdout.splitlines():
+        fields = line.split()
+        if len(fields) < 3 or not _PCI_SLOT_REGEX.match(fields[2]):
+            continue
+        master = fields[3] if len(fields) > 3 else ""
+        vfs.append((fields[0], fields[1].lower(), fields[2], master))
+    return vfs
+
+
+def _find_vf_for_nic(node: Node, test_nic: NicInfo) -> Optional[str]:
+    if not test_nic.mac_addr:
+        return None
+    matches = [
+        vf for vf in _list_vf_netdevs(node) if vf[1] == test_nic.mac_addr.lower()
+    ]
+    if not matches:
+        return None
+    # prefer a VF that is not associated with anything, the synthetic device
+    # was moved to uio_hv_generic so its VF should no longer have a master.
+    matches.sort(key=lambda vf: vf[3] != "")
+    name, _, pci_slot, master = matches[0]
+    node.log.debug(
+        f"Found VF {name} (pci {pci_slot}, master '{master}') with mac "
+        f"{test_nic.mac_addr} for {test_nic.name}"
+    )
+    return name
+
+
+def _resolve_vf_netdev(
+    node: Node, test_nic: NicInfo, rebind_on_missing: bool, timeout: int = 60
+) -> None:
+    ip = node.tools[Ip]
+    if ip.nic_exists(test_nic.lower):
+        return
+
+    # The VF name may be stale (ex. NicInfo captured before a reboot renamed
+    # the interfaces). Look for a VF with the same MAC before giving up.
+    vf_name = _find_vf_for_nic(node, test_nic)
+    if vf_name:
+        node.log.warning(
+            f"VF {test_nic.lower} for {test_nic.name} no longer exists, but VF "
+            f"{vf_name} has the same mac ({test_nic.mac_addr}). The NicInfo "
+            "passed to pmd setup is stale, this is likely a test bug. "
+            f"Using {vf_name}."
+        )
+        test_nic.lower = vf_name
+        return
+
+    # No VF with this mac at all. Give the synthetic device back to
+    # hv_netvsc so the VF can re-pair, then move it back to uio_hv_generic.
+    if rebind_on_missing and test_nic.dev_uuid:
+        node.log.warning(
+            f"No VF found for {test_nic.name} (mac {test_nic.mac_addr}), "
+            "rebinding to hv_netvsc to restore it and retrying setup."
+        )
+        node.nics.unbind(test_nic)
+        node.nics.bind(test_nic, HV_NETVSC_SYSFS_PATH)
+        try:
+            check_till_timeout(
+                lambda: _find_vf_for_nic(node, test_nic) is not None,
+                f"VF for {test_nic.name} did not reappear",
+                timeout=timeout,
+            )
+        except LisaTimeoutException:
+            pass
+        node.nics.unbind(test_nic)
+        node.nics.bind(test_nic, UIO_HV_GENERIC_SYSFS_PATH)
+        vf_name = _find_vf_for_nic(node, test_nic)
+        if vf_name:
+            test_nic.lower = vf_name
+            return
+
+    interfaces = node.execute("ip -br link show", sudo=True, shell=True).stdout
+    vf_list = "\n".join(
+        f"{name} mac={mac} pci={slot} master={master or 'none'}"
+        for name, mac, slot, master in _list_vf_netdevs(node)
+    )
+    raise LisaException(
+        f"VF interface {test_nic.lower} (lower device of {test_nic.name}, "
+        f"mac {test_nic.mac_addr}, vmbus {test_nic.dev_uuid}, pci "
+        f"{test_nic.pci_slot}) does not exist and no VF with a matching mac "
+        "was found"
+        + (" after rebinding to hv_netvsc" if rebind_on_missing else "")
+        + ". The VF was likely removed/revoked by the host, so the MANA PMD "
+        "will not be able to use it.\n"
+        f"PCI VF interfaces:\n{vf_list or '(none)'}\n"
+        f"Current interfaces:\n{interfaces}"
+    )
 
 
 def undo_pmd_driver_setup(
@@ -880,6 +1012,8 @@ def initialize_node_resources(
     # Allow user to pass in an explicit list of nics to use for the test.
     if test_nics is None:
         test_nics = [node.nics.get_secondary_nic()]
+    else:
+        test_nics = _refresh_test_nics(node, test_nics)
 
     test_resources = DpdkTestResources(
         _node=node,
@@ -896,6 +1030,43 @@ def initialize_node_resources(
     do_pmd_driver_setup(node=node, test_nics=test_nics, testpmd=testpmd, pmd=pmd)
 
     return test_resources
+
+
+def _refresh_test_nics(node: Node, test_nics: List[NicInfo]) -> List[NicInfo]:
+    # Callers may collect NicInfo before initialize_node_resources, which can
+    # reboot the node (ex. kernel update). Interface names, including VF
+    # names, can change across a reboot, so re-resolve each nic against the
+    # reloaded node.nics using the vmbus uuid or mac, which are stable.
+    current = [node.nics.get_nic(name) for name in node.nics.get_nic_names()]
+    refreshed: List[NicInfo] = []
+    for old in test_nics:
+        match = next(
+            (n for n in current if old.dev_uuid and n.dev_uuid == old.dev_uuid),
+            None,
+        ) or next(
+            (
+                n
+                for n in current
+                if old.mac_addr
+                and n.mac_addr.lower() == old.mac_addr.lower()
+                and n.lower
+            ),
+            None,
+        )
+        if match is None:
+            node.log.debug(
+                f"Could not re-resolve test nic {old.name} ({old.mac_addr}), "
+                "using the provided NicInfo as-is."
+            )
+            refreshed.append(old)
+            continue
+        if (match.name, match.lower) != (old.name, old.lower):
+            node.log.debug(
+                f"Test nic {old.name}/{old.lower} is now "
+                f"{match.name}/{match.lower} after node re-initialization."
+            )
+        refreshed.append(match)
+    return refreshed
 
 
 def check_pmd_support(node: Node, pmd: Pmd) -> None:
@@ -1101,6 +1272,7 @@ def verify_dpdk_send_receive(
         receive_timeout,
         constants.SIGINT,
         kill_timeout=receive_timeout,
+        foreground=True,
     )
     receive_process.wait_output("start packet forwarding")
     send_process = sender.node.tools[Timeout].start_with_timeout(
@@ -1108,6 +1280,7 @@ def verify_dpdk_send_receive(
         test_duration,
         constants.SIGINT,
         kill_timeout=kill_timeout,
+        foreground=True,
     )
 
     results = dict()
@@ -1552,6 +1725,9 @@ def verify_dpdk_l3fwd_ntttcp_tcp(
         )
     except (NotEnoughMemoryException, UnsupportedOperationException) as err:
         raise SkippedException(err)
+    # initialization can reboot the forwarder and rename its interfaces,
+    # use the re-resolved nics from here on.
+    subnet_a_nics[forwarder], subnet_b_nics[forwarder] = fwd_kit.test_nics
     fwd_kit.testpmd.set_instance_id("forwarder")
     if result is not None:
         annotate_dpdk_test_result(test_kit=fwd_kit, test_result=result, log=log)

@@ -783,23 +783,22 @@ cores=1-4
         self.node.log.info(f"{self.node.name} running: {cmd}")
 
         proc_result = self.node.tools[Timeout].run_with_timeout(
-            cmd, timeout, SIGINT, kill_timeout=timeout + 10
+            cmd, timeout, SIGINT, kill_timeout=timeout + 10, foreground=True
         )
-        self._last_run_output = proc_result.stdout
-        self.populate_performance_data()
-        return proc_result.stdout
+        return self.process_testpmd_output(proc_result)
 
     def start_for_n_seconds(self, cmd: str, timeout: int) -> str:
         self._last_run_timeout = timeout
         self.node.log.info(f"{self.node.name} running: {cmd}")
 
         proc_result = self.node.tools[Timeout].run_with_timeout(
-            cmd, timeout, SIGINT, kill_timeout=timeout + 10
+            cmd, timeout, SIGINT, kill_timeout=timeout + 10, foreground=True
         )
         return self.process_testpmd_output(proc_result)
 
     def process_testpmd_output(self, result: ExecutableResult) -> str:
         self._last_run_output = result.stdout
+        self._check_for_shutdown_statistics(result)
         self.populate_performance_data()
         return result.stdout
 
@@ -871,6 +870,46 @@ cores=1-4
                     "Testpmd killed with hv_netvsc reload. "
                     "Proceeding with processing test run results."
                 )
+
+    def _check_for_shutdown_statistics(self, result: ExecutableResult) -> None:
+        # The drop and total counters only appear in the forward statistics
+        # testpmd prints while shutting down cleanly. If they are missing,
+        # testpmd died before finishing its cleanup.
+        if re.search(self._testpmd_output_regex[self._tx_drop_key], result.stdout):
+            return
+        exit_code = result.exit_code
+        if exit_code == 128 + SIGINT:
+            reason = (
+                "testpmd was terminated by SIGINT before it finished "
+                "shutting down. testpmd resets SIGINT to the default action "
+                "after the first signal, so a second SIGINT (ex. from "
+                "'timeout' without --foreground, or an extra kill) during "
+                "shutdown kills it before the final statistics are printed."
+            )
+        elif exit_code == 137:
+            reason = (
+                "testpmd was SIGKILLed (likely by timeout --kill-after or "
+                "kill_previous_testpmd_command) because it did not exit "
+                "after SIGINT; testpmd may be hung in port stop/close."
+            )
+        elif exit_code is not None and exit_code > 128:
+            reason = (
+                f"testpmd was terminated by signal {exit_code - 128} "
+                "before printing its final statistics."
+            )
+        else:
+            reason = (
+                "testpmd exited without printing the final 'Accumulated "
+                "forward statistics' block."
+            )
+        tail = "\n".join(result.stdout.splitlines()[-10:])
+        raise LisaException(
+            self._error_message(
+                "testpmd output is missing shutdown statistics "
+                f"(TX-dropped/RX-dropped), exit code: {exit_code}. {reason} "
+                f"Last lines of output:\n{tail}"
+            )
+        )
 
     def get_data_from_testpmd_output(
         self,
