@@ -4,6 +4,7 @@ import json
 import re
 from contextlib import ExitStack, contextmanager
 from decimal import Decimal
+from ipaddress import ip_address
 from pathlib import Path, PurePosixPath
 from time import monotonic
 from types import TracebackType
@@ -359,7 +360,7 @@ class Sriov(TestSuite):
     @TestCaseMetadata(
         description="""
         Validate one accelerated-to-synthetic-to-accelerated servicing cycle under
-        uninterrupted, paced UDP and TCP traffic between two Linux VMs.
+        uninterrupted, paced UDP and TCP traffic between two IPv4 Linux VMs.
 
         Establish a 300-second baseline, request AN disable on the receiver,
         hold the confirmed synthetic path for 30 seconds, then re-enable AN.
@@ -387,12 +388,17 @@ class Sriov(TestSuite):
     def network_servicing_validation(
         self, environment: Environment, log: Logger, log_path: Path
     ) -> None:
-        skip_if_pci_only_nics(environment)
-        initialize_nic_info(environment)
-        sriov_basic_test(environment)
         receiver = cast(RemoteNode, environment.nodes[0])
         sender = cast(RemoteNode, environment.nodes[1])
         nodes = [receiver, sender]
+        if any(ip_address(node.internal_address).version != 4 for node in nodes):
+            raise SkippedException(
+                "Network servicing validation supports IPv4 only; select an "
+                "IPv4 environment for NIC discovery, traffic, and route validation"
+            )
+        skip_if_pci_only_nics(environment)
+        initialize_nic_info(environment)
+        sriov_basic_test(environment)
         ports = {"udp": 5201, "tcp": 5202}
         baseline_duration = self._SERVICING_BASELINE_SECONDS
         # Budget disable, enable, and VF receive-progress waits independently.
@@ -481,11 +487,11 @@ class Sriov(TestSuite):
 
             log.info("Disabling AN while UDP and TCP traffic remain active")
             disable_start = monotonic()
-            self._servicing_switch(receiver, False, processes)
+            synthetic_vf = self._servicing_switch(receiver, False, processes)
             disable_seconds = monotonic() - disable_start
             synthetic_start = receiver.tools[Date].current().timestamp()
             synthetic_nic = self._servicing_nic(receiver)
-            assert_that(synthetic_nic.lower).described_as(
+            assert_that(synthetic_vf).described_as(
                 "VF must detach after AN disable; inspect NIC discovery and Azure state"
             ).is_empty()
             synthetic_packets = receiver.nics.get_packets(
@@ -505,26 +511,28 @@ class Sriov(TestSuite):
 
             log.info("Re-enabling AN without restarting either traffic stream")
             enable_start = monotonic()
-            self._servicing_switch(receiver, True, processes)
+            restored_vf = self._servicing_switch(receiver, True, processes)
             vf_present_seconds = monotonic() - enable_start
             vf_present_at = receiver.tools[Date].current().timestamp()
-            restored_vf = self._servicing_nic(receiver).lower
             assert_that(restored_vf).described_as(
                 "VF must return after AN enable; inspect NIC discovery and Azure state"
             ).is_not_empty()
-            restored_packets = receiver.nics.get_packets(restored_vf, "rx_packets")
+            receive_deadline = monotonic() + self.TIME_OUT
+            restored_packets = self._servicing_rx_packets(
+                receiver, restored_vf, receive_deadline
+            )
 
             def vf_receiving() -> bool:
                 self._servicing_check_running(processes)
                 return (
-                    receiver.nics.get_packets(restored_vf, "rx_packets")
+                    self._servicing_rx_packets(receiver, restored_vf, receive_deadline)
                     > restored_packets
                 )
 
             check_till_timeout(
                 vf_receiving,
                 timeout_message="restored VF must receive active traffic",
-                timeout=self.TIME_OUT,
+                timeout=self._servicing_remaining(receive_deadline),
             )
             vf_traffic_seconds = monotonic() - enable_start
             self._servicing_wait(processes, self._SERVICING_PHASE_SECONDS)
@@ -553,6 +561,7 @@ class Sriov(TestSuite):
                     results[name] = self._servicing_iperf_result(result)
                     log.info(f"{name} completed successfully with exit code 0")
 
+            receiver.nics.reload()
             for node in nodes:
                 self._servicing_check_network(node, routes[node.name])
                 errors = node.tools[Dmesg].check_kernel_errors(
@@ -638,18 +647,44 @@ class Sriov(TestSuite):
         receiver: RemoteNode,
         enable: bool,
         processes: Dict[str, Process],
-    ) -> None:
+    ) -> str:
         self._servicing_check_running(processes)
+        nic = self._servicing_nic(receiver)
+        ls = receiver.tools[Ls]
+        nic_path = receiver.get_pure_path("/sys/class/net") / nic.name
         # Submit the Azure change without entering its nested guest-state retries.
         # Keep SSH open so the same traffic sessions survive the transition.
+        deadline = monotonic() + self.TIME_OUT
         receiver.features[NetworkInterface].switch_sriov(
             enable=enable, wait=False, reset_connections=False
         )
+        vf_name = ""
 
         def completed() -> bool:
+            nonlocal vf_name
             self._servicing_check_running(processes)
-            receiver.nics.reload()
-            return bool(self._servicing_nic(receiver).lower) == enable
+            # One sysfs listing avoids unbounded commands inside Nics.reload().
+            result = ls.run(
+                f"-1 {nic_path}",
+                force_run=True,
+                timeout=self._servicing_remaining(deadline),
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"Cannot probe VF pairing on {receiver.name}; "
+                    f"inspect {nic_path} and the SSH connection"
+                ),
+            )
+            lower = [
+                entry[len("lower_") :]
+                for entry in result.stdout.splitlines()
+                if entry.startswith("lower_")
+            ]
+            if lower:
+                assert_that(lower).described_as(
+                    f"Expected one paired VF on {receiver.name}; inspect {nic_path}"
+                ).is_length(1)
+            vf_name = lower[0] if lower else ""
+            return bool(vf_name) == enable
 
         check_till_timeout(
             completed,
@@ -657,8 +692,41 @@ class Sriov(TestSuite):
                 f"AN servicing enable={enable} on {receiver.name}; "
                 "inspect Azure NIC state and guest VF discovery"
             ),
-            timeout=self.TIME_OUT,
+            timeout=self._servicing_remaining(deadline),
         )
+        return vf_name
+
+    @staticmethod
+    def _servicing_remaining(deadline: float) -> int:
+        # Round down so an individual command never receives more than remains.
+        remaining = int(deadline - monotonic())
+        if remaining <= 0:
+            raise LisaTimeoutException(
+                "Network servicing phase budget exhausted; inspect VF state, "
+                "receive counters, and the SSH connection"
+            )
+        return remaining
+
+    def _servicing_rx_packets(
+        self, node: RemoteNode, vf_name: str, deadline: float
+    ) -> int:
+        path = (
+            node.get_pure_path("/sys/class/net") / vf_name / "statistics" / "rx_packets"
+        )
+        result = node.tools[Cat].run(
+            str(path),
+            force_run=True,
+            timeout=self._servicing_remaining(deadline),
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Cannot read VF receive progress on {node.name}; inspect {path}"
+            ),
+        )
+        value = result.stdout.strip()
+        assert_that(value.isdigit()).described_as(
+            f"Expected a numeric VF packet counter, got {value!r}; inspect {path}"
+        ).is_true()
+        return int(value)
 
     @staticmethod
     def _servicing_nic(node: RemoteNode) -> NicInfo:
