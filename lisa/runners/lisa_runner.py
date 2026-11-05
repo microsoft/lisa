@@ -396,6 +396,9 @@ class LisaRunner(BaseRunner):
         test_result: Optional[TestResult] = None
         try:
             test_result = test_results[0]
+            requirement = test_result.runtime_data.metadata.requirement
+            if not requirement.remote_connection_required:
+                environment.source_test_result = test_result
             test_result.subscribe_log(environment.log)
             try:
                 # Attempt to deploy the environment
