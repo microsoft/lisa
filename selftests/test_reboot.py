@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 from unittest import TestCase
 from unittest.mock import MagicMock, Mock, patch
 
+from paramiko.ssh_exception import SSHException
+
 from lisa.tools import Date, Reboot
 from lisa.util import LisaException
 
@@ -147,6 +149,71 @@ class RebootTestCase(TestCase):
 
         fallback.assert_called_once_with()
 
+    def test_systemctl_discovery_failure_uses_reboot_command(self) -> None:
+        self.date.current.return_value = self.boot_time + timedelta(minutes=2)
+        for error in (
+            LisaException("command discovery timed out"),
+            OSError("SSH unavailable"),
+            SSHException("SSH channel closed"),
+        ):
+            with self.subTest(error=error):
+                self.node.execute.reset_mock()
+                self.node.execute.side_effect = error
+                with patch.object(
+                    self.reboot,
+                    "_get_last_boot_time",
+                    side_effect=[
+                        self.boot_time,
+                        self.boot_time + timedelta(minutes=3),
+                    ],
+                ) as boot_time, patch.object(
+                    self.reboot, "_wait_ssh_session_stable"
+                ) as stable, patch.object(
+                    self.reboot, "_run_reboot_command"
+                ) as fallback:
+                    self.reboot.reboot()
+
+                self.node.execute.assert_called_once_with(
+                    "command -v systemctl",
+                    shell=True,
+                    sudo=True,
+                    timeout=10,
+                    no_info_log=True,
+                )
+                fallback.assert_called_once_with()
+                self.assertEqual(2, boot_time.call_count)
+                stable.assert_called_once()
+
+    def test_systemctl_reboot_exception_does_not_issue_fallback(self) -> None:
+        self.date.current.return_value = self.boot_time + timedelta(minutes=2)
+        for error in (
+            LisaException("reboot command timed out"),
+            OSError("SSH unavailable"),
+            SSHException("SSH channel closed"),
+        ):
+            with self.subTest(error=error):
+                self.node.execute.side_effect = [
+                    Mock(exit_code=0, stdout="/usr/bin/systemctl", stderr=""),
+                    error,
+                ]
+                with patch.object(
+                    self.reboot,
+                    "_get_last_boot_time",
+                    side_effect=[
+                        self.boot_time,
+                        self.boot_time + timedelta(minutes=3),
+                    ],
+                ) as boot_time, patch.object(
+                    self.reboot, "_wait_ssh_session_stable"
+                ) as stable, patch.object(
+                    self.reboot, "_run_reboot_command"
+                ) as fallback:
+                    self.reboot.reboot()
+
+                fallback.assert_not_called()
+                self.assertEqual(2, boot_time.call_count)
+                stable.assert_called_once()
+
     def test_reboot_command_lookup_is_bounded(self) -> None:
         for exit_code in (0, 1):
             with self.subTest(exit_code=exit_code):
@@ -168,6 +235,87 @@ class RebootTestCase(TestCase):
                 expected = "/usr/sbin/reboot" if exit_code == 0 else "/sbin/reboot"
                 self.assertEqual(expected, self.reboot.command)
                 run.assert_called_once_with(force_run=True, sudo=True, timeout=10)
+
+    def test_reboot_command_lookup_failure_uses_cached_path(self) -> None:
+        for command in ("/sbin/reboot", "/usr/sbin/reboot"):
+            for error in (
+                LisaException("command discovery timed out"),
+                OSError("SSH unavailable"),
+                SSHException("SSH channel closed"),
+            ):
+                with self.subTest(command=command, error=error):
+                    self.reboot._command = command
+                    self.node.execute.reset_mock()
+                    self.node.execute.side_effect = error
+                    with patch.object(self.reboot, "run") as run:
+                        self.reboot._run_reboot_command()
+
+                    self.node.execute.assert_called_once_with(
+                        "command -v reboot",
+                        shell=True,
+                        sudo=True,
+                        timeout=10,
+                        no_info_log=True,
+                    )
+                    self.assertEqual(command, self.reboot.command)
+                    run.assert_called_once_with(force_run=True, sudo=True, timeout=10)
+
+    def test_both_discovery_failures_still_reboot(self) -> None:
+        self.date.current.return_value = self.boot_time + timedelta(minutes=2)
+        self.node.execute.side_effect = [
+            LisaException("systemctl discovery timed out"),
+            LisaException("reboot discovery timed out"),
+        ]
+        with patch.object(
+            self.reboot,
+            "_get_last_boot_time",
+            side_effect=[self.boot_time, self.boot_time + timedelta(minutes=3)],
+        ) as boot_time, patch.object(
+            self.reboot, "_wait_ssh_session_stable"
+        ) as stable, patch.object(
+            self.reboot, "run"
+        ) as run:
+            self.reboot.reboot()
+
+        self.assertEqual(
+            ["command -v systemctl", "command -v reboot"],
+            [call.args[0] for call in self.node.execute.call_args_list],
+        )
+        self.assertEqual("/sbin/reboot", self.reboot.command)
+        run.assert_called_once_with(force_run=True, sudo=True, timeout=10)
+        self.assertEqual(2, boot_time.call_count)
+        stable.assert_called_once()
+
+    def test_discovery_failures_do_not_skip_reboot_verification(self) -> None:
+        self.date.current.return_value = self.boot_time + timedelta(minutes=2)
+        for reachable in (True, False):
+            with self.subTest(reachable=reachable):
+                self.node.execute.side_effect = [
+                    LisaException("systemctl discovery timed out"),
+                    LisaException("reboot discovery timed out"),
+                ]
+                boot_result = (
+                    self.boot_time if reachable else OSError("SSH unavailable")
+                )
+                message = "may not perform reboot" if reachable else "may stuck"
+                timer = Mock()
+                timer.elapsed.return_value = 600
+                with patch(
+                    "lisa.tools.reboot.create_timer", return_value=timer
+                ), patch.object(
+                    self.reboot,
+                    "_get_last_boot_time",
+                    side_effect=[self.boot_time, boot_result],
+                ), patch.object(
+                    self.reboot, "_wait_ssh_session_stable"
+                ) as stable, patch.object(
+                    self.reboot, "run"
+                ) as run:
+                    with self.assertRaisesRegex(LisaException, message):
+                        self.reboot.reboot(time_out=600)
+
+                run.assert_called_once_with(force_run=True, sudo=True, timeout=10)
+                stable.assert_not_called()
 
     def test_slow_reboot_can_use_extended_timeout(self) -> None:
         self.date.current.return_value = self.boot_time + timedelta(minutes=2)

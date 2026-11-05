@@ -8,6 +8,7 @@ from time import sleep
 from typing import Any, Optional, Type, cast
 
 from func_timeout import FunctionTimedOut, func_set_timeout
+from paramiko.ssh_exception import SSHException
 
 from lisa.executable import Tool
 from lisa.features import SerialConsole
@@ -19,6 +20,7 @@ from lisa.util import (
     constants,
 )
 from lisa.util.perf_timer import create_timer
+from lisa.util.process import ExecutableResult
 from lisa.util.shell import wait_tcp_port_ready
 
 from .date import Date
@@ -98,16 +100,25 @@ class Reboot(Tool):
             f"Last error: {last_error}"
         )
 
+    def _discover_command(self, command: str) -> Optional[ExecutableResult]:
+        try:
+            return self.node.execute(
+                f"command -v {command}",
+                shell=True,
+                sudo=True,
+                timeout=10,
+                no_info_log=True,
+            )
+        except (LisaException, OSError, SSHException) as e:
+            self._log.debug(f"command discovery failed for {command}: {e}")
+            return None
+
     def _run_reboot_command(self) -> None:
-        command_result = self.node.execute(
-            "command -v reboot",
-            shell=True,
-            sudo=True,
-            timeout=10,
-            no_info_log=True,
-        )
-        if command_result.exit_code == 0:
+        command_result = self._discover_command("reboot")
+        if command_result is not None and command_result.exit_code == 0:
             self._command = command_result.stdout.strip()
+        else:
+            self._log.debug(f"using cached reboot command {self._command}.")
         self.run(force_run=True, sudo=True, timeout=10)
 
     def reboot_and_check_panic(self, log_path: Path) -> None:
@@ -155,14 +166,8 @@ class Reboot(Tool):
             # Reboot is not reliable, and sometime stuck,
             # like SUSE sles-15-sp1-sapcal gen1 2020.10.23.
             # In this case, use timeout to prevent hanging.
-            systemctl_result = self.node.execute(
-                "command -v systemctl",
-                shell=True,
-                sudo=True,
-                timeout=10,
-                no_info_log=True,
-            )
-            if systemctl_result.exit_code == 0:
+            systemctl_result = self._discover_command("systemctl")
+            if systemctl_result is not None and systemctl_result.exit_code == 0:
                 reboot_result = self.node.execute(
                     "systemctl reboot -i",
                     shell=True,
@@ -179,6 +184,9 @@ class Reboot(Tool):
                     )
                     self._run_reboot_command()
             else:
+                self._log.debug(
+                    "systemctl discovery did not succeed; falling back to reboot."
+                )
                 self._run_reboot_command()
         except Exception as e:
             # it doesn't matter to exceptions here. The system may reboot fast
