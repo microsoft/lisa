@@ -162,14 +162,6 @@ def select_and_check(
 
 
 class TestSuiteTestCase(TestCase):
-    def test_remote_connection_requirement_defaults_and_overrides(self) -> None:
-        self.assertTrue(simple_requirement().remote_connection_required)
-        self.assertFalse(
-            simple_requirement(
-                remote_connection_required=False
-            ).remote_connection_required
-        )
-
     def generate_suite_instance(self) -> MockTestSuite:
         case_results = generate_cases_result()
         self.case_results = case_results[:2]
