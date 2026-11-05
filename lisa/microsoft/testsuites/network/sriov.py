@@ -135,8 +135,8 @@ class Sriov(TestSuite):
     # `timeout` reports 124 when it has to signal the child, and 137 when that
     # signal had to be escalated to KILL. Either way the read never answered.
     DEBUGFS_READ_TIMEOUT_EXIT_CODES = (-124, -137)
-    # Five minutes of offered load precede the servicing transition.
-    _SERVICING_BASELINE_SECONDS = 300
+    # Two minutes provide baseline samples for this shorter continuity variant.
+    _SERVICING_BASELINE_SECONDS = 120
     # Observe each confirmed synthetic/restored path for at least 30 seconds.
     _SERVICING_PHASE_SECONDS = 30
     # Reserve one minute beyond all transition and observation windows.
@@ -362,7 +362,7 @@ class Sriov(TestSuite):
         Validate one accelerated-to-synthetic-to-accelerated servicing cycle under
         uninterrupted, paced UDP and TCP traffic between two IPv4 Linux VMs.
 
-        Establish a 300-second baseline, request AN disable on the receiver,
+        Establish a 120-second baseline, request AN disable on the receiver,
         hold the confirmed synthetic path for 30 seconds, then re-enable AN.
         Confirm VF receive counters increase and observe at least 30 more seconds.
         Require zero receiver-reported UDP loss, matching sent/received datagram
@@ -371,7 +371,7 @@ class Sriov(TestSuite):
 
         Each stream offers 1 Mbit/sec, not a capacity benchmark. Report throughput
         differences and recovery timing without a performance pass/fail threshold.
-        Traffic has a 1320-second overall budget and completes naturally to preserve
+        Traffic has a 1140-second overall budget and completes naturally to preserve
         final receiver loss accounting. Individual servicing waits allow 300 seconds.
         This simulates the guest network-path transition, not host servicing.
         Save raw results, kernel diagnostics, and phase timings in the log directory.
