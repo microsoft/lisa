@@ -19,6 +19,7 @@ class Timeout(Tool):
         timeout: int,
         signal: int = SIGTERM,
         kill_timeout: int = 0,
+        foreground: bool = False,
     ) -> ExecutableResult:
         # timeout [OPTION] DURATION COMMAND [ARG]...
 
@@ -37,6 +38,7 @@ class Timeout(Tool):
             timeout=timeout,
             signal=signal,
             kill_timeout=kill_timeout,
+            foreground=foreground,
         ).wait_result(timeout=command_timeout)
 
     def start_with_timeout(
@@ -46,9 +48,16 @@ class Timeout(Tool):
         signal: int = SIGTERM,
         kill_timeout: int = 0,
         delay_start: int = 0,
+        foreground: bool = False,
     ) -> Process:
         # timeout [OPTION] DURATION COMMAND [ARG]...
         params = f"-s {signal} --preserve-status {timeout} {command}"
         if kill_timeout:
             params = f"--kill-after {kill_timeout} " + params
+        # Without --foreground, timeout signals the command directly and then
+        # again via its process group, so the command gets the signal twice.
+        # Use foreground for programs that reset their handler to SIG_DFL on
+        # the first signal (ex. dpdk-testpmd), or the second one kills them.
+        if foreground:
+            params = "--foreground " + params
         return self.run_async(parameters=params, force_run=True, shell=True, sudo=True)
