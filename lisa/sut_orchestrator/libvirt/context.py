@@ -21,6 +21,7 @@ class DataDiskContext:
 @dataclass
 class EnvironmentContext:
     ssh_public_key: str = ""
+    vm_disks_dir: str = ""
 
     # Timeout for the OS to boot and acquire an IP address, in seconds.
     network_boot_timeout: float = 30.0
