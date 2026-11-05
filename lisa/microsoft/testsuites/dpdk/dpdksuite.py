@@ -321,7 +321,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_nff_go(
@@ -359,7 +358,6 @@ class Dpdk(TestSuite):
             min_nic_count=3,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_multiprocess(
@@ -472,7 +470,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_testpmd_hotplug_receiver_failsafe_pmd(
@@ -497,7 +494,6 @@ class Dpdk(TestSuite):
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
             min_count=2,
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_testpmd_hotplug_receiver_netvsc_pmd(
@@ -519,7 +515,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_testpmd_hotplug_sender_failsafe_pmd(
@@ -538,7 +533,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_testpmd_hotplug_sender_netvsc_pmd(
@@ -735,7 +729,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_dpdk_ring_ping(
@@ -1620,7 +1613,6 @@ class Dpdk(TestSuite):
             min_nic_count=2,
             network_interface=Sriov(),
             unsupported_features=[Gpu, Infiniband],
-            supported_features=[IsolatedResource],
         ),
     )
     def verify_uio_binding(
