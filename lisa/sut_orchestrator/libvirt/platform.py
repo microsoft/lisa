@@ -929,6 +929,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     def _stop_port_forwarding(self, environment: Environment, log: Logger) -> None:
         log.debug(f"Clearing port forwarding rules for environment {environment.name}")
         environment_context = get_environment_context(environment)
+        if not environment_context.port_forwarding_list:
+            return
         iptables = self.host_node.tools[Iptables]
         for port, address in environment_context.port_forwarding_list.copy():
             for command in (
