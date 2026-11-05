@@ -66,6 +66,7 @@ class CloudHypervisorTests(Tool):
     PERF_CMD_TIME_OUT = 1200
     METRICS_REPORT_FILE = "lisa_metrics_report.json"
     INTEGRATION_TEST_TYPE = "integration"
+    INTEGRATION_TEST_PROFILES = ("common_tests", "dbus", "fw_cfg", "ivshmem")
     CVM_INTEGRATION_TEST_TYPE = "integration-cvm"
     SUPPORTED_INTEGRATION_TEST_TYPES = (
         INTEGRATION_TEST_TYPE,
@@ -258,6 +259,11 @@ class CloudHypervisorTests(Tool):
             raise LisaException(
                 "No common_cvm subtests remain after applying the Cloud Hypervisor "
                 "integration include and exclude filters."
+            )
+        if not subtests:
+            raise SkippedException(
+                "No enabled Cloud Hypervisor integration subtests remain after "
+                "applying the selected profiles and include/exclude filters."
             )
 
         self._log.debug(f"Final Subtests list to run: {subtests}")
@@ -472,32 +478,41 @@ class CloudHypervisorTests(Tool):
         # but produced no JUnit output, fail with a clear diagnostic. If no
         # JUnit and no nextest markers, fall back to the cargo stdout parser.
         junit_files = self._collect_nextest_junit_files(log_path)
-        nextest_invoked_no_junit = not junit_files and "cargo nextest" in result.stdout
-
-        if nextest_invoked_no_junit:
-            self._save_kernel_logs(log_path)
-            self._check_test_panic_from_logs(
-                test_result=test_result,
-                content=result.stdout,
-                stage=f"{test_type} tests",
-                test_name=test_name,
-            )
-            self._handle_test_failure_with_diagnostics(
-                "cargo nextest invoked but no JUnit output produced at "
-                f"{self._get_nextest_junit_dir()}/. Check nextest config in "
-                "cloud-hypervisor repo.",
-                result,
-                test_type,
-                hypervisor,
-                log_path,
-            )
-            return  # unreachable: _handle_test_failure_with_diagnostics raises
+        nextest_invoked_no_junit = (
+            not junit_files and "cargo nextest" in f"{result.stdout}\n{result.stderr}"
+        )
 
         if junit_files:
             self._log.info(f"Parsing nextest JUnit output ({len(junit_files)} file(s))")
             results = self._extract_test_results_from_junit(junit_files, subtests)
+        elif nextest_invoked_no_junit:
+            results = [CloudHypervisorTestResult(name=name) for name in subtests]
         else:
             results = self._extract_test_results(result.stdout, log_path, subtests)
+        unstarted_subtests = {
+            child.name for child in results if child.status == TestStatus.QUEUED
+        }
+        for child in results:
+            if child.name not in unstarted_subtests:
+                continue
+            if result.is_timeout or result.exit_code != 0:
+                runner_outcome = (
+                    "timed out"
+                    if result.is_timeout
+                    else f"exited with code {result.exit_code}"
+                )
+                child.status = TestStatus.SKIPPED
+                child.message = (
+                    "Blocked: selected subtest did not start before the Cloud "
+                    f"Hypervisor {test_type} runner {runner_outcome}. "
+                    "See the parent test failure for the cause."
+                )
+            else:
+                child.status = TestStatus.FAILED
+                child.message = (
+                    "Reporting error: selected subtest has no result although "
+                    "the Cloud Hypervisor runner exited successfully."
+                )
         hung_tests = [r.name for r in results if r.hung]
         failures = [
             r.name
@@ -511,6 +526,7 @@ class CloudHypervisorTests(Tool):
                 test_case_name=r.name,
                 test_status=r.status,
                 test_message=r.message,
+                subtest_duration=0.0 if r.name in unstarted_subtests else None,
             )
 
         self._save_kernel_logs(log_path)
@@ -521,6 +537,18 @@ class CloudHypervisorTests(Tool):
             stage=f"{test_type} tests",
             test_name=test_name,
         )
+
+        if nextest_invoked_no_junit:
+            self._handle_test_failure_with_diagnostics(
+                "cargo nextest invoked but no JUnit output produced at "
+                f"{self._get_nextest_junit_dir()}/. Check nextest config in "
+                "cloud-hypervisor repo.",
+                result,
+                test_type,
+                hypervisor,
+                log_path,
+            )
+            return  # unreachable: _handle_test_failure_with_diagnostics raises
 
         has_failures = len(failures) > 0 or len(hung_tests) > 0
         if result.is_timeout:
@@ -1667,23 +1695,19 @@ exit $ec
         # devcli_testenv cfg the integration test scripts build with is still
         # applied. MSHV CVM discovery mirrors the dedicated upstream runner's
         # feature set and nextest profile instead of enumerating regular tests.
+        # Enumerate every runner profile, including follow-on profiles that a
+        # preceding failure may block, using nextest's own selection metadata.
         nextest_args = [
             "RUSTFLAGS=--cfg=devcli_testenv",
             "cargo nextest list",
             "-p cloud-hypervisor",
         ]
+        profiles: Tuple[str, ...] = self.INTEGRATION_TEST_PROFILES
         if test_type == self.CVM_INTEGRATION_TEST_TYPE:
-            nextest_args.extend(
-                [
-                    "--features mshv,igvm,sev_snp",
-                    "--profile common_cvm",
-                ]
-            )
+            nextest_args.append("--features mshv,igvm,sev_snp")
+            profiles = ("common_cvm",)
         elif hypervisor == "mshv":
             nextest_args.append("--features mshv")
-        nextest_args.append("--message-format json")
-        nextest_list_cmd = " ".join(nextest_args)
-        cmd_args = f"shell -- {nextest_list_cmd}"
         # Use enhanced environment variables for consistency
         enhanced_env_vars = self.env_vars.copy()
         enhanced_env_vars.update(
@@ -1693,23 +1717,29 @@ exit $ec
                 "RUST_LOG": os.environ.get("RUST_LOG", "debug"),
             }
         )
-        result = self.run(
-            cmd_args,
-            timeout=self.SUBTEST_DISCOVERY_TIME_OUT,
-            force_run=True,
-            cwd=self.repo_root,
-            no_info_log=False,
-            shell=True,
-            update_envs=enhanced_env_vars,
-        )
-        discovery_output = f"{result.stdout}\n{result.stderr}".strip()
-        if test_type == self.CVM_INTEGRATION_TEST_TYPE and result.exit_code != 0:
-            raise LisaException(
-                "Cloud Hypervisor integration-cvm discovery failed with exit "
-                f"code {result.exit_code}: {discovery_output[-1000:]}"
+        subtests: List[str] = []
+        for profile in profiles:
+            nextest_list_cmd = " ".join(
+                nextest_args + [f"--profile {profile}", "--message-format json"]
             )
-
-        subtests = self._parse_nextest_subtest_list(discovery_output)
+            result = self.run(
+                f"shell -- {nextest_list_cmd}",
+                timeout=self.SUBTEST_DISCOVERY_TIME_OUT,
+                force_run=True,
+                cwd=self.repo_root,
+                no_info_log=False,
+                shell=True,
+                update_envs=enhanced_env_vars,
+            )
+            discovery_output = f"{result.stdout}\n{result.stderr}".strip()
+            if result.exit_code != 0:
+                raise LisaException(
+                    f"Cloud Hypervisor {test_type} discovery for profile "
+                    f"'{profile}' failed with exit code {result.exit_code}: "
+                    f"{discovery_output[-1000:]}"
+                )
+            subtests.extend(self._parse_nextest_subtest_list(discovery_output))
+        subtests = list(dict.fromkeys(subtests))
         if test_type == self.CVM_INTEGRATION_TEST_TYPE:
             subtests = [
                 test_name
@@ -1746,10 +1776,27 @@ exit $ec
                 data = cast(Dict[str, Any], decoded)
                 subtests: List[str] = []
                 for suite in data["rust-suites"].values():
-                    subtests.extend(suite.get("testcases", {}).keys())
+                    for name, metadata in suite.get("testcases", {}).items():
+                        ignored = metadata.get("ignored")
+                        filter_match = metadata.get("filter-match")
+                        if not isinstance(ignored, bool) or not isinstance(
+                            filter_match, dict
+                        ):
+                            raise LisaException(
+                                f"Nextest discovery lacks selection metadata for {name}"
+                            )
+                        status = filter_match.get("status")
+                        if status not in ("matches", "mismatch"):
+                            raise LisaException(
+                                f"Unknown nextest filter status for {name}: {status}"
+                            )
+                        if not ignored and status == "matches":
+                            subtests.append(name)
                 return subtests
             pos = stdout.find("{", pos + 1)
-        return []
+        raise LisaException(
+            "Cloud Hypervisor nextest discovery produced no rust-suites JSON object."
+        )
 
     def _extract_test_results(
         self, output: str, log_path: Path, subtests: Set[str]
@@ -1929,7 +1976,8 @@ exit $ec
         the last occurrence wins, matching nextest's final-outcome
         reporting. Tests present in ``subtests`` but absent from every
         JUnit file are reported as QUEUED with message
-        ``"Subtest did not start"``. Tests present in JUnit but not in the
+        ``"Subtest did not start"`` until the completed runner's results are
+        finalized by ``_process_test_results``. Tests present in JUnit but not in the
         expected ``subtests`` set are still surfaced as extra results so
         no information is dropped.
         """
