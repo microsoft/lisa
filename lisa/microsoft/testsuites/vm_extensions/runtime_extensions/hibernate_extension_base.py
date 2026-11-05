@@ -22,7 +22,7 @@ from lisa.sut_orchestrator.azure.common import (
 from lisa.sut_orchestrator.azure.features import ArchitectureSettings, AzureExtension
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.testsuite import TestCaseRequirement
-from lisa.util import LisaException
+from lisa.util import LisaException, SkippedException
 from lisa.util.perf_timer import create_timer
 
 from ..vm_extension_base import VmExtensionTestBase
@@ -139,6 +139,16 @@ class HibernateExtensionTestBase(VmExtensionTestBase):
         environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
+        requested_version = self._get_version(variables, use_default=False)
+        log.info(
+            "Hibernate extension candidate context: "
+            f"publisher='{self.PUBLISHER}', type='{self.EXTENSION_TYPE}', "
+            f"requested_version='{requested_version}', "
+            f"resource_name='{self.extension_name}', "
+            f"expected_os='{self.EXPECTED_OS.__name__}', "
+            f"platform_managed={self.PLATFORM_MANAGED}."
+        )
+        self._validate_control_plane_os(node, log, environment)
         installed_candidate = False
         if self.PLATFORM_MANAGED:
             extension_name = self._validate_platform_managed_candidate(
@@ -164,6 +174,33 @@ class HibernateExtensionTestBase(VmExtensionTestBase):
             if installed_candidate:
                 self._delete_candidate(node, log, environment)
 
+    def _validate_control_plane_os(
+        self,
+        node: Node,
+        log: Logger,
+        environment: Environment,
+    ) -> None:
+        _, compute_client = self._get_azure_context(environment)
+        node_context = get_node_context(node)
+        vm = compute_client.virtual_machines.get(
+            resource_group_name=node_context.resource_group_name,
+            vm_name=node_context.vm_name,
+        )
+        storage_profile = getattr(vm, "storage_profile", None)
+        os_disk = getattr(storage_profile, "os_disk", None)
+        os_type = getattr(os_disk, "os_type", None)
+        actual_os = str(getattr(os_type, "value", os_type) or "").casefold()
+        expected_os = "windows" if issubclass(self.EXPECTED_OS, Windows) else "linux"
+        if actual_os != expected_os:
+            raise SkippedException(
+                f"{self.__class__.__name__} requires a {expected_os} VM, "
+                f"but Azure reports OS type '{actual_os or 'unknown'}'."
+            )
+        log.info(
+            "Validated Azure control-plane OS: "
+            f"expected='{expected_os}', actual='{actual_os}'."
+        )
+
     def _install_candidate(
         self,
         node: Node,
@@ -171,10 +208,17 @@ class HibernateExtensionTestBase(VmExtensionTestBase):
         environment: Environment,
         variables: Dict[str, Any],
     ) -> None:
+        setup_timer = create_timer()
         _, compute_client = self._get_azure_context(environment)
         node_context = get_node_context(node)
         requested_version = self._get_version(variables, use_default=False)
         install_version, _ = _normalize_type_handler_version(requested_version)
+        self._delete_matching_handler_resources(
+            compute_client=compute_client,
+            resource_group_name=node_context.resource_group_name,
+            vm_name=node_context.vm_name,
+            log=log,
+        )
         vm = compute_client.virtual_machines.get(
             resource_group_name=node_context.resource_group_name,
             vm_name=node_context.vm_name,
@@ -236,7 +280,8 @@ class HibernateExtensionTestBase(VmExtensionTestBase):
                 )
             log.info(
                 f"Installed extension '{self.extension_name}' version "
-                f"'{installed_version}' successfully."
+                f"'{installed_version}' successfully in "
+                f"{setup_timer.elapsed():.2f}s."
             )
         except Exception:
             self._delete_candidate(
@@ -247,6 +292,45 @@ class HibernateExtensionTestBase(VmExtensionTestBase):
             )
             raise
 
+    def _delete_matching_handler_resources(
+        self,
+        compute_client: Any,
+        resource_group_name: str,
+        vm_name: str,
+        log: Logger,
+    ) -> None:
+        result = compute_client.virtual_machine_extensions.list(
+            resource_group_name=resource_group_name,
+            vm_name=vm_name,
+        )
+        extensions = getattr(result, "value", result) or []
+        for extension in extensions:
+            publisher = str(getattr(extension, "publisher", ""))
+            extension_type = str(
+                getattr(extension, "type_properties_type", "")
+                or getattr(extension, "type", "")
+            )
+            if (
+                publisher.casefold() != self.PUBLISHER.casefold()
+                or extension_type.casefold() != self.EXTENSION_TYPE.casefold()
+            ):
+                continue
+
+            extension_name = str(getattr(extension, "name", "")).strip()
+            if not extension_name:
+                continue
+            log.info(
+                f"Removing pre-existing extension '{extension_name}' with "
+                f"handler '{self.PUBLISHER}.{self.EXTENSION_TYPE}'."
+            )
+            self._delete_extension_by_name(
+                compute_client=compute_client,
+                resource_group_name=resource_group_name,
+                vm_name=vm_name,
+                extension_name=extension_name,
+                ignore_not_found=True,
+            )
+
     def _delete_candidate(
         self,
         node: Node,
@@ -254,19 +338,40 @@ class HibernateExtensionTestBase(VmExtensionTestBase):
         environment: Environment,
         ignore_not_found: bool = False,
     ) -> None:
+        cleanup_timer = create_timer()
         _, compute_client = self._get_azure_context(environment)
         node_context = get_node_context(node)
         log.info(f"Removing extension '{self.extension_name}'.")
+        self._delete_extension_by_name(
+            compute_client=compute_client,
+            resource_group_name=node_context.resource_group_name,
+            vm_name=node_context.vm_name,
+            extension_name=self.extension_name,
+            ignore_not_found=ignore_not_found,
+        )
+        log.info(
+            f"Removed extension '{self.extension_name}' in "
+            f"{cleanup_timer.elapsed():.2f}s."
+        )
+
+    def _delete_extension_by_name(
+        self,
+        compute_client: Any,
+        resource_group_name: str,
+        vm_name: str,
+        extension_name: str,
+        ignore_not_found: bool,
+    ) -> None:
         try:
             operation = compute_client.virtual_machine_extensions.begin_delete(
-                resource_group_name=node_context.resource_group_name,
-                vm_name=node_context.vm_name,
-                vm_extension_name=self.extension_name,
+                resource_group_name=resource_group_name,
+                vm_name=vm_name,
+                vm_extension_name=extension_name,
             )
             wait_operation(
                 operation,
                 time_out=25 * 60,
-                failure_identity=f"remove extension '{self.extension_name}'",
+                failure_identity=f"remove extension '{extension_name}'",
             )
         except HttpResponseError as error:
             if ignore_not_found and getattr(error, "status_code", None) == 404:
@@ -342,7 +447,7 @@ class HibernateExtensionTestBase(VmExtensionTestBase):
                 log.info(
                     f"Validated platform-managed extension '{extension_name}' "
                     f"({self.PUBLISHER}.{self.EXTENSION_TYPE}) version "
-                    f"'{installed_version}'."
+                    f"'{installed_version}' in {timer.elapsed():.2f}s."
                 )
                 return extension_name
 

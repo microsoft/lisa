@@ -10,6 +10,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, List, Optional, cast
 
+from azure.core.exceptions import (
+    HttpResponseError,
+    ServiceRequestError,
+    ServiceResponseError,
+)
 from azure.mgmt.compute.models import RunCommandInput
 from dateutil.parser import isoparse
 
@@ -20,7 +25,8 @@ from lisa.sut_orchestrator.azure.common import (
     wait_operation,
 )
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
-from lisa.util import LisaException
+from lisa.util import LisaException, LisaTimeoutException
+from lisa.util.parallel import check_cancelled
 from lisa.util.perf_timer import create_timer
 
 _CYCLE_COUNT = 5
@@ -42,6 +48,8 @@ _MARKER_PATTERN = re.compile(r"HRMARKER:(?P<state>ALIVE|DEAD)(?::(?P<ticks>\d+))
 _SCRIPT_ROOT = Path(__file__).parent.parent / "scripts"
 _LINUX_MEMORY_LOADER = _SCRIPT_ROOT / "hibernate_memory_load.py"
 _WINDOWS_MEMORY_LOADER = _SCRIPT_ROOT / "hibernate_memory_load.cs"
+_WINDOWS_MEMORY_LOADER_PATH = r"C:\Windows\Temp\LoadMemory_HibernateVMBytes.exe"
+_TRANSIENT_HTTP_STATUS_CODES = {408, 409, 429, 500, 502, 503, 504}
 
 
 @dataclass(frozen=True)
@@ -91,35 +99,85 @@ class HibernateResumeValidator:
 
     def run(self) -> None:
         self._environment.mark_dirty()
-        self._verify_hibernation_enabled()
+        run_timer = create_timer()
+        started_at = datetime.now(timezone.utc)
         baseline: Optional[_ResumeBaseline] = None
         memory_state: Optional[_MemoryLoadState] = None
-        previous_extension_status_time: Optional[datetime] = None
+
+        self._log.info(
+            "Starting hibernate/resume validation: "
+            f"vm='{self._vm_name}', resource_group='{self._resource_group_name}', "
+            f"extension='{self._extension_name}', "
+            f"os={'Windows' if self._is_windows else 'Linux'}, "
+            f"started_utc='{started_at.isoformat()}'."
+        )
+        self._log.info(
+            "Hibernate validation configuration: "
+            f"cycles={_CYCLE_COUNT}, memory_load_step={_LOAD_FRACTION_STEP:.0%}, "
+            f"maximum_memory_load={_LOAD_FRACTION_MAX:.0%}, "
+            f"allocation_timeout={_ALLOCATION_TIMEOUT_SECONDS}s, "
+            f"hibernate_timeout={_HIBERNATE_TIMEOUT_SECONDS}s, "
+            f"resume_timeout={_RESUME_TIMEOUT_SECONDS}s, "
+            f"status_timeout={_STATUS_TIMEOUT_SECONDS}s, "
+            f"guest_ready_timeout={_GUEST_READY_TIMEOUT_SECONDS}s, "
+            f"boot_time_tolerance={_BOOT_TIME_TOLERANCE_SECONDS}s."
+        )
 
         try:
+            self._log_vm_configuration()
+            self._verify_hibernation_enabled()
             baseline = self._capture_resume_baseline()
-            if self._is_windows:
-                previous_extension_status_time = (
-                    self._get_latest_windows_extension_status_time()
-                )
+            self._log.info(
+                "Captured resume continuity baseline: "
+                f"boot_time_utc='{baseline.boot_time.isoformat()}', "
+                f"marker_pid={baseline.marker.pid}, "
+                f"marker_start_ticks={baseline.marker.start_ticks}, "
+                f"marker_service='{baseline.marker.service_name or 'process'}'."
+            )
             for cycle in range(1, _CYCLE_COUNT + 1):
+                cycle_timer = create_timer()
+                cycle_started_at = datetime.now(timezone.utc)
                 fraction = min(
                     cycle * _LOAD_FRACTION_STEP,
                     _LOAD_FRACTION_MAX,
                 )
                 self._log.info(
                     f"Starting hibernate/resume cycle {cycle}/{_CYCLE_COUNT} "
-                    f"with {fraction:.0%} of available guest memory."
+                    f"with {fraction:.0%} of available guest memory at "
+                    f"{cycle_started_at.isoformat()}."
                 )
+                allocation_timer = create_timer()
                 memory_state = self._start_memory_load(
                     load_fraction=fraction,
                     previous_state=memory_state,
                 )
+                allocation_elapsed = allocation_timer.elapsed()
+                self._log.info(
+                    f"Cycle {cycle}/{_CYCLE_COUNT} memory load is ready: "
+                    f"pid={memory_state.pid}, "
+                    f"start_ticks={memory_state.start_ticks}, "
+                    f"target={self._format_bytes(memory_state.target_bytes)}, "
+                    f"held={self._format_bytes(memory_state.held_bytes)}, "
+                    f"requested_fraction={fraction:.0%}, "
+                    f"allocation_elapsed={allocation_elapsed:.2f}s."
+                )
+                previous_extension_status_time: Optional[datetime] = None
+                if self._is_windows:
+                    previous_extension_status_time = (
+                        self._wait_for_windows_extension_status_time()
+                    )
+                hibernate_phase_timer = create_timer()
                 self._hibernate()
                 self._wait_for_vm_status(
                     code_prefix="HibernationState",
                     expected_display_status="VM hibernated",
                 )
+                hibernate_phase_elapsed = hibernate_phase_timer.elapsed()
+                self._log.info(
+                    f"Cycle {cycle}/{_CYCLE_COUNT} hibernate phase completed in "
+                    f"{hibernate_phase_elapsed:.2f}s."
+                )
+                resume_phase_timer = create_timer()
                 self._resume()
                 self._wait_for_vm_status(
                     code_prefix="PowerState",
@@ -127,24 +185,47 @@ class HibernateResumeValidator:
                 )
                 self._wait_for_guest_agent_ready()
                 if self._is_windows:
-                    previous_extension_status_time = (
-                        self._validate_windows_resume_substatus(
-                            previous_status_time=previous_extension_status_time
+                    if previous_extension_status_time is None:
+                        raise LisaException(
+                            "Windows extension status baseline was not captured."
                         )
+                    self._validate_windows_resume_substatus(
+                        previous_status_time=previous_extension_status_time
                     )
+                resume_phase_elapsed = resume_phase_timer.elapsed()
+                self._log.info(
+                    f"Cycle {cycle}/{_CYCLE_COUNT} resume phase completed in "
+                    f"{resume_phase_elapsed:.2f}s."
+                )
                 self._validate_resume_not_reboot(baseline)
                 self._validate_memory_load(memory_state)
+                cycle_elapsed = cycle_timer.elapsed()
                 self._log.info(
-                    f"Hibernate/resume cycle {cycle}/{_CYCLE_COUNT} succeeded."
+                    f"Hibernate/resume cycle {cycle}/{_CYCLE_COUNT} succeeded in "
+                    f"{cycle_elapsed:.2f}s; completed_utc="
+                    f"'{datetime.now(timezone.utc).isoformat()}'."
                 )
 
             wait_seconds = random.randint(60, 120)
             self._log.info(f"Waiting {wait_seconds} seconds after the final resume.")
             time.sleep(wait_seconds)
+        except Exception as error:
+            self._log.error(
+                "Hibernate/resume validation failed after "
+                f"{run_timer.elapsed():.2f}s: {error}"
+            )
+            raise
         finally:
+            cleanup_timer = create_timer()
             self._ensure_vm_running_for_cleanup()
             if baseline:
                 self._cleanup_processes(memory_state, baseline.marker)
+            self._log.info(
+                "Hibernate/resume validation cleanup phase finished; "
+                f"cleanup_elapsed={cleanup_timer.elapsed():.2f}s, "
+                f"total_elapsed={run_timer.elapsed():.2f}s, "
+                f"finished_utc='{datetime.now(timezone.utc).isoformat()}'."
+            )
 
     def _verify_hibernation_enabled(self) -> None:
         vm = self._get_vm(expand_instance_view=False)
@@ -159,6 +240,7 @@ class HibernateResumeValidator:
                 f"VM '{self._vm_name}' does not report "
                 "additionalCapabilities.hibernationEnabled=true."
             )
+        self._log.info(f"Verified Azure VM '{self._vm_name}' has hibernation enabled.")
 
     def _get_vm(self, expand_instance_view: bool = True) -> Any:
         return self._compute_client.virtual_machines.get(
@@ -167,11 +249,65 @@ class HibernateResumeValidator:
             expand="instanceView" if expand_instance_view else None,
         )
 
+    def _log_vm_configuration(self) -> None:
+        try:
+            vm = self._get_vm(expand_instance_view=False)
+            hardware_profile = getattr(vm, "hardware_profile", None)
+            storage_profile = getattr(vm, "storage_profile", None)
+            image_reference = getattr(storage_profile, "image_reference", None)
+            os_disk = getattr(storage_profile, "os_disk", None)
+            managed_disk = getattr(os_disk, "managed_disk", None)
+            additional_capabilities = getattr(vm, "additional_capabilities", None)
+            security_profile = getattr(vm, "security_profile", None)
+            uefi_settings = getattr(security_profile, "uefi_settings", None)
+
+            image = ":".join(
+                str(getattr(image_reference, field, "") or "unknown")
+                for field in ("publisher", "offer", "sku", "version")
+            )
+            os_type = getattr(os_disk, "os_type", None)
+            os_type = getattr(os_type, "value", os_type)
+            disk_caching = getattr(os_disk, "caching", None)
+            disk_caching = getattr(disk_caching, "value", disk_caching)
+            storage_type = getattr(managed_disk, "storage_account_type", None)
+            storage_type = getattr(storage_type, "value", storage_type)
+            security_type = getattr(security_profile, "security_type", None)
+            security_type = getattr(security_type, "value", security_type)
+
+            self._log.info(
+                "Azure VM configuration: "
+                f"name='{getattr(vm, 'name', self._vm_name)}', "
+                f"location='{getattr(vm, 'location', 'unknown')}', "
+                f"size='{getattr(hardware_profile, 'vm_size', 'unknown')}', "
+                f"image='{image}', "
+                f"os_type='{os_type or 'unknown'}', "
+                f"os_disk_size_gb="
+                f"{getattr(os_disk, 'disk_size_gb', 'unknown')}, "
+                f"os_disk_name='{getattr(os_disk, 'name', 'unknown')}', "
+                f"os_disk_caching='{disk_caching or 'unknown'}', "
+                f"os_disk_storage_type='{storage_type or 'unknown'}', "
+                f"hibernation_enabled="
+                f"{getattr(additional_capabilities, 'hibernation_enabled', False)}, "
+                f"zones={getattr(vm, 'zones', None) or []}, "
+                f"security_type='{security_type or 'standard'}', "
+                f"secure_boot_enabled="
+                f"{getattr(uefi_settings, 'secure_boot_enabled', False)}, "
+                f"v_tpm_enabled="
+                f"{getattr(uefi_settings, 'v_tpm_enabled', False)}, "
+                "architecture_requirement='x64'."
+            )
+        except Exception as error:
+            self._log.warning(
+                f"Could not collect Azure VM configuration for logging: {error}"
+            )
+
     def _capture_resume_baseline(self) -> _ResumeBaseline:
         if self._is_windows:
             script = r"""
 $ErrorActionPreference = 'Stop'
-$boot = (Get-CimInstance -ClassName Win32_OperatingSystem).LastBootUpTime
+$os = Get-CimInstance -ClassName Win32_OperatingSystem
+$computer = Get-CimInstance -ClassName Win32_ComputerSystem
+$boot = $os.LastBootUpTime
 $payload = 'while ($true) { Start-Sleep -Seconds 3600 }'
 $encoded = [Convert]::ToBase64String(
     [Text.Encoding]::Unicode.GetBytes($payload))
@@ -183,6 +319,13 @@ if ($result.ReturnValue -ne 0) {
     throw "Win32_Process.Create failed with $($result.ReturnValue)."
 }
 $process = Get-Process -Id $result.ProcessId -ErrorAction Stop
+Write-Output "HRCONFIG:os=$($os.Caption)"
+Write-Output "HRCONFIG:os_version=$($os.Version)"
+Write-Output "HRCONFIG:os_build=$($os.BuildNumber)"
+Write-Output "HRCONFIG:architecture=$env:PROCESSOR_ARCHITECTURE"
+Write-Output "HRCONFIG:logical_processors=$($computer.NumberOfLogicalProcessors)"
+Write-Output "HRCONFIG:total_memory_bytes=$($computer.TotalPhysicalMemory)"
+Write-Output "HRCONFIG:available_memory_bytes=$([long]$os.FreePhysicalMemory * 1024L)"
 Write-Output "HRBOOT:$($boot.ToUniversalTime().ToString('o')):HRBOOT"
 Write-Output "HRPID:$($result.ProcessId):$($process.StartTime.Ticks)"
 """
@@ -198,10 +341,30 @@ pid=$(systemctl show --property=MainPID --value "$service")
 [ "$pid" -gt 1 ]
 ticks=$(sed 's/.*) //' "/proc/$pid/stat" | awk '{print $20}')
 boot=$(uptime -s)
+. /etc/os-release
+total_kb=$(awk '/^MemTotal:/{print $2}' /proc/meminfo)
+available_kb=$(awk '/^MemAvailable:/{print $2}' /proc/meminfo)
+printf 'HRCONFIG:os=%s\n' "${PRETTY_NAME:-unknown}"
+printf 'HRCONFIG:kernel=%s\n' "$(uname -r)"
+printf 'HRCONFIG:architecture=%s\n' "$(uname -m)"
+printf 'HRCONFIG:logical_processors=%s\n' "$(getconf _NPROCESSORS_ONLN)"
+printf 'HRCONFIG:total_memory_bytes=%s\n' "$((total_kb * 1024))"
+printf 'HRCONFIG:available_memory_bytes=%s\n' "$((available_kb * 1024))"
 printf 'HRBOOT:%s:HRBOOT\n' "$boot"
 printf 'HRPID:%s:%s\n' "$pid" "$ticks"
 """
         output = self._run_guest_command(script)
+        guest_configuration: List[str] = []
+        for line in output.splitlines():
+            if not line.startswith("HRCONFIG:"):
+                continue
+            name, separator, value = line[len("HRCONFIG:") :].partition("=")
+            if separator and name.endswith("_memory_bytes") and value.isdigit():
+                guest_configuration.append(f"{name}={self._format_bytes(int(value))}")
+            else:
+                guest_configuration.append(line[len("HRCONFIG:") :])
+        if guest_configuration:
+            self._log.info("Guest configuration: " + ", ".join(guest_configuration))
         boot_time = self._parse_boot_time(output)
         matched = re.search(r"HRPID:(?P<pid>\d+):(?P<ticks>\d+)", output)
         if not matched:
@@ -249,8 +412,14 @@ printf 'HRPID:%s:%s\n' "$pid" "$ticks"
         timeout: int,
     ) -> None:
         for attempt in range(1, 7):
+            check_cancelled()
             timer = create_timer()
             try:
+                self._log.info(
+                    f"Submitting Azure VM {operation_name} operation "
+                    f"(attempt {attempt}/6) at "
+                    f"{datetime.now(timezone.utc).isoformat()}."
+                )
                 operation = operation_factory()
                 wait_operation(
                     operation,
@@ -263,15 +432,31 @@ printf 'HRPID:%s:%s\n' "$pid" "$ticks"
                         f"{operation_name.capitalize()} operation exceeded "
                         f"{timeout} seconds: {elapsed:.2f}."
                     )
+                self._log.info(
+                    f"Azure VM {operation_name} operation completed on "
+                    f"attempt {attempt}/6 in {elapsed:.2f}s."
+                )
                 return
             except Exception as error:
-                if attempt == 6:
+                check_cancelled()
+                if attempt == 6 or not self._is_transient_vm_operation_error(error):
                     raise
                 self._log.info(
                     f"Retrying {operation_name} operation after attempt "
                     f"{attempt}/6 failed: {error}"
                 )
                 time.sleep(10)
+
+    @staticmethod
+    def _is_transient_vm_operation_error(error: Exception) -> bool:
+        if isinstance(
+            error,
+            (LisaTimeoutException, ServiceRequestError, ServiceResponseError),
+        ):
+            return True
+        if isinstance(error, HttpResponseError):
+            return getattr(error, "status_code", None) in _TRANSIENT_HTTP_STATUS_CODES
+        return False
 
     def _wait_for_vm_status(
         self,
@@ -280,6 +465,7 @@ printf 'HRPID:%s:%s\n' "$pid" "$ticks"
     ) -> None:
         timer = create_timer()
         last_statuses = ""
+        previous_statuses = ""
         while timer.elapsed(False) < _STATUS_TIMEOUT_SECONDS:
             vm = self._get_vm()
             instance_view = getattr(vm, "instance_view", None)
@@ -289,12 +475,22 @@ printf 'HRPID:%s:%s\n' "$pid" "$ticks"
                 f"{getattr(status, 'display_status', '')}"
                 for status in statuses
             )
+            if last_statuses != previous_statuses:
+                self._log.info(
+                    f"Waiting for VM status '{expected_display_status}'; "
+                    f"observed=[{last_statuses}], elapsed={timer.elapsed():.2f}s."
+                )
+                previous_statuses = last_statuses
             for status in statuses:
                 code = str(getattr(status, "code", ""))
                 display_status = str(getattr(status, "display_status", ""))
                 if code.casefold().startswith(code_prefix.casefold()) and (
                     expected_display_status.casefold() in display_status.casefold()
                 ):
+                    self._log.info(
+                        f"VM status reached '{code}:{display_status}' after "
+                        f"{timer.elapsed():.2f}s."
+                    )
                     return
             time.sleep(10)
 
@@ -307,6 +503,7 @@ printf 'HRPID:%s:%s\n' "$pid" "$ticks"
     def _wait_for_guest_agent_ready(self) -> None:
         timer = create_timer()
         last_status = ""
+        previous_status = ""
         while timer.elapsed(False) < _GUEST_READY_TIMEOUT_SECONDS:
             vm = self._get_vm()
             instance_view = getattr(vm, "instance_view", None)
@@ -314,7 +511,16 @@ printf 'HRPID:%s:%s\n' "$pid" "$ticks"
             statuses = getattr(vm_agent, "statuses", None) or []
             if statuses:
                 last_status = str(getattr(statuses[0], "display_status", ""))
+                if last_status != previous_status:
+                    self._log.info(
+                        "Waiting for guest agent Ready; "
+                        f"observed='{last_status}', elapsed={timer.elapsed():.2f}s."
+                    )
+                    previous_status = last_status
                 if last_status.casefold() == "ready":
+                    self._log.info(
+                        f"Guest agent reported Ready after " f"{timer.elapsed():.2f}s."
+                    )
                     return
             time.sleep(10)
 
@@ -343,14 +549,36 @@ printf 'HRPID:%s:%s\n' "$pid" "$ticks"
         status_times = [
             status_time
             for status in (getattr(extension, "statuses", None) or [])
+            if str(getattr(status, "code", "")).casefold()
+            == "provisioningstate/succeeded"
             for status_time in [self._parse_status_time(getattr(status, "time", None))]
             if status_time is not None
         ]
         return max(status_times) if status_times else None
 
+    def _wait_for_windows_extension_status_time(self) -> datetime:
+        timer = create_timer()
+        while timer.elapsed(False) < _STATUS_TIMEOUT_SECONDS:
+            status_time = self._get_latest_windows_extension_status_time()
+            if status_time is not None:
+                self._log.info(
+                    "Captured Windows extension status baseline immediately "
+                    f"before hibernate: extension='{self._extension_name}', "
+                    f"status_time_utc='{status_time.isoformat()}', "
+                    f"elapsed={timer.elapsed():.2f}s."
+                )
+                return status_time
+            time.sleep(10)
+
+        raise LisaException(
+            f"Windows hibernate extension '{self._extension_name}' did not "
+            f"report a timestamped successful provisioning status within "
+            f"{_STATUS_TIMEOUT_SECONDS} seconds."
+        )
+
     def _validate_windows_resume_substatus(
         self,
-        previous_status_time: Optional[datetime],
+        previous_status_time: datetime,
     ) -> datetime:
         timer = create_timer()
         last_codes: List[str] = []
@@ -397,11 +625,21 @@ printf 'HRPID:%s:%s\n' "$pid" "$ticks"
                 fresh_status_times = [
                     status_time
                     for status_time in last_status_times
-                    if previous_status_time is None
-                    or status_time > previous_status_time
+                    if status_time > previous_status_time
                 ]
                 if provisioning_succeeded and resume_succeeded and fresh_status_times:
-                    return max(fresh_status_times)
+                    current_status_time = max(fresh_status_times)
+                    self._log.info(
+                        "Validated Windows guest resume status: "
+                        f"substatus='{_COMPONENT_STATUS_RESUME_SUCCEEDED}', "
+                        f"previous_status_time_utc="
+                        f"'{previous_status_time.isoformat()}', "
+                        f"current_status_time_utc="
+                        f"'{current_status_time.isoformat()}', "
+                        f"extension_statuses={last_extension_statuses}, "
+                        f"elapsed={timer.elapsed():.2f}s."
+                    )
+                    return current_status_time
             time.sleep(10)
 
         raise LisaException(
@@ -456,6 +694,15 @@ fi
             raise LisaException(
                 f"Marker process {baseline.marker.pid} did not survive resume."
             )
+        self._log.info(
+            "Validated resume continuity: "
+            f"baseline_boot_time_utc='{baseline.boot_time.isoformat()}', "
+            f"current_boot_time_utc='{current_boot_time.isoformat()}', "
+            f"boot_time_delta={boot_delta_seconds:.2f}s, "
+            f"marker_pid={baseline.marker.pid}, "
+            f"marker_start_ticks={baseline.marker.start_ticks}, "
+            "marker_state='ALIVE'."
+        )
 
     def _start_memory_load(
         self,
@@ -543,7 +790,7 @@ exit 1
         previous_state: Optional[_MemoryLoadState],
     ) -> _MemoryLoadState:
         source_path = r"C:\Windows\Temp\hibernate_memory_load.cs"
-        executable_path = r"C:\Windows\Temp\LoadMemory_HibernateVMBytes.exe"
+        executable_path = _WINDOWS_MEMORY_LOADER_PATH
         ready_path = f"{executable_path}.ready"
         source = self._encode_asset(_WINDOWS_MEMORY_LOADER)
         previous_check = ""
@@ -682,9 +929,13 @@ echo "HRMEM:$pid:$ticks:{state.target_bytes}:$((rss_kb * 1024))"
                 f"Memory-load process {state.pid} reports no resident memory."
             )
         self._log.info(
-            f"Memory-load process {state.pid} survived resume and reports "
-            f"{current_state.held_bytes} resident bytes "
-            f"(pre-hibernate: {state.held_bytes})."
+            "Validated memory-load continuity: "
+            f"pid={state.pid}, start_ticks={state.start_ticks}, "
+            f"target={self._format_bytes(state.target_bytes)}, "
+            f"pre_hibernate_held={self._format_bytes(state.held_bytes)}, "
+            f"post_resume_held={self._format_bytes(current_state.held_bytes)}, "
+            f"post_resume_target_ratio="
+            f"{current_state.held_bytes / state.target_bytes:.2%}."
         )
 
     def _parse_memory_state(
@@ -725,6 +976,10 @@ echo "HRMEM:$pid:$ticks:{state.target_bytes}:$((rss_kb * 1024))"
             ) from error
 
     @staticmethod
+    def _format_bytes(value: int) -> str:
+        return f"{value} bytes ({value / 1024 / 1024:.2f} MiB)"
+
+    @staticmethod
     def _parse_status_time(value: Any) -> Optional[datetime]:
         if isinstance(value, datetime):
             parsed = value
@@ -741,10 +996,14 @@ echo "HRMEM:$pid:$ticks:{state.target_bytes}:$((rss_kb * 1024))"
         return parsed.astimezone(timezone.utc)
 
     def _run_guest_command(self, script: str, timeout: int = 15 * 60) -> str:
+        timer = create_timer()
+        command_name = "RunPowerShellScript" if self._is_windows else "RunShellScript"
+        self._log.info(
+            f"Submitting guest {command_name} at "
+            f"{datetime.now(timezone.utc).isoformat()} with timeout={timeout}s."
+        )
         command = RunCommandInput(
-            command_id=(
-                "RunPowerShellScript" if self._is_windows else "RunShellScript"
-            ),
+            command_id=command_name,
             script=[script],
         )
         operation = self._compute_client.virtual_machines.begin_run_command(
@@ -777,6 +1036,10 @@ echo "HRMEM:$pid:$ticks:{state.target_bytes}:$((rss_kb * 1024))"
             raise LisaException(
                 "Guest run command reported failure: " + "\n".join(failures)
             )
+        self._log.info(
+            f"Guest {command_name} completed in {timer.elapsed():.2f}s with "
+            f"{len(output.splitlines())} output line(s)."
+        )
         return output
 
     @staticmethod
@@ -793,11 +1056,17 @@ echo "HRMEM:$pid:$ticks:{state.target_bytes}:$((rss_kb * 1024))"
                 for status in statuses
             )
             if not is_running:
+                self._log.info(
+                    "VM is not running during cleanup; resuming it before "
+                    "guest-process cleanup."
+                )
                 self._resume()
                 self._wait_for_vm_status("PowerState", "VM running")
                 self._wait_for_guest_agent_ready()
+            else:
+                self._log.info("VM is running and ready for guest-process cleanup.")
         except Exception as error:
-            self._log.info(f"Could not prepare VM for guest cleanup: {error}")
+            self._log.warning(f"Could not prepare VM for guest cleanup: {error}")
 
     def _cleanup_processes(
         self,
@@ -819,12 +1088,26 @@ if ($null -ne $memoryProcess -and
                 self._run_guest_command(
                     f"""
 {memory_cleanup}
+$loaderPath = '{_WINDOWS_MEMORY_LOADER_PATH}'
+$loaderProcesses = Get-CimInstance -ClassName Win32_Process `
+    -Filter "Name = 'LoadMemory_HibernateVMBytes.exe'" `
+    -ErrorAction SilentlyContinue
+foreach ($loaderProcess in $loaderProcesses) {{
+    if ($loaderProcess.ExecutablePath -ieq $loaderPath) {{
+        Stop-Process -Id $loaderProcess.ProcessId -Force `
+            -ErrorAction SilentlyContinue
+    }}
+}}
 $markerProcess = Get-Process -Id {marker.pid} -ErrorAction SilentlyContinue
 if ($null -ne $markerProcess -and
     $markerProcess.StartTime.Ticks -eq {marker.start_ticks}) {{
     Stop-Process -Id $markerProcess.Id -Force
 }}
 """
+                )
+                self._log.info(
+                    "Windows guest-process cleanup completed for the memory "
+                    f"loader executable and marker pid {marker.pid}."
                 )
             else:
                 self._run_guest_command(
@@ -835,5 +1118,9 @@ systemctl stop {marker.service_name} >/dev/null 2>&1 || true
 systemctl reset-failed {marker.service_name} >/dev/null 2>&1 || true
 """
                 )
+                self._log.info(
+                    "Linux guest-process cleanup completed for the memory "
+                    f"loader and marker service '{marker.service_name}'."
+                )
         except Exception as error:
-            self._log.info(f"Guest-process cleanup failed: {error}")
+            self._log.warning(f"Guest-process cleanup failed: {error}")
