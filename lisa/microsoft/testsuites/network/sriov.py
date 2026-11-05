@@ -2,12 +2,12 @@
 # Licensed under the MIT license.
 import json
 import re
-from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from decimal import Decimal
 from pathlib import Path, PurePosixPath
 from time import monotonic
-from typing import Any, Dict, List, Optional, Tuple, cast
+from types import TracebackType
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, cast
 
 from assertpy import assert_that
 
@@ -134,6 +134,20 @@ class Sriov(TestSuite):
     # `timeout` reports 124 when it has to signal the child, and 137 when that
     # signal had to be escalated to KILL. Either way the read never answered.
     DEBUGFS_READ_TIMEOUT_EXIT_CODES = (-124, -137)
+    # Five minutes of offered load precede the servicing transition.
+    _SERVICING_BASELINE_SECONDS = 300
+    # Observe each confirmed synthetic/restored path for at least 30 seconds.
+    _SERVICING_PHASE_SECONDS = 30
+    # Reserve one minute beyond all transition and observation windows.
+    _SERVICING_COMPLETION_MARGIN_SECONDS = 60
+    # Allow final iperf control exchange and output collection after traffic ends.
+    _SERVICING_EXIT_TIMEOUT = 30
+    _SERVICING_INTERVAL_SECONDS = 1
+    # Ignore a short final partial interval when checking progress.
+    _SERVICING_MIN_INTERVAL_SECONDS = 0.5
+    # Recovery is diagnostic: five full intervals within 10% of baseline.
+    _SERVICING_RECOVERY_RATIO = 0.9
+    _SERVICING_RECOVERY_INTERVALS = 5
     # Failed to rename network interface 3 from 'eth1' to 'enP45159s1': Device or resource busy # noqa: E501
     _device_rename_pattern = re.compile(
         r"Failed to rename network interface .* from '.*' "
@@ -347,7 +361,7 @@ class Sriov(TestSuite):
         Validate one accelerated-to-synthetic-to-accelerated servicing cycle under
         uninterrupted, paced UDP and TCP traffic between two Linux VMs.
 
-        Establish a 300-second baseline, disable AN asynchronously on the receiver,
+        Establish a 300-second baseline, request AN disable on the receiver,
         hold the confirmed synthetic path for 30 seconds, then re-enable AN.
         Confirm VF receive counters increase and observe at least 30 more seconds.
         Require zero receiver-reported UDP loss, matching sent/received datagram
@@ -358,8 +372,8 @@ class Sriov(TestSuite):
         differences and recovery timing without a performance pass/fail threshold.
         Traffic has a 1320-second overall budget and completes naturally to preserve
         final receiver loss accounting. Individual servicing waits allow 300 seconds.
-        Save raw
-        results, kernel diagnostics, and phase timings in the case log directory.
+        This simulates the guest network-path transition, not host servicing.
+        Save raw results, kernel diagnostics, and phase timings in the log directory.
         """,
         priority=2,
         timeout=2400,
@@ -380,8 +394,14 @@ class Sriov(TestSuite):
         sender = cast(RemoteNode, environment.nodes[1])
         nodes = [receiver, sender]
         ports = {"udp": 5201, "tcp": 5202}
-        baseline_duration = 300
-        duration = baseline_duration + 3 * self.TIME_OUT + 120
+        baseline_duration = self._SERVICING_BASELINE_SECONDS
+        # Budget disable, enable, and VF receive-progress waits independently.
+        duration = (
+            baseline_duration
+            + 3 * self.TIME_OUT
+            + 2 * self._SERVICING_PHASE_SECONDS
+            + self._SERVICING_COMPLETION_MARGIN_SECONDS
+        )
         processes: Dict[str, Process] = {}
         phases: Dict[str, Tuple[float, float]] = {}
         results: Dict[str, Dict[str, Any]] = {}
@@ -390,13 +410,14 @@ class Sriov(TestSuite):
         routes: Dict[str, str] = {}
         kernel_errors: Dict[str, str] = {}
         for node in nodes:
-            for tool in [Iperf3, Lsof, Kill, Ip, Dmesg, Date]:
-                _ = node.tools[tool]
             for port in ports.values():
                 if node.tools[Lsof].is_port_opened(port):
                     raise SkippedException(
                         f"Servicing test port {port} is already in use on {node.name}"
                     )
+        for node in nodes:
+            # Finish package installation before either traffic stream starts.
+            _ = node.tools[Iperf3]
             routes[node.name] = self._servicing_routes(node)
             kernel_errors[node.name] = node.tools[Dmesg].check_kernel_errors(
                 force_run=True, throw_error=False
@@ -406,15 +427,13 @@ class Sriov(TestSuite):
             )
 
         baseline_vf = self._servicing_nic(receiver).lower
-        assert baseline_vf, "Receiver has no paired VF before servicing"
+        assert_that(baseline_vf).described_as(
+            "Receiver must have a paired VF before servicing; inspect NIC discovery"
+        ).is_not_empty()
         baseline_packets = receiver.nics.get_packets(baseline_vf, "rx_packets")
         receiver.mark_dirty()
-        with ExitStack() as cleanup:
-            cleanup.callback(
-                network.switch_sriov,
-                enable=original_enabled,
-                reset_connections=False,
-            )
+        with self._servicing_cleanup(log) as cleanup:
+            cleanup.callback(self._servicing_switch, receiver, original_enabled, {})
             cleanup.callback(self._servicing_save_buffers, processes, log_path)
             for node in nodes:
                 for port in ports.values():
@@ -425,7 +444,7 @@ class Sriov(TestSuite):
                     Iperf3
                 ].run_as_server_async(
                     port=port,
-                    report_periodic=1,
+                    report_periodic=self._SERVICING_INTERVAL_SECONDS,
                     use_json_format=True,
                     one_connection_only=True,
                     daemon=False,
@@ -438,8 +457,8 @@ class Sriov(TestSuite):
                     client_ip=sender.internal_address,
                     port=port,
                     bitrate="1M",
-                    buffer_length=1200,
-                    report_periodic=1,
+                    buffer_length=1200,  # Avoid fragmentation with standard MTUs.
+                    report_periodic=self._SERVICING_INTERVAL_SECONDS,
                     output_json=True,
                     udp_mode=protocol == "udp",
                     run_time_seconds=duration,
@@ -452,36 +471,47 @@ class Sriov(TestSuite):
             self._servicing_wait(processes, baseline_duration)
             baseline_end = receiver.tools[Date].current().timestamp()
             phases["baseline"] = (baseline_start, baseline_end)
-            assert (
-                receiver.nics.get_packets(baseline_vf, "rx_packets") > baseline_packets
-            ), "Receiver VF receive counters did not increase"
+            assert_that(
+                receiver.nics.get_packets(baseline_vf, "rx_packets")
+            ).described_as(
+                "Baseline VF must receive traffic; inspect VF counters and iperf logs"
+            ).is_greater_than(
+                baseline_packets
+            )
 
             log.info("Disabling AN while UDP and TCP traffic remain active")
             disable_start = monotonic()
-            self._servicing_switch(network, False, processes)
+            self._servicing_switch(receiver, False, processes)
             disable_seconds = monotonic() - disable_start
             synthetic_start = receiver.tools[Date].current().timestamp()
             synthetic_nic = self._servicing_nic(receiver)
-            assert not synthetic_nic.lower, "Receiver VF remains paired after disable"
+            assert_that(synthetic_nic.lower).described_as(
+                "VF must detach after AN disable; inspect NIC discovery and Azure state"
+            ).is_empty()
             synthetic_packets = receiver.nics.get_packets(
                 synthetic_nic.name, "rx_packets"
             )
-            self._servicing_wait(processes, 30)
-            assert (
+            self._servicing_wait(processes, self._SERVICING_PHASE_SECONDS)
+            assert_that(
                 receiver.nics.get_packets(synthetic_nic.name, "rx_packets")
-                > synthetic_packets
-            ), "Synthetic receive counters did not increase"
+            ).described_as(
+                "Synthetic NIC must receive traffic; inspect counters and iperf logs"
+            ).is_greater_than(
+                synthetic_packets
+            )
             self._servicing_check_network(receiver, routes[receiver.name])
             enable_requested = receiver.tools[Date].current().timestamp()
             phases["synthetic"] = (synthetic_start, enable_requested)
 
             log.info("Re-enabling AN without restarting either traffic stream")
             enable_start = monotonic()
-            self._servicing_switch(network, True, processes)
+            self._servicing_switch(receiver, True, processes)
             vf_present_seconds = monotonic() - enable_start
             vf_present_at = receiver.tools[Date].current().timestamp()
             restored_vf = self._servicing_nic(receiver).lower
-            assert restored_vf, "Receiver has no paired VF after re-enable"
+            assert_that(restored_vf).described_as(
+                "VF must return after AN enable; inspect NIC discovery and Azure state"
+            ).is_not_empty()
             restored_packets = receiver.nics.get_packets(restored_vf, "rx_packets")
 
             def vf_receiving() -> bool:
@@ -497,7 +527,7 @@ class Sriov(TestSuite):
                 timeout=self.TIME_OUT,
             )
             vf_traffic_seconds = monotonic() - enable_start
-            self._servicing_wait(processes, 30)
+            self._servicing_wait(processes, self._SERVICING_PHASE_SECONDS)
             phases["restored"] = (
                 vf_present_at,
                 receiver.tools[Date].current().timestamp(),
@@ -512,11 +542,16 @@ class Sriov(TestSuite):
                 for role in ["sender", "receiver"]:
                     name = f"{protocol}_{role}"
                     result = processes[name].wait_result(
-                        timeout=duration + 30 if role == "sender" else 30
+                        timeout=(
+                            duration + self._SERVICING_EXIT_TIMEOUT
+                            if role == "sender"
+                            else self._SERVICING_EXIT_TIMEOUT
+                        )
                     )
                     result.save_stdout_to_file(log_path / f"{name}.json")
                     result.assert_exit_code(0, include_output=True)
                     results[name] = self._servicing_iperf_result(result)
+                    log.info(f"{name} completed successfully with exit code 0")
 
             for node in nodes:
                 self._servicing_check_network(node, routes[node.name])
@@ -526,9 +561,53 @@ class Sriov(TestSuite):
                 new_errors = set(errors.splitlines()) - set(
                     kernel_errors[node.name].splitlines()
                 )
-                assert not new_errors, f"New kernel errors on {node.name}: {new_errors}"
+                assert_that(new_errors).described_as(
+                    f"No new detected kernel errors on {node.name}; "
+                    "compare before/after dmesg logs"
+                ).is_empty()
+                log.info(
+                    f"{node.name}: internal IP {node.internal_address} and routes "
+                    "unchanged; no new detected kernel errors"
+                )
             sriov_basic_test(environment)
             self._servicing_report(results, phases, enable_requested, log, log_path)
+
+    @staticmethod
+    @contextmanager
+    def _servicing_cleanup(log: Logger) -> Iterator[ExitStack]:
+        primary_error: Optional[BaseException] = None
+        primary_traceback: Optional[TracebackType] = None
+
+        def remember_failure(
+            _error_type: Optional[Type[BaseException]],
+            error: Optional[BaseException],
+            traceback: Optional[TracebackType],
+        ) -> bool:
+            nonlocal primary_error, primary_traceback
+            primary_error, primary_traceback = error, traceback
+            return False
+
+        def preserve_failure(
+            _error_type: Optional[Type[BaseException]],
+            error: Optional[BaseException],
+            traceback: Optional[TracebackType],
+        ) -> bool:
+            if error is not None and error is not primary_error:
+                log.error(
+                    "Network servicing cleanup failed; inspect the chained "
+                    "exceptions and collected traffic/NIC diagnostics",
+                    exc_info=(type(error), error, traceback),
+                )
+                if primary_error is not None:
+                    raise primary_error.with_traceback(primary_traceback) from error
+            return False
+
+        with ExitStack() as cleanup:
+            cleanup.push(preserve_failure)
+            # Capture the body failure before running any registered cleanup.
+            with ExitStack() as failure_capture:
+                failure_capture.push(remember_failure)
+                yield cleanup
 
     @staticmethod
     def _servicing_check_running(processes: Dict[str, Process]) -> None:
@@ -556,29 +635,30 @@ class Sriov(TestSuite):
 
     def _servicing_switch(
         self,
-        network: NetworkInterface,
+        receiver: RemoteNode,
         enable: bool,
         processes: Dict[str, Process],
     ) -> None:
-        # Closing SSH here would destroy the traffic sessions being validated.
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            operation = executor.submit(
-                network.switch_sriov,
-                enable=enable,
-                wait=True,
-                reset_connections=False,
-            )
+        self._servicing_check_running(processes)
+        # Submit the Azure change without entering its nested guest-state retries.
+        # Keep SSH open so the same traffic sessions survive the transition.
+        receiver.features[NetworkInterface].switch_sriov(
+            enable=enable, wait=False, reset_connections=False
+        )
 
-            def completed() -> bool:
-                self._servicing_check_running(processes)
-                return operation.done()
+        def completed() -> bool:
+            self._servicing_check_running(processes)
+            receiver.nics.reload()
+            return bool(self._servicing_nic(receiver).lower) == enable
 
-            check_till_timeout(
-                completed,
-                timeout_message=f"AN servicing enable={enable}",
-                timeout=self.TIME_OUT,
-            )
-            operation.result()
+        check_till_timeout(
+            completed,
+            timeout_message=(
+                f"AN servicing enable={enable} on {receiver.name}; "
+                "inspect Azure NIC state and guest VF discovery"
+            ),
+            timeout=self.TIME_OUT,
+        )
 
     @staticmethod
     def _servicing_nic(node: RemoteNode) -> NicInfo:
@@ -587,9 +667,10 @@ class Sriov(TestSuite):
             for nic in node.nics.nics.values()
             if nic.ip_addr == node.internal_address and not nic.is_infiniband
         ]
-        assert (
-            len(matches) == 1
-        ), f"Expected one NIC with internal IP {node.internal_address}, got {matches}"
+        assert_that(matches).described_as(
+            f"Expected one NIC with internal IP {node.internal_address}; "
+            "inspect guest NIC discovery"
+        ).is_length(1)
         return matches[0]
 
     @staticmethod
@@ -599,12 +680,12 @@ class Sriov(TestSuite):
 
     def _servicing_check_network(self, node: RemoteNode, routes: str) -> None:
         nic = self._servicing_nic(node)
-        assert (
-            node.tools[Ip].get_ip_address(nic.name) == node.internal_address
-        ), f"Internal address changed on {node.name}"
-        assert (
-            self._servicing_routes(node) == routes
-        ), f"Routes changed on {node.name} during servicing"
+        assert_that(node.tools[Ip].get_ip_address(nic.name)).described_as(
+            f"Internal address must remain unchanged on {node.name}; inspect ip addr"
+        ).is_equal_to(node.internal_address)
+        assert_that(self._servicing_routes(node)).described_as(
+            f"Routes must remain unchanged on {node.name}; compare ip route output"
+        ).is_equal_to(routes)
 
     @staticmethod
     def _servicing_stop_traffic(node: RemoteNode, port: int) -> None:
@@ -613,14 +694,20 @@ class Sriov(TestSuite):
         )
         result.assert_exit_code([0, 1], include_output=True)
         for pid in set(result.stdout.split()):
-            assert pid.isdigit(), f"Invalid iperf3 PID from lsof: {pid!r}"
+            assert_that(pid.isdigit()).described_as(
+                f"Expected numeric iperf3 PID, got {pid!r}; inspect lsof output"
+            ).is_true()
             node.tools[Kill].by_pid(pid, signum=constants.SIGINT, ignore_not_exist=True)
 
-    @staticmethod
-    def _servicing_save_buffers(processes: Dict[str, Process], log_path: Path) -> None:
+    @classmethod
+    def _servicing_save_buffers(
+        cls, processes: Dict[str, Process], log_path: Path
+    ) -> None:
         timed_out: List[str] = []
         for name, process in processes.items():
-            result = process.wait_result(timeout=30, raise_on_timeout=False)
+            result = process.wait_result(
+                timeout=cls._SERVICING_EXIT_TIMEOUT, raise_on_timeout=False
+            )
             result.save_stdout_to_file(log_path / f"{name}.json")
             (log_path / f"{name}-stderr.log").write_text(
                 result.stderr, encoding="utf-8"
@@ -630,7 +717,9 @@ class Sriov(TestSuite):
             )
             if result.is_timeout:
                 timed_out.append(name)
-        assert not timed_out, f"Traffic did not stop during cleanup: {timed_out}"
+        assert_that(timed_out).described_as(
+            "Traffic must stop during cleanup; inspect iperf process and stderr logs"
+        ).is_empty()
 
     @staticmethod
     def _servicing_save_dmesg(node: RemoteNode, log_path: Path) -> None:
@@ -638,28 +727,36 @@ class Sriov(TestSuite):
             node.tools[Dmesg].get_output(force_run=True), encoding="utf-8"
         )
 
-    @staticmethod
-    def _servicing_iperf_result(result: ExecutableResult) -> Dict[str, Any]:
-        data = json.loads(result.stdout)
-        assert isinstance(data, dict), "iperf3 JSON must be an object"
-        assert "error" not in data, f"iperf3 reported an error: {data}"
-        assert (
-            isinstance(data["intervals"], list) and data["intervals"]
-        ), "iperf3 produced no interval measurements"
+    @classmethod
+    def _servicing_iperf_result(cls, result: ExecutableResult) -> Dict[str, Any]:
+        data: Dict[str, Any] = json.loads(result.stdout)
+        assert_that(data).described_as(
+            "iperf3 JSON must be an object; inspect the saved process output"
+        ).is_instance_of(dict)
+        assert_that(data).described_as(
+            "iperf3 must complete without errors; inspect saved JSON and stderr"
+        ).does_not_contain("error")
+        assert_that(data["intervals"]).described_as(
+            "iperf3 intervals must be a list; inspect saved JSON"
+        ).is_instance_of(list).is_not_empty()
         for interval in data["intervals"]:
             sample = interval["sum"]
-            assert sample["seconds"] > 0, f"Invalid iperf3 interval: {sample}"
-            if sample["seconds"] >= 0.5:
-                assert (
-                    sample["bytes"] > 0
-                ), f"Traffic made no progress during interval: {sample}"
-        assert (
-            isinstance(data["end"], dict) and data["end"]
-        ), "iperf3 produced no final summary"
+            assert_that(sample["seconds"]).described_as(
+                f"iperf3 interval must have positive duration; inspect sample {sample}"
+            ).is_greater_than(0)
+            if sample["seconds"] >= cls._SERVICING_MIN_INTERVAL_SECONDS:
+                assert_that(sample["bytes"]).described_as(
+                    "Traffic must progress in every full interval; "
+                    f"inspect sample {sample}"
+                ).is_greater_than(0)
+        assert_that(data["end"]).described_as(
+            "iperf3 must produce a final summary; inspect saved JSON and stderr"
+        ).is_instance_of(dict).is_not_empty()
         return data
 
-    @staticmethod
+    @classmethod
     def _servicing_report(
+        cls,
         results: Dict[str, Dict[str, Any]],
         phases: Dict[str, Tuple[float, float]],
         enable_requested: float,
@@ -674,19 +771,36 @@ class Sriov(TestSuite):
         sent_summary = (
             sent_end["sum_sent"] if "sum_sent" in sent_end else sent_end["sum"]
         )
-        assert udp_summary["packets"] > 0, "No UDP datagrams measured at receiver"
-        assert (
-            udp_summary["lost_packets"] == 0
-        ), f"Receiver reported UDP packet loss: {udp_summary}"
-        assert (
-            udp_summary["packets"] == sent_summary["packets"]
-        ), f"UDP datagram count mismatch: sent={sent_summary}, received={udp_summary}"
-        assert (
-            results["tcp_sender"]["end"]["sum_sent"]["bytes"] > 0
-        ), "TCP sender produced no completed transfer summary"
-        assert (
-            results["tcp_receiver"]["end"]["sum_received"]["bytes"] > 0
-        ), "TCP receiver produced no completed transfer summary"
+        assert_that(udp_summary["packets"]).described_as(
+            "UDP receiver must receive datagrams; inspect receiver JSON"
+        ).is_greater_than(0)
+        assert_that(udp_summary["lost_packets"]).described_as(
+            f"Receiver must report zero UDP loss; inspect summary {udp_summary}"
+        ).is_zero()
+        assert_that(udp_summary["packets"]).described_as(
+            f"UDP counts must match; inspect sender summary {sent_summary}"
+        ).is_equal_to(sent_summary["packets"])
+        assert_that(results["tcp_sender"]["end"]["sum_sent"]["bytes"]).described_as(
+            "TCP sender must complete a transfer; inspect sender JSON"
+        ).is_greater_than(0)
+        assert_that(
+            results["tcp_receiver"]["end"]["sum_received"]["bytes"]
+        ).described_as(
+            "TCP receiver must complete a transfer; inspect receiver JSON"
+        ).is_greater_than(
+            0
+        )
+        log.info(
+            f"UDP validation passed: sent={sent_summary['packets']}, "
+            f"received={udp_summary['packets']}, lost={udp_summary['lost_packets']}"
+        )
+        log.info(
+            "TCP validation passed: "
+            f"sent_bytes={results['tcp_sender']['end']['sum_sent']['bytes']}, "
+            "received_bytes="
+            f"{results['tcp_receiver']['end']['sum_received']['bytes']}; "
+            "all full traffic intervals made progress"
+        )
         summary: Dict[str, Any] = {
             "phases_epoch_seconds": phases,
             "udp_receiver": udp_summary,
@@ -700,33 +814,46 @@ class Sriov(TestSuite):
             samples = [interval["sum"] for interval in data["intervals"]]
             rates: Dict[str, float] = {}
             for phase, (start, end) in phases.items():
-                # Receiver timestamps have one-second resolution; exclude boundaries.
+                # Receiver epochs have one-second resolution; exclude boundaries.
                 selected = [
                     sample
                     for sample in samples
-                    if origin + sample["start"] >= start + 1
-                    and origin + sample["end"] <= end - 1
+                    if origin + sample["start"]
+                    >= start + cls._SERVICING_INTERVAL_SECONDS
+                    and origin + sample["end"] <= end - cls._SERVICING_INTERVAL_SECONDS
                 ]
-                assert selected, f"No {protocol} receiver samples for {phase}"
+                assert_that(selected).described_as(
+                    f"Expected {protocol} receiver samples for {phase}; "
+                    "inspect phase timestamps and receiver intervals"
+                ).is_not_empty()
                 rates[phase] = (
                     sum(sample["bytes"] for sample in selected)
                     * 8
                     / sum(sample["seconds"] for sample in selected)
                 )
-            assert rates["baseline"] > 0, f"No {protocol} baseline throughput"
+            assert_that(rates["baseline"]).described_as(
+                f"Expected positive {protocol} baseline throughput; "
+                "inspect receiver JSON"
+            ).is_greater_than(0)
             change = 100 * (rates["restored"] / rates["baseline"] - 1)
             consecutive = 0
             recovery: Optional[float] = None
             for sample in samples:
-                if origin + sample["start"] < phases["restored"][0] + 1:
+                if (
+                    origin + sample["start"]
+                    < phases["restored"][0] + cls._SERVICING_INTERVAL_SECONDS
+                ):
                     continue
-                if sample["seconds"] < 0.5:
+                if sample["seconds"] < cls._SERVICING_MIN_INTERVAL_SECONDS:
                     continue
-                if sample["bits_per_second"] >= rates["baseline"] * 0.9:
+                if (
+                    sample["bits_per_second"]
+                    >= rates["baseline"] * cls._SERVICING_RECOVERY_RATIO
+                ):
                     consecutive += 1
                 else:
                     consecutive = 0
-                if consecutive == 5:
+                if consecutive == cls._SERVICING_RECOVERY_INTERVALS:
                     recovery = origin + sample["end"] - enable_requested
                     break
             summary["throughput"][protocol] = {
