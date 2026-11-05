@@ -29,7 +29,7 @@ from lisa import (
     search_space,
     simple_requirement,
 )
-from lisa.features import Disk, Infiniband, Nvme
+from lisa.features import Disk, Gpu, Infiniband, Nvme
 from lisa.features.nvme import NvmeSettings
 from lisa.microsoft.testsuites.network.common import (
     initialize_nic_info,
@@ -334,7 +334,8 @@ class VmSpec(TestSuite):
 
         Steps:
         1. Read expected GPU count from ``node.capability.gpu_count``.
-        2. Query GPU PCI devices via ``lspci``.
+        2. Query GPU PCI controllers via ``lspci`` across vendors,
+           excluding Microsoft virtual display devices.
         3. Assert the GPU device count matches.
         """,
         priority=4,
@@ -346,7 +347,11 @@ class VmSpec(TestSuite):
         expected_gpu_count = _resolved_int(node.capability.gpu_count, "gpu_count")
         vm_size = _vm_size(node)
 
-        gpu_devices = node.tools[Lspci].get_gpu_devices(force_run=True)
+        gpu_devices = Gpu.remove_virtual_gpus(
+            node.tools[Lspci].get_devices_by_type(
+                constants.DEVICE_TYPE_GPU, force_run=True
+            )
+        )
         actual_gpu_count = len(gpu_devices)
         log.info(
             f"VM size: {vm_size} - expected GPUs: {expected_gpu_count}, "
@@ -367,7 +372,7 @@ class VmSpec(TestSuite):
         multiple MANA NICs can share a single PCI VF.
 
         Steps:
-        1. Provision the VM with max SR-IOV NICs (choose_max_value).
+        1. Provision a fresh VM with max SR-IOV NICs (choose_max_value).
         2. Read expected NIC count from
            ``node.capability.network_interface.max_nic_count``.
         3. Run initialize_nic_info to validate NIC/IP/VF pairing.
@@ -376,6 +381,7 @@ class VmSpec(TestSuite):
         6. Assert accelerated NIC count matches expected.
         """,
         priority=4,
+        use_new_environment=True,
         requirement=simple_requirement(
             supported_platform_type=[AZURE],
             network_interface=schema.NetworkInterfaceOptionSettings(
@@ -416,14 +422,16 @@ class VmSpec(TestSuite):
         each NIC receives an IP address.
 
         Steps:
-        1. Provision the VM with max synthetic NICs (choose_max_value).
+        1. Provision a fresh VM with max synthetic NICs (choose_max_value).
         2. Read expected NIC count from
            ``node.capability.network_interface.max_nic_count``.
         3. Skip if the VM has no synthetic NIC devices.
         4. Run initialize_nic_info to validate NIC/IP assignment.
-        5. Assert total NIC count matches expected.
+        5. Count only synthetic Ethernet NICs, excluding InfiniBand.
+        6. Assert synthetic Ethernet NIC count matches expected.
         """,
         priority=4,
+        use_new_environment=True,
         requirement=simple_requirement(
             supported_platform_type=[AZURE],
             network_interface=schema.NetworkInterfaceOptionSettings(
@@ -442,7 +450,12 @@ class VmSpec(TestSuite):
         # Validate synthetic NIC info: IP assignment
         initialize_nic_info(environment, is_sriov=False)
 
-        actual_nic_count = len(node.nics.nics)
+        synthetic_nics = [
+            nic_name
+            for nic_name in node.nics.get_synthetic_devices()
+            if not node.nics.get_nic(nic_name).is_infiniband
+        ]
+        actual_nic_count = len(synthetic_nics)
         log.info(
             f"VM size: {vm_size} - expected NICs: {expected_nic_count}, "
             f"actual synthetic NICs: {actual_nic_count}"
@@ -512,13 +525,14 @@ class VmSpec(TestSuite):
         inside the guest.
 
         Steps:
-        1. Provision the VM with max data disks (choose_max_value).
+        1. Provision a fresh VM with max data disks (choose_max_value).
         2. Read expected max disks from
            ``node.capability.disk.max_data_disk_count``.
         3. Discover all attached raw data disks inside the guest.
         4. Assert the attached disk count matches.
         """,
         priority=4,
+        use_new_environment=True,
         requirement=simple_requirement(
             supported_platform_type=[AZURE],
             disk=schema.DiskOptionSettings(
