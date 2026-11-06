@@ -1,16 +1,17 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import hashlib
 import json
 import sys
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from time import sleep
-from typing import Any, Callable, Dict, Generator, Optional
+from typing import Any, Callable, Dict, Generator, List, Optional
 
 import requests
-from azure.core.exceptions import HttpResponseError
+from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
 from azure.mgmt.resource.resources import ResourceManagementClient
 from azure.mgmt.resource.resources.models import (
     Deployment,
@@ -84,8 +85,8 @@ class JsonADDomainTests(VmExtensionTestBase):  # type: ignore[misc]
         verifies domain membership and the secure channel through Run Command.
 
         Requires extension_version or json_ad_domain_version. ARM templates are
-        in templates/json_ad_domain_*.json. Removes the extension and controller
-        group even on failure. Marks the client dirty for environment teardown.
+        in templates/json_ad_domain_*.json. Removes only this case's resources
+        from the client's resource group, including on failure. Marks it dirty.
         """,
         priority=5,
         timeout=7200,
@@ -141,7 +142,10 @@ class JsonADDomainTests(VmExtensionTestBase):  # type: ignore[misc]
         suffix = uuid.uuid4().hex[:8]
         domain_prefix = f"lisa{suffix}"
         domain_name = f"{domain_prefix}.com"
-        resource_group = f"lisa-ad-{suffix}"
+        resource_group = context.resource_group_name
+        controller_name = f"lisaad-{suffix}"
+        storage_deployment = f"ad-package-storage-{suffix}"
+        controller_deployment = f"domain-controller-{suffix}"
         username = "lisaadadmin"
         password = f"Aa1!{uuid.uuid4().hex}"
         add_secret(password)
@@ -163,30 +167,49 @@ class JsonADDomainTests(VmExtensionTestBase):  # type: ignore[misc]
             self._resolve_publisher(variables), self._resolve_type(variables)
         )
         with self._cleanup_on_exit(
-            lambda: wait_operation(
-                resource_client.resource_groups.begin_delete(resource_group),
-                time_out=1800,
-                failure_identity="Deleting temporary domain controller resource group",
+            lambda: self._cleanup_deployments(
+                resource_client,
+                resource_group,
+                [
+                    controller_deployment,
+                    storage_deployment,
+                    *[
+                        f"{controller_name}-{command}"
+                        for command in [
+                            "ConfigureForest",
+                            "ResumeForest0",
+                            "ResumeForest1",
+                            "ResumeForest2",
+                            "PrestageComputer",
+                        ]
+                    ],
+                ],
+                log,
             ),
             log,
-            f"Failed to delete temporary domain controller group {resource_group}",
+            f"Failed to clean up domain test resources in {resource_group}",
         ):
-            resource_client.resource_groups.create_or_update(
-                resource_group, {"location": context.location}
-            )
             storage_account = f"lisaad{uuid.uuid4().hex[:18]}"
             package_url = self._stage_package(
-                resource_client, platform, resource_group, storage_account, log
+                resource_client,
+                platform,
+                resource_group,
+                storage_account,
+                context.location,
+                storage_deployment,
+                log,
             )
             log.info(f"Creating domain controller in {resource_group}")
             deployment = self._deploy_template(
                 resource_client,
                 resource_group,
-                "domain-controller",
+                controller_deployment,
                 "json_ad_domain_controller.json",
                 {
                     "adminUsername": username,
                     "adminPassword": password,
+                    "vmName": controller_name,
+                    "location": context.location,
                     "subnetId": ip_config.subnet.id,
                     "storageAccountName": storage_account,
                     "packageBaseUrl": package_url,
@@ -305,21 +328,97 @@ class JsonADDomainTests(VmExtensionTestBase):  # type: ignore[misc]
             encoding="utf-8"
         )
 
+    def _cleanup_deployments(
+        self,
+        client: ResourceManagementClient,
+        resource_group: str,
+        deployments: List[str],
+        log: Logger,
+    ) -> None:
+        api_versions = {
+            "Microsoft.Authorization/roleAssignments": "2022-04-01",
+            "Microsoft.Compute/virtualMachines": "2022-08-01",
+            "Microsoft.Compute/disks": "2022-07-02",
+            "Microsoft.Network/networkInterfaces": "2022-07-01",
+            "Microsoft.Storage/storageAccounts": "2023-01-01",
+        }
+        resources = self._get_deployment_resources(
+            client, resource_group, deployments, api_versions
+        )
+        errors = []
+        for resource_type, api_version in api_versions.items():
+            for resource_id, type_name in resources.items():
+                if type_name != resource_type:
+                    continue
+                try:
+                    wait_operation(
+                        client.resources.begin_delete_by_id(resource_id, api_version),
+                        time_out=1800,
+                        failure_identity=f"Deleting {resource_id}",
+                    )
+                except ResourceNotFoundError:
+                    continue
+                except Exception as error:
+                    log.exception(f"Failed to delete {resource_id}")
+                    errors.append(str(error))
+        if errors:
+            raise LisaException(f"Domain test resource cleanup failed: {errors}")
+        for deployment in deployments:
+            try:
+                wait_operation(
+                    client.deployments.begin_delete(resource_group, deployment),
+                    time_out=300,
+                    failure_identity=f"Deleting deployment record {deployment}",
+                )
+            except ResourceNotFoundError:
+                continue
+
+    def _get_deployment_resources(
+        self,
+        client: ResourceManagementClient,
+        resource_group: str,
+        deployments: List[str],
+        api_versions: Dict[str, str],
+    ) -> Dict[str, str]:
+        resources: Dict[str, str] = {}
+        for deployment in deployments:
+            try:
+                for operation in client.deployment_operations.list(
+                    resource_group, deployment
+                ):
+                    target = operation.properties.target_resource
+                    if target and target.resource_type in api_versions:
+                        resources[target.id] = target.resource_type
+                        if target.resource_type == "Microsoft.Compute/virtualMachines":
+                            prefix, vm_name = target.id.rsplit("/", 1)
+                            for suffix in ["os", "data"]:
+                                disk_id = (
+                                    f"{prefix.rsplit('/', 1)[0]}/disks/"
+                                    f"{vm_name}-{suffix}"
+                                )
+                                resources[disk_id] = "Microsoft.Compute/disks"
+            except ResourceNotFoundError:
+                continue
+        return resources
+
     def _stage_package(
         self,
         client: ResourceManagementClient,
         platform: AzurePlatform,
         resource_group: str,
         storage_account: str,
+        location: str,
+        deployment_name: str,
         log: Logger,
     ) -> str:
         deployment = self._deploy_template(
             client,
             resource_group,
-            "ad-package-storage",
+            deployment_name,
             "json_ad_domain_storage.json",
             {
                 "storageAccountName": storage_account,
+                "location": location,
             },
             timeout=900,
         )
@@ -427,10 +526,14 @@ class JsonADDomainTests(VmExtensionTestBase):  # type: ignore[misc]
         protected_parameters: Optional[Dict[str, str]] = None,
         timeout_in_seconds: int = 600,
     ) -> None:
+        deployment_name = f"{vm_name}-{name}"
+        if len(deployment_name) > 64:
+            digest = hashlib.sha256(deployment_name.encode()).hexdigest()[:8]
+            deployment_name = f"{deployment_name[:55]}-{digest}"
         self._deploy_template(
             client,
             resource_group,
-            name,
+            deployment_name,
             "json_ad_domain_run_command.json",
             {
                 "vmName": vm_name,

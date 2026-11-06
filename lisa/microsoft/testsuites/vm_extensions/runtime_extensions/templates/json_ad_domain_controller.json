@@ -2,6 +2,13 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
+    "vmName": {
+      "type": "string",
+      "maxLength": 15
+    },
+    "location": {
+      "type": "string"
+    },
     "adminUsername": {
       "type": "string"
     },
@@ -23,15 +30,15 @@
     }
   },
   "variables": {
-    "vmName": "lisa-ad-dc",
-    "nicName": "lisa-ad-dc-nic"
+    "vmName": "[parameters('vmName')]",
+    "nicName": "[format('{0}-nic', parameters('vmName'))]"
   },
   "resources": [
     {
       "type": "Microsoft.Network/networkInterfaces",
       "apiVersion": "2022-07-01",
       "name": "[variables('nicName')]",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "properties": {
         "ipConfigurations": [
           {
@@ -50,7 +57,7 @@
       "type": "Microsoft.Compute/virtualMachines",
       "apiVersion": "2022-08-01",
       "name": "[variables('vmName')]",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "identity": {
         "type": "SystemAssigned"
       },
@@ -77,15 +84,19 @@
             "version": "latest"
           },
           "osDisk": {
+            "name": "[format('{0}-os', variables('vmName'))]",
             "createOption": "FromImage",
+            "deleteOption": "Delete",
             "managedDisk": {
               "storageAccountType": "StandardSSD_LRS"
             }
           },
           "dataDisks": [
             {
+              "name": "[format('{0}-data', variables('vmName'))]",
               "lun": 0,
               "createOption": "Empty",
+              "deleteOption": "Delete",
               "diskSizeGB": 20,
               "caching": "ReadWrite",
               "managedDisk": {
@@ -121,7 +132,7 @@
       "type": "Microsoft.Compute/virtualMachines/runCommands",
       "apiVersion": "2023-03-01",
       "name": "[format('{0}/WaitStorageAccess', variables('vmName'))]",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "dependsOn": [
         "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), 'Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, parameters('storageAccountName'), variables('vmName'), 'reader'))]"
       ],
@@ -144,7 +155,7 @@
       "type": "Microsoft.Compute/virtualMachines/extensions",
       "apiVersion": "2022-08-01",
       "name": "[format('{0}/StageADPackage', variables('vmName'))]",
-      "location": "[resourceGroup().location]",
+      "location": "[parameters('location')]",
       "dependsOn": [
         "[resourceId('Microsoft.Compute/virtualMachines/runCommands', variables('vmName'), 'WaitStorageAccess')]"
       ],

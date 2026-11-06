@@ -243,15 +243,26 @@ Internet access, add a public IP to the controller, or modify subnet routing.
 The test installs the requested candidate with ``Options=1``, restarts the
 client through the Azure API, and verifies both domain membership and the
 computer's secure channel through managed Run Command.
-It removes the extension and deletes the controller's temporary resource
-group in cleanup, including on failure. The client is marked dirty for
+The controller and package storage use
+``get_node_context(node).resource_group_name``, the same client VM resource group
+used by the base extension helpers through ``AzureExtension``. Resource and
+deployment names are unique per case. Overlong Run Command deployment names
+are shortened with a hash suffix to stay within ARM's 64-character limit.
+Their location is explicitly the client's
+region.
+It removes the extension and deletes only this case's controller, disks, NIC,
+storage account, role assignments, and deployment records in cleanup, including
+on failure. It never deletes the resource group, client VM, or sibling resources;
+the environment's lifecycle remains managed by LISA.
+The client is marked dirty for
 environment teardown because handler removal does not undo domain membership
-or DNS changes. The runner needs permission to create/delete resource groups,
+or DNS changes. The runner needs permission in the client VM resource group to
 deploy storage and role assignments, upload blobs using Entra authentication,
 deploy the controller and its extensions, run managed commands, restart the
 VMs, and attach the controller's NIC to the client's
 subnet. Allow quota for the additional VM and up to two hours for the case.
-Cleanup removes the temporary storage and controller together.
+Cleanup uses the case's unique deployment operation records to identify its
+resources, including resources from partially failed deployments.
 Cleanup failures are logged without replacing an earlier validation error.
 
 The suite requires a ``Deployed`` environment rather than a ``Connected`` one
