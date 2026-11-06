@@ -116,7 +116,7 @@ class MshvHostStressTestSuite(TestSuite):
         node.tools[Ssh].set_max_session()
 
         failures = 0
-        for config in configs:
+        for config_index, config in enumerate(configs):
             times = config.get("iterations", self.DEFAULT_ITERS)
             cpus_per_vm = config.get("cpus_per_vm", self.DEFAULT_CPUS_PER_VM)
             mem_per_vm_mb = config.get("mem_per_vm_mb", self.DEFAULT_MEM_PER_VM_MB)
@@ -129,6 +129,7 @@ class MshvHostStressTestSuite(TestSuite):
                     log=log,
                     node=node,
                     log_path=log_path,
+                    config_index=config_index,
                     guest_vm_type=guest_vm_type,
                     igvm_path=igvm_path,
                 )
@@ -147,6 +148,7 @@ class MshvHostStressTestSuite(TestSuite):
                     test_message=repr(e),
                 )
                 if isinstance(e, MshvGuestCleanupError):
+                    node.mark_dirty()
                     cleanup_tool: CloudHypervisor = node.tools[CloudHypervisor]
                     cleanup_tool.save_dmesg_logs(node, log_path)
                     raise
@@ -163,6 +165,7 @@ class MshvHostStressTestSuite(TestSuite):
         log: Logger,
         node: Node,
         log_path: Path,
+        config_index: int,
         guest_vm_type: str = "NON-CVM",
         igvm_path: str = "",
     ) -> None:
@@ -178,7 +181,8 @@ class MshvHostStressTestSuite(TestSuite):
         for test_iter in range(times):
             log.info(f"Test iteration {test_iter + 1} of {times}")
             failure_log_path = log_path / (
-                f"cpu-{cpus_per_vm}_memory-{mem_per_vm_mb}_iteration-{test_iter + 1}"
+                f"config-{config_index + 1}_cpu-{cpus_per_vm}_"
+                f"memory-{mem_per_vm_mb}_iteration-{test_iter + 1}"
             )
             node.tools[Free].log_memory_stats_mb()
             procs: List[Process] = []
