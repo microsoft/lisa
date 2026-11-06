@@ -1,18 +1,21 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import math
 import re
+import shlex
 import time
-from dataclasses import dataclass
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
+from dataclasses import dataclass, field
+from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
 
 from lisa.base_tools import Cat
 from lisa.executable import Tool
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.testsuite import TestResult
-from lisa.tools import Chmod, Dmesg, Mkdir
+from lisa.tools import Chmod, Dmesg, Echo, Mkdir, Perf, StressNg
 from lisa.util import LisaException, UnsupportedDistroException
+from lisa.util.process import ExecutableResult
 
 if TYPE_CHECKING:
     from lisa.node import Node
@@ -40,6 +43,9 @@ class PerformanceMetrics:
 
     # Timing
     measurement_duration: float = 0.0
+    ipi_measurement_duration: float = 0.0
+    perf_event_rates: Dict[str, float] = field(default_factory=dict)
+    ipi_deltas: Dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -103,6 +109,9 @@ class TlbStress(Tool):
     - Performance metric collection (dTLB misses, steal time, etc.)
     - Environment detection (guest vs host)
     - Threshold-based degradation analysis
+
+    Measurements require successful perf acquisition and numeric selected counters.
+    Requested NUMA/THP setup is checked, and the original THP mode is restored.
     """
 
     # Detection - absolute paths and consistent naming
@@ -129,25 +138,10 @@ class TlbStress(Tool):
 
         return exists
 
-    def _unlock_perf_counters(self) -> None:
-        """Unlock perf counters so dTLB/iTLB/context-switch counters aren't zero"""
-        try:
-            # Check current setting
-            result = self.node.execute(
-                "cat /proc/sys/kernel/perf_event_paranoid", no_error_log=True
-            )
-            current_value = result.stdout.strip()
-
-            if current_value != "-1":
-                self.node.execute("sysctl -w kernel.perf_event_paranoid=-1", sudo=True)
-        except Exception as e:
-            self._log.debug(
-                f"Failed to unlock perf counters: {e}. Will use sudo for perf commands."
-            )
-
     def _probe_perf_events(self) -> Dict[str, bool]:
         """Probe which perf events are supported on this system"""
         event_support = {}
+        perf_command = self.node.tools[Perf].command
 
         # Test events to probe
         events_to_test = [
@@ -162,23 +156,26 @@ class TlbStress(Tool):
         ]
 
         for event in events_to_test:
-            try:
-                # Quick test: perf stat -e EVENT -- /bin/true
-                result = self.node.execute(
-                    f"perf stat -e {event} -- /bin/true",
-                    sudo=True,
-                    no_error_log=True,
-                    timeout=10,
+            result = self.node.execute(
+                f"{perf_command} stat -e {event} -- /bin/true",
+                sudo=True,
+                no_error_log=True,
+                timeout=10,
+                update_envs={"LC_ALL": "C"},
+            )
+            output = f"{result.stdout}\n{result.stderr}"
+            supported = (
+                result.exit_code == 0
+                and not result.is_timeout
+                and "not supported" not in output.lower()
+                and "not counted" not in output.lower()
+            )
+            event_support[event] = supported
+            if not supported:
+                self._log.debug(
+                    f"perf event {event} unavailable (exit {result.exit_code}): "
+                    f"{output}"
                 )
-                # If no error and doesn't contain "<not supported>", event is supported
-                supported = (
-                    result.exit_code == 0
-                    and "<not supported>" not in result.stderr
-                    and "not supported" not in result.stderr
-                )
-                event_support[event] = supported
-            except Exception:
-                event_support[event] = False
 
         return event_support
 
@@ -201,11 +198,10 @@ class TlbStress(Tool):
         if event_support.get("iTLB-load-misses", False):
             base_events.append("iTLB-load-misses")
 
-        # If no events supported, use minimal set
         if not base_events:
-            base_events = ["context-switches", "page-faults"]
-            self._log.debug(
-                "No perf events detected as supported, using minimal fallback set"
+            raise LisaException(
+                "No usable perf events for TLB measurements. Check the perf "
+                "installation and permissions in the event probe output."
             )
 
         return ",".join(base_events)
@@ -410,70 +406,81 @@ class TlbStress(Tool):
         return thresholds
 
     def capture_performance_baseline(self) -> PerformanceMetrics:
-        """
-        Capture baseline performance metrics before stress testing.
+        """Capture validated counters and fresh interval samples over one window."""
+        duration = PerformanceThresholds().perf_measurement_duration
+        events = self._get_fallback_events(self._probe_perf_events())
+        interrupts_sample_start_time = time.monotonic()
+        interrupts_before = self._get_proc_interrupts()
+        cpu_before = self._get_cpu_times() if self.detect_environment_type() else None
+        perf_command = self.node.tools[Perf].command
+        perf_result = self.node.execute(
+            f"{perf_command} stat -a -e {events} -- sleep {duration}",
+            sudo=True,
+            timeout=duration + 30,
+            update_envs={"LC_ALL": "C"},
+        )
+        return self._finish_performance_capture(
+            perf_result,
+            events,
+            duration,
+            interrupts_before,
+            cpu_before,
+            interrupts_sample_start_time,
+        )
 
-        Returns:
-            PerformanceMetrics with baseline measurements
-        """
-        # Unlock perf counters for detailed TLB/context-switch monitoring
-        self._unlock_perf_counters()
-
-        thresholds = PerformanceThresholds()
-        duration = thresholds.perf_measurement_duration
-        baseline = PerformanceMetrics(measurement_duration=duration)
-
-        try:
-            # Probe which perf events are supported
-            event_support = self._probe_perf_events()
-            supported_events = self._get_fallback_events(event_support)
-
-            # Capture host perf metrics (TLB misses, context switches)
-            # Run perf stat with supported events
-            perf_cmd = (
-                f"perf stat -a -e {supported_events} "
-                f"--timeout {duration * 1000} sleep {duration}"
+    def _finish_performance_capture(
+        self,
+        result: ExecutableResult,
+        events: str,
+        duration: int,
+        interrupts_before: Dict[str, int],
+        cpu_before: Optional[Tuple[int, int]],
+        interrupts_sample_start_time: float,
+    ) -> PerformanceMetrics:
+        output = f"{result.stdout}\n{result.stderr}"
+        result.assert_exit_code(message=f"TLB perf measurement failed:\n{output}")
+        perf_duration = self._parse_perf_stat_duration(output)
+        if (
+            result.is_timeout
+            or not math.isfinite(perf_duration)
+            or perf_duration < duration
+        ):
+            raise LisaException(
+                f"Invalid TLB perf measurement duration: {perf_duration}"
             )
-
-            perf_result = self.node.execute(perf_cmd, sudo=True, timeout=duration + 30)
-
-            # Parse supported events with fallback
-            if event_support.get("dTLB-load-misses", False):
-                baseline.dtlb_load_misses_per_sec = self._parse_perf_stat_rate(
-                    perf_result.stderr, "dTLB-load-misses", duration
-                )
-            if event_support.get("iTLB-load-misses", False):
-                baseline.itlb_load_misses_per_sec = self._parse_perf_stat_rate(
-                    perf_result.stderr, "iTLB-load-misses", duration
-                )
-            if event_support.get("context-switches", False):
-                baseline.context_switches_per_sec = self._parse_perf_stat_rate(
-                    perf_result.stderr, "context-switches", duration
-                )
-
-            # Capture /proc/interrupts for IPI baseline
-            interrupts_before = self._get_proc_interrupts()
-
-            # Wait and capture again for delta calculation
-            time.sleep(5)  # Small sample window for IPI rate
-            interrupts_after = self._get_proc_interrupts()
-
-            baseline.resched_ipis_delta = self._calculate_interrupt_delta(
-                interrupts_before, interrupts_after, "resched"
+        interrupts_after = self._get_proc_interrupts()
+        ipi_measurement_duration = time.monotonic() - interrupts_sample_start_time
+        rates = {
+            event: self._parse_perf_stat_rate(output, event, perf_duration)
+            for event in events.split(",")
+        }
+        if interrupts_before.keys() != interrupts_after.keys():
+            raise LisaException("Available IPI counters changed during TLB measurement")
+        ipi_deltas = {
+            name: self._calculate_interrupt_delta(
+                interrupts_before, interrupts_after, name
             )
-            baseline.call_function_ipis_delta = self._calculate_interrupt_delta(
-                interrupts_before, interrupts_after, "call_function"
-            )
-
-            # Capture guest steal time baseline
-            is_guest = self.detect_environment_type()
-            baseline.steal_time_percent = self._get_steal_time_percent(is_guest)
-
-            return baseline
-
-        except Exception as e:
-            self._log.debug(f"Failed to capture complete baseline metrics: {e}")
-            return baseline
+            for name in interrupts_before
+        }
+        metrics = PerformanceMetrics(
+            measurement_duration=perf_duration,
+            ipi_measurement_duration=ipi_measurement_duration,
+            perf_event_rates=rates,
+            ipi_deltas=ipi_deltas,
+            dtlb_load_misses_per_sec=rates.get("dTLB-load-misses", 0.0),
+            itlb_load_misses_per_sec=rates.get("iTLB-load-misses", 0.0),
+            context_switches_per_sec=rates.get("context-switches", 0.0),
+            resched_ipis_delta=ipi_deltas.get("resched", 0),
+            call_function_ipis_delta=ipi_deltas.get("call_function", 0),
+        )
+        if cpu_before is not None:
+            total_after, steal_after = self._get_cpu_times()
+            total_delta = total_after - cpu_before[0]
+            steal_delta = steal_after - cpu_before[1]
+            if total_delta <= 0 or not 0 <= steal_delta <= total_delta:
+                raise LisaException("Invalid CPU time deltas during TLB measurement")
+            metrics.steal_time_percent = 100.0 * steal_delta / total_delta
+        return metrics
 
     def run_stress_with_monitoring(
         self,
@@ -482,6 +489,7 @@ class TlbStress(Tool):
         tlb_pages: int,
         use_numa: bool = True,
         use_hugepages: bool = True,
+        stress_ng_parameters: str = "",
     ) -> PerformanceMetrics:
         """
         Run TLB stress test with continuous performance monitoring.
@@ -490,88 +498,92 @@ class TlbStress(Tool):
             duration: Test duration in seconds
             tlb_threads: Number of TLB threads
             tlb_pages: Pages per thread
-            log: Logger instance
             use_numa: Use NUMA interleaving (reduces false regressions)
             use_hugepages: Use hugepages (explores worst-case TLB shootdowns)
+            stress_ng_parameters: Optional concurrent stress-ng workload
 
         Returns:
             PerformanceMetrics during stress testing
         """
-        stress_metrics = PerformanceMetrics(measurement_duration=duration)
-
-        # Start background performance monitoring
+        self._deploy_tlb_program()
+        tlb_cmd, original_thp_mode = self._prepare_tlb_stress_program(
+            duration, tlb_threads, tlb_pages, use_numa, use_hugepages
+        )
         perf_monitor_process = None
-
         try:
-            # Deploy TLB program
-            self._deploy_tlb_program()
-
-            # Probe supported events for stress monitoring
-            event_support = self._probe_perf_events()
-            supported_events = self._get_fallback_events(event_support)
-
-            # Start background perf monitoring with supported events
-            perf_cmd = (
-                f"perf stat -a -e {supported_events} " f"--timeout {duration * 1000}"
-            )
-            perf_monitor_process = self.node.execute_async(perf_cmd, sudo=True)
-
-            # Capture interrupts before stress
+            events = self._get_fallback_events(self._probe_perf_events())
+            interrupts_sample_start_time = time.monotonic()
             interrupts_before = self._get_proc_interrupts()
-
-            # Run the actual TLB stress test
-            self._run_tlb_stress_program(
-                duration, tlb_threads, tlb_pages, use_numa, use_hugepages
+            cpu_before = (
+                self._get_cpu_times() if self.detect_environment_type() else None
             )
-
-            # Capture interrupts after stress
-            interrupts_after = self._get_proc_interrupts()
-
-            # Wait for perf monitoring to complete with extended timeout
-            if perf_monitor_process:
-                perf_result = perf_monitor_process.wait_result(timeout=duration + 30)
-
-                # Parse supported events with fallback
-                if event_support.get("dTLB-load-misses", False):
-                    stress_metrics.dtlb_load_misses_per_sec = (
-                        self._parse_perf_stat_rate(
-                            perf_result.stderr, "dTLB-load-misses", duration
-                        )
-                    )
-                if event_support.get("iTLB-load-misses", False):
-                    stress_metrics.itlb_load_misses_per_sec = (
-                        self._parse_perf_stat_rate(
-                            perf_result.stderr, "iTLB-load-misses", duration
-                        )
-                    )
-                if event_support.get("context-switches", False):
-                    stress_metrics.context_switches_per_sec = (
-                        self._parse_perf_stat_rate(
-                            perf_result.stderr, "context-switches", duration
-                        )
-                    )
-
-            # Calculate IPI deltas
-            stress_metrics.resched_ipis_delta = self._calculate_interrupt_delta(
-                interrupts_before, interrupts_after, "resched"
+            perf_command = self.node.tools[Perf].command
+            workloads = [tlb_cmd]
+            if stress_ng_parameters:
+                stress_ng_command = self.node.tools[StressNg].command
+                workloads.append(f"{stress_ng_command} {stress_ng_parameters}")
+            workload_script = "pids=; "
+            workload_script += " ".join(
+                f'{workload} & pids="$pids $!";' for workload in workloads
             )
-            stress_metrics.call_function_ipis_delta = self._calculate_interrupt_delta(
-                interrupts_before, interrupts_after, "call_function"
+            workload_script += (
+                ' status=0; for pid in $pids; do wait "$pid" || status=$?; done; '
+                'exit "$status"'
             )
+            perf_monitor_process = self.node.execute_async(
+                f"{perf_command} stat -a -e {events} -- sh -c "
+                f"{shlex.quote(workload_script)}",
+                sudo=True,
+                update_envs={"LC_ALL": "C"},
+            )
+            perf_result = perf_monitor_process.wait_result(timeout=duration + 30)
+            return self._finish_performance_capture(
+                perf_result,
+                events,
+                duration,
+                interrupts_before,
+                cpu_before,
+                interrupts_sample_start_time,
+            )
+        finally:
+            try:
+                if (
+                    perf_monitor_process is not None
+                    and perf_monitor_process.is_running()
+                ):
+                    perf_monitor_process.kill()
+            finally:
+                if original_thp_mode is not None:
+                    self._set_thp_mode(original_thp_mode)
 
-            # Get final steal time
-            is_guest = self.detect_environment_type()
-            stress_metrics.steal_time_percent = self._get_steal_time_percent(is_guest)
-
-            return stress_metrics
-
-        except Exception:
-            if perf_monitor_process:
-                try:
-                    perf_monitor_process.terminate()  # type: ignore
-                except Exception:
-                    pass
-            raise
+    @staticmethod
+    def _validate_performance_metrics(metrics: PerformanceMetrics, label: str) -> None:
+        if (
+            not metrics.perf_event_rates
+            or metrics.measurement_duration <= 0
+            or metrics.ipi_measurement_duration <= 0
+        ):
+            raise LisaException(f"{label} has no validated TLB perf measurement")
+        values = (
+            metrics.measurement_duration,
+            metrics.ipi_measurement_duration,
+            metrics.dtlb_load_misses_per_sec,
+            metrics.itlb_load_misses_per_sec,
+            metrics.context_switches_per_sec,
+            metrics.tlb_flush_events_per_sec,
+            metrics.resched_ipis_delta,
+            metrics.call_function_ipis_delta,
+            metrics.throughput_ops_per_sec,
+            metrics.p95_latency_ms,
+            metrics.p99_latency_ms,
+            metrics.steal_time_percent,
+            *metrics.perf_event_rates.values(),
+            *metrics.ipi_deltas.values(),
+        )
+        if any(not math.isfinite(value) or value < 0 for value in values):
+            raise LisaException(f"{label} contains invalid TLB performance metrics")
+        if metrics.steal_time_percent > 100:
+            raise LisaException(f"{label} has an invalid steal-time percentage")
 
     def analyze_performance_degradation(
         self,
@@ -592,6 +604,12 @@ class TlbStress(Tool):
         Returns:
             Dictionary with analysis results
         """
+        self._validate_performance_metrics(baseline, "Baseline")
+        self._validate_performance_metrics(stress, "Stress measurement")
+        if baseline.perf_event_rates.keys() != stress.perf_event_rates.keys():
+            raise LisaException("Perf event coverage changed between TLB windows")
+        if baseline.ipi_deltas.keys() != stress.ipi_deltas.keys():
+            raise LisaException("IPI counter coverage changed between TLB windows")
         analysis: Dict[str, Any] = {
             "pass": True,
             "warnings": [],
@@ -602,12 +620,15 @@ class TlbStress(Tool):
         # Get environment-specific thresholds
         is_guest = self.detect_environment_type()
         thresholds = self.get_environment_specific_thresholds(is_guest)
+        comparisons = 0
 
         # Calculate degradation percentages
-        if baseline.dtlb_load_misses_per_sec > 0:
+        dtlb_before = baseline.perf_event_rates.get("dTLB-load-misses", 0.0)
+        if dtlb_before > 0:
+            comparisons += 1
             dtlb_increase_pct = (
-                (stress.dtlb_load_misses_per_sec - baseline.dtlb_load_misses_per_sec)
-                / baseline.dtlb_load_misses_per_sec
+                (stress.perf_event_rates["dTLB-load-misses"] - dtlb_before)
+                / dtlb_before
             ) * 100
             analysis["metrics"]["dtlb_increase_percent"] = dtlb_increase_pct
 
@@ -616,14 +637,21 @@ class TlbStress(Tool):
                     f"Host dTLB misses increased by {dtlb_increase_pct:.1f}% "
                     f"(threshold: {thresholds.host_dtlb_misses_increase_percent}%)"
                 )
+        else:
+            analysis["warnings"].append(
+                "No positive dTLB baseline; the TLB miss ratio was not evaluated."
+            )
 
         # IPI increase analysis
         ipi_total_before = (
-            baseline.resched_ipis_delta + baseline.call_function_ipis_delta
+            sum(baseline.ipi_deltas.values()) / baseline.ipi_measurement_duration
         )
-        ipi_total_stress = stress.resched_ipis_delta + stress.call_function_ipis_delta
+        ipi_total_stress = (
+            sum(stress.ipi_deltas.values()) / stress.ipi_measurement_duration
+        )
 
         if ipi_total_before > 0:
+            comparisons += 1
             ipi_increase_pct = (
                 (ipi_total_stress - ipi_total_before) / ipi_total_before
             ) * 100
@@ -634,9 +662,14 @@ class TlbStress(Tool):
                     f"Host IPIs increased by {ipi_increase_pct:.1f}% "
                     f"(threshold: {thresholds.host_ipis_increase_percent}%)"
                 )
+        else:
+            analysis["warnings"].append(
+                "No positive IPI baseline; the IPI ratio was not evaluated."
+            )
 
         # Guest steal time analysis (only relevant for guest environments)
         if is_guest:
+            comparisons += 1
             steal_time_increase = (
                 stress.steal_time_percent - baseline.steal_time_percent
             )
@@ -649,6 +682,8 @@ class TlbStress(Tool):
                     f"(threshold: {thresholds.guest_steal_time_increase_points})"
                 )
                 analysis["pass"] = False
+        if not comparisons:
+            raise LisaException("No usable baseline for TLB performance comparisons")
 
         # Check for kernel health issues (time-windowed)
         kernel_issues = self._check_kernel_health_issues(start_time)
@@ -661,15 +696,14 @@ class TlbStress(Tool):
         )
         if analysis["warnings"]:
             self._log.debug(f"Warnings: {'; '.join(analysis['warnings'])}")
+        if test_result:
+            self._send_performance_notification(test_result, analysis)
+
         if analysis["failures"]:
             failure_msg = (
                 f"Performance test failures: {'; '.join(analysis['failures'])}"
             )
             raise LisaException(failure_msg)
-
-        # Send performance results to notifier for database storage
-        if test_result:
-            self._send_performance_notification(test_result, analysis)
 
         return analysis
 
@@ -743,115 +777,148 @@ class TlbStress(Tool):
         # Cleanup temporary files
         self.node.execute(f"rm -f {temp_local_path}", no_error_log=True)
 
-    def _run_tlb_stress_program(
+    def _prepare_tlb_stress_program(
         self,
         duration: int,
         tlb_threads: int,
         tlb_pages: int,
         use_numa: bool,
         use_hugepages: bool,
-    ) -> None:
-        """Execute the TLB stress program with NUMA and hugepage optimizations"""
+    ) -> Tuple[str, Optional[str]]:
+        """Prepare the TLB stress command and return any THP mode to restore."""
         # Build command with flag arguments (C program expects -t -p -d -i flags)
         tlb_cmd = f"{self._bin} -t {tlb_threads} -p {tlb_pages} -d {duration}"
 
-        # Add NUMA interleaving to reduce false regressions from locality imbalance
         if use_numa:
-            # Check if numactl is available before using it
-            numactl_check = self.node.execute("command -v numactl", no_error_log=True)
-            if numactl_check.exit_code == 0:
-                tlb_cmd = f"numactl --interleave=all {tlb_cmd}"
-            else:
-                self._log.info(
-                    "numactl not available - running without NUMA interleaving"
+            available, _ = self.command_exists("numactl")
+            if not available:
+                raise LisaException(
+                    "NUMA interleaving was requested but numactl is unavailable"
                 )
+            tlb_cmd = f"numactl --interleave=all {tlb_cmd}"
 
-        # Add hugepage flags for worst-case TLB shootdown scenarios
-        if use_hugepages:
-            # Set transparent hugepages to 'always' for this process
-            hugepage_setup = "echo always > /sys/kernel/mm/transparent_hugepage/enabled"
-            self.node.execute(hugepage_setup, sudo=True)
+        original_thp_mode = self._get_thp_mode() if use_hugepages else None
+        try:
+            if original_thp_mode is not None and original_thp_mode != "always":
+                self._set_thp_mode("always")
+        except Exception:
+            if original_thp_mode is not None and original_thp_mode != "always":
+                self._set_thp_mode(original_thp_mode)
+            raise
 
-        self.node.execute(tlb_cmd, timeout=duration + 300)
+        restore_thp_mode = (
+            original_thp_mode
+            if original_thp_mode is not None and original_thp_mode != "always"
+            else None
+        )
+        return tlb_cmd, restore_thp_mode
+
+    def _get_thp_mode(self) -> str:
+        output = self.node.tools[Cat].read(
+            "/sys/kernel/mm/transparent_hugepage/enabled", force_run=True
+        )
+        match = re.search(r"\[(always|madvise|never)\]", output)
+        if not match:
+            raise LisaException(f"Cannot determine the active THP mode: {output}")
+        return match.group(1)
+
+    def _set_thp_mode(self, mode: str) -> None:
+        self.node.tools[Echo].write_to_file(
+            mode,
+            PurePosixPath("/sys/kernel/mm/transparent_hugepage/enabled"),
+            sudo=True,
+            ignore_error=False,
+        )
+        if self._get_thp_mode() != mode:
+            raise LisaException(f"Failed to apply THP mode {mode}")
 
     def _parse_perf_stat_rate(
         self, perf_output: str, event_name: str, duration: float
     ) -> float:
         """Parse perf stat output to extract event rate per second."""
-        try:
-            # Look for lines like "     1,234,567      dTLB-load-misses"
-            pattern = rf"([\d,]+)\s+{re.escape(event_name)}"
-            match = re.search(pattern, perf_output)
-            if match:
-                count_str = match.group(1).replace(",", "")
-                count = float(count_str)
-                return count / duration
-        except Exception:
-            pass
-        return 0.0
+        if not math.isfinite(duration) or duration <= 0:
+            raise LisaException(f"Invalid perf measurement duration: {duration}")
+        pattern = (
+            rf"^\s*([0-9]+|[0-9]{{1,3}}(?:,[0-9]{{3}})+)"
+            rf"\s+{re.escape(event_name)}(?:\s|$)"
+        )
+        match = re.search(pattern, perf_output, re.MULTILINE)
+        if not match:
+            raise LisaException(
+                f"No numeric perf counter for {event_name}:\n{perf_output}"
+            )
+        count = float(match.group(1).replace(",", ""))
+        rate = count / duration
+        if not math.isfinite(rate):
+            raise LisaException(f"Invalid perf counter for {event_name}")
+        return rate
+
+    @staticmethod
+    def _parse_perf_stat_duration(perf_output: str) -> float:
+        """Parse the collection duration reported by perf stat."""
+        match = re.search(
+            r"^\s*([0-9]+(?:\.[0-9]+)?) seconds time elapsed\b",
+            perf_output,
+            re.MULTILINE,
+        )
+        if not match:
+            raise LisaException(f"No numeric perf measurement duration:\n{perf_output}")
+        duration = float(match.group(1))
+        if not math.isfinite(duration) or duration <= 0:
+            raise LisaException(f"Invalid perf measurement duration: {duration}")
+        return duration
 
     def _get_proc_interrupts(self) -> Dict[str, int]:
         """Get current interrupt counts from /proc/interrupts."""
-        try:
-            cat = self.node.tools[Cat]
-            interrupts_output = cat.read("/proc/interrupts")
-
-            interrupts = {}
-            for line in interrupts_output.split("\n"):
-                if "resched" in line.lower():
-                    # Sum across all CPUs
-                    numbers = re.findall(r"\d+", line)
-                    interrupts["resched"] = sum(
-                        int(n) for n in numbers[1:] if n.isdigit()
-                    )
-                elif "call_function" in line.lower() or "function_call" in line.lower():
-                    numbers = re.findall(r"\d+", line)
-                    interrupts["call_function"] = sum(
-                        int(n) for n in numbers[1:] if n.isdigit()
-                    )
-
-            return interrupts
-        except Exception:
-            return {}
+        output = self.node.tools[Cat].read("/proc/interrupts", force_run=True)
+        interrupts = {}
+        for line in output.splitlines():
+            description = line.lower()
+            if "resched" in description:
+                name = "resched"
+            elif any(
+                label in description
+                for label in ("call_function", "function_call", "function call")
+            ):
+                name = "call_function"
+            else:
+                continue
+            _, separator, counters = line.partition(":")
+            values = []
+            if separator:
+                for value in counters.split():
+                    if not value.isdecimal():
+                        break
+                    values.append(int(value))
+            if not values:
+                raise LisaException(f"Invalid IPI counters: {line}")
+            interrupts[name] = sum(values)
+        return interrupts
 
     def _calculate_interrupt_delta(
         self, before: Dict[str, int], after: Dict[str, int], interrupt_type: str
     ) -> int:
         """Calculate interrupt count delta."""
-        before_count = before.get(interrupt_type, 0)
-        after_count = after.get(interrupt_type, 0)
-        return max(0, after_count - before_count)
+        if interrupt_type not in before or interrupt_type not in after:
+            raise LisaException(f"Missing IPI counter: {interrupt_type}")
+        delta = after[interrupt_type] - before[interrupt_type]
+        if delta < 0:
+            raise LisaException(f"IPI counter decreased: {interrupt_type}")
+        return delta
 
-    def _get_steal_time_percent(self, is_guest: bool = True) -> float:
-        """
-        Get current steal time percentage.
-
-        Args:
-            is_guest: Whether running in guest environment
-
-        Returns:
-            Steal time percentage (0.0 if host environment)
-        """
-        if not is_guest:
-            # Host environments don't have meaningful steal time
-            return 0.0
-
-        try:
-            cat = self.node.tools[Cat]
-            stat_output = cat.read("/proc/stat")
-
-            # Parse first CPU line: cpu user nice system idle iowait irq
-            # softirq steal guest
-            cpu_line = stat_output.split("\n")[0]
-            values = cpu_line.split()[1:]  # Skip 'cpu' label
-
-            if len(values) >= 8:
-                steal = int(values[7])
-                total = sum(int(v) for v in values)
-                return (steal / total) * 100 if total > 0 else 0.0
-        except Exception:
-            pass
-        return 0.0
+    def _get_cpu_times(self) -> Tuple[int, int]:
+        output = self.node.tools[Cat].read("/proc/stat", force_run=True)
+        for line in output.splitlines():
+            fields = line.split()
+            if fields and fields[0] == "cpu":
+                if len(fields) < 9 or not all(
+                    value.isdecimal() for value in fields[1:9]
+                ):
+                    break
+                values = [int(value) for value in fields[1:9]]
+                # Guest times are already included in user/nice; do not sum twice.
+                return sum(values), values[7]
+        raise LisaException(f"Invalid aggregate CPU counters in /proc/stat:\n{output}")
 
     def _check_kernel_health_issues(
         self, start_time: Optional[str] = None
