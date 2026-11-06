@@ -319,6 +319,24 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
                 node_context=node_context,
             )
 
+    def _destroy_domain(self, node_context: NodeContext, log: Logger) -> None:
+        try:
+            super()._destroy_domain(node_context, log)
+        except CloudHypervisorDomainStopError:
+            if self._reconcile_domain_absence(node_context, log):
+                node_context.domain_stop_failed = False
+                return
+            assert (
+                node_context.domain
+            ), f"Missing domain handle for VM {node_context.vm_name} during cleanup"
+            if not node_context.domain.isActive():
+                log.debug(
+                    f"VM {node_context.vm_name} is already stopped; "
+                    "continuing cleanup without reusing it."
+                )
+                return
+            raise
+
     def _stop_domain(self, node_context: NodeContext, log: Logger) -> None:
         if not node_context.passthrough_devices:
             super()._stop_domain(node_context, log)
