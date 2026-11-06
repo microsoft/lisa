@@ -110,7 +110,8 @@ class TlbStress(Tool):
     - Environment detection (guest vs host)
     - Threshold-based degradation analysis
 
-    Measurements require successful perf acquisition and numeric selected counters.
+    Perf monitoring is optional; collected counters must be valid and numeric.
+    Without usable perf, workloads and kernel health checks still run.
     Requested NUMA/THP setup is checked, and the original THP mode is restored.
     """
 
@@ -140,8 +141,16 @@ class TlbStress(Tool):
 
     def _probe_perf_events(self) -> Dict[str, bool]:
         """Probe which perf events are supported on this system"""
-        event_support = {}
-        perf_command = self.node.tools[Perf].command
+        event_support: Dict[str, bool] = {}
+        # Do not install kernel-coupled packages for optional monitoring.
+        perf = Perf.create(self.node)
+        perf.initialize()
+        if not perf.exists:
+            self._log.warning(
+                "Perf is unavailable; running TLB stress without perf monitoring."
+            )
+            return event_support
+        perf_command = perf.command
 
         # Test events to probe
         events_to_test = [
@@ -199,9 +208,9 @@ class TlbStress(Tool):
             base_events.append("iTLB-load-misses")
 
         if not base_events:
-            raise LisaException(
-                "No usable perf events for TLB measurements. Check the perf "
-                "installation and permissions in the event probe output."
+            self._log.warning(
+                "No usable perf events; running TLB stress without perf monitoring. "
+                "See the event probe output for installation or permission errors."
             )
 
         return ",".join(base_events)
@@ -405,10 +414,12 @@ class TlbStress(Tool):
 
         return thresholds
 
-    def capture_performance_baseline(self) -> PerformanceMetrics:
+    def capture_performance_baseline(self) -> Optional[PerformanceMetrics]:
         """Capture validated counters and fresh interval samples over one window."""
         duration = PerformanceThresholds().perf_measurement_duration
         events = self._get_fallback_events(self._probe_perf_events())
+        if not events:
+            return None
         interrupts_sample_start_time = time.monotonic()
         interrupts_before = self._get_proc_interrupts()
         cpu_before = self._get_cpu_times() if self.detect_environment_type() else None
@@ -490,7 +501,7 @@ class TlbStress(Tool):
         use_numa: bool = True,
         use_hugepages: bool = True,
         stress_ng_parameters: str = "",
-    ) -> PerformanceMetrics:
+    ) -> Optional[PerformanceMetrics]:
         """
         Run TLB stress test with continuous performance monitoring.
 
@@ -503,7 +514,7 @@ class TlbStress(Tool):
             stress_ng_parameters: Optional concurrent stress-ng workload
 
         Returns:
-            PerformanceMetrics during stress testing
+            PerformanceMetrics during stress testing, or None without usable perf
         """
         self._deploy_tlb_program()
         tlb_cmd, original_thp_mode = self._prepare_tlb_stress_program(
@@ -512,31 +523,42 @@ class TlbStress(Tool):
         perf_monitor_process = None
         try:
             events = self._get_fallback_events(self._probe_perf_events())
-            interrupts_sample_start_time = time.monotonic()
-            interrupts_before = self._get_proc_interrupts()
-            cpu_before = (
-                self._get_cpu_times() if self.detect_environment_type() else None
-            )
-            perf_command = self.node.tools[Perf].command
             workloads = [tlb_cmd]
             if stress_ng_parameters:
                 stress_ng_command = self.node.tools[StressNg].command
                 workloads.append(f"{stress_ng_command} {stress_ng_parameters}")
             workload_script = "pids=; "
             workload_script += " ".join(
-                f"{workload} & pids=\"$pids $!\";" for workload in workloads
+                f'{workload} & pids="$pids $!";' for workload in workloads
             )
             workload_script += (
                 ' status=0; for pid in $pids; do wait "$pid" || status=$?; done; '
                 'exit "$status"'
             )
+            command = f"sh -c {shlex.quote(workload_script)}"
+            interrupts_sample_start_time = time.monotonic()
+            interrupts_before = self._get_proc_interrupts() if events else {}
+            cpu_before = (
+                self._get_cpu_times()
+                if events and self.detect_environment_type()
+                else None
+            )
+            if events:
+                perf_command = self.node.tools[Perf].command
+                command = f"{perf_command} stat -a -e {events} -- {command}"
             perf_monitor_process = self.node.execute_async(
-                f"{perf_command} stat -a -e {events} -- sh -c "
-                f"{shlex.quote(workload_script)}",
+                command,
                 sudo=True,
                 update_envs={"LC_ALL": "C"},
             )
             perf_result = perf_monitor_process.wait_result(timeout=duration + 30)
+            if not events:
+                perf_result.assert_exit_code(
+                    message="TLB stress workload failed without perf monitoring"
+                )
+                if perf_result.is_timeout:
+                    raise LisaException("TLB stress workload timed out")
+                return None
             return self._finish_performance_capture(
                 perf_result,
                 events,
@@ -587,8 +609,8 @@ class TlbStress(Tool):
 
     def analyze_performance_degradation(
         self,
-        baseline: PerformanceMetrics,
-        stress: PerformanceMetrics,
+        baseline: Optional[PerformanceMetrics],
+        stress: Optional[PerformanceMetrics],
         test_result: Optional[TestResult] = None,
         start_time: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -604,6 +626,45 @@ class TlbStress(Tool):
         Returns:
             Dictionary with analysis results
         """
+        if baseline is None or stress is None:
+            analysis: Dict[str, Any] = {
+                "pass": True,
+                "warnings": [
+                    "Perf monitoring unavailable; performance comparisons were not "
+                    "evaluated. Only workload completion and kernel health "
+                    "are validated."
+                ],
+                "failures": [],
+                "metrics": {},
+                "performance_available": False,
+            }
+        else:
+            analysis = self._compare_performance_metrics(baseline, stress)
+
+        kernel_issues = self._check_kernel_health_issues(start_time)
+        if kernel_issues:
+            analysis["failures"].extend(kernel_issues)
+            analysis["pass"] = False
+
+        self._log.info(
+            f"Performance analysis: {'PASS' if analysis['pass'] else 'FAIL'}"
+        )
+        if analysis["warnings"]:
+            self._log.warning(f"Warnings: {'; '.join(analysis['warnings'])}")
+        if test_result:
+            self._send_performance_notification(test_result, analysis)
+
+        if analysis["failures"]:
+            failure_msg = (
+                f"Performance test failures: {'; '.join(analysis['failures'])}"
+            )
+            raise LisaException(failure_msg)
+
+        return analysis
+
+    def _compare_performance_metrics(
+        self, baseline: PerformanceMetrics, stress: PerformanceMetrics
+    ) -> Dict[str, Any]:
         self._validate_performance_metrics(baseline, "Baseline")
         self._validate_performance_metrics(stress, "Stress measurement")
         if baseline.perf_event_rates.keys() != stress.perf_event_rates.keys():
@@ -615,6 +676,7 @@ class TlbStress(Tool):
             "warnings": [],
             "failures": [],
             "metrics": {},
+            "performance_available": True,
         }
 
         # Get environment-specific thresholds
@@ -685,26 +747,6 @@ class TlbStress(Tool):
         if not comparisons:
             raise LisaException("No usable baseline for TLB performance comparisons")
 
-        # Check for kernel health issues (time-windowed)
-        kernel_issues = self._check_kernel_health_issues(start_time)
-        if kernel_issues:
-            analysis["failures"].extend(kernel_issues)
-            analysis["pass"] = False
-
-        self._log.info(
-            f"Performance analysis: {'PASS' if analysis['pass'] else 'FAIL'}"
-        )
-        if analysis["warnings"]:
-            self._log.debug(f"Warnings: {'; '.join(analysis['warnings'])}")
-        if test_result:
-            self._send_performance_notification(test_result, analysis)
-
-        if analysis["failures"]:
-            failure_msg = (
-                f"Performance test failures: {'; '.join(analysis['failures'])}"
-            )
-            raise LisaException(failure_msg)
-
         return analysis
 
     def _send_performance_notification(
@@ -730,6 +772,8 @@ class TlbStress(Tool):
         summary_message = "\n".join(summary_lines)
 
         test_status = TestStatus.PASSED if analysis["pass"] else TestStatus.FAILED
+        if analysis["pass"] and not analysis["performance_available"]:
+            test_status = TestStatus.SKIPPED
         send_sub_test_result_message(
             test_result=test_result,
             test_case_name="stress_tlb_performance",
