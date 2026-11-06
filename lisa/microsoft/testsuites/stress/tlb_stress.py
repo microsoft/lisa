@@ -3,6 +3,7 @@
 
 import math
 import re
+import shlex
 import time
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -505,32 +506,36 @@ class TlbStress(Tool):
             PerformanceMetrics during stress testing
         """
         self._deploy_tlb_program()
-        events = self._get_fallback_events(self._probe_perf_events())
-        interrupts_sample_start_time = time.monotonic()
-        interrupts_before = self._get_proc_interrupts()
-        cpu_before = self._get_cpu_times() if self.detect_environment_type() else None
-        perf_command = self.node.tools[Perf].command
-        perf_monitor_process = self.node.execute_async(
-            f"{perf_command} stat -a -e {events} -- sleep {duration}",
-            sudo=True,
-            update_envs={"LC_ALL": "C"},
+        tlb_cmd, original_thp_mode = self._prepare_tlb_stress_program(
+            duration, tlb_threads, tlb_pages, use_numa, use_hugepages
         )
-        stress_ng_process = None
+        perf_monitor_process = None
         try:
-            if stress_ng_parameters:
-                stress_ng_process = self.node.tools[StressNg].run_async(
-                    stress_ng_parameters, force_run=True
-                )
-            self._run_tlb_stress_program(
-                duration, tlb_threads, tlb_pages, use_numa, use_hugepages
+            events = self._get_fallback_events(self._probe_perf_events())
+            interrupts_sample_start_time = time.monotonic()
+            interrupts_before = self._get_proc_interrupts()
+            cpu_before = (
+                self._get_cpu_times() if self.detect_environment_type() else None
             )
-            if stress_ng_process is not None:
-                stress_result = stress_ng_process.wait_result(timeout=duration + 30)
-                stress_result.assert_exit_code(
-                    message="stress-ng failed", include_output=True
-                )
-                if stress_result.is_timeout:
-                    raise LisaException("stress-ng timed out during TLB measurement")
+            perf_command = self.node.tools[Perf].command
+            workloads = [tlb_cmd]
+            if stress_ng_parameters:
+                stress_ng_command = self.node.tools[StressNg].command
+                workloads.append(f"{stress_ng_command} {stress_ng_parameters}")
+            workload_script = "pids=; "
+            workload_script += " ".join(
+                f"{workload} & pids=\"$pids $!\";" for workload in workloads
+            )
+            workload_script += (
+                ' status=0; for pid in $pids; do wait "$pid" || status=$?; done; '
+                'exit "$status"'
+            )
+            perf_monitor_process = self.node.execute_async(
+                f"{perf_command} stat -a -e {events} -- sh -c "
+                f"{shlex.quote(workload_script)}",
+                sudo=True,
+                update_envs={"LC_ALL": "C"},
+            )
             perf_result = perf_monitor_process.wait_result(timeout=duration + 30)
             return self._finish_performance_capture(
                 perf_result,
@@ -542,11 +547,14 @@ class TlbStress(Tool):
             )
         finally:
             try:
-                if stress_ng_process is not None and stress_ng_process.is_running():
-                    stress_ng_process.kill()
-            finally:
-                if perf_monitor_process.is_running():
+                if (
+                    perf_monitor_process is not None
+                    and perf_monitor_process.is_running()
+                ):
                     perf_monitor_process.kill()
+            finally:
+                if original_thp_mode is not None:
+                    self._set_thp_mode(original_thp_mode)
 
     @staticmethod
     def _validate_performance_metrics(metrics: PerformanceMetrics, label: str) -> None:
@@ -769,21 +777,20 @@ class TlbStress(Tool):
         # Cleanup temporary files
         self.node.execute(f"rm -f {temp_local_path}", no_error_log=True)
 
-    def _run_tlb_stress_program(
+    def _prepare_tlb_stress_program(
         self,
         duration: int,
         tlb_threads: int,
         tlb_pages: int,
         use_numa: bool,
         use_hugepages: bool,
-    ) -> None:
-        """Execute the TLB stress program with NUMA and hugepage optimizations"""
+    ) -> Tuple[str, Optional[str]]:
+        """Prepare the TLB stress command and return any THP mode to restore."""
         # Build command with flag arguments (C program expects -t -p -d -i flags)
         tlb_cmd = f"{self._bin} -t {tlb_threads} -p {tlb_pages} -d {duration}"
 
-        use_sudo = False
         if use_numa:
-            available, use_sudo = self.command_exists("numactl")
+            available, _ = self.command_exists("numactl")
             if not available:
                 raise LisaException(
                     "NUMA interleaving was requested but numactl is unavailable"
@@ -794,15 +801,17 @@ class TlbStress(Tool):
         try:
             if original_thp_mode is not None and original_thp_mode != "always":
                 self._set_thp_mode("always")
-            result = self.node.execute(tlb_cmd, sudo=use_sudo, timeout=duration + 300)
-            result.assert_exit_code(
-                message=f"TLB stress failed:\n{result.stdout}\n{result.stderr}"
-            )
-            if result.is_timeout:
-                raise LisaException("TLB stress program timed out")
-        finally:
+        except Exception:
             if original_thp_mode is not None and original_thp_mode != "always":
                 self._set_thp_mode(original_thp_mode)
+            raise
+
+        restore_thp_mode = (
+            original_thp_mode
+            if original_thp_mode is not None and original_thp_mode != "always"
+            else None
+        )
+        return tlb_cmd, restore_thp_mode
 
     def _get_thp_mode(self) -> str:
         output = self.node.tools[Cat].read(
