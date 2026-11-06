@@ -3,6 +3,7 @@
 
 import math
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
@@ -41,6 +42,7 @@ class PerformanceMetrics:
 
     # Timing
     measurement_duration: float = 0.0
+    ipi_measurement_duration: float = 0.0
     perf_event_rates: Dict[str, float] = field(default_factory=dict)
     ipi_deltas: Dict[str, int] = field(default_factory=dict)
 
@@ -406,6 +408,7 @@ class TlbStress(Tool):
         """Capture validated counters and fresh interval samples over one window."""
         duration = PerformanceThresholds().perf_measurement_duration
         events = self._get_fallback_events(self._probe_perf_events())
+        interrupts_sample_start_time = time.monotonic()
         interrupts_before = self._get_proc_interrupts()
         cpu_before = self._get_cpu_times() if self.detect_environment_type() else None
         perf_command = self.node.tools[Perf].command
@@ -416,7 +419,12 @@ class TlbStress(Tool):
             update_envs={"LC_ALL": "C"},
         )
         return self._finish_performance_capture(
-            perf_result, events, duration, interrupts_before, cpu_before
+            perf_result,
+            events,
+            duration,
+            interrupts_before,
+            cpu_before,
+            interrupts_sample_start_time,
         )
 
     def _finish_performance_capture(
@@ -426,22 +434,25 @@ class TlbStress(Tool):
         duration: int,
         interrupts_before: Dict[str, int],
         cpu_before: Optional[Tuple[int, int]],
+        interrupts_sample_start_time: float,
     ) -> PerformanceMetrics:
         output = f"{result.stdout}\n{result.stderr}"
         result.assert_exit_code(message=f"TLB perf measurement failed:\n{output}")
+        perf_duration = self._parse_perf_stat_duration(output)
         if (
             result.is_timeout
-            or not math.isfinite(result.elapsed)
-            or result.elapsed < duration
+            or not math.isfinite(perf_duration)
+            or perf_duration < duration
         ):
             raise LisaException(
-                f"Invalid TLB perf measurement duration: {result.elapsed}"
+                f"Invalid TLB perf measurement duration: {perf_duration}"
             )
+        interrupts_after = self._get_proc_interrupts()
+        ipi_measurement_duration = time.monotonic() - interrupts_sample_start_time
         rates = {
-            event: self._parse_perf_stat_rate(output, event, result.elapsed)
+            event: self._parse_perf_stat_rate(output, event, perf_duration)
             for event in events.split(",")
         }
-        interrupts_after = self._get_proc_interrupts()
         if interrupts_before.keys() != interrupts_after.keys():
             raise LisaException("Available IPI counters changed during TLB measurement")
         ipi_deltas = {
@@ -451,7 +462,8 @@ class TlbStress(Tool):
             for name in interrupts_before
         }
         metrics = PerformanceMetrics(
-            measurement_duration=result.elapsed,
+            measurement_duration=perf_duration,
+            ipi_measurement_duration=ipi_measurement_duration,
             perf_event_rates=rates,
             ipi_deltas=ipi_deltas,
             dtlb_load_misses_per_sec=rates.get("dTLB-load-misses", 0.0),
@@ -494,6 +506,7 @@ class TlbStress(Tool):
         """
         self._deploy_tlb_program()
         events = self._get_fallback_events(self._probe_perf_events())
+        interrupts_sample_start_time = time.monotonic()
         interrupts_before = self._get_proc_interrupts()
         cpu_before = self._get_cpu_times() if self.detect_environment_type() else None
         perf_command = self.node.tools[Perf].command
@@ -520,7 +533,12 @@ class TlbStress(Tool):
                     raise LisaException("stress-ng timed out during TLB measurement")
             perf_result = perf_monitor_process.wait_result(timeout=duration + 30)
             return self._finish_performance_capture(
-                perf_result, events, duration, interrupts_before, cpu_before
+                perf_result,
+                events,
+                duration,
+                interrupts_before,
+                cpu_before,
+                interrupts_sample_start_time,
             )
         finally:
             try:
@@ -532,10 +550,15 @@ class TlbStress(Tool):
 
     @staticmethod
     def _validate_performance_metrics(metrics: PerformanceMetrics, label: str) -> None:
-        if not metrics.perf_event_rates or metrics.measurement_duration <= 0:
+        if (
+            not metrics.perf_event_rates
+            or metrics.measurement_duration <= 0
+            or metrics.ipi_measurement_duration <= 0
+        ):
             raise LisaException(f"{label} has no validated TLB perf measurement")
         values = (
             metrics.measurement_duration,
+            metrics.ipi_measurement_duration,
             metrics.dtlb_load_misses_per_sec,
             metrics.itlb_load_misses_per_sec,
             metrics.context_switches_per_sec,
@@ -613,9 +636,11 @@ class TlbStress(Tool):
 
         # IPI increase analysis
         ipi_total_before = (
-            sum(baseline.ipi_deltas.values()) / baseline.measurement_duration
+            sum(baseline.ipi_deltas.values()) / baseline.ipi_measurement_duration
         )
-        ipi_total_stress = sum(stress.ipi_deltas.values()) / stress.measurement_duration
+        ipi_total_stress = (
+            sum(stress.ipi_deltas.values()) / stress.ipi_measurement_duration
+        )
 
         if ipi_total_before > 0:
             comparisons += 1
@@ -818,6 +843,23 @@ class TlbStress(Tool):
         if not math.isfinite(rate):
             raise LisaException(f"Invalid perf counter for {event_name}")
         return rate
+
+    @staticmethod
+    def _parse_perf_stat_duration(perf_output: str) -> float:
+        """Parse the collection duration reported by perf stat."""
+        match = re.search(
+            r"^\s*([0-9]+(?:\.[0-9]+)?) seconds time elapsed\b",
+            perf_output,
+            re.MULTILINE,
+        )
+        if not match:
+            raise LisaException(
+                f"No numeric perf measurement duration:\n{perf_output}"
+            )
+        duration = float(match.group(1))
+        if not math.isfinite(duration) or duration <= 0:
+            raise LisaException(f"Invalid perf measurement duration: {duration}")
+        return duration
 
     def _get_proc_interrupts(self) -> Dict[str, int]:
         """Get current interrupt counts from /proc/interrupts."""
