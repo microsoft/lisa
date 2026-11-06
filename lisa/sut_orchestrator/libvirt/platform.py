@@ -812,8 +812,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         if vm_disks_dir:
             try:
                 self.host_node.shell.remove(Path(vm_disks_dir), True)
-            except Exception as ex:
-                log.warning(f"Failed to delete VM files directory: {ex}")
+            except FileNotFoundError:
+                pass
 
     def _delete_node_watchdog_callback(self) -> None:
         stderr = sys.__stderr__
