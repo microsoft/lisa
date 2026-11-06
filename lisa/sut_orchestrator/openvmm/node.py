@@ -21,8 +21,21 @@ from paramiko.ssh_exception import SSHException
 from lisa import constants, schema, search_space
 from lisa.feature import Features
 from lisa.node import Node, RemoteNode
-from lisa.tools import Dnsmasq, Echo, Ip, Kill, Ls, Lspci, Mkdir, Modprobe, OpenVmm, Rm
+from lisa.tools import (
+    Dnsmasq,
+    Echo,
+    Ip,
+    Iptables,
+    Kill,
+    Ls,
+    Lspci,
+    Mkdir,
+    Modprobe,
+    OpenVmm,
+    Rm,
+)
 from lisa.tools.openvmm import OpenVmmLaunchConfig
+from lisa.transformers.host_kernel_boot_parameters import HostKernelBootParameters
 from lisa.util import (
     LisaException,
     LisaTimeoutException,
@@ -1894,6 +1907,7 @@ class OpenVmmController:
     ) -> None:
         host_context = get_host_context(self.host_node)
         with host_context.ssh_forwarding_lock:
+            self.host_node.tools.get(Iptables)
             forwarding_interface, _ = self.host_node.tools[Ip].get_default_route_info()
             host_interface = _get_tap_host_interface_name(network)
             host_network = ipaddress.ip_interface(network.tap_host_cidr).network
@@ -2339,6 +2353,11 @@ class OpenVmmGuestNode(RemoteNode):
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._provision()
         super()._initialize(*args, **kwargs)
+        runbook = cast(OpenVmmGuestNodeSchema, self.runbook)
+        if runbook.kernel_boot_parameters.strip():
+            HostKernelBootParameters.apply_to_node(
+                self, runbook.kernel_boot_parameters, self.log
+            )
 
     def _provision(self) -> None:
         host_node = self.parent

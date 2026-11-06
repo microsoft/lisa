@@ -24,7 +24,9 @@ from lisa.operating_system import (
 from lisa.tools.df import Df
 from lisa.tools.echo import Echo
 from lisa.tools.gpu_smi import GpuSmi
+from lisa.tools.lspci import VENDOR_ID_NVIDIA, Lspci, PciDevice
 from lisa.tools.mkdir import Mkdir
+from lisa.tools.mokutil import Mokutil
 from lisa.tools.usermod import Usermod
 from lisa.tools.whoami import Whoami
 from lisa.util import BaseClassMixin, LisaException, SkippedException
@@ -293,6 +295,11 @@ class NvidiaCudaDriver(GpuDriver):
     CUDA drivers are used for general purpose GPU computing on Tesla GPUs
     (K80, P100, V100, P40, etc.).
 
+    Debian/Ubuntu repository installations lock Pascal and Volta GPUs to R580,
+    their final supported driver branch. Newer GPUs use the current driver
+    metapackage. Ubuntu Secure Boot installations use hardware-compatible
+    signed modules for the running kernel instead.
+
     Reference:
     https://learn.microsoft.com/en-us/azure/virtual-machines/linux/n-series-driver-setup#nvidia-cuda-drivers
     """
@@ -301,6 +308,16 @@ class NvidiaCudaDriver(GpuDriver):
     DEFAULT_CUDA_PACKAGE = "cuda-drivers"
     NVIDIA_CUDA_REPO_BASE_URL = (
         "https://developer.download.nvidia.com/compute/cuda/repos"
+    )
+
+    # PCI device ID blocks of NVIDIA Pascal (GP100, GP10x) and Volta (GV100) GPUs.
+    # Device IDs are used because the lspci name database may not know the device.
+    # The next block, 0x1E00 and above, starts with Turing, which current drivers
+    # support.
+    _LEGACY_GPU_DEVICE_ID_RANGES = (
+        (0x15C0, 0x15FF),
+        (0x1720, 0x172F),
+        (0x1B00, 0x1DFF),
     )
 
     @classmethod
@@ -316,6 +333,22 @@ class NvidiaCudaDriver(GpuDriver):
     @property
     def command(self) -> str:
         return "nvidia-smi"
+
+    def _check_exists(self) -> bool:
+        if not super()._check_exists():
+            return False
+
+        # A failed extension installation can leave only the userspace tools.
+        result = self.run("-L", sudo=True, force_run=True)
+        if result.exit_code == 0 and result.stdout.strip():
+            return True
+
+        self._log.info(
+            "NVIDIA CUDA driver is not usable; attempting driver installation. "
+            f"nvidia-smi -L exit code: {result.exit_code}, "
+            f"stdout: {result.stdout}, stderr: {result.stderr}"
+        )
+        return False
 
     @property
     def can_install(self) -> bool:
@@ -459,6 +492,10 @@ class NvidiaCudaDriver(GpuDriver):
 
     def _install_cuda_ubuntu(self) -> None:
         """Install CUDA driver on Ubuntu"""
+        if self.node.tools[Mokutil].is_secure_boot_enabled():
+            self._install_cuda_ubuntu_signed()
+            return
+
         os_info = self.node.os.information
 
         # NVIDIA only provides CUDA repos for LTS releases (even major version, XX.04)
@@ -521,6 +558,54 @@ class NvidiaCudaDriver(GpuDriver):
 
         self._log.info("Successfully installed CUDA driver for Ubuntu")
 
+    def _install_cuda_ubuntu_signed(self) -> None:
+        assert isinstance(self.node.os, Ubuntu), "Ubuntu installation expected"
+
+        self.node.os.install_packages("ubuntu-drivers-common")
+        drivers = self.node.execute(
+            "ubuntu-drivers list --gpgpu",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to discover Ubuntu GPU drivers",
+        )
+        kernel = (
+            self.node.tools[Uname]
+            .get_linux_information(force_run=True)
+            .kernel_version_raw
+        )
+        for line in drivers.stdout.splitlines():
+            match = re.match(r"^nvidia-driver-(\d+(?:-server)?(?:-open)?)(?:,|$)", line)
+            if not match:
+                continue
+
+            branch = match.group(1)
+            modules = f"linux-modules-nvidia-{branch}-{kernel}"
+            available = self.node.execute(
+                f"apt-cache show {modules}", sudo=True, no_error_log=True
+            )
+            if available.exit_code != 0 or not available.stdout.strip():
+                self._log.debug(
+                    f"No signed modules available for {modules}: "
+                    f"{available.stdout}\n{available.stderr}"
+                )
+                continue
+
+            # Preserve the kernel under test and avoid building unsigned DKMS modules.
+            self.node.os.install_packages(
+                [
+                    modules,
+                    f"nvidia-headless-no-dkms-{branch}",
+                    f"nvidia-utils-{branch.replace('-open', '')}",
+                ]
+            )
+            return
+
+        raise LisaException(
+            f"No supported signed NVIDIA modules found for running kernel {kernel}; "
+            f"Secure Boot must remain enabled. Driver discovery output: "
+            f"{drivers.stdout}\n{drivers.stderr}"
+        )
+
     def _install_cuda_debian(self) -> None:
         """Install CUDA driver on Debian"""
         os_info = self.node.os.information
@@ -536,22 +621,23 @@ class NvidiaCudaDriver(GpuDriver):
         """
         self._log.debug(f"Installing CUDA driver for {release}")
 
-        assert isinstance(self.node.os, Posix), "CUDA installation requires Posix OS"
-
-        cuda_package_name = self.DEFAULT_CUDA_PACKAGE
-        cuda_drivers_package_pattern = re.compile(
-            rf"^{cuda_package_name}-(\d+)\s", re.MULTILINE
-        )
+        assert isinstance(
+            self.node.os, Debian
+        ), "Debian-based CUDA installation requires a Debian-based OS"
 
         # Install CUDA public GPG key
         cuda_keyring = "cuda-keyring_1.1-1_all.deb"
         self.node.tools[Wget].get(
             f"{self.NVIDIA_CUDA_REPO_BASE_URL}/{release}/x86_64/{cuda_keyring}"
         )
+        # A freshly booted VM can still hold the dpkg lock in a background job.
+        self.node.os.wait_running_package_process()
         self.node.execute(
             f"dpkg -i {cuda_keyring}",
             sudo=True,
             cwd=self.node.get_working_path(),
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to install CUDA keyring",
         )
 
         # Add CUDA repository
@@ -571,31 +657,45 @@ class NvidiaCudaDriver(GpuDriver):
         )
 
         # Update apt cache to fetch packages from the new repository
-        self.node.execute("apt-get update", sudo=True)
-
-        # Search for versioned CUDA driver packages
-        result = self.node.execute(
-            f"apt-cache search --names-only ^{cuda_package_name}", sudo=True
+        self.node.os.wait_running_package_process()
+        self.node.execute(
+            "apt-get update",
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="Failed to update CUDA repository",
         )
-        available_versions = cuda_drivers_package_pattern.findall(result.stdout)
 
-        if available_versions:
-            # Sort versions and select the highest one
-            highest_version = max(available_versions, key=int)
-            package_name = f"{cuda_package_name}-{highest_version}"
-            self._log.debug(
-                f"Found versioned packages, installing {package_name} "
-                f"(version {highest_version})"
-            )
-        else:
-            # No versioned packages found, use base package (meta-package)
-            package_name = cuda_package_name
-            self._log.debug(
-                f"No versioned packages found, installing base package "
-                f"{package_name}"
+        devices = self.node.tools[Lspci].get_gpu_devices(force_run=True)
+        if not devices:
+            raise LisaException("No NVIDIA GPUs found for CUDA driver selection")
+
+        extra_args: Optional[List[str]] = None
+        if any(self._is_legacy_gpu(device) for device in devices):
+            self._log.info("Locking Pascal/Volta NVIDIA GPU drivers to branch R580")
+            # A versioned metapackage alone allows newer dependency branches.
+            # Install NVIDIA's branch pin before resolving the driver packages.
+            self.node.os.install_packages("nvidia-driver-pinning-580")
+            # Repairing a partial installation of a newer driver requires the
+            # downgrade directed by the pin; APT refuses it with -y otherwise.
+            extra_args = ["--allow-downgrades"]
+
+        self.node.os.install_packages(self.DEFAULT_CUDA_PACKAGE, extra_args=extra_args)
+
+    def _is_legacy_gpu(self, device: PciDevice) -> bool:
+        """Whether the GPU's last supported driver branch is R580 (Pascal, Volta)."""
+        if device.vendor_id.lower() != VENDOR_ID_NVIDIA:
+            return False
+
+        if not re.fullmatch(r"[0-9a-fA-F]{4}", device.device_id):
+            raise LisaException(
+                f"Cannot select the CUDA driver branch: invalid PCI device ID "
+                f"'{device.device_id}' for {device}"
             )
 
-        self.node.os.install_packages(package_name)
+        device_id = int(device.device_id, 16)
+        return any(
+            low <= device_id <= high for low, high in self._LEGACY_GPU_DEVICE_ID_RANGES
+        )
 
     def _install_cuda_mariner(self) -> None:
         """Install CUDA driver on CBL-Mariner"""
