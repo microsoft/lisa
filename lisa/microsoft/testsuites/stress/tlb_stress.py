@@ -524,7 +524,7 @@ class TlbStress(Tool):
                 workloads.append(f"{stress_ng_command} {stress_ng_parameters}")
             workload_script = "pids=; "
             workload_script += " ".join(
-                f"{workload} & pids=\"$pids $!\";" for workload in workloads
+                f'{workload} & pids="$pids $!";' for workload in workloads
             )
             workload_script += (
                 ' status=0; for pid in $pids; do wait "$pid" || status=$?; done; '
