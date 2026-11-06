@@ -53,10 +53,16 @@ class Reboot(Tool):
     # uptime has no -s parameter in some distros, so not use is as default.
     def _get_last_boot_time(self) -> datetime:
         try:
-            last_boot_time = cast(datetime, _who_last(self.node.tools[Who]))
-        except Exception:
-            last_boot_time = self.node.tools[Uptime].since_time()
-        return last_boot_time
+            return cast(datetime, _who_last(self.node.tools[Who]))
+        except FunctionTimedOut as error:
+            self._log.debug(
+                f"who last boot time timed out, falling back to uptime: {error}"
+            )
+        except Exception as error:
+            self._log.debug(
+                f"who last boot time failed, falling back to uptime: {error}"
+            )
+        return self.node.tools[Uptime].since_time()
 
     def _wait_ssh_session_stable(self, time_out: int) -> None:
         from lisa.node import RemoteNode
