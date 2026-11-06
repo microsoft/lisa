@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import copy
 import faulthandler
 import fnmatch
 import io
@@ -19,6 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, ca
 import libvirt
 import pycdlib
 import yaml
+from retry import retry
 
 from lisa import feature, schema, search_space
 from lisa.environment import Environment
@@ -119,6 +121,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         self.platform_runbook: BaseLibvirtPlatformSchema
         self.host_node: Node
         self.vm_disks_dir: str
+        self._pending_environment_deletions: Dict[str, Environment] = {}
+        self._environment_deletion_lock = Lock()
 
         # used for port forwarding in case of Remote Host
         self._next_available_port: int
@@ -212,6 +216,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         )
 
     def _prepare_environment(self, environment: Environment, log: Logger) -> bool:
+        self._retry_pending_environment_deletions()
+
         # Ensure environment log directory is created before connecting to any nodes.
         _ = environment.log_path
 
@@ -250,31 +256,75 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         return self._configure_node_capabilities(environment, log)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
+        self._retry_pending_environment_deletions()
         self._deploy_nodes(environment, log)
 
+    @retry(tries=3, delay=1)  # type: ignore
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
-        self._delete_nodes(environment, log)
+        with self._environment_deletion_lock:
+            if environment.id not in self._pending_environment_deletions:
+                # The runner can reset or discard the original environment on failure.
+                pending = copy.copy(environment)
+                pending.remove_context()
+                original_context = get_environment_context(environment)
+                pending_context = get_environment_context(pending)
+                pending_context.vm_disks_dir = original_context.vm_disks_dir
+                pending_context.port_forwarding_list = (
+                    original_context.port_forwarding_list.copy()
+                )
+                self._pending_environment_deletions[environment.id] = pending
 
+            self._delete_pending_environment(
+                self._pending_environment_deletions[environment.id], log
+            )
+
+    def _delete_pending_environment(
+        self, environment: Environment, log: Logger
+    ) -> None:
+        self._delete_nodes(environment, log)
         if self.host_node.is_remote:
             self._stop_port_forwarding(environment, log)
+        del self._pending_environment_deletions[environment.id]
+
+    @retry(tries=3, delay=1)  # type: ignore
+    def _retry_pending_environment_deletions(self) -> None:
+        errors: List[str] = []
+        with self._environment_deletion_lock:
+            for environment in list(self._pending_environment_deletions.values()):
+                try:
+                    self._delete_pending_environment(environment, self._log)
+                except Exception as ex:
+                    self._log.exception(
+                        f"Failed to retry cleanup of environment '{environment.name}'"
+                    )
+                    errors.append(f"{environment.name}: {ex}")
+        if errors:
+            raise LisaException(
+                f"Pending libvirt environment cleanup failed: {'; '.join(errors)}"
+            )
 
     def _cleanup(self) -> None:
         try:
-            if self.platform_runbook.capture_libvirt_debug_logs:
-                self._disable_libvirt_debug_log()
-
-            self._disable_libvirt_keepalive()
-
-            self._capture_libvirt_logs()
-
-            if self.host_node.is_remote:
-                dmesg_output = self.host_node.tools[Dmesg].get_output(force_run=True)
-                dmesg_path = self.host_node.local_log_path / "dmesg.txt"
-                with open(str(dmesg_path), "w") as f:
-                    f.write(dmesg_output)
+            self._retry_pending_environment_deletions()
         finally:
-            if hasattr(self, "device_pool"):
-                self.device_pool.cleanup()
+            try:
+                if self.platform_runbook.capture_libvirt_debug_logs:
+                    self._disable_libvirt_debug_log()
+
+                self._disable_libvirt_keepalive()
+
+                self._capture_libvirt_logs()
+
+                if self.host_node.is_remote:
+                    dmesg_output = self.host_node.tools[Dmesg].get_output(
+                        force_run=True
+                    )
+                    dmesg_path = self.host_node.local_log_path / "dmesg.txt"
+                    with open(str(dmesg_path), "w") as f:
+                        f.write(dmesg_output)
+            finally:
+                if hasattr(self, "device_pool"):
+                    self.device_pool.cleanup()
 
     def _configure_environment(self, environment: Environment, log: Logger) -> None:
         environment_context = get_environment_context(environment)
@@ -453,6 +503,9 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         self.vm_disks_dir = os.path.join(
             self.platform_runbook.hosts[0].lisa_working_dir, vm_name_prefix
         )
+        environment_context = get_environment_context(environment)
+        environment_context.vm_disks_dir = self.vm_disks_dir
+        environment_context.port_forwarding_list.clear()
 
         assert environment.runbook.nodes_requirement
         for i, node_space in enumerate(environment.runbook.nodes_requirement):
@@ -755,10 +808,12 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             self._delete_node(node, log)
 
         # Delete VM disks directory.
-        try:
-            self.host_node.shell.remove(Path(self.vm_disks_dir), True)
-        except Exception as ex:
-            log.warning(f"Failed to delete VM files directory: {ex}")
+        vm_disks_dir = get_environment_context(environment).vm_disks_dir
+        if vm_disks_dir:
+            try:
+                self.host_node.shell.remove(Path(vm_disks_dir), True)
+            except FileNotFoundError:
+                pass
 
     def _delete_node_watchdog_callback(self) -> None:
         stderr = sys.__stderr__
@@ -775,7 +830,12 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             # In the libvirt API, "destroy" means "stop".
             self._stop_domain(node_context, log)
         except libvirt.libvirtError as ex:
+            if self._is_libvirt_domain_not_found_error(ex) and (
+                self._reconcile_domain_absence(node_context, log)
+            ):
+                return
             log.info(f"VM stop failed for {node_context.vm_name}. {ex}")
+            raise
 
     def _undefine_domain(self, node_context: NodeContext, log: Logger) -> None:
         """Undefine the VM domain, reconnecting if the socket was closed."""
@@ -801,7 +861,28 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                 log=log,
             )
         except libvirt.libvirtError as ex:
+            if self._is_libvirt_domain_not_found_error(ex) and (
+                self._reconcile_domain_absence(node_context, log)
+            ):
+                return
             log.info(f"VM delete failed for {node_context.vm_name}. {ex}")
+            raise
+
+    def _reconcile_domain_absence(self, node_context: NodeContext, log: Logger) -> bool:
+        try:
+            node_context.domain = self._lookup_domain(node_context.vm_name, log)
+        except libvirt.libvirtError as ex:
+            if not self._is_libvirt_domain_not_found_error(ex):
+                raise
+            if self.libvirt_conn.isAlive() != 1:
+                raise LisaException(
+                    f"Cannot confirm absence of VM '{node_context.vm_name}' "
+                    "because the libvirt connection is not alive"
+                ) from ex
+            node_context.domain = None
+            log.info(f"Confirmed VM {node_context.vm_name} is already absent.")
+            return True
+        return False
 
     def _delete_node(self, node: Node, log: Logger) -> None:
         node_context = get_node_context(node)
@@ -848,10 +929,28 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
     def _stop_port_forwarding(self, environment: Environment, log: Logger) -> None:
         log.debug(f"Clearing port forwarding rules for environment {environment.name}")
         environment_context = get_environment_context(environment)
-        for port, address in environment_context.port_forwarding_list:
-            self.host_node.tools[Iptables].stop_forwarding(
-                port, address, 22, force_run=True
-            )
+        if not environment_context.port_forwarding_list:
+            return
+        iptables = self.host_node.tools[Iptables]
+        for port, address in environment_context.port_forwarding_list.copy():
+            for command in (
+                f"-D FORWARD -o virbr0 -p tcp -d {address} --dport 22 -j ACCEPT",
+                f"-t nat -D PREROUTING -p tcp --dport {port} "
+                f"-j DNAT --to {address}:22",
+            ):
+                result = iptables.run(command, force_run=True, sudo=True)
+                output = f"{result.stdout}\n{result.stderr}".strip()
+                if result.exit_code == 1 and output.endswith(
+                    "Bad rule (does a matching rule exist in that chain?)."
+                ):
+                    log.debug(f"Port forwarding rule is already absent: {command}")
+                    continue
+                result.assert_exit_code(
+                    0,
+                    message=f"Failed to remove port forwarding rule: {command}",
+                    include_output=True,
+                )
+            environment_context.port_forwarding_list.remove((port, address))
 
     # Retrieve the VMs' dynamic properties (e.g. IP address).
     def _fill_nodes_metadata(self, environment: Environment, log: Logger) -> None:
