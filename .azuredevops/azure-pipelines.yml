@@ -2,14 +2,23 @@ trigger: none
 
 pr:
   autoCancel: true
+  drafts: false
   branches:
     include:
       - main
 
 pool:
-  vmImage: ubuntu-latest
+  name: LSG_1ES_Pool_Test
+
+parameters:
+  - name: validationImages
+    type: string
+    default: '[]'
+    displayName: 'Explicit reviewed Marketplace images (JSON array, optional)'
 
 variables:
+  - name: REGRESSION_SUMMARY
+    value: 'Not executed or no guest tests required'
   - name: pythonVersion
     value: '3.12'
 
@@ -21,322 +30,388 @@ variables:
   - name: location
     value: 'westus3'
 
-steps:
+jobs:
+- job: PRValidation
+  timeoutInMinutes: 360
+  steps:
 
-- checkout: self
-  fetchDepth: 0
+    - checkout: self
+      fetchDepth: 0
 
-- task: UsePythonVersion@0
-  displayName: Use Python $(pythonVersion)
-  inputs:
-    versionSpec: $(pythonVersion)
+    - task: UsePythonVersion@0
+      displayName: Use Python $(pythonVersion)
+      inputs:
+        versionSpec: $(pythonVersion)
 
-- script: |
+    - script: |
 
-    python <<'PY'
+        python <<'PY'
 
-    import json
-    import os
-    import time
-    import urllib.request
+        import json
+        import os
+        import time
+        import urllib.request
 
-    repo = os.environ.get("REPO", "").strip()
-    sha = os.environ.get("SHA", "").strip()
-    self_name = os.environ.get("SELF_NAME", "").strip()
-    timeout_min = int(os.environ.get("TIMEOUT_MIN", "30"))
-    poll_sec = int(os.environ.get("POLL_SEC", "20"))
-    # Authenticate GitHub API calls to avoid the 60 req/hour anonymous
-    # rate limit. Ignore an unexpanded ADO macro when the var is unset.
-    token = os.environ.get("GITHUB_TOKEN", "").strip()
-    if token.startswith("$("):
-        token = ""
+        repo = os.environ.get("REPO", "").strip()
+        sha = os.environ.get("SHA", "").strip()
+        self_name = os.environ.get("SELF_NAME", "").strip()
+        timeout_min = int(os.environ.get("TIMEOUT_MIN", "30"))
+        poll_sec = int(os.environ.get("POLL_SEC", "20"))
+        # Authenticate GitHub API calls to avoid the 60 req/hour anonymous
+        # rate limit. Ignore an unexpanded ADO macro when the var is unset.
+        token = os.environ.get("GITHUB_TOKEN", "").strip()
+        if token.startswith("$("):
+            token = ""
 
-    if not repo or not sha:
-        print("No repo/sha available; skipping CI wait.")
-        raise SystemExit(0)
-
-    api = (
-        f"https://api.github.com/repos/{repo}/commits/{sha}/"
-        "check-runs?per_page=100"
-    )
-    bad = {"failure", "cancelled", "timed_out", "action_required", "stale"}
-    deadline = time.time() + timeout_min * 60
-
-    def fetch():
-        req = urllib.request.Request(api)
-        req.add_header("Accept", "application/vnd.github+json")
-        req.add_header("User-Agent", "ado-lisa-pipeline")
-        if token:
-            req.add_header("Authorization", f"Bearer {token}")
-        with urllib.request.urlopen(req) as resp:
-            return json.load(resp).get("check_runs", [])
-
-    while True:
-        try:
-            runs = fetch()
-        except Exception as err:  # noqa: BLE001
-            print(f"Cannot read check-runs ({err}); skipping CI wait.")
+        if not repo or not sha:
+            print("No repo/sha available; skipping CI wait.")
             raise SystemExit(0)
 
-        # Ignore this pipeline's own check(s) to avoid deadlock.
-        others = [
-            r for r in runs
-            if self_name.lower() not in (r.get("name") or "").lower()
-        ]
+        api = (
+            f"https://api.github.com/repos/{repo}/commits/{sha}/"
+            "check-runs?per_page=100"
+        )
+        bad = {"failure", "cancelled", "timed_out", "action_required", "stale"}
+        deadline = time.time() + timeout_min * 60
 
-        pending = [r for r in others if r.get("status") != "completed"]
-        failed = [
-            r for r in others
-            if r.get("status") == "completed"
-            and (r.get("conclusion") or "") in bad
-        ]
+        def fetch():
+            req = urllib.request.Request(api)
+            req.add_header("Accept", "application/vnd.github+json")
+            req.add_header("User-Agent", "ado-lisa-pipeline")
+            if token:
+                req.add_header("Authorization", f"Bearer {token}")
+            with urllib.request.urlopen(req) as resp:
+                return json.load(resp).get("check_runs", [])
 
-        if failed:
-            names = ", ".join(r.get("name", "?") for r in failed)
-            print(f"Other CI checks failed: {names}")
-            raise SystemExit(1)
+        while True:
+            try:
+                runs = fetch()
+            except Exception as err:  # noqa: BLE001
+                print(f"Cannot read check-runs ({err}); skipping CI wait.")
+                raise SystemExit(0)
 
-        if not pending:
-            done = ", ".join(r.get("name", "?") for r in others) or "none"
-            print(f"All other CI checks passed: {done}")
-            raise SystemExit(0)
+            # Ignore this pipeline's own check(s) to avoid deadlock.
+            others = [
+                r for r in runs
+                if self_name.lower() not in (r.get("name") or "").lower()
+            ]
 
-        if time.time() >= deadline:
-            names = ", ".join(r.get("name", "?") for r in pending)
-            print(f"Timed out waiting for CI checks: {names}")
-            raise SystemExit(1)
+            pending = [r for r in others if r.get("status") != "completed"]
+            failed = [
+                r for r in others
+                if r.get("status") == "completed"
+                and (r.get("conclusion") or "") in bad
+            ]
 
-        waiting = ", ".join(r.get("name", "?") for r in pending)
-        print(f"Waiting for CI checks to complete: {waiting}")
-        time.sleep(poll_sec)
+            if failed:
+                names = ", ".join(r.get("name", "?") for r in failed)
+                print(f"Other CI checks failed: {names}")
+                raise SystemExit(1)
 
-    PY
+            if not pending:
+                done = ", ".join(r.get("name", "?") for r in others) or "none"
+                print(f"All other CI checks passed: {done}")
+                raise SystemExit(0)
 
-  displayName: Wait for other CI checks
-  condition: eq(variables['Build.Reason'], 'PullRequest')
-  env:
-    REPO: $(Build.Repository.Name)
-    SHA: $(System.PullRequest.SourceCommitId)
-    SELF_NAME: $(Build.DefinitionName)
-    TIMEOUT_MIN: '30'
-    POLL_SEC: '20'
-    GITHUB_TOKEN: $(GITHUB_TOKEN)
+            if time.time() >= deadline:
+                names = ", ".join(r.get("name", "?") for r in pending)
+                print(f"Timed out waiting for CI checks: {names}")
+                raise SystemExit(1)
 
-- script: |
+            waiting = ", ".join(r.get("name", "?") for r in pending)
+            print(f"Waiting for CI checks to complete: {waiting}")
+            time.sleep(poll_sec)
 
-    set -euo pipefail
+        PY
 
-    TARGET="$(System.PullRequest.TargetBranch)"
-    TARGET="${TARGET#refs/heads/}"
+      displayName: Wait for other CI checks
+      condition: eq(variables['Build.Reason'], 'PullRequest')
+      env:
+        REPO: $(Build.Repository.Name)
+        SHA: $(System.PullRequest.SourceCommitId)
+        SELF_NAME: $(Build.DefinitionName)
+        TIMEOUT_MIN: '30'
+        POLL_SEC: '20'
+        GITHUB_TOKEN: $(GITHUB_TOKEN)
 
-    echo "Target branch: $TARGET"
+    - script: |
 
-    git fetch origin "$TARGET"
+        set -euo pipefail
 
-    BASE=$(git merge-base HEAD "origin/$TARGET")
+        TARGET="$(System.PullRequest.TargetBranch)"
+        TARGET="${TARGET#refs/heads/}"
 
-    echo "Merge base: $BASE"
+        echo "Target branch: $TARGET"
 
-    git diff --name-only "$BASE"...HEAD \
-      | tee /tmp/changed_files.txt
+        git fetch origin "$TARGET"
 
-    git diff "$BASE"...HEAD \
-      > /tmp/pr_diff.txt
+        BASE=$(git merge-base HEAD "origin/$TARGET")
+        HEAD_SHA=$(git rev-parse HEAD)
 
-    echo ""
-    echo "Changed files:"
-    cat /tmp/changed_files.txt
+        echo "Merge base: $BASE"
+        echo "##vso[task.setvariable variable=BASE_SHA]$BASE"
+        echo "##vso[task.setvariable variable=HEAD_SHA]$HEAD_SHA"
 
-    echo ""
+        git diff --name-only "$BASE"...HEAD \
+          | tee /tmp/changed_files.txt
 
-    echo "Changed file count:"
-    wc -l /tmp/changed_files.txt
+        git diff "$BASE"...HEAD \
+          > /tmp/pr_diff.txt
 
-    echo ""
+        echo ""
+        echo "Changed files:"
+        cat /tmp/changed_files.txt
 
-    echo "Diff size:"
-    wc -c /tmp/pr_diff.txt
+        echo ""
 
-  displayName: Generate PR Diff
+        echo "Changed file count:"
+        wc -l /tmp/changed_files.txt
 
-- script: |
+        echo ""
 
-    python -m pip install --quiet --upgrade pip pyyaml
+        echo "Diff size:"
+        wc -c /tmp/pr_diff.txt
 
-    export PR_CHANGED_FILES="$(cat /tmp/changed_files.txt)"
+      displayName: Generate PR Diff
 
-    export PR_DIFF="$(head -c 30000 /tmp/pr_diff.txt)"
+    - script: |
+        set -euo pipefail
+        sudo apt-get update -qq
+        sudo apt-get install -y git gcc libgirepository1.0-dev libcairo2-dev pkg-config python3-dev
+        python -m pip install --upgrade pip
+        python -m pip install -e ".[azure]"
+      displayName: Install LISA and selection dependencies
 
-    export RUNBOOK_OUTPUT="ai_selected_cases.yml"
+    - script: |
+        set -euo pipefail
 
-    python .github/scripts/ai_select_cases.py
+        export PR_CHANGED_FILES="$(cat /tmp/changed_files.txt)"
 
-  displayName: AI Select Test Cases
-  env:
-    AZURE_OPENAI_API_KEY: $(azure_openai_api_key)
-    AZURE_OPENAI_ENDPOINT: $(azure_openai_endpoint)
-    AZURE_OPENAI_DEPLOYMENT: $(azure_openai_deployment)
-    AZURE_OPENAI_API_VERSION: $(azure_openai_api_version)
+        export PR_DIFF_FILE="/tmp/pr_diff.txt"
 
-- script: |
+        export RUNBOOK_OUTPUT="ai_selection/ai_selected_cases.yml"
 
-    python <<'PY'
+        python .github/scripts/ai_select_cases.py
 
-    import re
-    import yaml
+      displayName: AI Select Test Cases
+      env:
+        AZURE_OPENAI_API_KEY: $(azure_openai_api_key)
+        AZURE_OPENAI_ENDPOINT: $(azure_openai_endpoint)
+        AZURE_OPENAI_DEPLOYMENT: $(azure_openai_deployment)
+        PR_VALIDATION_IMAGES: ${{ parameters.validationImages }}
 
-    def sanitize_vso(value):
-        # Strip characters that could inject ADO logging commands.
-        return value.replace("]", "").replace("\r", "").replace("\n", "")
+    - script: |
 
-    with open("ai_selected_cases.yml") as f:
-        rb = yaml.safe_load(f)
+        python <<'PY'
 
-    image = ""
-    for v in rb.get("variable", []):
-        if v.get("name") == "marketplace_image":
-            image = v.get("value", "")
+        import json
+        import re
+        import sys
+        from pathlib import Path
 
-    cases = []
-    for t in rb.get("testcase", []):
-        c = t.get("criteria", {}).get("name")
-        if c:
-            cases.append(c)
+        sys.path.insert(0, str(Path(".github/scripts").resolve()))
+        from validation_report import recommendation_table
 
-    # The case names come from an LLM whose input (the PR diff) is
-    # untrusted. Reject anything that is not a plain test-case
-    # identifier before it flows into ##vso commands or the shell.
-    for name in cases:
-        if not re.fullmatch(r"[A-Za-z0-9_]+", name):
-            raise ValueError(f"Invalid test case name: {name!r}")
-    if image and not re.fullmatch(r"[A-Za-z0-9 ._-]+", image):
-        raise ValueError(f"Invalid marketplace image: {image!r}")
+        def sanitize_vso(value):
+            # Strip characters that could inject ADO logging commands.
+            return value.replace("]", "").replace("\r", "").replace("\n", "")
 
-    # Fallback: if the AI selected no cases, run the smoke test so every PR
-    # still gets basic provisioning coverage. Use the default image when the
-    # selection did not provide one.
-    if not cases:
-        cases = ["smoke_test"]
-    if not image:
-        image = "canonical 0001-com-ubuntu-server-jammy 22_04-lts-gen2 latest"
+        with open("ai_selection/ai_selected_cases.json") as f:
+            plan = json.load(f)
+        groups = plan["groups"]
+        cases = list(dict.fromkeys(name for group in groups for name in group["cases"]))
+        images = list(dict.fromkeys(group["marketplace_image"] for group in groups))
+        recommendations = plan.get("recommendations", [])
+        recommended_names = [item["case"] for item in recommendations]
 
-    case_names = sanitize_vso(",".join(cases))
-    image = sanitize_vso(image)
+        # The case names come from an LLM whose input (the PR diff) is
+        # untrusted. Reject anything that is not a plain test-case
+        # identifier before it flows into ##vso commands or the shell.
+        for name in cases + recommended_names:
+            if not re.fullmatch(r"[A-Za-z0-9_]+\.[A-Za-z0-9_]+", name):
+                raise ValueError(f"Invalid test case name: {name!r}")
+        for image in images:
+            if not re.fullmatch(r"[A-Za-z0-9 ._-]+", image):
+                raise ValueError(f"Invalid marketplace image: {image!r}")
+        if plan["status"] not in ("selected", "not_required", "manual_required"):
+            raise ValueError("Invalid validation plan status.")
+        if plan["status"] == "manual_required":
+            if cases or not recommendations:
+                raise ValueError("Manual plan needs recommendations and no execution groups.")
+            if any(item["execution_status"] != "not_executed" for item in recommendations):
+                raise ValueError("Recommendations must not claim execution.")
+        elif recommendations:
+            raise ValueError("Unexpected manual recommendations for an executable plan.")
+        if not cases and plan["status"] == "selected":
+            raise ValueError("No validation cases selected.")
+        if cases and plan["status"] == "not_required":
+            raise ValueError("Unexpected execution groups for not_required.")
 
-    print("Selected:", cases)
-    print(f"##vso[task.setvariable variable=CASE_NAMES]{case_names}")
-    print(f"##vso[task.setvariable variable=CASE_COUNT]{len(cases)}")
-    print(f"##vso[task.setvariable variable=MARKETPLACE_IMAGE]{image}")
+        case_names = sanitize_vso(",".join(cases))
+        image = sanitize_vso("; ".join(images))
 
-    PY
+        print("Selected:", cases)
+        print(f"##vso[task.setvariable variable=CASE_NAMES]{case_names or 'None'}")
+        print(f"##vso[task.setvariable variable=CASE_COUNT]{len(cases)}")
+        print(f"##vso[task.setvariable variable=MARKETPLACE_IMAGE]{image or 'Not applicable'}")
+        print(f"##vso[task.setvariable variable=SELECTION_STATUS]{plan['status']}")
+        print(f"##vso[task.setvariable variable=RECOMMENDED_CASE_COUNT]{len(recommendations)}")
+        execution_result = "Skipped" if not cases else "Not completed"
+        print(f"##vso[task.setvariable variable=TEST_EXECUTION_RESULT]{execution_result}")
+        manual_summary = recommendation_table(recommendations)
+        encoded_summary = (
+            manual_summary.replace("%", "%AZP25")
+            .replace("\r", "%0D")
+            .replace("\n", "%0A")
+        )
+        print("##vso[task.setvariable variable=MANUAL_RECOMMENDATIONS]" +
+              encoded_summary)
+        if recommendations:
+            print("##vso[task.setvariable variable=REGRESSION_SUMMARY]"
+                  "MANUAL REQUIRED; NOT EXECUTED; no regression verdict")
+            summary_path = Path("ai_selection/manual-recommendations.md").resolve()
+            summary_path.write_text(
+                "## Dedicated-platform validation required\n\n" + plan["reason"] +
+                "\n\n" + manual_summary + "\n", encoding="utf-8"
+            )
+            print(f"##vso[task.uploadsummary]{summary_path}")
+        print("Selection status:", plan["status"], plan["reason"])
 
-  displayName: Read AI Selection
+        PY
 
-- script: |
-    sudo apt-get update -qq
-    sudo apt-get install -y git gcc libgirepository1.0-dev libcairo2-dev pkg-config python3-dev
-  displayName: Install system dependencies
-  condition: and(succeeded(), ne(variables['CASE_COUNT'], ''))
+      displayName: Read AI Selection
 
-- script: |
-    python -m pip install --upgrade pip
-    pip install -e ".[azure]"
-  displayName: Install LISA
-  condition: and(succeeded(), ne(variables['CASE_COUNT'], ''))
+    - task: AzureCLI@2
+      displayName: Validate images and run selected LISA groups
+      condition: and(succeeded(), gt(variables['CASE_COUNT'], 0))
+      inputs:
+        azureSubscription: $(SERVICECONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -euo pipefail
+          python .github/scripts/run_selected_cases.py \
+            --plan ai_selection/ai_selected_cases.json \
+            --runbook "$(runbook)" \
+            --location "$(location)" \
+            --base-sha "$(BASE_SHA)"
 
-- task: AzureCLI@2
-  displayName: Login to Azure using OIDC
-  condition: and(succeeded(), ne(variables['CASE_COUNT'], ''))
-  inputs:
-    azureSubscription: $(SERVICECONNECTION)
-    scriptType: bash
-    scriptLocation: inlineScript
-    inlineScript: |
-      set -e
+    - script: |
+        python <<'PY'
+        import json
+        import os
+        from pathlib import Path
 
-      echo "Current Azure Account:"
-      az account show
+        path = Path("ai_selection/pr_validation_results.json")
+        if not path.exists():
+            raise RuntimeError("No validation comparison report was produced.")
+        results = json.loads(path.read_text())
+        if not results or any(r["status"] == "running" for r in results):
+            raise RuntimeError("Validation comparison report is incomplete.")
+        head_statuses = {
+            case["head"]["status"]
+            for group in results for case in group["cases"].values()
+        }
+        unknown = head_statuses - {
+            "passed", "failed", "error", "skipped", "missing", "inconsistent"
+        }
+        if unknown:
+            raise ValueError(f"Unknown head test statuses: {sorted(unknown)}")
+        if head_statuses == {"passed"}:
+            execution_result = "Passed"
+        elif head_statuses.intersection({"failed", "error"}):
+            execution_result = "Failed"
+        elif head_statuses == {"skipped"}:
+            execution_result = "Skipped"
+        else:
+            execution_result = "Incomplete"
+        print(f"##vso[task.setvariable variable=TEST_EXECUTION_RESULT]{execution_result}")
+        counts = {}
+        for group in results:
+            print(group["image"], group["status"], group["details"])
+            for name, case in group["cases"].items():
+                verdict = case["comparison"]
+                counts[verdict] = counts.get(verdict, 0) + 1
+                print(name, verdict, "head:", case["head"]["status"],
+                      "base:", case.get("base", {}).get("status", "not run"))
+        summary = "; ".join(f"{key}: {value}" for key, value in sorted(counts.items()))
+        if any(r["status"] == "failed" for r in results):
+            summary = "BLOCKED; " + summary
+        else:
+            summary = "No new failure observed; " + summary
+        print(f"##vso[task.setvariable variable=REGRESSION_SUMMARY]{summary}")
+        summary_file = Path(os.environ["BUILD_ARTIFACTSTAGINGDIRECTORY"]) / "regression.md"
+        summary_file.write_text(
+            "## Failure-triggered baseline comparison\n\n" + summary +
+            "\n\n`same_failure` is not a test PASS or proof of no regression. "
+            "A common failure can mask later failures. See the JSON/runtime artifacts.\n"
+        )
+        print(f"##vso[task.uploadsummary]{summary_file}")
+        PY
+      displayName: Summary
+      condition: and(always(), gt(variables['CASE_COUNT'], 0))
 
-      SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+    - task: PublishTestResults@2
+      displayName: Publish JUnit Results
+      condition: and(always(), gt(variables['CASE_COUNT'], 0))
+      inputs:
+        testResultsFormat: JUnit
+        testResultsFiles: 'runtime/pr-validation/head/**/lisa.junit.xml'
+        # The runner gates on the comparison; raw failures stay visible here.
+        failTaskOnFailedTests: false
+        testRunTitle: 'LISA PR Head Results'
 
-      ARM_TOKEN=$(az account get-access-token \
-        --resource https://management.azure.com/ \
-        --query accessToken \
-        -o tsv)
+    - task: PublishTestResults@2
+      displayName: Publish Baseline JUnit Results
+      condition: and(always(), gt(variables['CASE_COUNT'], 0))
+      inputs:
+        testResultsFormat: JUnit
+        testResultsFiles: 'runtime/pr-validation/base/**/lisa.junit.xml'
+        failTaskOnFailedTests: false
+        testRunTitle: 'LISA Fixed Base Results'
 
-      echo "##vso[task.setvariable variable=SUBSCRIPTION_ID]$SUBSCRIPTION_ID"
-      echo "##vso[task.setvariable variable=ARM_TOKEN;issecret=true]$ARM_TOKEN"
+    - task: PublishBuildArtifacts@1
+      displayName: Publish Runtime Artifacts
+      condition: and(always(), gt(variables['CASE_COUNT'], 0))
+      inputs:
+        PathtoPublish: runtime
+        ArtifactName: lisa-runtime
 
-- script: |
-    echo "Selected $(CASE_COUNT) test cases."
-  displayName: Summary
+    - task: PublishBuildArtifacts@1
+      displayName: Publish AI Selection
+      condition: always()
+      inputs:
+        PathtoPublish: ai_selection
+        ArtifactName: ai-selected-runbook
 
-- script: |
+    - task: GitHubComment@0
+      displayName: Comment on GitHub PR (test results)
+      condition: >-
+        and(always(), eq(variables['Build.Reason'], 'PullRequest'),
+        ne(variables['CASE_COUNT'], ''))
+      inputs:
+        # Name of the GitHub service connection created when the repo was
+        # connected to Azure DevOps (OAuth-based, no PAT required).
+        gitHubConnection: $(gitHubConnection)
+        repositoryName: $(Build.Repository.Name)
+        id: $(System.PullRequest.PullRequestNumber)
+        comment: |
+          <!-- ai-test-selection -->
+          ## AI Test Case Selection
 
-    CASE_PATTERN=$(echo "$(CASE_NAMES)" | tr ',' '|')
+          | Item | Result |
+          |---|---|
+          | Selection status | `$(SELECTION_STATUS)` |
+          | Selected for Azure execution | $(CASE_COUNT) |
+          | Recommended, not executed | $(RECOMMENDED_CASE_COUNT) |
+          | Marketplace image | $(MARKETPLACE_IMAGE) |
+          | Test execution result | $(TEST_EXECUTION_RESULT) |
+          | Baseline comparison | $(REGRESSION_SUMMARY) |
 
-    echo "Running:"
-    echo "$CASE_PATTERN"
+          **Selected cases:** $(CASE_NAMES)
 
-    lisa \
-      -r $(runbook) \
-      -v "subscription_id:$(SUBSCRIPTION_ID)" \
-      -v "location:$(location)" \
-      -v "marketplace_image:$(MARKETPLACE_IMAGE)" \
-      -v "test_case_name:$CASE_PATTERN" \
-      -v "enable_tests:False" \
-      -v "auth_type:token"
+          ### Recommended cases (NOT EXECUTED)
 
-  displayName: Run Selected LISA Tests
-  condition: and(succeeded(), ne(variables['CASE_COUNT'], ''))
-  env:
-    # Pass the ARM token as a secret env var (S_LISA_ prefix) instead of a
-    # -v command-line argument, so it is not exposed via /proc/*/cmdline.
-    # LISA loads S_LISA_<name> env vars as secret runbook variables.
-    S_LISA_azure_arm_access_token: $(ARM_TOKEN)
+          $(MANUAL_RECOMMENDATIONS)
 
-- task: PublishTestResults@2
-  displayName: Publish JUnit Results
-  condition: and(always(), ne(variables['CASE_COUNT'], ''))
-  inputs:
-    testResultsFormat: JUnit
-    testResultsFiles: '**/lisa.junit.xml'
-    failTaskOnFailedTests: false
-    testRunTitle: 'LISA Test Results'
-
-- task: PublishBuildArtifacts@1
-  displayName: Publish Runtime Artifacts
-  condition: and(always(), ne(variables['CASE_COUNT'], ''))
-  inputs:
-    PathtoPublish: runtime
-    ArtifactName: lisa-runtime
-
-- task: PublishBuildArtifacts@1
-  displayName: Publish AI Selection
-  condition: and(always(), ne(variables['CASE_COUNT'], ''))
-  inputs:
-    PathtoPublish: ai_selected_cases.yml
-    ArtifactName: ai-selected-runbook
-
-- task: GitHubComment@0
-  displayName: Comment on GitHub PR (test results)
-  condition: >-
-    and(always(), eq(variables['Build.Reason'], 'PullRequest'),
-    ne(variables['CASE_COUNT'], ''))
-  inputs:
-    # Name of the GitHub service connection created when the repo was
-    # connected to Azure DevOps (OAuth-based, no PAT required).
-    gitHubConnection: $(gitHubConnection)
-    repositoryName: $(Build.Repository.Name)
-    id: $(System.PullRequest.PullRequestNumber)
-    comment: |
-      <!-- ai-test-selection -->
-      ## AI Test Case Selection
-
-      **Selected $(CASE_COUNT) test case(s):** $(CASE_NAMES)
-
-      **Marketplace image:** `$(MARKETPLACE_IMAGE)`
-
-      **Result:** $(Agent.JobStatus)
-
-      [View full logs in Azure DevOps]($(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))
+          [View full logs in Azure DevOps]($(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))
