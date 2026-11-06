@@ -15,7 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import EnvironmentStatus
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.secret import add_secret
 from lisa.testsuite import TestResult
 from lisa.tools import Ls, Lscpu, Uname
@@ -37,7 +37,7 @@ def _get_openvmm_tests_type() -> Any:
     This suite runs the upstream OpenVMM vmm_tests from the Linux OpenVMM host.
     """,
     requirement=simple_requirement(
-        supported_os=[CBLMariner],
+        supported_os=[CBLMariner, Ubuntu],
         supported_host_capabilities=["mshv"],
     ),
     maturity="preview",
@@ -47,7 +47,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         openvmm_tests_type = _get_openvmm_tests_type()
         node = cast(Node, kwargs["node"])
         host = self._get_initialized_host_node(node)
-        if not isinstance(host.os, CBLMariner):
+        if not isinstance(host.os, (CBLMariner, Ubuntu)):
             raise SkippedException(
                 f"OpenVMM upstream tests are not implemented for {host.os.name}"
             )
@@ -98,7 +98,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         timeout=43200,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
-            supported_os=[CBLMariner],
+            supported_os=[CBLMariner, Ubuntu],
             supported_host_capabilities=["mshv"],
         ),
     )
@@ -204,6 +204,9 @@ class OpenVmmUpstreamTestSuite(TestSuite):
                 "either device."
             )
 
+        host.log.info(
+            f"OpenVMM upstream vmm_tests backend: {'mshv' if has_mshv else 'kvm'}"
+        )
         return command_group
 
     def _can_open_device(

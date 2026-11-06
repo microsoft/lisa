@@ -10,7 +10,7 @@ from pathlib import Path, PurePath
 from typing import Any, Dict, List, Optional, Type, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Posix
+from lisa.operating_system import CBLMariner, Posix, Ubuntu
 from lisa.tools import Cargo, Curl, Git, Ls
 from lisa.util import LisaException, UnsupportedDistroException
 
@@ -62,6 +62,17 @@ class OpenVmmTests(Tool):
     command_group = ""
 
     _distro_package_mapping = {
+        Ubuntu.__name__: [
+            "binutils-x86-64-linux-gnu",
+            "build-essential",
+            "cmake",
+            "gcc-mingw-w64-x86-64-win32",
+            "git",
+            "libssl-dev",
+            "perl",
+            "pkg-config",
+            "libarchive-tools",
+        ],
         CBLMariner.__name__: [
             "gcc",
             "openssl-devel",
@@ -136,18 +147,7 @@ class OpenVmmTests(Tool):
     ) -> _JUnitSummary:
         cargo = self.node.tools[Cargo]
         env = self._prepare_repo(log_path, ref)
-        output_dir = self._artifact_root / "vmm-tests-run"
-        self.node.execute(
-            (
-                f"rm -rf {shlex.quote(str(output_dir))} && "
-                f"mkdir -p {shlex.quote(str(output_dir))}"
-            ),
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "failed to prepare OpenVMM vmm-tests output directory"
-            ),
-        )
+        output_dir = self._create_test_output_directory()
 
         command = [
             cargo.command,
@@ -184,6 +184,21 @@ class OpenVmmTests(Tool):
             log_file=log_path / "openvmm_vmm_tests.log",
             junit_file=local_junit,
         )
+
+    def _create_test_output_directory(self) -> PurePath:
+        # Flowey sets TMPDIR beneath this path; Petri sockets must fit in 108 bytes.
+        output_dir = self.node.get_pure_path(
+            self.node.execute(
+                "mktemp -d /tmp/ovmm-XXXXXXXX",
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to create a short OpenVMM test output directory"
+                ),
+            ).stdout.strip()
+        )
+        self._log.info(f"OpenVMM test output directory: {output_dir}")
+        return output_dir
 
     def _initialize(self, *args: Any, **kwargs: Any) -> None:
         self._set_repo_paths()
@@ -279,6 +294,19 @@ class OpenVmmTests(Tool):
             self._repo_prepared = True
             self._prepared_ref = ref or ""
 
+        self.node.execute(
+            self.node.tools[Cargo].wrap_with_rustup_lock(
+                "rustup target add x86_64-unknown-linux-musl"
+            ),
+            shell=True,
+            cwd=self.repo_root,
+            update_envs=cargo_env,
+            timeout=self.RESTORE_TIMEOUT,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to install the Rust musl target for OpenVMM guest agents"
+            ),
+        )
         self._ensure_cargo_nextest(log_path, cargo_env)
 
         return cargo_env
