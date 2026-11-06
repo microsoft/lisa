@@ -76,14 +76,12 @@ class JUnit(Notifier):
 
         self._report_path = constants.RUN_LOCAL_LOG_PATH / runbook.path
 
-        # Open file now, to avoid errors occurring after all the tests have completed.
-        self._report_path.open("wb").close()
-
         self._testsuites = ET.Element("testsuites")
         self._xml_tree = ET.ElementTree(self._testsuites)
 
         self._testsuites_info = {}
         self._testcases_info = {}
+        self._write_results()
 
     # Test runner is closing.
     def finalize(self) -> None:
