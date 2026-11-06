@@ -853,9 +853,7 @@ class TlbStress(Tool):
             re.MULTILINE,
         )
         if not match:
-            raise LisaException(
-                f"No numeric perf measurement duration:\n{perf_output}"
-            )
+            raise LisaException(f"No numeric perf measurement duration:\n{perf_output}")
         duration = float(match.group(1))
         if not math.isfinite(duration) or duration <= 0:
             raise LisaException(f"Invalid perf measurement duration: {duration}")

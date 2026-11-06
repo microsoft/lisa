@@ -4,10 +4,7 @@
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
-from lisa.microsoft.testsuites.stress.tlb_stress import (
-    PerformanceMetrics,
-    TlbStress,
-)
+from lisa.microsoft.testsuites.stress.tlb_stress import PerformanceMetrics, TlbStress
 from lisa.util import LisaException
 from lisa.util.process import ExecutableResult
 
@@ -15,12 +12,6 @@ from lisa.util.process import ExecutableResult
 class TlbStressTestCase(TestCase):
     def test_finish_capture_uses_perf_duration_and_ipi_sampling_interval(self) -> None:
         tool = object.__new__(TlbStress)
-        tool._get_proc_interrupts = MagicMock(
-            side_effect=[
-                {"resched": 100, "call_function": 200},
-                {"resched": 145, "call_function": 260},
-            ]
-        )
         result = ExecutableResult(
             "1000 dTLB-load-misses",
             "45.0 seconds time elapsed",
@@ -30,18 +21,26 @@ class TlbStressTestCase(TestCase):
             100.0,
         )
 
-        with patch(
-            "lisa.microsoft.testsuites.stress.tlb_stress.time.monotonic",
-            return_value=70.0,
-        ):
-            metrics = tool._finish_performance_capture(
-                result,
-                "dTLB-load-misses",
-                45,
+        with patch.object(
+            tool,
+            "_get_proc_interrupts",
+            side_effect=[
                 {"resched": 100, "call_function": 200},
-                None,
-                10.0,
-            )
+                {"resched": 145, "call_function": 260},
+            ],
+        ):
+            with patch(
+                "lisa.microsoft.testsuites.stress.tlb_stress.time.monotonic",
+                return_value=70.0,
+            ):
+                metrics = tool._finish_performance_capture(
+                    result,
+                    "dTLB-load-misses",
+                    45,
+                    {"resched": 100, "call_function": 200},
+                    None,
+                    10.0,
+                )
 
         self.assertEqual(metrics.measurement_duration, 45.0)
         self.assertEqual(metrics.ipi_measurement_duration, 60.0)

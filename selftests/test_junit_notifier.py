@@ -20,12 +20,10 @@ class JUnitInitializationTestCase(TestCase):
             notifier = JUnit(JUnitSchema(type="junit", path=report_path.name))
             original_open = Path.open
 
-            def open_temporary_file(
-                path: Path, *args: object, **kwargs: object
-            ) -> object:
+            def open_temporary_file(path: Path, mode: str = "r") -> object:
                 if path.name == ".report.xml.tmp":
                     raise PermissionError("directory is not writable")
-                return original_open(path, *args, **kwargs)
+                return original_open(path, mode)
 
             with patch.object(constants, "RUN_LOCAL_LOG_PATH", Path(temp_dir)):
                 with patch.object(Path, "open", autospec=True) as mock_open:
