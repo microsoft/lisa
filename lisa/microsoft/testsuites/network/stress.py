@@ -29,7 +29,7 @@ from lisa.features import StartStop
 from lisa.nic import NicInfo
 from lisa.search_space import IntRange
 from lisa.sut_orchestrator import AZURE
-from lisa.tools import Cat, Iperf3
+from lisa.tools import Cat, Ip, Iperf3
 
 
 @TestSuiteMetadata(
@@ -47,7 +47,7 @@ class Stress(TestSuite):
 
         Steps,
         1. Start iperf3 on server node.
-        2. Start iperf3 for 30 minutes on client node.
+        2. Start iperf3 for 30 minutes using the configured IP version.
         3. Do VF connection test.
         """,
         priority=4,
@@ -70,10 +70,11 @@ class Stress(TestSuite):
         server_iperf3.run_as_server_async()
 
         # 2. Start iperf3 for 30 minutes on client node.
+        client_internal_ipv4 = client_node.nics.get_internal_ipv4_address()
         client_nic_info_list = [
             x
             for _, x in vm_nics[client_node.name].items()
-            if x.ip_addr and x.ip_addr == client_node.internal_address
+            if x.ip_addr and x.ip_addr == client_internal_ipv4
         ]
         assert_that(client_nic_info_list).described_as(
             "not found the primary network interface."
@@ -97,12 +98,25 @@ class Stress(TestSuite):
             "not found the server nic has the same subnet of"
             f" {client_nic_info.ip_addr}"
         )
+        client_ip = client_nic_info.ip_addr
+        server_ip = matched_server_nic_info.ip_addr
+        ip_version = "4"
+        is_ipv6_enabled = client_node.nics.is_internal_address_ipv6()
+        if is_ipv6_enabled:
+            client_ip = client_node.tools[Ip].get_global_ipv6_address(
+                client_nic_info.name
+            )
+            server_ip = server_node.tools[Ip].get_global_ipv6_address(
+                matched_server_nic_info.name
+            )
+            ip_version = "6"
         client_iperf3 = client_node.tools[Iperf3]
         client_iperf3.run_as_client(
-            server_ip=matched_server_nic_info.ip_addr,
+            server_ip=server_ip,
             log_file=client_iperf3_log,
             run_time_seconds=1800,
-            client_ip=client_nic_info.ip_addr,
+            client_ip=client_ip,
+            ip_version=ip_version,
         )
         client_cat = client_node.tools[Cat]
         iperf_log = client_cat.read(client_iperf3_log, sudo=True, force_run=True)
