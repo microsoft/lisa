@@ -21,7 +21,7 @@ from lisa import (
 from lisa.base_tools import Cat, Uname
 from lisa.features.security_profile import is_cvm
 from lisa.operating_system import Posix
-from lisa.sut_orchestrator import CLOUD_HYPERVISOR
+from lisa.sut_orchestrator import CLOUD_HYPERVISOR, OPENVMM
 from lisa.tools import Ls
 from lisa.util import LisaException, SkippedException, create_timer
 
@@ -141,10 +141,10 @@ class KexecSuite(TestSuite):
 
         self._run_kexec_test(target_node, log, result, use_systemctl=True)
 
-        if self._is_cloud_hypervisor(environment):
+        if self._is_cloud_hypervisor(environment) or node.type_name() == OPENVMM:
             log.info(
                 "Skipping post-kexec guest reachability validation because "
-                "Cloud Hypervisor guests and SSH forwarding are managed by "
+                "the guest VMM and SSH forwarding are managed by "
                 "the host userspace that is restarted by kexec"
             )
             return

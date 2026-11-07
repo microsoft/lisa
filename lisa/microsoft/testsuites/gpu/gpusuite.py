@@ -34,6 +34,7 @@ from lisa.tools import (
     Lspci,
     Mkdir,
     Modprobe,
+    Mokutil,
     NvidiaSmi,
     Reboot,
     Service,
@@ -170,6 +171,7 @@ class GpuTestSuite(TestSuite):
     @TestCaseMetadata(
         description="""
             This test case verifies if gpu drivers are installed using extension.
+            Unsupported OS releases are skipped before extension installation.
 
             Steps:
             1. Install the GPU Driver using Extension.
@@ -190,11 +192,11 @@ class GpuTestSuite(TestSuite):
         gpu_feature = node.features[Gpu]
         try:
             gpu_feature._install_driver_using_platform_feature()
-        except UnsupportedOperationException:
+        except UnsupportedOperationException as error:
             raise SkippedException(
-                "GPU Driver Installation using extension is not supported\n"
+                f"GPU Driver Installation using extension is not supported: {error}\n"
                 "https://learn.microsoft.com/en-us/azure/virtual-machines/extensions/hpccompute-gpu-linux"  # noqa: E501
-            )
+            ) from error
         reboot_tool = node.tools[Reboot]
         reboot_tool.reboot_and_check_panic(log_path)
         _check_driver_installed(node, log)
@@ -556,13 +558,20 @@ def _install_driver(node: Node, log_path: Path, log: Logger) -> None:
     Install GPU driver using either Azure extension or direct driver tools.
 
     This function attempts to install the driver in the following order:
-    1. Try Azure GPU Extension (platform-specific)
-    2. Fall back to direct driver installation via tools
+    1. Use direct driver installation when Secure Boot is enabled
+    2. Otherwise try Azure GPU Extension (platform-specific)
+    3. Fall back to direct driver installation via tools
 
     The driver type is determined by the Gpu feature based on VM SKU.
+    Secure Boot support depends on the selected driver installer.
     """
     gpu_feature = node.features[Gpu]
     if gpu_feature.is_module_loaded():
+        return
+
+    if node.tools[Mokutil].is_secure_boot_enabled():
+        log.info("Secure Boot enabled; installing GPU drivers directly")
+        __install_driver_using_sdk(node, log, log_path)
         return
 
     if isinstance(node.os, Ubuntu):
@@ -631,7 +640,7 @@ def __install_driver_using_sdk(node: Node, log: Logger, log_path: Path) -> None:
     try:
         from lisa.tools import LisDriver
 
-        node.tools[LisDriver]
+        _ = node.tools[LisDriver]
     except Exception as e:
         log.debug(f"LisDriver is not installed. It might not be required. {e}")
 
