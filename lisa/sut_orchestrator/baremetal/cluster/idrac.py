@@ -37,6 +37,10 @@ IDRAC_SERVER_ALREADY_POWERED_MESSAGE_ID = "IDRAC.2.8.PSU501"
 IDRAC_ACCESS_DENIED_MESSAGE_ID = "Base.1.8.AccessDenied"
 
 
+class VirtualMediaStateException(LisaException):
+    pass
+
+
 @dataclass
 class VirtualMediaState:
     """Represents the state of a virtual media device."""
@@ -49,6 +53,9 @@ class VirtualMediaState:
 
     write_protected: Optional[bool] = None
     """Whether the media is write-protected."""
+
+    image_url: Optional[str] = None
+    """Source URI reported by the controller."""
 
 
 class IdracStartStop(features.StartStop):
@@ -148,13 +155,28 @@ class Idrac(Cluster):
             assert (
                 client_runbook.iso_http_url
             ), "iso_http_url is required for idrac client"
-            self._change_boot_order_once("VCD-DVD")
+            self._ensure_controller_is_idle()
             self.reset("ForceOff")
             self._insert_virtual_media(client_runbook.iso_http_url)
+            # Media recovery may reset the controller, so arm boot only afterwards.
+            self._change_boot_order_once("VCD-DVD")
+            self._wait_for_media_inserted(client_runbook.iso_http_url)
             self.reset("On", force_run=True)
         finally:
             # Ensure logout happens even if deployment fails
             self.logout()
+
+    def recover_deployment(self, environment: Environment) -> None:
+        self._log.info(
+            "Deployment was not verified. Resetting iDRAC and retrying the complete "
+            "ISO deployment once; a disk-only reboot is not recovery."
+        )
+        try:
+            self.login()
+            self._reset_idrac()
+        finally:
+            self.logout()
+        self.deploy(environment)
 
     def cleanup(self) -> None:
         try:
@@ -368,22 +390,63 @@ class Idrac(Cluster):
             self._log.debug(f"Error during logout (session may already be closed): {e}")
 
     def _wait_for_completion(self, response: Any, timeout: int = 600) -> None:
-        if response.is_processing:
+        timer = create_timer()
+        task = response
+        while True:
+            self._check_response_status(task)
+            data = task.dict if task.status != 204 and task.text else {}
+            if not isinstance(data, dict):
+                raise LisaException(f"Invalid iDRAC asynchronous response: {data}")
+            states = [data[key] for key in ("TaskState", "JobState") if key in data]
+            if (
+                "error" in data
+                or data.get("TaskStatus") == "Critical"
+                or any(
+                    state
+                    in (
+                        "Exception",
+                        "Failed",
+                        "Cancelled",
+                        "Canceled",
+                        "Killed",
+                        "Interrupted",
+                        "CompletedWithErrors",
+                    )
+                    for state in states
+                )
+            ):
+                raise LisaException(f"iDRAC asynchronous operation failed: {data}")
+            if (
+                not task.is_processing
+                and task.status != 202
+                and all(state in ("Completed", "RebootCompleted") for state in states)
+            ):
+                if data.get("TaskStatus") == "Warning":
+                    self._log.info(
+                        f"iDRAC asynchronous operation completed with warnings: {data}"
+                    )
+                return
+            remaining = timeout - timer.elapsed(False)
+            if remaining <= 0:
+                raise LisaException(
+                    f"iDRAC asynchronous operation did not complete within "
+                    f"{timeout} seconds; last response: {data}"
+                )
+            retry_time = task.retry_after
+            if retry_time is not None and (
+                not isinstance(retry_time, (int, float)) or retry_time < 0
+            ):
+                raise LisaException(f"Invalid iDRAC retry interval: {retry_time!r}")
+            time.sleep(min(retry_time or 5, remaining))
             task = response.monitor(self.redfish_instance)
-            timer = create_timer()
-            while task.is_processing and timer.elapsed(False) < timeout:
-                retry_time = task.retry_after
-                time.sleep(retry_time if retry_time else 5)
-                task = response.monitor(self.redfish_instance)
 
-        if response.status not in [200, 202, 204]:
-            # Include response details for better debugging
-            error_msg = f"iDRAC API request failed with status {response.status}"
-            if hasattr(response, "text"):
-                error_msg += f", response: {response.text}"
-            if hasattr(response, "dict"):
-                error_msg += f", details: {response.dict}"
-            raise LisaException(error_msg)
+    @staticmethod
+    def _check_response_status(response: Any) -> None:
+        if response.status not in (200, 201, 202, 204):
+            raise LisaException(
+                f"iDRAC API request failed with status {response.status}: "
+                f"{response.text}"
+            )
 
     def _run_with_idrac_job_retry(
         self,
@@ -451,6 +514,8 @@ class Idrac(Cluster):
             or "access denied" in normalized_error
             or "credentials included with this request are missing or invalid"
             in normalized_error
+            or "status 401" in normalized_error
+            or "status 403" in normalized_error
         )
 
     def _refresh_session_after_access_denied(self, operation_description: str) -> None:
@@ -468,20 +533,34 @@ class Idrac(Cluster):
             "Actions/VirtualMedia.EjectMedia",
             body={},
         )
-        # Ignore errors - device may not have media inserted
-        if response.status in [200, 202, 204]:
-            self._wait_for_completion(response)
+        self._wait_for_completion(response)
 
     def _get_vm_state(self, device_name: str = "CD") -> VirtualMediaState:
         """Get virtual media state for specified device."""
         response = self.redfish_instance.get(
             f"/redfish/v1/Managers/iDRAC.Embedded.1/VirtualMedia/{device_name}"
         )
+        if response.status != 200:
+            raise LisaException(
+                f"iDRAC virtual media query failed with status {response.status}: "
+                f"{response.text}"
+            )
         data = response.dict
+        if not isinstance(data, dict) or not isinstance(data.get("Inserted"), bool):
+            raise VirtualMediaStateException(
+                f"iDRAC returned an invalid state for virtual media "
+                f"{device_name}: {data}"
+            )
+        image_url = data.get("Image")
+        if image_url is not None and not isinstance(image_url, str):
+            raise VirtualMediaStateException(
+                f"iDRAC returned an invalid image URI for {device_name}: {image_url!r}"
+            )
         return VirtualMediaState(
-            inserted=data.get("Inserted", False),
+            inserted=data["Inserted"],
             image_name=data.get("ImageName"),
             write_protected=data.get("WriteProtected"),
+            image_url=image_url,
         )
 
     def _ensure_vm_cleared(self) -> None:
@@ -508,11 +587,10 @@ class Idrac(Cluster):
                 timeout=VIRTUAL_MEDIA_EJECT_TIMEOUT,
                 interval=1,
             )
-        except Exception:
-            # Don't fail if media appears stuck; log and continue
-            self._log.debug(
-                "VirtualMedia still appears inserted after ejects; continuing."
-            )
+        except LisaException as error:
+            raise VirtualMediaStateException(
+                f"Virtual media could not be verified ejected: {error}"
+            ) from error
 
     def _reset_if_idrac_error(self, error_str: str) -> bool:
         """
@@ -562,6 +640,7 @@ class Idrac(Cluster):
         Handles session invalidation properly by logging out before reset
         and re-logging in after iDRAC restarts.
         """
+        self._ensure_controller_is_idle()
         self._log.info("Resetting iDRAC to recover from internal error...")
 
         # Send reset request without waiting for completion
@@ -572,11 +651,7 @@ class Idrac(Cluster):
         )
 
         # Just check the immediate response status
-        if response.status not in [200, 202, 204]:
-            self._log.debug(
-                f"iDRAC reset request returned status {response.status}, "
-                f"continuing anyway"
-            )
+        self._check_response_status(response)
 
         # Logout old session (will be invalidated by iDRAC reset anyway)
         self._log.debug("Logging out before iDRAC restart...")
@@ -611,6 +686,57 @@ class Idrac(Cluster):
 
         self._wait_for_remote_services_ready()
         self._log.info("iDRAC reset completed successfully")
+
+    def _ensure_controller_is_idle(self) -> None:
+        manager = "/redfish/v1/Managers/iDRAC.Embedded.1"
+        response = self.redfish_instance.get(f"{manager}/Jobs")
+        self._check_response_status(response)
+        data = response.dict
+        if not isinstance(data, dict):
+            raise LisaException("Cannot verify the iDRAC job queue response")
+        members = data.get("Members")
+        count = data.get("Members@odata.count")
+        if (
+            response.status != 200
+            or not isinstance(members, list)
+            or not isinstance(count, int)
+            or isinstance(count, bool)
+            or count != len(members)
+            or data.get("Members@odata.nextLink")
+        ):
+            raise LisaException(
+                "Cannot verify the complete iDRAC job queue; "
+                "refusing deployment or controller reset"
+            )
+        for member in members:
+            if not isinstance(member, dict):
+                raise LisaException(f"Cannot verify iDRAC job entry: {member}")
+            path = member.get("@odata.id")
+            if not isinstance(path, str) or not path.startswith(
+                (f"{manager}/Jobs/", f"{manager}/Oem/Dell/Jobs/")
+            ):
+                raise LisaException(f"Cannot verify iDRAC job resource: {member}")
+            job_response = self.redfish_instance.get(path)
+            self._check_response_status(job_response)
+            job = job_response.dict
+            if (
+                job_response.status != 200
+                or not isinstance(job, dict)
+                or job.get("JobState")
+                not in (
+                    "Completed",
+                    "CompletedWithErrors",
+                    "RebootCompleted",
+                    "Failed",
+                    "Cancelled",
+                    "Canceled",
+                )
+            ):
+                raise LisaException(
+                    "Refusing deployment or controller reset while a job "
+                    "is active or unverified: "
+                    f"{job}. No jobs were cancelled or removed."
+                )
 
     def _wait_for_remote_services_ready(self) -> None:
         """
@@ -685,99 +811,54 @@ class Idrac(Cluster):
     def _insert_virtual_media(self, iso_http_url: str) -> None:
         """Insert virtual media with robust error handling and retry logic."""
         self._log.info(f"Inserting virtual media from URL: {iso_http_url}")
+        for attempt in range(2):
+            try:
+                self._ensure_vm_cleared()
+                time.sleep(5)
+                response = self.redfish_instance.post(
+                    "/redfish/v1/Managers/iDRAC.Embedded.1/VirtualMedia/CD/"
+                    "Actions/VirtualMedia.InsertMedia",
+                    body={"Image": iso_http_url, "TransferProtocolType": "NFS"},
+                )
+                self._wait_for_completion(response)
+                self._wait_for_media_inserted(iso_http_url)
+                return
+            except LisaException as error:
+                if attempt:
+                    raise
+                message = str(error)
+                self._log.info(
+                    f"Virtual media setup failed; one retry remains: {error}"
+                )
+                if self._is_access_denied_error(message):
+                    self._refresh_session_after_access_denied("virtual media setup")
+                elif (
+                    isinstance(error, VirtualMediaStateException)
+                    or "VRM0021" in message
+                    or "RAC0904" in message
+                    or "not accessible or reachable" in message
+                ):
+                    self._reset_idrac()
+                elif not self._reset_if_idrac_error(message):
+                    raise
 
-        # Step 1: Ensure all virtual media is ejected
-        self._ensure_vm_cleared()
+    def _wait_for_media_inserted(self, iso_http_url: str) -> None:
+        def _matches_requested_image() -> bool:
+            state = self._get_vm_state("CD")
+            return state.inserted and state.image_url == iso_http_url
 
-        # Step 2: Sleep to let iDRAC drop any stale NFS/HTTP handles
-        time.sleep(5)
-
-        # Step 3: Try insert with retries and iDRAC reset if needed
-        self._insert_virtual_media_with_retry(iso_http_url)
-
-    @retry(tries=3, delay=0)  # type: ignore
-    def _insert_virtual_media_with_retry(self, iso_http_url: str) -> None:
-        """Perform virtual media insertion with automatic retry."""
         try:
-            # Explicitly specify NFS protocol (helps across firmware revisions)
-            body = {"Image": iso_http_url, "TransferProtocolType": "NFS"}
-            response = self.redfish_instance.post(
-                "/redfish/v1/Managers/iDRAC.Embedded.1/VirtualMedia/CD/"
-                "Actions/VirtualMedia.InsertMedia",
-                body=body,
-            )
-            self._wait_for_completion(response)
-
-            # Verify insertion by polling CD state
-            def _check_media_inserted() -> bool:
-                if self._get_vm_state("CD").inserted:
-                    self._log.info("Virtual media insertion completed successfully")
-                    return True
-                return False
-
             check_till_timeout(
-                _check_media_inserted,
-                timeout_message=(
-                    "Insert reported success but CD not showing as Inserted"
-                ),
+                _matches_requested_image,
+                timeout_message="wait for the requested ISO to be inserted",
                 timeout=VIRTUAL_MEDIA_INSERTION_POLL_TIMEOUT,
                 interval=1,
             )
-
-        except LisaException as e:
-            error_msg = str(e)
-
-            if self._is_access_denied_error(error_msg):
-                self._refresh_session_after_access_denied("VirtualMedia.InsertMedia")
-                raise
-
-            # Check for HTTP 500 internal server errors and reset if needed
-            if self._reset_if_idrac_error(error_msg):
-                # Re-raise to trigger retry
-                raise
-
-            # Check for VRM0021 virtual media attach mode errors that need iDRAC reset
-            # VRM0021: "Virtual Media is detached or Virtual Media devices are already
-            # in use" - indicates attach mode is wrong or stale session exists
-            if "VRM0021" in error_msg:
-                self._log.debug(
-                    "VRM0021 virtual media attach error detected. "
-                    "Ejecting media, resetting iDRAC to clear stale sessions..."
-                )
-                # Clear virtual media and reset iDRAC to fix attach mode/clear sessions
-                self._ensure_vm_cleared()
-                self._reset_idrac()
-                # Re-raise to trigger retry
-                raise
-
-            # Check for RAC0904 or reachability errors that need iDRAC reset
-            is_reachability_error = (
-                "RAC0904" in error_msg or "not accessible or reachable" in error_msg
-            )
-
-            if is_reachability_error:
-                # RAC0904 errors occur when iDRAC has stale NFS/HTTP handles from
-                # previous operations. This is a known iDRAC firmware quirk where the
-                # controller caches connection state even after media is ejected.
-                # Clearing media ensures no residual handles exist, and resetting
-                # iDRAC clears its internal cache, allowing the next insert attempt
-                # to establish a fresh connection to the NFS/HTTP server.
-                self._log.debug(
-                    "RAC0904/reachability error detected. "
-                    "Ejecting media, resetting iDRAC, and retrying..."
-                )
-                # Clear virtual media and reset iDRAC to clear stale state
-                self._ensure_vm_cleared()
-                self._reset_idrac()
-                # Re-raise to trigger retry
-                raise
-
-            # Non-reachability error - include original error details
-            raise LisaException(
-                f"Failed to insert virtual media from '{iso_http_url}'. "
-                f"Ensure the iDRAC can reach this URL and the file exists. "
-                f"iDRAC error: {error_msg}"
-            )
+        except LisaException as error:
+            raise VirtualMediaStateException(
+                f"The requested ISO was not verified in virtual media: {error}"
+            ) from error
+        self._log.info("Verified the requested ISO is inserted")
 
     def _change_boot_order_once(self, boot_from: str) -> None:
         self._log.debug(f"Updating boot source to {boot_from}")
