@@ -545,7 +545,12 @@ class Idrac(Cluster):
                 f"iDRAC virtual media query failed with status {response.status}: "
                 f"{response.text}"
             )
-        data = response.dict
+        try:
+            data = response.dict
+        except JsonDecodingError as error:
+            raise VirtualMediaStateException(
+                f"iDRAC returned malformed state for virtual media {device_name}"
+            ) from error
         if not isinstance(data, dict) or not isinstance(data.get("Inserted"), bool):
             raise VirtualMediaStateException(
                 f"iDRAC returned an invalid state for virtual media "

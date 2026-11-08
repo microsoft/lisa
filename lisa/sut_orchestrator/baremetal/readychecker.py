@@ -177,6 +177,12 @@ class SshFreshInstallChecker(SshChecker):
                 raise LisaException("Unexpected SSH response while reading root UUID")
             output = raw_output.decode("utf-8", errors="replace")
             error = raw_error.decode("utf-8", errors="replace")
+            check_till_timeout(
+                lambda: stdout.channel.exit_status_ready(),
+                timeout_message="wait for SSH command exit status",
+                timeout=10,
+                interval=1,
+            )
             exit_code = stdout.channel.recv_exit_status()
             if exit_code != 0:
                 raise LisaException(
