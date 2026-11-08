@@ -178,7 +178,7 @@ class SshFreshInstallChecker(SshChecker):
             output = raw_output.decode("utf-8", errors="replace")
             error = raw_error.decode("utf-8", errors="replace")
             check_till_timeout(
-                lambda: stdout.channel.exit_status_ready(),
+                stdout.channel.exit_status_ready,
                 timeout_message="wait for SSH command exit status",
                 timeout=10,
                 interval=1,
