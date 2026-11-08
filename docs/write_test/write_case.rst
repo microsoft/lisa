@@ -101,6 +101,13 @@ steps.
    stress test cases take longer time to run, which are not included in
    regular operations. Community test cases are wrappers that help
    provide results comparable to the community.
+   For suites categorized as ``community``, a subtest reported as ``FAILED``
+   through ``send_sub_test_result_message`` fails the parent test after the
+   wrapper finishes reporting its results. Failed subtests take precedence
+   over wrapper pass/skip exceptions. Skipped, expunged, and expected-failure
+   (``ATTEMPTED``) subtests do not independently fail the parent.
+   Explicit ``ignore_failure`` still marks the parent ``ATTEMPTED``, and
+   retries evaluate only the subtest failures from the current attempt.
 -  **description** introduces purpose, coverage, why these test cases
    are bundled together and other content of the test suite, which makes
    clarity the test suite.

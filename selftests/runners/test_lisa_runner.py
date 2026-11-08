@@ -16,7 +16,7 @@ from lisa import (
     search_space,
 )
 from lisa.environment import EnvironmentSpace, EnvironmentStatus, load_environments
-from lisa.messages import TestResultMessage, TestStatus
+from lisa.messages import TestResultMessage, TestStatus, send_sub_test_result_message
 from lisa.notifier import _notifiers, flush_notifications, register_notifier
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import RunnerResult
@@ -730,6 +730,33 @@ class RunnerTestCase(TestCase):
             expected_message=["", "", ""],
             test_results=test_result_messages,
         )
+
+    def test_community_subtest_failure_retries_without_stale_failures(self) -> None:
+        cases = test_testsuite.generate_cases_metadata()
+        cases[0].suite.category = "community"
+        attempts: List[TestResult] = []
+
+        def emit_subtest(result: TestResult, **kwargs: Any) -> None:
+            attempts.append(result)
+            result._environment_information = {"platform": "ready"}
+            send_sub_test_result_message(
+                result,
+                "retry-child",
+                TestStatus.FAILED if len(attempts) == 1 else TestStatus.PASSED,
+            )
+
+        runner = generate_runner(generate_env_runbook(), retry=1)
+        with patch.object(
+            test_testsuite.MockTestSuite, "mock_ut1", side_effect=emit_subtest
+        ):
+            results = self._run_all_tests(runner)
+
+        self.assertEqual(2, len(attempts))
+        self.assertIs(attempts[0], attempts[1])
+        self.assertEqual(1, attempts[1].retried_times)
+        self.assertEqual("", attempts[1].subtest_failure_message)
+        self.assertEqual("", attempts[1].message)
+        self.assertTrue(all(result.status == TestStatus.PASSED for result in results))
 
     def test_env_skipped_no_case(self) -> None:
         # no case found, as not call generate_case_metadata

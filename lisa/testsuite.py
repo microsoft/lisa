@@ -84,6 +84,7 @@ class TestResult:
     log_file: str = ""
     stacktrace: Optional[str] = None
     retried_times: int = 0
+    _failed_subtests: List[str] = field(default_factory=list, init=False, repr=False)
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
         self.log = get_logger(f"case[{self.name}]", self.id_)
@@ -122,10 +123,35 @@ class TestResult:
 
         return self._environment_information
 
+    def record_subtest_result(
+        self, name: str, status: TestStatus, message: str
+    ) -> None:
+        if (
+            self.runtime_data.metadata.suite.category == "community"
+            and status == TestStatus.FAILED
+        ):
+            self._failed_subtests.append(f"{name}: {message}" if message else name)
+
+    @property
+    def subtest_failure_message(self) -> str:
+        if not self._failed_subtests:
+            return ""
+        return "Community subtests failed:\n" + "\n".join(self._failed_subtests)
+
     def handle_exception(
         self, exception: Exception, log: Logger, phase: str = ""
     ) -> None:
         self.stacktrace = traceback.format_exc()
+
+        subtest_failure = self.subtest_failure_message
+        if subtest_failure and isinstance(
+            exception, (PassedException, SkippedException)
+        ):
+            exception = LisaException(f"{exception}\n{subtest_failure}")
+        exception_message = str(exception)
+        if subtest_failure and subtest_failure not in exception_message:
+            exception_message = f"{exception_message}\n{subtest_failure}"
+            log.error(subtest_failure)
 
         if phase:
             phase = f"{phase} "
@@ -149,7 +175,7 @@ class TestResult:
             exception, TcpConnectionException
         ):
             log.error("case failed with environment in bad state", exc_info=exception)
-            self.set_status(TestStatus.FAILED, f"{phase}{exception}")
+            self.set_status(TestStatus.FAILED, f"{phase}{exception_message}")
 
             assert self.environment
             self.environment.status = EnvironmentStatus.Bad
@@ -159,12 +185,13 @@ class TestResult:
                     f"case failed and ignored. "
                     f"{exception.__class__.__name__}: {exception}"
                 )
-                self.set_status(TestStatus.ATTEMPTED, f"{phase}{exception}")
+                self.set_status(TestStatus.ATTEMPTED, f"{phase}{exception_message}")
             else:
                 log.error("case failed", exc_info=exception)
                 self.set_status(
                     TestStatus.FAILED,
-                    f"{phase}failed. {exception.__class__.__name__}: {exception}",
+                    f"{phase}failed. {exception.__class__.__name__}: "
+                    f"{exception_message}",
                 )
 
     def set_status(
@@ -181,6 +208,7 @@ class TestResult:
         if self.status != new_status:
             self.status = new_status
             if new_status == TestStatus.RUNNING:
+                self._failed_subtests.clear()
                 self._timer = create_timer()
             send_result = True
         if send_result:
@@ -943,6 +971,8 @@ class TestSuite:
                 for node in nodes.list():
                     if node.assert_kernel_error_after_test:
                         node.check_kernel_error()
+            if case_result.subtest_failure_message:
+                raise LisaException(case_result.subtest_failure_message)
             case_result.set_status(TestStatus.PASSED, "")
         except Exception as e:
             case_result.handle_exception(exception=e, log=log)

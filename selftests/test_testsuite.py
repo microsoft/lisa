@@ -1,13 +1,20 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 from unittest import TestCase
+from unittest.mock import patch
 
 from assertpy import assert_that
 
 from lisa import LisaException, PassedException, SkippedException, constants, schema
 from lisa.environment import EnvironmentStatus, load_environments
+from lisa.messages import (
+    MessageBase,
+    SubTestMessage,
+    TestResultMessage,
+    send_sub_test_result_message,
+)
 from lisa.operating_system import Posix, Windows
 from lisa.parameter_parser.runbook import RunbookBuilder
 from lisa.runner import parse_testcase_filters
@@ -24,6 +31,7 @@ from lisa.testsuite import (
     node_requirement,
     simple_requirement,
 )
+from lisa.util import BadEnvironmentStateException
 from lisa.util.logger import Logger
 from selftests.test_environment import generate_runbook
 
@@ -177,6 +185,159 @@ class TestSuiteTestCase(TestCase):
 
     def setUp(self) -> None:
         cleanup_cases_metadata()
+
+    def _run_subtests(
+        self,
+        statuses: List[TestStatus],
+        category: str = "community",
+        ignore_failure: bool = False,
+        exception: Optional[Exception] = None,
+    ) -> Tuple[TestResult, List[MessageBase]]:
+        cleanup_cases_metadata()
+        suite = self.generate_suite_instance()
+        result = self.case_results[0]
+        result.runtime_data.metadata.suite.category = category
+        result.runtime_data.ignore_failure = ignore_failure
+        messages: List[MessageBase] = []
+
+        def emit_subtests(**kwargs: Any) -> None:
+            result._environment_information = {"platform": "ready"}
+            for index, status in enumerate(statuses):
+                send_sub_test_result_message(
+                    result,
+                    f"child-{index}",
+                    status,
+                    f"details-{index}",
+                    subtest_duration=1.5,
+                )
+            if exception:
+                raise exception
+
+        with patch.object(suite, "mock_ut1", side_effect=emit_subtests), patch(
+            "lisa.notifier.notify", side_effect=messages.append
+        ):
+            suite.start(self.default_env, self.case_results, {})
+        return result, messages
+
+    def test_community_subtest_failure(self) -> None:
+        statuses = [
+            TestStatus.FAILED,
+            TestStatus.PASSED,
+            TestStatus.SKIPPED,
+            TestStatus.FAILED,
+        ]
+        result, messages = self._run_subtests(statuses)
+        self.assertEqual(TestStatus.FAILED, result.status)
+        self.assertIn("child-0: details-0", result.message)
+        self.assertIn("child-3: details-3", result.message)
+        self.assertEqual(TestStatus.PASSED, self.case_results[1].status)
+        children = [m for m in messages if isinstance(m, SubTestMessage)]
+        self.assertEqual(statuses, [m.status for m in children])
+        self.assertEqual(
+            ["child-0", "child-1", "child-2", "child-3"], [m.name for m in children]
+        )
+        self.assertTrue(all(m.subtest_duration == 1.5 for m in children))
+        self.assertTrue(all(m.parent_test == result.name for m in children))
+        parents = [
+            m
+            for m in messages
+            if isinstance(m, TestResultMessage) and m.name == result.name
+        ]
+        self.assertEqual(
+            [TestStatus.RUNNING, TestStatus.FAILED], [m.status for m in parents]
+        )
+
+    def test_nonfailing_community_subtests(self) -> None:
+        scenarios: List[List[TestStatus]] = [
+            [],
+            [TestStatus.PASSED],
+            [TestStatus.SKIPPED],
+            [TestStatus.ATTEMPTED],
+            [TestStatus.EXPUNGED],
+            [TestStatus.QUEUED, TestStatus.RUNNING, TestStatus.PASSED],
+        ]
+        for statuses in scenarios:
+            with self.subTest(statuses=statuses):
+                result, _ = self._run_subtests(statuses)
+                self.assertEqual(TestStatus.PASSED, result.status)
+                self.assertEqual("", result.message)
+
+    def test_subtest_failure_does_not_change_other_categories(self) -> None:
+        for category in ["functional", "performance", "stress"]:
+            with self.subTest(category=category):
+                result, _ = self._run_subtests([TestStatus.FAILED], category=category)
+                self.assertEqual(TestStatus.PASSED, result.status)
+
+    def test_nonfailing_community_subtests_preserve_pass_and_skip(self) -> None:
+        for exception, expected in [
+            (PassedException("warning"), TestStatus.PASSED),
+            (SkippedException("skip"), TestStatus.SKIPPED),
+        ]:
+            with self.subTest(exception=exception):
+                result, _ = self._run_subtests(
+                    [TestStatus.PASSED, TestStatus.SKIPPED], exception=exception
+                )
+                self.assertEqual(expected, result.status)
+                self.assertIn(str(exception), result.message)
+
+    def test_community_subtest_failure_overrides_pass_and_skip(self) -> None:
+        for exception in [PassedException("warning"), SkippedException("skip")]:
+            for ignore_failure in [False, True]:
+                with self.subTest(exception=exception, ignore_failure=ignore_failure):
+                    result, _ = self._run_subtests(
+                        [TestStatus.FAILED],
+                        exception=exception,
+                        ignore_failure=ignore_failure,
+                    )
+                    expected = (
+                        TestStatus.ATTEMPTED if ignore_failure else TestStatus.FAILED
+                    )
+                    self.assertEqual(expected, result.status)
+                    self.assertIn("child-0: details-0", result.message)
+                    self.assertIn(str(exception), result.message)
+
+    def test_community_subtest_failure_ignore_failure(self) -> None:
+        result, _ = self._run_subtests([TestStatus.FAILED], ignore_failure=True)
+        self.assertEqual(TestStatus.ATTEMPTED, result.status)
+        self.assertIn("child-0: details-0", result.message)
+
+    def test_community_subtest_failure_preserves_wrapper_error(self) -> None:
+        result, _ = self._run_subtests(
+            [TestStatus.FAILED], exception=ValueError("wrapper failed")
+        )
+        self.assertEqual(TestStatus.FAILED, result.status)
+        self.assertIn("ValueError: wrapper failed", result.message)
+        self.assertIn("child-0: details-0", result.message)
+        self.assertIn("ValueError: wrapper failed", result.stacktrace or "")
+
+    def test_community_subtest_failure_preserves_bad_environment(self) -> None:
+        result, _ = self._run_subtests(
+            [TestStatus.FAILED],
+            exception=BadEnvironmentStateException("environment broken"),
+            ignore_failure=True,
+        )
+        self.assertEqual(TestStatus.FAILED, result.status)
+        self.assertEqual(EnvironmentStatus.Bad, self.default_env.status)
+        self.assertIn("environment broken", result.message)
+        self.assertIn("child-0: details-0", result.message)
+
+    def test_subtest_aggregation_uses_effective_message_fields(self) -> None:
+        result = generate_cases_result()[0]
+        result.runtime_data.metadata.suite.category = "community"
+        result._environment_information = {"platform": "ready"}
+        result.set_status(TestStatus.RUNNING, "")
+        message = send_sub_test_result_message(
+            result,
+            "original",
+            TestStatus.PASSED,
+            other_fields={
+                "name": "effective",
+                "status": TestStatus.FAILED,
+                "message": "effective failure",
+            },
+        )
+        self.assertEqual(TestStatus.FAILED, message.status)
+        self.assertIn("effective: effective failure", result.subtest_failure_message)
 
     def test_expanded_nodespace(self) -> None:
         cases = generate_cases_metadata()

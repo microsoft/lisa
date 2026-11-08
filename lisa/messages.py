@@ -421,6 +421,7 @@ def send_sub_test_result_message(
     other_fields.update({"parent_test": test_result.runtime_data.name})
     dict_to_fields(other_fields, message)
 
+    test_result.record_subtest_result(message.name, message.status, message.message)
     notifier.notify(message)
 
     return message
