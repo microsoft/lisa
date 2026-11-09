@@ -399,7 +399,10 @@ class Idrac(Cluster):
                 raise LisaException(f"Invalid iDRAC asynchronous response: {data}")
             states = [data[key] for key in ("TaskState", "JobState") if key in data]
             if (
-                "error" in data
+                (
+                    "error" in data
+                    and not self._is_successful_error_envelope(data["error"])
+                )
                 or data.get("TaskStatus") == "Critical"
                 or any(
                     state
@@ -439,6 +442,31 @@ class Idrac(Cluster):
                 raise LisaException(f"Invalid iDRAC retry interval: {retry_time!r}")
             time.sleep(min(retry_time or 5, remaining))
             task = response.monitor(self.redfish_instance)
+
+    @staticmethod
+    def _is_successful_error_envelope(error: Any) -> bool:
+        if not isinstance(error, dict):
+            return False
+
+        code = str(error.get("code", "")).strip().lower()
+        if not code.endswith(".success"):
+            return False
+
+        extended_info = error.get("@Message.ExtendedInfo")
+        if extended_info is None:
+            return True
+        if not isinstance(extended_info, list):
+            return False
+
+        return all(
+            isinstance(message, dict)
+            and str(message.get("Severity", "")).strip().lower() == "ok"
+            and (
+                not message.get("MessageId")
+                or str(message["MessageId"]).strip().lower().endswith(".success")
+            )
+            for message in extended_info
+        )
 
     @staticmethod
     def _check_response_status(response: Any) -> None:
