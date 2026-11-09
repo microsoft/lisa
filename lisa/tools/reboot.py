@@ -161,7 +161,14 @@ class Reboot(Tool):
                     sudo=True,
                     timeout=10,
                 )
-                if reboot_result.exit_code != 0:
+                if reboot_result.exit_code == -1:
+                    # Paramiko returns -1 when reboot closes SSH without an exit
+                    # status. A fallback after reconnect would trigger a second reboot.
+                    self._log.debug(
+                        "systemctl reboot closed SSH without an exit status; "
+                        "waiting for the reboot to complete."
+                    )
+                elif reboot_result.exit_code != 0:
                     self._log.debug(
                         "systemctl reboot failed with exit code "
                         f"{reboot_result.exit_code}; falling back to reboot. "
