@@ -43,6 +43,17 @@ class SerialConsole(ClusterFeature):
         return platform.cluster.get_serial_console()
 
 
+class Disk(features.Disk):
+    """Disk discovery for pre-provisioned baremetal storage.
+
+    Baremetal disks are not dynamically managed by LISA. The base disk
+    implementation is sufficient for discovering the boot disk and allowing
+    NVMe to exclude it from performance targets.
+    """
+
+    pass
+
+
 class SecurityProfile(features.SecurityProfile):
     @classmethod
     def name(cls) -> str:
