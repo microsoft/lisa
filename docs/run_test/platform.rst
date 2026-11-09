@@ -366,6 +366,15 @@ Run on Linux and QEMU
 
 You can run the tests on Linux machine that has QEMU and KVM installed.
 
+.. note::
+
+   For libvirt guests, set ``capture_boot_time: true`` on the ``qemu`` or
+   ``cloud-hypervisor`` platform entry to collect timings using
+   ``systemd-analyze time``. This defaults to ``false`` and is applied before
+   the guest's first initialization, including initialization during cloud-init
+   setup. Collection emits a ``ProvisionBootTime`` message; saving it to a
+   database requires an enabled notifier that handles that message.
+
 Currently, only the `CBL-Mariner <https://github.com/microsoft/CBL-Mariner>`_ distro
 is supported. But it should be fairly straightforward to extend support to other
 distros. Also, only the the tier 0 tests are currently supported.
@@ -389,16 +398,6 @@ For CBL-Mariner:
    .. code:: bash
 
       ./lisa.sh  -r ./microsoft/runbook/qemu/CBL-Mariner.yml -v "admin_private_key_file:<private key file>" -v "qcow2:<qcow2 file>"
-
-Boot-time capture for libvirt guests
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Set ``capture_boot_time: true`` on the ``qemu`` or ``cloud-hypervisor``
-platform entry to collect guest boot timings using ``systemd-analyze time``.
-This option defaults to ``false`` and is applied before the guest's first
-initialization, including initialization during cloud-init setup.
-Collection emits a ``ProvisionBootTime`` message; saving it to a database
-requires an enabled notifier that handles that message.
 
 OpenVMM NIC passthrough
 ----------------------
