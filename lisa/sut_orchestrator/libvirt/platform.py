@@ -468,6 +468,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                 raise LisaException(f"file does not exist: {node_runbook.disk_img}")
 
             node = environment.create_node_from_requirement(node_space)
+            # cloud-init metadata collection initializes the guest during deployment.
+            node.capture_boot_time = self.runbook.capture_boot_time
 
             self._configure_node(
                 node,
