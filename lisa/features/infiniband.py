@@ -161,6 +161,10 @@ class Infiniband(Feature):
         if self._is_legacy_device():
             return "4.9-5.1.0.0"
         if (
+            isinstance(node.os, Ubuntu) and node.os.information.version >= "24.4.0"
+        ) or (isinstance(node.os, Redhat) and node.os.information.version >= "8.10.0"):
+            return "24.10-5.1.6.1"
+        if (
             isinstance(node.os, Ubuntu) and node.os.information.version >= "20.4.0"
         ) or (isinstance(node.os, Redhat) and node.os.information.version >= "8.2.0"):
             return "5.8-1.1.2.1"
