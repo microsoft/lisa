@@ -515,7 +515,13 @@ class LisaRunner(BaseRunner):
         tested_environment.nodes.close()
         # Try to connect node(s), if cannot access node(s) of this environment,
         # set the current environment as Bad. So that this environment won't be reused.
-        if not is_unittest() and not tested_environment.nodes.test_connections():
+        # Cases that explicitly opt out of remote connections use control-plane
+        # operations instead. Preserve the existing check for the default True.
+        if (
+            not is_unittest()
+            and test_result.runtime_data.metadata.requirement.remote_connection_required
+            and not tested_environment.nodes.test_connections()
+        ):
             environment.status = EnvironmentStatus.Bad
             self._log.debug(
                 f"set environment '{environment.name}' as bad, "
