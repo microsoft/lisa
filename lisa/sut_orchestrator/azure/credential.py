@@ -1,8 +1,11 @@
 import os
+import time
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Type, cast
+from typing import Any, Callable, Type, cast
 
+from azure.core.credentials import AccessToken
+from azure.core.exceptions import ClientAuthenticationError
 from azure.identity import (
     AzureCliCredential,
     CertificateCredential,
@@ -20,6 +23,59 @@ from lisa.util import subclasses
 from lisa.util.logger import Logger
 
 from .common import get_static_access_token
+
+
+def _get_token_with_cli_retry(
+    get_token: Callable[..., AccessToken],
+    logger: Logger,
+    *scopes: str,
+    **kwargs: Any,
+) -> AccessToken:
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return get_token(*scopes, **kwargs)
+        except ClientAuthenticationError as error:
+            if str(error).strip() not in (
+                "Failed to invoke Azure CLI",
+                "Failed to invoke the Azure CLI",
+            ):
+                raise
+            if attempt == 3:
+                logger.error(
+                    "Azure CLI token acquisition failed after 3 attempts. "
+                    "Check Azure CLI authentication before rerunning; "
+                    "the configured identity has not been changed."
+                )
+                raise
+            logger.warning(
+                f"Azure CLI token acquisition failed (attempt {attempt}/3); "
+                "retrying in 5 seconds."
+            )
+            time.sleep(5)
+
+
+class _RetryingDefaultAzureCredential(DefaultAzureCredential):  # type: ignore[misc]
+    def __init__(self, logger: Logger, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._lisa_logger = logger
+
+    def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+        return _get_token_with_cli_retry(
+            super().get_token, self._lisa_logger, *scopes, **kwargs
+        )
+
+
+class _RetryingAzureCliCredential(AzureCliCredential):  # type: ignore[misc]
+    def __init__(self, logger: Logger, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
+        self._lisa_logger = logger
+
+    def get_token(self, *scopes: str, **kwargs: Any) -> AccessToken:
+        return _get_token_with_cli_retry(
+            super().get_token, self._lisa_logger, *scopes, **kwargs
+        )
 
 
 class AzureCredentialType(str, Enum):
@@ -101,7 +157,9 @@ class AzureCredential(subclasses.BaseClassWithRunbookMixin):
         if runbook.type:
             self._credential_type = runbook.type
         else:
-            self._credential_type = AzureCredentialType.DefaultAzureCredential  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
+            self._credential_type = (
+                AzureCredentialType.DefaultAzureCredential
+            )  # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
 
         self._log.debug(f"Credential type: {self._credential_type}")
         self._cloud = cloud
@@ -169,7 +227,8 @@ class AzureDefaultCredential(AzureCredential):
         return AzureCredential with related schema
         """
         additional_tenants = ["*"] if self._allow_all_tenants else None
-        return DefaultAzureCredential( # CodeQL [SM05139] Okay use of DefaultAzureCredential as it is only used in development # noqa E501
+        return _RetryingDefaultAzureCredential(
+            logger=self._log,
             cloud=self._cloud,
             additionally_allowed_tenants=additional_tenants,
         )
@@ -423,7 +482,8 @@ class AzureCliCredentialImpl(AzureCredential):
         additionally_allowed_tenants = ["*"] if self._allow_all_tenants else None
 
         # Create AzureCliCredential with proper parameter types
-        return AzureCliCredential(
+        return _RetryingAzureCliCredential(
+            logger=self._log,
             tenant_id=self._tenant_id,
             additionally_allowed_tenants=additionally_allowed_tenants,
         )

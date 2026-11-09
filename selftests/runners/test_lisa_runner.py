@@ -71,6 +71,59 @@ class RunnerTestCase(TestCase):
         test_testsuite.cleanup_cases_metadata()  # Necessary side effects!
         flush_notifications()
 
+    def test_deployed_environment_reuse_is_opt_in(self) -> None:
+        for reuse, connects, dirties, discarded in [
+            (False, False, False, True),
+            (True, False, False, False),
+            (True, True, False, True),
+            (True, False, True, True),
+        ]:
+            with self.subTest(reuse=reuse, connects=connects, dirties=dirties):
+                runner = generate_runner(None)
+                runner._guest_enabled = False
+                environment = MagicMock()
+                environment.name = "deployed-reuse-test"
+                environment.status = EnvironmentStatus.Deployed
+                environment.is_dirty = False
+
+                def mark_dirty(environment: Any = environment) -> None:
+                    environment.is_dirty = True
+
+                environment.mark_dirty.side_effect = mark_dirty
+                suite = MagicMock()
+
+                def start(
+                    environment: Any = environment,
+                    connects: bool = connects,
+                    dirties: bool = dirties,
+                    **kwargs: Any,
+                ) -> None:
+                    if connects:
+                        environment.status = EnvironmentStatus.Connected
+                    if dirties:
+                        environment.mark_dirty()
+
+                suite.start.side_effect = start
+                metadata = SimpleNamespace(
+                    suite=SimpleNamespace(
+                        test_class=MagicMock(return_value=suite),
+                        reuse_deployed_environment=reuse,
+                    )
+                )
+                result = MagicMock()
+                result.runtime_data.metadata = metadata
+                result.runtime_data.retry = 0
+                result.status = TestStatus.PASSED
+                result.name = "deployed-reuse-test"
+                with patch.object(runner, "_delete_environment_task") as delete:
+                    with patch(
+                        "lisa.runners.lisa_runner.is_unittest", return_value=False
+                    ):
+                        runner._run_test_task(environment, [result], {})
+                    self.assertEqual(discarded, delete.called)
+                environment.nodes.test_connections.assert_not_called()
+                environment.nodes.check_kernel_panics.assert_not_called()
+
     def test_merge_req_create_on_new(self) -> None:
         # if no predefined envs, can generate from requirement
         env_runbook = generate_env_runbook(is_single_env=False)
