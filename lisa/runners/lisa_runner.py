@@ -484,11 +484,13 @@ class LisaRunner(BaseRunner):
         test_suite: TestSuite = suite_metadata.test_class(
             suite_metadata,
         )
-        # if a test case runs on a deployed environment, the environment will be
-        # connected after it's initialized. It breaks the flow, so the
-        # transformers are in the connected phase will be ignored. So mark this
-        # kind of environment is dirty to prevent it run other test cases.
-        if environment.status == EnvironmentStatus.Deployed:
+        # Deployed-only suites may opt into reuse if they restore guest state.
+        # Other deployed tests retain their existing teardown behavior because
+        # connecting inside a case bypasses the connected-phase transformers.
+        if (
+            environment.status == EnvironmentStatus.Deployed
+            and not suite_metadata.reuse_deployed_environment
+        ):
             environment.mark_dirty()
 
         tested_environment = environment
@@ -498,11 +500,19 @@ class LisaRunner(BaseRunner):
             # parent as used as well.
             environment.is_new = False
 
+        environment_was_connected = (
+            tested_environment.status == EnvironmentStatus.Connected
+        )
         test_suite.start(
             environment=tested_environment,
             case_results=test_results,
             case_variables=case_variables,
         )
+        if (
+            not environment_was_connected
+            and tested_environment.status == EnvironmentStatus.Connected
+        ):
+            environment.mark_dirty()
         # release environment reference to optimize memory.
         test_result.environment = None
 
@@ -512,7 +522,11 @@ class LisaRunner(BaseRunner):
         tested_environment.nodes.close()
         # Try to connect node(s), if cannot access node(s) of this environment,
         # set the current environment as Bad. So that this environment won't be reused.
-        if not is_unittest() and not tested_environment.nodes.test_connections():
+        if (
+            environment_was_connected
+            and not is_unittest()
+            and not tested_environment.nodes.test_connections()
+        ):
             environment.status = EnvironmentStatus.Bad
             self._log.debug(
                 f"set environment '{environment.name}' as bad, "

@@ -579,6 +579,7 @@ class TestSuiteMetadata:
         owner: str = "Microsoft",
         full_name: str = "",
         maturity: str = "",
+        reuse_deployed_environment: bool = False,
     ) -> None:
         self.name = name
         self.full_name = full_name
@@ -593,6 +594,7 @@ class TestSuiteMetadata:
             self.tags = []
         self.description = description
         self.requirement = requirement
+        self.reuse_deployed_environment = reuse_deployed_environment
         self.owner = owner
         maturity = maturity.strip() if maturity else ""
         self.maturity = maturity if maturity else constants.TESTCASE_MATURITY_STABLE

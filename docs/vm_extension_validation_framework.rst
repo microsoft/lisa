@@ -530,6 +530,95 @@ When writing extension-specific tests, ask:
 4. **Would this test make sense for a different extension?** If yes, it
    probably belongs in the base class, not your suite.
 
+VMAccess functional validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Select ``VMAccessForLinux`` to run the Linux VMAccess suite:
+
+.. code-block:: yaml
+
+   variable:
+     - name: vmaccess_version
+       value: "1.5"
+       is_case_visible: true
+
+   testcase:
+     - criteria:
+         tags: VMAccessForLinux
+       select_action: include
+
+``extension_version`` takes precedence over ``vmaccess_version``. Functional
+cases retain their historical ``1.5`` default when neither is supplied; the
+boot-validation case requires an explicit candidate. A full
+version additionally checks the version actually installed by Azure.
+
+The suite covers:
+
+- New and existing users, password replacement (including checking that the old
+  password no longer matches the shadow hash), passwordless sudo opt-in,
+  empty-password preservation, and
+  preservation of other users' sudo permissions.
+- RSA, SSH2, and certificate-key content, ownership, and permissions.
+- Removal, missing credentials with provisioning keys excluded, missing
+  usernames, malformed credentials, conflicting operations,
+  system-account protection, and default, future, and past expiration.
+- SSH configuration reset, firewall recovery, backup restoration (including
+  missing-backup fallback).
+
+All 15 cases reuse a VM serially. Before each case the suite snapshots the
+SSH configuration, provisioning metadata, agent sudoers file, and available
+iptables rules. Cleanup removes test accounts and their new groups, restores
+the snapshot, restarts the SSH service locally, and removes both extensions.
+A cleanup failure marks the VM dirty so it cannot be reused. A healthy full
+run therefore needs one reusable VM.
+If setup fails before creating a snapshot, the test body does not run and
+case cleanup is skipped. A failed snapshot operation still marks the VM dirty;
+an earlier control-plane lookup failure alone does not require replacing it.
+
+The suite accepts a specified resource group with ``deploy: true``: Azure
+deploys new LISA-named VMs there, not pre-existing VMs. ``deploy: false`` and
+``dry_run`` are refused. All cases run at ``EnvironmentStatus.Deployed``.
+``reuse_deployed_environment=True`` on the suite metadata explicitly permits
+reuse while the environment stays deployed; other suites retain their
+existing teardown behavior, and a VM connected inside a case is still discarded.
+Guest setup and validation use the Linux Custom Script extension with protected,
+inline scripts; there are no runner-to-guest or localhost SSH connections and no
+SSH key file is required on the runner. Password checks compare against the
+shadow hash, expiration checks inspect account policy, and public-key checks
+inspect authorized keys and their permissions. These do not prove SSH/PAM
+authentication. Sudo permissions are exercised locally through Custom Script.
+SSH configuration/firewall recovery checks configuration validity and firewall
+rules without connecting to port 22.
+
+The root ``vmaccess.local.yml`` selects the entire suite, disables the inherited
+tier-0 selection, and disables public IP creation. It sets ``concurrency: 1`` and
+``resource_group_name: lisa-vmaccess-validation`` so all test VMs use the same
+resource group without parallel guest changes. Override ``resource_group_name``
+to select another dedicated test group. Do not force ``use_new_environment``
+on the entire suite, since that defeats VM reuse.
+
+LISA deletes individual test VMs, NICs, and disks from this specified group;
+the group and shared networking remain. Do not run multiple validation jobs
+concurrently against the same group. Supply ``subscription_id``
+and ``admin_password`` for Azure deployment;
+no inbound guest access is needed. The guest must already provide Python 3,
+libcrypt, sudo, OpenSSL, and OpenSSH key/configuration utilities; validation does
+not download scripts or install packages. The helper is sent inline using Azure's
+protected settings, and each invocation must return a unique completion marker
+through the extension instance view. Both VMAccess and the validation Custom
+Script extension are removed during case cleanup.
+
+When default or Azure CLI credentials report a generic CLI invocation failure,
+LISA retries token acquisition up to three times, waiting five seconds between
+attempts. It keeps the configured identity and normal token-refresh behavior;
+it does not reuse expired tokens. Explicit login, authorization, and tenant
+errors are not retried. A persistent failure is logged and propagated, and
+requires fixing the runner's Azure CLI authentication before rerunning.
+
+Disk checking and repair, key rotation/replay, existing-account expiration
+updates, provisioning-key fallback, and upgrade preservation are not covered
+by this suite.
+
 Coexistence with GenericVmExtension
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
