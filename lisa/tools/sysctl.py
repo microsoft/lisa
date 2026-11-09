@@ -24,11 +24,7 @@ class Sysctl(Tool):
     def can_install(self) -> bool:
         return False
 
-    def write(self, variable: str, value: str) -> None:
-        try:
-            _ = self._original_values[variable]
-        except KeyError:
-            self._original_values[variable] = self.get(variable, force_run=True)
+    def _set(self, variable: str, value: str) -> None:
         self.run(
             f"-w {variable}='{value}'",
             force_run=True,
@@ -38,6 +34,13 @@ class Sysctl(Tool):
                 f"fail to set {variable} value to {value}"
             ),
         )
+
+    def write(self, variable: str, value: str) -> None:
+        try:
+            _ = self._original_values[variable]
+        except KeyError:
+            self._original_values[variable] = self.get(variable, force_run=True)
+        self._set(variable, value)
 
     def get(self, variable: str, force_run: bool = True) -> str:
         result = self.run(
@@ -88,8 +91,8 @@ class Sysctl(Tool):
                 shell=True,
             )
         # clear any leftover variables
-        keys = [x for x in self._original_values]
+        keys = list(self._original_values.keys())
         for key in keys:
             original_value = self._original_values.pop(key)
-            self.write(key, original_value)
+            self._set(key, original_value)
         self._polling_enabled = False
