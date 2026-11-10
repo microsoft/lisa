@@ -3,6 +3,7 @@
 import inspect
 import pathlib
 import time
+from dataclasses import dataclass
 from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
@@ -34,6 +35,7 @@ from lisa.testsuite import TestResult
 from lisa.tools import (
     FIOMODES,
     Echo,
+    Ethtool,
     Fdisk,
     Fio,
     FIOResult,
@@ -49,6 +51,7 @@ from lisa.tools import (
     Ssh,
     Sysctl,
 )
+from lisa.tools.ethtool import DeviceCoalesceSettings
 from lisa.tools.fio import IoEngine
 from lisa.tools.ip import Ip
 from lisa.tools.ntttcp import (
@@ -56,11 +59,22 @@ from lisa.tools.ntttcp import (
     NTTTCP_TCP_CONCURRENCY_BSD,
     NTTTCP_UDP_CONCURRENCY,
 )
-from lisa.util import LisaException
+from lisa.util import LisaException, UnsupportedOperationException, check_till_timeout
 from lisa.util.process import ExecutableResult, Process
 
 # NTTTCP may need extra time after the requested run duration to emit totals.
 DEFAULT_NTTTCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS = 60
+
+# Kernels with the MANA patches "net: mana: Set default number of queues to 16"
+# and "net: mana: Add Interrupt Moderation support" (for example
+# 6.8.0-1070-azure and 7.0.0-1017-azure) default a MANA VF to 16 queues with
+# adaptive interrupt moderation (DIM) on. On large VMs that cuts ntttcp
+# throughput by 50-70% at high connection counts. The MANA team recommends the
+# hardware maximum queue count with DIM off on high vCPU sizes, which matches
+# the defaults of the earlier kernels. The tuning applies to VMs with more vCPUs
+# than this, the same threshold perf_ntttcp uses for large VMs.
+MANA_PERF_TUNING_VCPU_THRESHOLD = 64
+MANA_DRIVER_NAME = "mana"
 
 
 def perf_nvme(
@@ -201,6 +215,150 @@ def get_nic_datapath(node: Node) -> str:
     if isinstance(node.capability.network_interface.data_path, NetworkDataPath):
         data_path = node.capability.network_interface.data_path.value
     return data_path
+
+
+@dataclass
+class ManaVfPerfTuning:
+    # Original values are set only for settings that were changed, so a
+    # partial tuning is restored exactly.
+    node: RemoteNode
+    interface: str
+    original_channels: Optional[int] = None
+    original_adaptive_rx: Optional[bool] = None
+    original_adaptive_tx: Optional[bool] = None
+
+
+def tune_mana_vf_for_perf(
+    node: RemoteNode, interface: str, applied: List[ManaVfPerfTuning]
+) -> None:
+    """Use the maximum queue count and turn DIM off on a MANA VF of a large VM.
+
+    The tuning is registered in ``applied`` before anything is changed, so the
+    caller can restore it with ``restore_mana_vf_tuning`` even when this fails.
+    The settings are not persistent, so call this after any reboot.
+    """
+    thread_count = node.tools[Lscpu].get_thread_count()
+    if thread_count <= MANA_PERF_TUNING_VCPU_THRESHOLD:
+        node.log.debug(
+            f"Skip MANA VF tuning on {interface}: {thread_count} vCPUs is not "
+            f"more than {MANA_PERF_TUNING_VCPU_THRESHOLD}."
+        )
+        return
+
+    ethtool = node.tools[Ethtool]
+    driver = ethtool.get_device_driver(interface).strip()
+    if driver != MANA_DRIVER_NAME:
+        node.log.debug(f"Skip MANA VF tuning on {interface}: driver is '{driver}'.")
+        return
+
+    tuning = ManaVfPerfTuning(node=node, interface=interface)
+    applied.append(tuning)
+
+    channels = ethtool.get_device_channels_info(interface, force_run=True)
+    if channels.current_channels < channels.max_channels:
+        tuning.original_channels = channels.current_channels
+        ethtool.set_device_channels_info(interface, channels.max_channels)
+
+    coalesce: Optional[DeviceCoalesceSettings] = None
+    try:
+        coalesce = ethtool.get_device_coalesce_settings(interface, force_run=True)
+    except UnsupportedOperationException:
+        # MANA drivers without interrupt moderation don't implement ethtool -c,
+        # and they interrupt on every completion already.
+        node.log.debug(f"{interface} has no interrupt moderation, keep it as is.")
+    if coalesce and (coalesce.adaptive_rx or coalesce.adaptive_tx):
+        # Remember only the directions that were on, the driver can reject a
+        # direction that it doesn't support.
+        tuning.original_adaptive_rx = True if coalesce.adaptive_rx else None
+        tuning.original_adaptive_tx = True if coalesce.adaptive_tx else None
+        ethtool.set_device_adaptive_coalesce(
+            interface,
+            adaptive_rx=False if coalesce.adaptive_rx else None,
+            adaptive_tx=False if coalesce.adaptive_tx else None,
+        )
+
+    # Read back after all changes, because a channel change rebuilds the queues.
+    tuned_channels = ethtool.get_device_channels_info(interface, force_run=True)
+    assert_that(tuned_channels.current_channels).described_as(
+        f"{interface} on {node.name} didn't apply the maximum combined channel "
+        f"count {channels.max_channels}."
+    ).is_equal_to(channels.max_channels)
+    adaptive_state = "not supported"
+    if coalesce is not None:
+        tuned_coalesce = ethtool.get_device_coalesce_settings(interface, force_run=True)
+        tuned_adaptive = [tuned_coalesce.adaptive_rx, tuned_coalesce.adaptive_tx]
+        assert_that(tuned_adaptive).described_as(
+            f"{interface} on {node.name} still has adaptive interrupt moderation "
+            "on after turning it off."
+        ).does_not_contain(True)
+        adaptive_state = (
+            f"RX {_on_off(coalesce.adaptive_rx)} -> "
+            f"{_on_off(tuned_coalesce.adaptive_rx)}, "
+            f"TX {_on_off(coalesce.adaptive_tx)} -> "
+            f"{_on_off(tuned_coalesce.adaptive_tx)}"
+        )
+
+    # A channel change detaches and attaches the VF, wait for it to carry
+    # traffic again before measuring.
+    ip = node.tools[Ip]
+    check_till_timeout(
+        lambda: ip.is_device_up(interface) is True,
+        timeout_message=f"{interface} on {node.name} is not up after tuning.",
+    )
+    node.log.info(
+        f"Tuned MANA VF {interface} for throughput ({thread_count} vCPUs): "
+        f"combined channels {channels.current_channels} -> "
+        f"{tuned_channels.current_channels} (max {channels.max_channels}), "
+        f"adaptive interrupt moderation {adaptive_state}."
+    )
+
+
+def restore_mana_vf_tuning(tuning: ManaVfPerfTuning) -> None:
+    """Restore a MANA VF tuned by ``tune_mana_vf_for_perf``.
+
+    Failures are logged and the node is marked dirty instead of raising, so the
+    test result and any original exception are kept.
+    """
+    node = tuning.node
+    interface = tuning.interface
+    if not node.is_connected:
+        node.log.error(
+            f"Can't restore {interface} on {node.name}, the node isn't connected."
+        )
+        node.mark_dirty()
+        return
+    try:
+        ethtool = node.tools[Ethtool]
+        # Channels first, a channel change rebuilds the queues.
+        if tuning.original_channels is not None:
+            restored = ethtool.change_device_channels_info(
+                interface, tuning.original_channels
+            )
+            assert_that(restored.current_channels).described_as(
+                f"{interface} combined channel count was not restored."
+            ).is_equal_to(tuning.original_channels)
+        if (
+            tuning.original_adaptive_rx is not None
+            or tuning.original_adaptive_tx is not None
+        ):
+            ethtool.set_device_adaptive_coalesce(
+                interface,
+                adaptive_rx=tuning.original_adaptive_rx,
+                adaptive_tx=tuning.original_adaptive_tx,
+            )
+        node.log.debug(f"Restored MANA VF {interface} settings on {node.name}.")
+    except Exception as restore_error:
+        node.log.error(
+            f"Failed to restore MANA VF {interface} settings on {node.name}, "
+            f"mark the node dirty: {restore_error}"
+        )
+        node.mark_dirty()
+
+
+def _on_off(value: Optional[bool]) -> str:
+    if value is None:
+        return "n/a"
+    return "on" if value else "off"
 
 
 def cleanup_process(environment: Environment, process_name: str) -> None:
@@ -372,6 +530,7 @@ def perf_ntttcp(  # noqa: C901
     client_ntttcp_timeout_tolerance_seconds: int = (
         DEFAULT_NTTTCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS
     ),
+    tune_mana_vf: bool = False,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -410,6 +569,7 @@ def perf_ntttcp(  # noqa: C901
     server_lagscope = None
     client_ntttcp = None
     server_ntttcp = None
+    mana_vf_tunings: List[ManaVfPerfTuning] = []
     pending_exception: Optional[Exception] = None
 
     try:
@@ -479,6 +639,10 @@ def perf_ntttcp(  # noqa: C901
                 # set mtu for AN nics, MTU needs to be set on both AN and non-AN nics
                 client_ip.set_mtu(client_nic_name, mtu)
                 server_ip.set_mtu(server_nic_name, mtu)
+            if tune_mana_vf:
+                # Tune after setup_system, its reboot drops ethtool settings.
+                tune_mana_vf_for_perf(client, client_nic_name, mana_vf_tunings)
+                tune_mana_vf_for_perf(server, server_nic_name, mana_vf_tunings)
         else:
             server_nic_name = (
                 server_nic_name if server_nic_name else server.nics.default_nic
@@ -754,6 +918,8 @@ def perf_ntttcp(  # noqa: C901
                 if lagscope.node.is_connected:
                     lagscope.kill()
                     lagscope.restore_busy_poll()
+        for mana_vf_tuning in mana_vf_tunings:
+            restore_mana_vf_tuning(mana_vf_tuning)
         if unreachable_nodes:
             error_msg = (
                 " ".join(

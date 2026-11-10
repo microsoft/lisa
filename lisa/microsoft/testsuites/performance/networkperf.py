@@ -34,6 +34,7 @@ from lisa.tools.iperf3 import (
     IPERF_UDP_CONCURRENCY,
 )
 from lisa.tools.sockperf import SOCKPERF_TCP, SOCKPERF_UDP
+from lisa.util import to_bool
 from lisa.util.parallel import run_in_parallel
 
 
@@ -173,6 +174,14 @@ class NetworkPerformace(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case uses ntttcp to test sriov tcp network throughput.
+
+        On VMs with more than 64 vCPUs, a MANA VF is tuned on both nodes before
+        the measurement: the combined channel count is set to the hardware
+        maximum and adaptive interrupt moderation (DIM) is turned off. Kernels
+        such as 6.8.0-1070-azure and 7.0.0-1017-azure default MANA to 16 queues
+        with DIM on, which drops throughput by 50-70% at high connection counts
+        on large VMs. The original settings are restored after the test. Set the
+        variable perf_ntttcp_sriov_nic_tuning to false to keep driver defaults.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -187,7 +196,11 @@ class NetworkPerformace(TestSuite):
     def perf_tcp_ntttcp_sriov(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
-        perf_ntttcp(result, variables=variables)
+        perf_ntttcp(
+            result,
+            variables=variables,
+            tune_mana_vf=to_bool(variables.get("perf_ntttcp_sriov_nic_tuning", True)),
+        )
 
     @TestCaseMetadata(
         description="""
