@@ -160,7 +160,9 @@ class Provisioning(TestSuite):
         This case runs smoke test on a node provisioned with premium disk.
         The test steps are same as `smoke_test`.
         """,
-        priority=1,
+        # blocking release of new images b/c the machine config is not available in
+        # availability zone 4
+        priority=5,
         requirement=simple_requirement(
             disk=schema.DiskOptionSettings(
                 data_disk_type=schema.DiskType.PremiumV2SSDLRS,
