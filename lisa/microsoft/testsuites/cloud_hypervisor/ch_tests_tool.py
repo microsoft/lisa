@@ -676,9 +676,11 @@ class CloudHypervisorTests(Tool):
             )
             # Archive each invocation before the native profiles overwrite their XMLs.
             attempt_path = log_path / f"attempt_{len(attempts) + 1}"
+            # The container can create root-owned JUnit directories on the host.
             self.node.execute(
                 f"rm -f {shlex.quote(self._get_nextest_junit_dir())}/*.xml",
                 shell=True,
+                sudo=True,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="Failed to clear CH JUnit files",
             )
