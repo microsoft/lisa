@@ -6,12 +6,10 @@ from typing import Any, Dict, List, Optional, Tuple, cast
 
 import yaml
 
-# ExceptionGroup is built-in for Python 3.11+
 try:
-    from exceptiongroup import ExceptionGroup
+    from exceptiongroup import ExceptionGroup as _ExceptionGroup
 except ImportError:
-    # Python 3.11+ has ExceptionGroup as a built-in
-    pass
+    from builtins import ExceptionGroup as _ExceptionGroup
 
 from lisa import (
     Environment,
@@ -129,7 +127,11 @@ class StressNgTestSuite(TestSuite):
         self._run_stressor_class(environment, "io", log)
 
     @TestCaseMetadata(
-        description="Runs stress-ng's 'network' class stressors for 60s each.",
+        description=(
+            "Runs stress-ng's 'network' class stressors for 60s each with one "
+            "privileged worker per stressor. Unsupported capabilities and protocols "
+            "are explicitly excluded; initialization/resource failures remain fatal."
+        ),
         priority=4,
         timeout=7200,
     )
@@ -138,7 +140,7 @@ class StressNgTestSuite(TestSuite):
         environment: Environment,
         log: Logger,
     ) -> None:
-        self._run_stressor_class(environment, "network", log)
+        self._run_stressor_class(environment, "network", log, num_workers=1, sudo=True)
 
     @TestCaseMetadata(
         description="""
@@ -195,7 +197,12 @@ class StressNgTestSuite(TestSuite):
             self._run_stress_ng_job(job_file, environment, result, log)
 
     def _run_stressor_class(
-        self, environment: Environment, class_name: str, log: Logger
+        self,
+        environment: Environment,
+        class_name: str,
+        log: Logger,
+        num_workers: int = 0,
+        sudo: bool = False,
     ) -> None:
         nodes = [cast(RemoteNode, node) for node in environment.nodes.list()]
         procs: List[Tuple[RemoteNode, Process]] = []
@@ -205,7 +212,12 @@ class StressNgTestSuite(TestSuite):
         for node in nodes:
             try:
                 procs.append(
-                    (node, node.tools[StressNg].launch_class_async(class_name))
+                    (
+                        node,
+                        node.tools[StressNg].launch_class_async(
+                            class_name, num_workers=num_workers, sudo=sudo
+                        ),
+                    )
                 )
             except Exception as e:
                 start_failures.append((node, e))
@@ -234,7 +246,7 @@ class StressNgTestSuite(TestSuite):
                 f"stress_ng_{class_name}_stressors."
             )
 
-            raise ExceptionGroup(
+            raise _ExceptionGroup(
                 f"{len(start_failures)} start failures, "
                 f"{len(result_failures)} exit code failures, "
                 f"{len(kernel_panics)} kernel panics.",
