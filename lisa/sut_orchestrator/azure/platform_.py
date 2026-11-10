@@ -1065,8 +1065,9 @@ class AzurePlatform(Platform):
 
         if location_data:
             delta = datetime.now() - location_data.updated_time
-            # refresh cached locations every 1 day.
-            if delta.days < 1:
+            # refresh cached locations every 1 day, or if the cache predates
+            # disk_zones being recorded.
+            if delta.days < 1 and location_data.disk_zones:
                 should_refresh = False
             else:
                 log.debug(
@@ -1080,13 +1081,18 @@ class AzurePlatform(Platform):
 
             log.debug(f"{key}: querying")
             all_skus: Dict[str, AzureCapability] = dict()
+            disk_zones: Dict[str, List[int]] = dict()
             paged_skus = compute_client.resource_skus.list(
                 filter=f"location eq '{location}'"
             ).by_page()
             for skus in paged_skus:
                 for sku_obj in skus:
                     try:
-                        if sku_obj.resource_type == "virtualMachines":
+                        if sku_obj.resource_type == "disks":
+                            disk_zones[sku_obj.name] = self._get_unrestricted_zones(
+                                sku_obj
+                            )
+                        elif sku_obj.resource_type == "virtualMachines":
                             if sku_obj.restrictions and any(
                                 restriction.type == "Location"
                                 for restriction in sku_obj.restrictions
@@ -1111,7 +1117,9 @@ class AzurePlatform(Platform):
                     except Exception as e:
                         log.error(f"unknown sku: {sku_obj}")
                         raise e
-            location_data = AzureLocation(location=location, capabilities=all_skus)
+            location_data = AzureLocation(
+                location=location, capabilities=all_skus, disk_zones=disk_zones
+            )
             log.debug(f"{location}: saving to disk")
             with open(cached_file_name, "w") as f:
                 json.dump(location_data.to_dict(), f)  # type: ignore
@@ -2329,6 +2337,26 @@ class AzurePlatform(Platform):
                     raise e
                 self._log.debug(f"Could not find image info:\n {e}")
         return image_info
+
+    @staticmethod
+    def _get_unrestricted_zones(sku_obj: Any) -> List[int]:
+        """
+        Zones where a resource SKU is offered in its location, minus zones
+        where it is restricted (e.g. not enabled for this subscription).
+        """
+        if sku_obj.restrictions and any(
+            restriction.type == "Location" for restriction in sku_obj.restrictions
+        ):
+            return []
+        zones: Set[int] = set()
+        for location_info in sku_obj.location_info or []:
+            zones.update(int(zone) for zone in location_info.zones or [])
+        for restriction in sku_obj.restrictions or []:
+            if restriction.type == "Zone" and restriction.restriction_info:
+                zones.difference_update(
+                    int(zone) for zone in restriction.restriction_info.zones or []
+                )
+        return sorted(zones)
 
     def _get_location_key(self, location: str) -> str:
         return f"{self.subscription_id}_{location}"

@@ -633,6 +633,11 @@ class AzureLocation:
     )
     location: str = ""
     capabilities: Dict[str, AzureCapability] = field(default_factory=dict)
+    # Zones where each zonal disk SKU (e.g. PremiumV2_LRS) can be deployed in
+    # this location, keyed by disk SKU name. VM SKU zones are not sufficient:
+    # a VM size can be offered in a zone where the disk SKU is not.
+    # An absent key means unknown (e.g. loaded from an older cache file).
+    disk_zones: Dict[str, List[int]] = field(default_factory=dict)
 
 
 @dataclass_json()

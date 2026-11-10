@@ -2719,14 +2719,38 @@ class Availability(AzureFeatureMixin, features.Availability):
         environment: Environment,
         settings: AvailabilitySettings,
         params: AvailabilityArmParameter,
+        disk_zones: Optional[List[int]] = None,
     ) -> None:
         """
         Resolve Availability configuration based on the current environment
         1. Remove unsupported availability types when using ultra disk
         2. Automatically resolve the availability type based on priority
         3. Select and validate an availability zone if applicable
+
+        disk_zones: zones where the data disk SKU is available, for zonal disk
+        types (PremiumV2/Ultra). None means unknown or not applicable, in which
+        case only the VM SKU zones are considered.
         """
         assert isinstance(settings.availability_type, search_space.SetSpace)
+
+        # Zones where both the VM size and, if known, the data disk SKU are
+        # available. Order is preserved from the VM SKU zones.
+        supported_zones: List[int] = (
+            [int(zone) for zone in settings.availability_zones.items]
+            if settings.availability_zones
+            else []
+        )
+        if disk_zones is not None:
+            supported_zones = [zone for zone in supported_zones if zone in disk_zones]
+            if not supported_zones:
+                # The VM size and the disk SKU share no zone in this location.
+                settings.availability_type.discard(AvailabilityType.AvailabilityZone)
+                if not settings.availability_type:
+                    raise SkippedException(
+                        "No availability zone in this location supports both "
+                        "the VM size and the data disk type. VM size zones: "
+                        f"{settings.availability_zones}, disk zones: {disk_zones}."
+                    )
 
         # Ultra Disk does not support Availability Sets
         assert environment.capability.nodes
@@ -2754,16 +2778,16 @@ class Availability(AzureFeatureMixin, features.Availability):
             params.availability_zones = [
                 zone
                 for zone in params.availability_zones
-                if zone in settings.availability_zones
+                if int(zone) in supported_zones
             ]
             if not params.availability_zones:
                 raise SkippedException(
                     "Invalid zones provided. "
-                    "This SKU in this location supports zones: "
-                    f"{settings.availability_zones}. "
+                    "This VM size and data disk type in this location support "
+                    f"zones: {supported_zones}. "
                 )
-        elif settings.availability_zones:
-            params.availability_zones = [settings.availability_zones.items[0]]
+        elif supported_zones:
+            params.availability_zones = [supported_zones[0]]
 
         assert params.availability_type in [type.value for type in AvailabilityType], (
             "Not a valid Availability Type: " f"{params.availability_type}"
@@ -2782,6 +2806,32 @@ class Availability(AzureFeatureMixin, features.Availability):
                 "location, and test case requirements."
             )
 
+    # Data disk types that are deployed per zone and whose zone availability
+    # can differ from the VM size's zones.
+    _zonal_disk_types = [schema.DiskType.PremiumV2SSDLRS, schema.DiskType.UltraSSDLRS]
+
+    @classmethod
+    def _get_data_disk_zones(
+        cls, environment: Environment, location: str, log: Optional[Logger]
+    ) -> Optional[List[int]]:
+        """
+        Zones where the environment's data disk SKU is available in the
+        location, or None if not a zonal disk type or not known.
+        """
+        assert environment.capability.nodes
+        disk = environment.capability.nodes[0].disk
+        if not disk or disk.data_disk_type not in cls._zonal_disk_types:
+            return None
+        if not environment.platform or not location:
+            return None
+        platform: "AzurePlatform" = environment.platform  # type: ignore
+        assert log
+        location_info = platform.get_location_info(location, log)
+        disk_sku = _disk_type_mapping[disk.data_disk_type]  # type: ignore
+        disk_zones = location_info.disk_zones.get(disk_sku, None)
+        log.debug(f"zones for disk SKU '{disk_sku}' in '{location}': {disk_zones}")
+        return disk_zones
+
     @classmethod
     def on_before_deployment(cls, *args: Any, **kwargs: Any) -> None:
         environment = cast(Environment, kwargs.get("environment"))
@@ -2799,7 +2849,10 @@ class Availability(AzureFeatureMixin, features.Availability):
             is_maximize_capability = False
 
         if not is_maximize_capability:
-            cls._resolve_configuration(environment, settings, params)
+            disk_zones = cls._get_data_disk_zones(
+                environment, arm_parameters.location, kwargs.get("log")
+            )
+            cls._resolve_configuration(environment, settings, params, disk_zones)
 
         # If the availability_type is still set to Default, then
         # resolve the default without considering capabilities
