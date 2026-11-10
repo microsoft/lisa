@@ -11,9 +11,15 @@ from lisa.util.process import Process
 
 
 class CloudHypervisor(Tool):
+    COMMAND = "cloud-hypervisor"
+    # Exit codes of the launch wrapper meaning the VMM never ran: 125 when
+    # the wrapper setup failed, 126/127 when the shell could not exec it.
+    LAUNCH_SETUP_FAILED = 125
+    NOT_STARTED_EXIT_CODES = (125, 126, 127)
+
     @property
     def command(self) -> str:
-        return "cloud-hypervisor"
+        return self.COMMAND
 
     @property
     def can_install(self) -> bool:
@@ -31,6 +37,8 @@ class CloudHypervisor(Tool):
         guest_vm_type: str = "NON-CVM",
         igvm_path: str = "",
         log_file: str = "",
+        cgroup: str = "",
+        pid_file: str = "",
     ) -> Process:
         opt_disk_readonly = "on" if disk_readonly else "off"
         log_file_arg = f"--log-file {log_file}" if log_file else ""
@@ -49,6 +57,25 @@ class CloudHypervisor(Tool):
         else:
             args = f"{args} --kernel {kernel}"
 
+        if cgroup or pid_file:
+            # The wrapper shell records its own PID and/or joins the cgroup,
+            # then execs the VMM, so the VMM keeps that PID and its very
+            # first mshv calls already belong to the cgroup. The log file is
+            # cleared first so a VMM that fails early is never blamed for an
+            # earlier run's log.
+            setup = []
+            if log_file:
+                setup.append(f": > {log_file}")
+            if pid_file:
+                setup.append(f"echo $$ > {pid_file}")
+            if cgroup:
+                setup.append(f"echo $$ > {cgroup}/cgroup.procs")
+            return self.node.execute_async(
+                "{ " + " && ".join(setup) + "; } || "
+                f"exit {self.LAUNCH_SETUP_FAILED}; exec {self.command} {args}",
+                shell=True,
+                sudo=sudo,
+            )
         return self.run_async(
             args,
             force_run=True,
