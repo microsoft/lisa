@@ -506,9 +506,15 @@ class DeviceRssIndirectionTable:
 
 class DeviceCoalesceSettings:
     # ethtool -c reports integer tunables one per line. Unsupported parameters
-    # are printed as n/a; adaptive RX/TX states are stored separately.
+    # are printed as n/a. The Adaptive RX/TX line contains two on/off values, so
+    # it is kept out of the integer settings and stored in adaptive, with
+    # adaptive_rx/adaptive_tx views (None when the driver reports n/a).
+    #   Adaptive RX: on  TX: off
     _coalesce_param_pattern = re.compile(
         r"^(?P<name>[\w-]+):[ \t]*(?P<value>\d+|n/a)[ \t]*\r?$", re.MULTILINE
+    )
+    _adaptive_pattern = re.compile(
+        r"^Adaptive RX:[ \t]*(?P<rx>\S+)[ \t]+TX:[ \t]*(?P<tx>\S+)", re.MULTILINE
     )
 
     def __init__(self, interface: str, device_coalesce_raw: str) -> None:
@@ -525,7 +531,8 @@ class DeviceCoalesceSettings:
             else:
                 settings[name] = int(value)
 
-        if not settings and not not_applicable:
+        adaptive = self._adaptive_pattern.search(raw_str)
+        if not settings and not not_applicable and not adaptive:
             raise LisaException(
                 f"Cannot get {interface} interrupt coalescing parameters."
                 " Verify the output format of 'ethtool -c'."
@@ -555,6 +562,8 @@ class DeviceCoalesceSettings:
             for direction, value in zip(("rx", "tx"), match.groups()):
                 if value != "n/a":
                     self.adaptive[direction] = value == "on"
+        self.adaptive_rx: Optional[bool] = self.adaptive.get("rx")
+        self.adaptive_tx: Optional[bool] = self.adaptive.get("tx")
 
 
 class DeviceRxHashLevel:
@@ -1266,6 +1275,47 @@ class Ethtool(Tool):
             device = self._get_or_create_device_setting(interface)
             device.device_coalesce_settings = None
         return result
+
+    def set_device_adaptive_coalesce(
+        self,
+        interface: str,
+        adaptive_rx: Optional[bool] = None,
+        adaptive_tx: Optional[bool] = None,
+    ) -> DeviceCoalesceSettings:
+        """Turn adaptive interrupt moderation (DIM) on or off.
+
+        Only the directions that are not None are sent, because a driver can
+        support adaptive moderation for one direction only and rejects the
+        other one.
+        """
+        arguments: List[str] = []
+        if adaptive_rx is not None:
+            arguments.append(f"adaptive-rx {'on' if adaptive_rx else 'off'}")
+        if adaptive_tx is not None:
+            arguments.append(f"adaptive-tx {'on' if adaptive_tx else 'off'}")
+        if not arguments:
+            raise LisaException(
+                "set_device_adaptive_coalesce needs adaptive_rx and/or adaptive_tx."
+            )
+
+        result = self.run(
+            f"-C {shlex.quote(interface)} {' '.join(arguments)}",
+            sudo=True,
+            force_run=True,
+            shell=True,
+        )
+        if result.exit_code != 0 and _is_unsupported(result):
+            raise UnsupportedOperationException(
+                f"ethtool -C {interface} {' '.join(arguments)} operation not "
+                "supported. Verify the driver supports adaptive interrupt "
+                "moderation."
+            )
+        result.assert_exit_code(
+            message=f"Couldn't set {interface} {' '.join(arguments)}.",
+            include_output=True,
+        )
+        self._get_or_create_device_setting(interface).device_coalesce_settings = None
+        return self.get_device_coalesce_settings(interface, force_run=True)
 
     def get_device_rx_hash_level(
         self, interface: str, protocol: str, force_run: bool = False
