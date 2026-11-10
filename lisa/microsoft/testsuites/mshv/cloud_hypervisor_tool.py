@@ -31,6 +31,8 @@ class CloudHypervisor(Tool):
         guest_vm_type: str = "NON-CVM",
         igvm_path: str = "",
         log_file: str = "",
+        cgroup: str = "",
+        pid_file: str = "",
     ) -> Process:
         opt_disk_readonly = "on" if disk_readonly else "off"
         log_file_arg = f"--log-file {log_file}" if log_file else ""
@@ -49,6 +51,17 @@ class CloudHypervisor(Tool):
         else:
             args = f"{args} --kernel {kernel}"
 
+        if cgroup or pid_file:
+            setup = []
+            if pid_file:
+                setup.append(f"echo $$ > {pid_file}")
+            if cgroup:
+                setup.append(f"echo $$ > {cgroup}/cgroup.procs")
+            return self.node.execute_async(
+                " && ".join(setup) + f" && exec {self.command} {args}",
+                shell=True,
+                sudo=sudo,
+            )
         return self.run_async(
             args,
             force_run=True,
