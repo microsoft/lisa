@@ -531,6 +531,7 @@ def perf_ntttcp(  # noqa: C901
         DEFAULT_NTTTCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS
     ),
     tune_mana_vf: bool = False,
+    busy_poll_value: str = "50",
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -603,8 +604,9 @@ def perf_ntttcp(  # noqa: C901
             refreshed_client_nic_name, refreshed_server_nic_name = post_ntttcp_setup()
             client_nic_name = refreshed_client_nic_name or client_nic_name
             server_nic_name = refreshed_server_nic_name or server_nic_name
+        # net.core.busy_poll and net.core.busy_read, restored in finally.
         for lagscope in [client_lagscope, server_lagscope]:
-            lagscope.set_busy_poll()
+            lagscope.set_busy_poll(busy_poll_value)
         client_nic = client.nics.default_nic
         server_nic = server.nics.default_nic
         client_ip = client.tools[Ip]
