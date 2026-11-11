@@ -1,0 +1,28 @@
+name: SSH-free Custom Script Extension validation
+
+include:
+  - path: azure.yml
+
+variable:
+  - name: enable_tests
+    value: false
+  - name: concurrency
+    value: 1
+  - name: custom_script_version
+    value: "2.1"
+    is_case_visible: true
+  - name: marketplace_image
+    value: "canonical 0001-com-ubuntu-server-jammy 22_04-lts-gen2 latest"
+  - name: use_public_address
+    value: false
+  - name: create_public_address
+    value: false
+
+testcase:
+  - criteria:
+      tags: CustomScript
+      maturity:
+        - stable
+        - preview
+    retry: 0
+    times: 1

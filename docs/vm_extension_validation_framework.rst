@@ -177,6 +177,107 @@ Each publisher suite **must** include both ``"VM_Extension"`` (shared) and an
 extension-specific tag (typically the ``EXTENSION_TYPE`` value) in its
 ``@TestSuiteMetadata(tags=...)``.
 
+Linux Custom Script: SSH-Free Coverage
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Run the serial, private-VM runbook with:
+
+.. code-block:: powershell
+
+   python -m lisa -r .\lisa\microsoft\runbook\custom_script.yml
+
+Pass normal Azure subscription/authentication variables as required by
+``azure.yml``. Override ``custom_script_version`` to select a candidate. A full
+patch version is checked against the installed handler. The guest must already
+have Python 3 and a functioning Azure Linux Agent.
+
+The suite opts into ``reuse_deployed_environment`` and never initializes a
+guest SSH connection. This opt-in preserves deployed-only environments between
+cases, provided a case does not connect them internally. Keep concurrency at
+one, as in this runbook, and do not request new environments per case. One
+Linux VM and one CSE resource are reused; an existing CSE resource is adopted.
+Only the explicit uninstall/reinstall case deletes the extension. Other
+extension suites retain their existing lifecycle behavior.
+
+Checks are combined to minimize extension updates rather than exhaustively
+enumerating settings/policy matrices:
+
+* Public/protected commands, multiple downloads, Python and shell scripts.
+* Public/protected plain and gzip/base64 scripts; the exact 256-KiB encoded
+  boundary. The invalid-script case (invalid base64, corrupt gzip and oversized
+  input) is explicitly skipped until the existing handler source fixes are
+  deployed.
+* Root execution, working directory, script/output permissions, stdout/stderr
+  and their 4-KiB retained tails, nonzero exits and recovery.
+* CRLF, UTF-8 BOM, extensionless shebang scripts, unchanged binary downloads
+  and ``skipDos2Unix``.
+* Representative schema rejection, without executing the rejected command.
+  Command/script conflict and missing-command rejection are temporarily
+  disabled until the handler's existing logical-validation fix is deployed.
+* Unchanged settings, timestamp and force-update reexecution, and old
+  sequence/settings cleanup.
+* Loopback-only 429/503 fixtures, each recovering on its second request, plus
+  a permanent 404 with no command execution. These exercise approximately
+  six seconds of deliberate CSE retry backoff in total, without timeout or
+  retry-exhaustion tests. Interrupted-response coverage is temporarily disabled
+  until the handler's retry file-offset bug is fixed. Failures report request
+  counts or received file bytes to distinguish retry and content-corruption
+  errors.
+* Private SAS, optional Shared Key, system-assigned identity, user-assigned
+  identity selected by client/object ID, and an identity without blob-read
+  permission.
+* Runtime-policy command/hash allow and deny paths, policy removal, and
+  exactly one invalid-JSON policy fallback case. A handler lacking policy
+  support is explicitly skipped; select a policy-capable candidate to cover
+  these paths. Inline-policy/signature matrices are intentionally omitted.
+* Extension-owned data removal on uninstall, preservation of unrelated
+  files, and successful reinstall.
+
+CSE scripts verify their own results and emit operation-specific markers.
+After the Azure update operation completes, validation uses handler
+instance-view success/failure and fresh script output. ARM can continue to
+report ``Updating`` after the handler has finished; that state alone does not
+fail a case. Missing or stale handler results are refreshed for up to 30 seconds
+using read-only checks, without rerunning the script. Positive checks still
+reject terminal ARM failures and failed handler statuses.
+Negative checks require handler errors, not unrelated ARM/authentication
+failures. Managed Run Command is used only for independent setup, loopback
+fixtures, identity readiness, policy placement and checks that cannot be
+performed by the execution being tested. Its resource is also updated in place.
+Temporary fixture files, processes and blobs are removed after each case.
+
+The suite reuses LISA's shared regional storage account and creates a private
+``lisa-cse-validation`` container. It never enables public access or Shared
+Key. The Shared Key case is skipped if that authentication method is disabled;
+an existing permitted account can be selected with
+``custom_script_storage_account`` and
+``custom_script_storage_resource_group``.
+
+The caller needs VM/extension/managed-Run-Command permissions, Storage Blob
+Data Contributor on the fixture container or account, storage-account-scoped
+permission to generate user-delegation keys, identity management rights in
+``lisa_shared_resource``, VM identity assignment permission and role-assignment
+management permission on the container. Account-level Blob Data Contributor
+includes delegation-key generation; a container-scoped assignment needs that
+permission separately, for example through Storage Blob Delegator or existing
+management rights. The suite does not grant data access to the caller.
+
+Two dedicated user-assigned identities, ``lisa-cse-<region>-reader`` and
+``lisa-cse-<region>-denied``, survive runs in ``lisa_shared_resource``. Missing
+identities are created; existing identities and the reader's container-scoped
+Storage Blob Data Reader assignment are reused. The denied identity must not
+have inherited blob-read access. Identity creation uses API ``2024-11-30`` so
+Azure Policy can apply ``isolationScope`` restrictions without changing the
+subscription's policy. These identities, the reader role and the empty
+container deliberately remain after a run. System-assigned identity is
+VM-scoped and cannot outlive its VM; its test-created reader assignment is
+removed after the case. Readiness is checked before testing CSE; propagation
+can wait up to five minutes, with immediate continuation when access works.
+
+No duplicate settings/extension scenarios, command timeout tests, exhaustive
+policy matrices, long retry-exhaustion cases or live SSH-login checks are
+included. Azure resource-operation time still dominates a full suite run.
+
 Windows Runtime Extension Boot Validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
