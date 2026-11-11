@@ -180,8 +180,14 @@ class NetworkPerformace(TestSuite):
         maximum and adaptive interrupt moderation (DIM) is turned off. Kernels
         such as 6.8.0-1070-azure and 7.0.0-1017-azure default MANA to 16 queues
         with DIM on, which drops throughput by 50-70% at high connection counts
-        on large VMs. The original settings are restored after the test. Set the
-        variable perf_ntttcp_sriov_nic_tuning to false to keep driver defaults.
+        on large VMs. DIM is kept on when the driver can't handle throttled
+        event queue events (no eq_N_throttle_events in ethtool -S), because
+        without interrupt moderation the event queues fill up and a TX queue
+        stalls. If a MANA TX stall or hardware channel timeout still happens,
+        the driver defaults are restored and the remaining connection counts
+        run with them. The original settings are restored after the test. Set
+        the variable perf_ntttcp_sriov_nic_tuning to false to keep driver
+        defaults.
 
         Busy polling (net.core.busy_poll and net.core.busy_read) is set to 0 on
         both nodes during the run and restored after the test.

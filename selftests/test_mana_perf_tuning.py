@@ -8,12 +8,13 @@ from unittest.mock import MagicMock, Mock, call, patch
 from lisa.microsoft.testsuites.performance import common
 from lisa.microsoft.testsuites.performance.common import (
     ManaVfPerfTuning,
+    fall_back_to_mana_driver_defaults,
     restore_mana_vf_tuning,
     tune_mana_vf_for_perf,
 )
 from lisa.schema import NetworkDataPath
-from lisa.tools import Ethtool, Ip, Lagscope, Lscpu, Ntttcp, Sysctl
-from lisa.tools.ethtool import DeviceChannel, DeviceCoalesceSettings
+from lisa.tools import Dmesg, Ethtool, Ip, Kill, Lagscope, Lscpu, Ntttcp, Sysctl
+from lisa.tools.ethtool import DeviceChannel, DeviceCoalesceSettings, DeviceStatistics
 from lisa.util import LisaException, UnsupportedOperationException
 from lisa.util.process import ExecutableResult
 
@@ -59,16 +60,27 @@ class FakeManaEthtool:
         maximum: int = 32,
         adaptive_rx: Optional[str] = "on",
         adaptive_tx: Optional[str] = "on",
+        throttle_stats: bool = True,
     ) -> None:
         self.driver = driver
         self.current = current
         self.maximum = maximum
         # None means the driver doesn't implement ethtool -c.
         self.adaptive: Dict[str, Optional[str]] = {"rx": adaptive_rx, "tx": adaptive_tx}
+        # Drivers with "net: mana: Add support to process throttled EQEs".
+        self.throttle_stats = throttle_stats
         self.calls: List[Any] = []
 
     def get_device_driver(self, interface: str) -> str:
         return f" {self.driver}"
+
+    def get_device_statistics(
+        self, interface: str, force_run: bool = False
+    ) -> DeviceStatistics:
+        lines = ["NIC statistics:", "     tx_0_packets: 10", "     rx_0_packets: 10"]
+        if self.throttle_stats:
+            lines += [f"     eq_{q}_throttle_events: 0" for q in range(self.current)]
+        return DeviceStatistics(interface, "\n".join(lines))
 
     def get_device_channels_info(
         self, interface: str, force_run: bool = False
@@ -108,12 +120,24 @@ class FakeManaEthtool:
         return self.get_device_coalesce_settings(interface, force_run=True)
 
 
-def _make_node(ethtool: FakeManaEthtool, thread_count: int = 192) -> MagicMock:
+TX_STALL = (
+    "[ 1120.035535] mana 7870:00:00.0 ens1: NETDEV WATCHDOG: CPU: 32: transmit "
+    "queue 28 timed out 15602 ms"
+)
+HWC_TIMEOUT = "[ 1313.570858] mana 7870:00:00.0: HWC: Request timed out: 60000 ms"
+
+
+def _make_node(
+    ethtool: FakeManaEthtool, thread_count: int = 192, dmesg: Optional[Mock] = None
+) -> MagicMock:
     lscpu = Mock()
     lscpu.get_thread_count.return_value = thread_count
     ip = Mock()
     ip.is_device_up.return_value = True
-    tools = {Lscpu: lscpu, Ethtool: ethtool, Ip: ip}
+    if dmesg is None:
+        dmesg = Mock()
+        dmesg.get_output.return_value = "[    1.0] Linux version 7.0.0-1017-azure"
+    tools = {Lscpu: lscpu, Ethtool: ethtool, Ip: ip, Dmesg: dmesg}
     node = MagicMock()
     node.name = "node-0"
     node.is_connected = True
@@ -308,6 +332,89 @@ class ManaVfPerfTuningTestCase(TestCase):
         self.assertEqual(ethtool.calls, calls_after_tuning)
         node.mark_dirty.assert_called_once()
 
+    def test_dim_kept_on_when_driver_drops_throttled_eqes(self) -> None:
+        # 7.0.0-1017-azure: no eq_N_throttle_events, DIM off stalls TX queues.
+        ethtool = FakeManaEthtool(throttle_stats=False)
+        node = _make_node(ethtool, thread_count=372)
+        applied: List[ManaVfPerfTuning] = []
+
+        tune_mana_vf_for_perf(node, VF, applied)
+
+        self.assertEqual(ethtool.current, 32)
+        self.assertEqual(ethtool.adaptive, {"rx": "on", "tx": "on"})
+        self.assertEqual(ethtool.calls, [("channels", 32)])
+        self.assertIsNone(applied[0].original_adaptive_rx)
+        self.assertIsNone(applied[0].original_adaptive_tx)
+
+        restore_mana_vf_tuning(applied[0])
+        self.assertEqual(ethtool.calls[-1], ("channels", 16))
+        self.assertEqual(ethtool.adaptive, {"rx": "on", "tx": "on"})
+
+    def test_fault_baseline_counts_existing_mana_faults(self) -> None:
+        dmesg = Mock()
+        dmesg.get_output.return_value = "\n".join(
+            [TX_STALL, HWC_TIMEOUT, "[ 9.0] mana 7870:00:00.0: protocol version"]
+        )
+        applied: List[ManaVfPerfTuning] = []
+        tune_mana_vf_for_perf(_make_node(FakeManaEthtool(), dmesg=dmesg), VF, applied)
+        self.assertEqual(applied[0].fault_baseline, 2)
+
+
+class ManaDriverDefaultsFallbackTestCase(TestCase):
+    def _tune(self, dmesg: Mock) -> Tuple[FakeManaEthtool, MagicMock, List[Any]]:
+        ethtool = FakeManaEthtool()
+        node = _make_node(ethtool, dmesg=dmesg)
+        applied: List[ManaVfPerfTuning] = []
+        tune_mana_vf_for_perf(node, VF, applied)
+        return ethtool, node, applied
+
+    def test_no_new_fault_keeps_tuning(self) -> None:
+        dmesg = Mock()
+        dmesg.get_output.return_value = TX_STALL
+        ethtool, _, applied = self._tune(dmesg)
+
+        self.assertFalse(fall_back_to_mana_driver_defaults(applied))
+
+        self.assertEqual(len(applied), 1)
+        self.assertEqual(ethtool.current, 32)
+        self.assertEqual(ethtool.adaptive, {"rx": "off", "tx": "off"})
+
+    def test_new_fault_restores_driver_defaults(self) -> None:
+        for fault in (TX_STALL, HWC_TIMEOUT):
+            with self.subTest(fault=fault):
+                dmesg = Mock()
+                dmesg.get_output.return_value = ""
+                ethtool, node, applied = self._tune(dmesg)
+                dmesg.get_output.return_value = fault
+
+                self.assertTrue(fall_back_to_mana_driver_defaults(applied))
+
+                self.assertEqual(applied, [])
+                self.assertEqual(ethtool.current, 16)
+                self.assertEqual(ethtool.adaptive, {"rx": "on", "tx": "on"})
+                node.log.warning.assert_called_once()
+                node.mark_dirty.assert_not_called()
+
+    def test_unchanged_vf_is_not_considered(self) -> None:
+        dmesg = Mock()
+        dmesg.get_output.return_value = ""
+        ethtool = FakeManaEthtool(current=32, adaptive_rx="off", adaptive_tx="off")
+        applied: List[ManaVfPerfTuning] = []
+        tune_mana_vf_for_perf(_make_node(ethtool, dmesg=dmesg), VF, applied)
+        dmesg.get_output.return_value = TX_STALL
+
+        self.assertFalse(fall_back_to_mana_driver_defaults(applied))
+        self.assertEqual(ethtool.calls, [])
+
+    def test_unreadable_dmesg_keeps_tuning(self) -> None:
+        dmesg = Mock()
+        dmesg.get_output.return_value = ""
+        ethtool, _, applied = self._tune(dmesg)
+        dmesg.get_output.side_effect = LisaException("ssh is down")
+
+        self.assertFalse(fall_back_to_mana_driver_defaults(applied))
+        self.assertEqual(len(applied), 1)
+
 
 class PerfNtttcpManaTuningTestCase(TestCase):
     class _StopAfterTuning(Exception):
@@ -408,6 +515,84 @@ class PerfNtttcpManaTuningTestCase(TestCase):
                             "restore server",
                         ],
                     )
+
+
+class PerfNtttcpRetryFallbackTestCase(TestCase):
+    def _make_node(self, name: str, vf: str) -> MagicMock:
+        node = MagicMock()
+        node.name = name
+        node.os = MagicMock()
+        node.capability.network_interface.data_path = NetworkDataPath.Sriov
+        node.nics.get_primary_nic.return_value.pci_device_name = vf
+        tools: Dict[Any, Any] = {}
+
+        def get_tool(tool: Any) -> Any:
+            if tool not in tools:
+                tools[tool] = MagicMock()
+                if tool is Lscpu:
+                    tools[tool].get_thread_count.return_value = 8
+            return tools[tool]
+
+        node.tools.__getitem__.side_effect = get_tool
+        return node
+
+    def _run(self, tune_mana_vf: bool) -> Tuple[List[str], List[Any], MagicMock]:
+        events: List[str] = []
+        client = self._make_node("client", "enP1s1")
+        server = self._make_node("server", "enP2s2")
+        # The first attempt hangs like a MANA TX stall, the retry passes.
+        client_ntttcp = client.tools[Ntttcp]
+        client_ntttcp.run_as_client.side_effect = [LisaException("hang"), MagicMock()]
+
+        def fake_tune(
+            node: Any, interface: str, applied: List[ManaVfPerfTuning]
+        ) -> None:
+            events.append(f"tune {node.name}")
+            applied.append(ManaVfPerfTuning(node=node, interface=interface))
+
+        def fake_fallback(tunings: List[ManaVfPerfTuning]) -> bool:
+            events.append(f"fallback {len(tunings)}")
+            tunings.clear()
+            return True
+
+        def fake_restore(tuning: ManaVfPerfTuning) -> None:
+            events.append(f"restore {tuning.node.name}")
+
+        with (
+            patch.object(common, "tune_mana_vf_for_perf", side_effect=fake_tune),
+            patch.object(
+                common, "fall_back_to_mana_driver_defaults", side_effect=fake_fallback
+            ),
+            patch.object(common, "restore_mana_vf_tuning", side_effect=fake_restore),
+            patch.object(common, "notifier"),
+            patch.object(common.time, "sleep"),
+        ):
+            messages = common.perf_ntttcp(
+                MagicMock(),
+                server=server,
+                client=client,
+                connections=[1],
+                test_case_name="perf_tcp_ntttcp_sriov",
+                tune_mana_vf=tune_mana_vf,
+            )
+        # The failed attempt cleaned up ntttcp and lagscope before retrying.
+        self.assertGreaterEqual(client.tools[Kill].by_name.call_count, 2)
+        return events, messages, client_ntttcp
+
+    def test_failed_attempt_falls_back_before_retrying(self) -> None:
+        events, messages, client_ntttcp = self._run(tune_mana_vf=True)
+
+        # Fallback cleared the tunings, so the finally block restores nothing.
+        self.assertEqual(events, ["tune client", "tune server", "fallback 2"])
+        self.assertEqual(client_ntttcp.run_as_client.call_count, 2)
+        self.assertEqual(len(messages), 1)
+
+    def test_no_fallback_without_tuning(self) -> None:
+        events, messages, client_ntttcp = self._run(tune_mana_vf=False)
+
+        self.assertEqual(events, [])
+        self.assertEqual(client_ntttcp.run_as_client.call_count, 2)
+        self.assertEqual(len(messages), 1)
 
 
 class LagscopeBusyPollTestCase(TestCase):

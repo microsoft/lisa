@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 import inspect
 import pathlib
+import re
 import time
 from dataclasses import dataclass
 from functools import partial
@@ -34,6 +35,7 @@ from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
     FIOMODES,
+    Dmesg,
     Echo,
     Ethtool,
     Fdisk,
@@ -75,6 +77,19 @@ DEFAULT_NTTTCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS = 60
 # than this, the same threshold perf_ntttcp uses for large VMs.
 MANA_PERF_TUNING_VCPU_THRESHOLD = 64
 MANA_DRIVER_NAME = "mana"
+# Drivers without "net: mana: Add support to process throttled EQEs" drop the
+# event the NIC sends when an event queue nears full, so a TX queue stalls, the
+# VF reset then times out on the hardware channel (HWC) and SSH hangs on RTNL.
+# With DIM off every completion raises an event, which fills the event queues
+# at high packet rates (seen on Standard_L372is_v5 with 7.0.0-1017-azure). DIM
+# is only turned off when the driver reports the per-queue throttle counter that
+# the fix adds.
+MANA_THROTTLED_EQE_STAT_PATTERN = re.compile(r"^eq_\d+_throttle_events$")
+# dmesg lines of a MANA TX stall and of the hardware channel timing out.
+MANA_VF_FAULT_PATTERN = re.compile(
+    r"\bmana\b.*(NETDEV WATCHDOG: .*transmit queue \d+ timed out|"
+    r"HWC: Request timed out)"
+)
 
 
 def perf_nvme(
@@ -226,6 +241,16 @@ class ManaVfPerfTuning:
     original_channels: Optional[int] = None
     original_adaptive_rx: Optional[bool] = None
     original_adaptive_tx: Optional[bool] = None
+    # MANA fault lines in dmesg once tuned, to spot new faults during the run.
+    fault_baseline: int = 0
+
+    @property
+    def changed(self) -> bool:
+        return (
+            self.original_channels is not None
+            or self.original_adaptive_rx is not None
+            or self.original_adaptive_tx is not None
+        )
 
 
 def tune_mana_vf_for_perf(
@@ -233,9 +258,11 @@ def tune_mana_vf_for_perf(
 ) -> None:
     """Use the maximum queue count and turn DIM off on a MANA VF of a large VM.
 
-    The tuning is registered in ``applied`` before anything is changed, so the
-    caller can restore it with ``restore_mana_vf_tuning`` even when this fails.
-    The settings are not persistent, so call this after any reboot.
+    DIM is kept on when the driver can't handle throttled event queue events,
+    see MANA_THROTTLED_EQE_STAT_PATTERN. The tuning is registered in ``applied``
+    before anything is changed, so the caller can restore it with
+    ``restore_mana_vf_tuning`` even when this fails. The settings are not
+    persistent, so call this after any reboot.
     """
     thread_count = node.tools[Lscpu].get_thread_count()
     if thread_count <= MANA_PERF_TUNING_VCPU_THRESHOLD:
@@ -266,7 +293,9 @@ def tune_mana_vf_for_perf(
         # MANA drivers without interrupt moderation don't implement ethtool -c,
         # and they interrupt on every completion already.
         node.log.debug(f"{interface} has no interrupt moderation, keep it as is.")
-    if coalesce and (coalesce.adaptive_rx or coalesce.adaptive_tx):
+    dim_on = bool(coalesce and (coalesce.adaptive_rx or coalesce.adaptive_tx))
+    keep_dim = dim_on and not _mana_handles_throttled_eqe(ethtool, interface)
+    if coalesce and dim_on and not keep_dim:
         # Remember only the directions that were on, the driver can reject a
         # direction that it doesn't support.
         tuning.original_adaptive_rx = True if coalesce.adaptive_rx else None
@@ -284,7 +313,12 @@ def tune_mana_vf_for_perf(
         f"count {channels.max_channels}."
     ).is_equal_to(channels.max_channels)
     adaptive_state = "not supported"
-    if coalesce is not None:
+    if keep_dim:
+        adaptive_state = (
+            "kept on, the driver can't handle throttled event queue events "
+            "(no eq_N_throttle_events in ethtool -S)"
+        )
+    elif coalesce is not None:
         tuned_coalesce = ethtool.get_device_coalesce_settings(interface, force_run=True)
         tuned_adaptive = [tuned_coalesce.adaptive_rx, tuned_coalesce.adaptive_tx]
         assert_that(tuned_adaptive).described_as(
@@ -300,17 +334,71 @@ def tune_mana_vf_for_perf(
 
     # A channel change detaches and attaches the VF, wait for it to carry
     # traffic again before measuring.
-    ip = node.tools[Ip]
-    check_till_timeout(
-        lambda: ip.is_device_up(interface) is True,
-        timeout_message=f"{interface} on {node.name} is not up after tuning.",
-    )
+    _wait_vf_up(node, interface)
+    tuning.fault_baseline = _count_mana_vf_faults(node)
     node.log.info(
         f"Tuned MANA VF {interface} for throughput ({thread_count} vCPUs): "
         f"combined channels {channels.current_channels} -> "
         f"{tuned_channels.current_channels} (max {channels.max_channels}), "
         f"adaptive interrupt moderation {adaptive_state}."
     )
+
+
+def fall_back_to_mana_driver_defaults(tunings: List[ManaVfPerfTuning]) -> bool:
+    """Restore the MANA driver defaults when a tuned VF faulted.
+
+    Returns True and empties ``tunings`` when a node logged a new MANA TX stall
+    or hardware channel timeout since it was tuned. The driver defaults are
+    stable on the affected kernels, so the remaining runs can complete.
+    """
+    changed = [tuning for tuning in tunings if tuning.changed]
+    faulted: List[str] = []
+    for tuning in changed:
+        try:
+            if _count_mana_vf_faults(tuning.node) > tuning.fault_baseline:
+                faulted.append(tuning.node.name)
+        except Exception as identifier:
+            tuning.node.log.debug(f"Can't read dmesg for MANA faults: {identifier}")
+    if not faulted:
+        return False
+
+    for tuning in changed:
+        tuning.node.log.warning(
+            f"MANA VF fault (TX queue stall or HWC timeout) on {faulted} with the "
+            f"throughput tuning. Restore driver defaults on {tuning.interface} of "
+            f"{tuning.node.name}, the remaining connection counts use them."
+        )
+        restore_mana_vf_tuning(tuning)
+        try:
+            _wait_vf_up(tuning.node, tuning.interface, timeout=120)
+        except Exception as identifier:
+            tuning.node.log.error(f"{tuning.interface} is not up: {identifier}")
+    tunings.clear()
+    return True
+
+
+def _wait_vf_up(node: RemoteNode, interface: str, timeout: int = 60) -> None:
+    ip = node.tools[Ip]
+    check_till_timeout(
+        lambda: ip.is_device_up(interface) is True,
+        timeout_message=f"{interface} on {node.name} is not up.",
+        timeout=timeout,
+    )
+
+
+def _mana_handles_throttled_eqe(ethtool: Ethtool, interface: str) -> bool:
+    try:
+        statistics = ethtool.get_device_statistics(interface, force_run=True)
+    except UnsupportedOperationException:
+        return False
+    return any(
+        MANA_THROTTLED_EQE_STAT_PATTERN.match(name) for name in statistics.counters
+    )
+
+
+def _count_mana_vf_faults(node: RemoteNode) -> int:
+    output = node.tools[Dmesg].get_output(force_run=True, no_debug_log=True)
+    return sum(1 for line in output.splitlines() if MANA_VF_FAULT_PATTERN.search(line))
 
 
 def restore_mana_vf_tuning(tuning: ManaVfPerfTuning) -> None:
@@ -819,6 +907,11 @@ def perf_ntttcp(  # noqa: C901
                     except Exception as cleanup_error:
                         # Log cleanup errors but don't fail the retry mechanism
                         client.log.error(f"Cleanup error: {cleanup_error}")
+
+                    # A MANA VF that faulted with the throughput tuning keeps
+                    # faulting, retry with the driver defaults instead.
+                    if mana_vf_tunings:
+                        fall_back_to_mana_driver_defaults(mana_vf_tunings)
 
                     if retry_count >= max_retries:
                         # All retry attempts exhausted for this connection count.
