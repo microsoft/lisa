@@ -395,18 +395,19 @@ class PerfNtttcpManaTuningTestCase(TestCase):
         )
 
     def test_busy_poll_value_is_set_and_restored_on_both_nodes(self) -> None:
-        for kwargs, value in (({}, "50"), ({"busy_poll_value": "0"}, "0")):
-            with self.subTest(value=value):
-                self._run(**kwargs)
-                self.assertEqual(
-                    self.busy_poll_events,
-                    [
-                        f"set client {value}",
-                        f"set server {value}",
-                        "restore client",
-                        "restore server",
-                    ],
-                )
+        for udp_mode in (False, True):
+            for kwargs, value in (({}, "50"), ({"busy_poll_value": "0"}, "0")):
+                with self.subTest(udp_mode=udp_mode, value=value):
+                    self._run(udp_mode=udp_mode, **kwargs)
+                    self.assertEqual(
+                        self.busy_poll_events,
+                        [
+                            f"set client {value}",
+                            f"set server {value}",
+                            "restore client",
+                            "restore server",
+                        ],
+                    )
 
 
 class LagscopeBusyPollTestCase(TestCase):

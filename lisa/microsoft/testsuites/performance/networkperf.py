@@ -226,6 +226,9 @@ class NetworkPerformace(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case uses ntttcp to test sriov udp network throughput.
+
+        Busy polling (net.core.busy_poll and net.core.busy_read) is set to 0 on
+        both nodes during the run and restored after the test.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -238,7 +241,7 @@ class NetworkPerformace(TestSuite):
     def perf_udp_1k_ntttcp_sriov(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
-        perf_ntttcp(result, udp_mode=True, variables=variables)
+        perf_ntttcp(result, udp_mode=True, variables=variables, busy_poll_value="0")
 
     @TestCaseMetadata(
         description="""
