@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 import xml.etree.ElementTree as ET  # noqa: N817
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -20,6 +21,11 @@ from lisa.messages import (
 )
 from lisa.notifier import Notifier
 from lisa.util import LisaException, constants
+
+# XML 1.0 character range: https://www.w3.org/TR/xml/#charsets
+_INVALID_XML_CHARACTERS = re.compile(
+    r"[^\x09\x0A\x0D\x20-\uD7FF\uE000-\uFFFD\U00010000-\U0010FFFF]"
+)
 
 
 @dataclass_json()
@@ -89,6 +95,14 @@ class JUnit(Notifier):
         self._log.info(f"JUnit: {self._report_path}")
 
     def _write_results(self) -> None:
+        for element in self._testsuites.iter():
+            for name, value in element.attrib.items():
+                element.set(name, self._escape_invalid_xml_chars(value))
+            if element.text is not None:
+                element.text = self._escape_invalid_xml_chars(element.text)
+            if element.tail is not None:
+                element.tail = self._escape_invalid_xml_chars(element.tail)
+
         self._update_test_counts()
         temporary_path = self._report_path.with_name(f".{self._report_path.name}.tmp")
         try:
@@ -99,6 +113,12 @@ class JUnit(Notifier):
             temporary_path.replace(self._report_path)
         finally:
             temporary_path.unlink(missing_ok=True)
+
+    @staticmethod
+    def _escape_invalid_xml_chars(value: str) -> str:
+        return _INVALID_XML_CHARACTERS.sub(
+            lambda match: f"\\u{ord(match.group()):04x}", value
+        )
 
     # The types of messages that this class supports.
     def _subscribed_message_type(self) -> List[Type[MessageBase]]:
