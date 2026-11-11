@@ -1557,6 +1557,17 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
             self.libvirt_conn.close()
         except libvirt.libvirtError as ex:
             log.debug(f"Failed to close stale libvirt connection: {ex}")
+        if (
+            self._libvirt_uri_schema() == "ch"
+            and not self.host_node.shell.exists(
+                PurePosixPath("/run/libvirt/virtchd-sock")
+            )
+            and self.host_node.shell.exists(
+                PurePosixPath("/usr/lib/systemd/system/virtchd.service")
+            )
+        ):
+            log.info("Starting virtchd to restore its socket before reconnecting.")
+            self.host_node.tools[Service].start_service("virtchd")
         self.libvirt_conn = self._open_libvirt_connection()
 
     def _is_libvirt_connection_closed_error(self, ex: libvirt.libvirtError) -> bool:
