@@ -259,14 +259,16 @@ class RootRunner(Action):
             cancel()
             raise e
         finally:
-            self._cleanup()
+            try:
+                self._cleanup()
+            finally:
+                if self._results_collector:
+                    results: List[TestResultMessageBase] = [
+                        x for x in self._results_collector.results.values()
+                    ]
+                    print_results(results, self._log.info)
 
         if self._results_collector:
-            results: List[TestResultMessageBase] = [
-                x for x in self._results_collector.results.values()
-            ]
-            print_results(results, self._log.info)
-
             if any(x.status == TestStatus.QUEUED for x in results):
                 # if there is any queued, it means there is some error in runner
                 raise LisaException(
