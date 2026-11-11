@@ -1,9 +1,9 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from unittest import TestCase
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, Mock, call, patch
 
 from lisa.microsoft.testsuites.performance import common
 from lisa.microsoft.testsuites.performance.common import (
@@ -12,7 +12,7 @@ from lisa.microsoft.testsuites.performance.common import (
     tune_mana_vf_for_perf,
 )
 from lisa.schema import NetworkDataPath
-from lisa.tools import Ethtool, Ip, Lscpu, Ntttcp
+from lisa.tools import Ethtool, Ip, Lagscope, Lscpu, Ntttcp, Sysctl
 from lisa.tools.ethtool import DeviceChannel, DeviceCoalesceSettings
 from lisa.util import LisaException, UnsupportedOperationException
 from lisa.util.process import ExecutableResult
@@ -324,11 +324,20 @@ class PerfNtttcpManaTuningTestCase(TestCase):
         def record_setup(*args: Any, **kwargs: Any) -> None:
             events.append(f"setup {name}")
 
+        def record_set_busy_poll(value: str = "50") -> None:
+            self.busy_poll_events.append(f"set {name} {value}")
+
+        def record_restore_busy_poll() -> None:
+            self.busy_poll_events.append(f"restore {name}")
+
         def get_tool(tool: Any) -> Any:
             if tool not in tools:
                 tools[tool] = MagicMock()
                 if tool is Ntttcp:
                     tools[tool].setup_system.side_effect = record_setup
+                if tool is Lagscope:
+                    tools[tool].set_busy_poll.side_effect = record_set_busy_poll
+                    tools[tool].restore_busy_poll.side_effect = record_restore_busy_poll
                 if tool is Lscpu:
                     # The first command after the tuning, stop the run there.
                     tools[tool].get_thread_count.side_effect = self._StopAfterTuning()
@@ -337,8 +346,9 @@ class PerfNtttcpManaTuningTestCase(TestCase):
         node.tools.__getitem__.side_effect = get_tool
         return node
 
-    def _run(self, tune_mana_vf: bool) -> List[str]:
+    def _run(self, **perf_ntttcp_kwargs: Any) -> List[str]:
         events: List[str] = []
+        self.busy_poll_events: List[str] = []
         client = self._make_perf_node("client", "enP1s1", events)
         server = self._make_perf_node("server", "enP2s2", events)
 
@@ -362,7 +372,7 @@ class PerfNtttcpManaTuningTestCase(TestCase):
                     client=client,
                     connections=[1],
                     test_case_name="perf_tcp_ntttcp_sriov",
-                    tune_mana_vf=tune_mana_vf,
+                    **perf_ntttcp_kwargs,
                 )
         return events
 
@@ -383,3 +393,48 @@ class PerfNtttcpManaTuningTestCase(TestCase):
         self.assertEqual(
             self._run(tune_mana_vf=False), ["setup client", "setup server"]
         )
+
+    def test_busy_poll_value_is_set_and_restored_on_both_nodes(self) -> None:
+        default_value = common.NTTTCP_BUSY_POLL_VALUE
+        for udp_mode in (False, True):
+            for kwargs, value in (
+                ({}, default_value),
+                ({"busy_poll_value": "0"}, "0"),
+                ({"busy_poll_value": "50"}, "50"),
+            ):
+                with self.subTest(udp_mode=udp_mode, value=value):
+                    self._run(udp_mode=udp_mode, **kwargs)
+                    self.assertEqual(
+                        self.busy_poll_events,
+                        [
+                            f"set client {value}",
+                            f"set server {value}",
+                            "restore client",
+                            "restore server",
+                        ],
+                    )
+
+
+class LagscopeBusyPollTestCase(TestCase):
+    def _make_lagscope(self) -> Tuple[Lagscope, Mock]:
+        sysctl = Mock()
+        tools = {Sysctl: sysctl}
+        lagscope = Lagscope.__new__(Lagscope)
+        lagscope.node = MagicMock()
+        lagscope.node.tools.__getitem__.side_effect = lambda tool: tools[tool]
+        return lagscope, sysctl
+
+    def test_default_value_is_unchanged(self) -> None:
+        lagscope, sysctl = self._make_lagscope()
+        lagscope.set_busy_poll()
+        sysctl.write.assert_has_calls(
+            [call("net.core.busy_poll", "50"), call("net.core.busy_read", "50")]
+        )
+
+    def test_busy_poll_and_busy_read_can_be_disabled(self) -> None:
+        lagscope, sysctl = self._make_lagscope()
+        lagscope.set_busy_poll("0")
+        sysctl.write.assert_has_calls(
+            [call("net.core.busy_poll", "0"), call("net.core.busy_read", "0")]
+        )
+        self.assertEqual(sysctl.write.call_count, 2)

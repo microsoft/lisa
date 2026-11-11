@@ -182,6 +182,9 @@ class NetworkPerformace(TestSuite):
         with DIM on, which drops throughput by 50-70% at high connection counts
         on large VMs. The original settings are restored after the test. Set the
         variable perf_ntttcp_sriov_nic_tuning to false to keep driver defaults.
+
+        Busy polling (net.core.busy_poll and net.core.busy_read) is set to 0 on
+        both nodes during the run and restored after the test.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -200,6 +203,7 @@ class NetworkPerformace(TestSuite):
             result,
             variables=variables,
             tune_mana_vf=to_bool(variables.get("perf_ntttcp_sriov_nic_tuning", True)),
+            busy_poll_value="0",
         )
 
     @TestCaseMetadata(
@@ -222,6 +226,9 @@ class NetworkPerformace(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case uses ntttcp to test sriov udp network throughput.
+
+        Busy polling (net.core.busy_poll and net.core.busy_read) is set to 0 on
+        both nodes during the run and restored after the test.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -234,7 +241,7 @@ class NetworkPerformace(TestSuite):
     def perf_udp_1k_ntttcp_sriov(
         self, result: TestResult, variables: Dict[str, Any]
     ) -> None:
-        perf_ntttcp(result, udp_mode=True, variables=variables)
+        perf_ntttcp(result, udp_mode=True, variables=variables, busy_poll_value="0")
 
     @TestCaseMetadata(
         description="""

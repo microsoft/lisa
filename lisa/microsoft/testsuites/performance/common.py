@@ -536,6 +536,7 @@ def perf_ntttcp(  # noqa: C901
         DEFAULT_NTTTCP_CLIENT_TIMEOUT_TOLERANCE_SECONDS
     ),
     tune_mana_vf: bool = False,
+    busy_poll_value: str = NTTTCP_BUSY_POLL_VALUE,
 ) -> List[Union[NetworkTCPPerformanceMessage, NetworkUDPPerformanceMessage]]:
     # Either server and client are set explicitly or we use the first two nodes
     # from the environment. We never combine the two options. We need to specify
@@ -611,10 +612,10 @@ def perf_ntttcp(  # noqa: C901
         # Global busy polling is a latency optimization, but for throughput
         # workloads it is the primary trigger of the mid-run throughput drops
         # and the large TCP retransmission counts seen on big SKUs. Disable
-        # net.core.busy_poll and net.core.busy_read for the ntttcp runs; the
-        # original values are restored in the finally block below.
+        # net.core.busy_poll and net.core.busy_read for the ntttcp runs by
+        # default; the original values are restored in the finally block below.
         for lagscope in [client_lagscope, server_lagscope]:
-            lagscope.set_busy_poll(NTTTCP_BUSY_POLL_VALUE)
+            lagscope.set_busy_poll(busy_poll_value)
         client_nic = client.nics.default_nic
         server_nic = server.nics.default_nic
         client_ip = client.tools[Ip]
