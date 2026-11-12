@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 
 import re
-from typing import List, Optional, Type
+from typing import Dict, List, Optional, Type
 
 from lisa.executable import Tool
 from lisa.util import LisaException, find_groups_in_lines
@@ -59,6 +59,46 @@ class NvidiaSmi(GpuSmi):
             device_count += result.stdout.count(gpu_type)
 
         return device_count
+
+    def get_persistence_modes(self) -> Dict[str, bool]:
+        result = self.run(
+            "--query-gpu=uuid,persistence_mode --format=csv,noheader",
+            sudo=True,
+            force_run=True,
+        )
+        result.assert_exit_code(
+            message="Failed to query NVIDIA GPU persistence modes",
+            include_output=True,
+        )
+        if not result.stdout.strip():
+            raise LisaException("NVIDIA GPU persistence mode query returned no GPUs")
+
+        modes: Dict[str, bool] = {}
+        for line in result.stdout.splitlines():
+            fields = [field.strip() for field in line.split(",")]
+            if (
+                len(fields) != 2
+                or not fields[0].startswith("GPU-")
+                or fields[1] not in ("Enabled", "Disabled", "[N/A]", "N/A")
+            ):
+                raise LisaException(f"Unexpected NVIDIA persistence mode: {line!r}")
+            gpu_uuid, mode = fields
+            if mode in ("[N/A]", "N/A"):
+                self._log.debug(f"GPU {gpu_uuid} does not support persistence mode")
+                continue
+            modes[gpu_uuid] = mode == "Enabled"
+        return modes
+
+    def set_persistence_mode(self, gpu_uuid: str, enabled: bool) -> None:
+        result = self.run(
+            f"-i {gpu_uuid} -pm {int(enabled)}",
+            sudo=True,
+            force_run=True,
+        )
+        result.assert_exit_code(
+            message=f"Failed to set persistence mode for GPU {gpu_uuid}",
+            include_output=True,
+        )
 
     def reset(self, gpu_index: Optional[int] = None) -> ExecutableResult:
         """
