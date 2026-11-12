@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from copy import deepcopy
 from dataclasses import InitVar, dataclass, field
 from datetime import datetime
@@ -108,7 +109,7 @@ from lisa.util import (
     truncate_keep_prefix,
 )
 from lisa.util.logger import Logger, get_logger
-from lisa.util.parallel import run_in_parallel
+from lisa.util.parallel import check_cancelled, run_in_parallel
 from lisa.util.perf_timer import create_timer
 from lisa.util.shell import wait_tcp_port_ready
 
@@ -2069,35 +2070,8 @@ class AzurePlatform(Platform):
         )
 
         log.info(f"resource group '{resource_group_name}' deployment is in progress...")
-        deployment_operation: Any = None
-        deployments = self._rm_client.deployments
         try:
-            deployment_operation = deployments.begin_create_or_update(
-                **deployment_parameters
-            )
-            timer = create_timer()
-            while timer.elapsed(False) < self._azure_runbook.provisioning_timeout:
-                try:
-                    wait_operation(
-                        deployment_operation, time_out=300, failure_identity="deploy"
-                    )
-                except LisaTimeoutException:
-                    # Capture logs and continue retrying
-                    self._save_console_log_and_check_panic(
-                        resource_group_name, environment, log, False
-                    )
-                    continue
-                break
-            # Check if we exited the loop due to timeout
-            if timer.elapsed(False) >= self._azure_runbook.provisioning_timeout:
-                self._save_console_log_and_check_panic(
-                    resource_group_name, environment, log, False
-                )
-                raise LisaException(
-                    f"Deployment timeout: Azure did not respond in "
-                    f"{self._azure_runbook.provisioning_timeout // 60} minutes "
-                    f"(usual response is 50 minutes)."
-                )
+            self._deploy_with_retry(deployment_parameters, environment, log)
         except HttpResponseError as e:
             # Some errors happens underlying, so there is no detail errors from API.
             # For example,
@@ -2187,6 +2161,75 @@ class AzurePlatform(Platform):
                     return
                 plugin_manager.hook.azure_deploy_failed(error_message=error_message)
                 raise LisaException(error_message)
+
+    def _deploy_with_retry(
+        self,
+        deployment_parameters: Dict[str, Any],
+        environment: Environment,
+        log: Logger,
+    ) -> None:
+        """Retry only tenant-pipeline conflicts within one provisioning deadline."""
+        resource_group_name = deployment_parameters[AZURE_RG_NAME_KEY]
+        timer = create_timer()
+        timeout = self._azure_runbook.provisioning_timeout
+        for attempt in range(3):
+            check_cancelled()
+            if timer.elapsed(False) >= timeout:
+                break
+            try:
+                deployment_operation = (
+                    self._rm_client.deployments.begin_create_or_update(
+                        **deployment_parameters
+                    )
+                )
+                while timer.elapsed(False) < timeout:
+                    check_cancelled()
+                    remaining = timeout - timer.elapsed(False)
+                    if remaining <= 0:
+                        break
+                    try:
+                        wait_operation(
+                            deployment_operation,
+                            time_out=min(300, remaining),
+                            failure_identity="deploy",
+                        )
+                    except LisaTimeoutException:
+                        self._save_console_log_and_check_panic(
+                            resource_group_name, environment, log, False
+                        )
+                        continue
+                    if timer.elapsed(False) < timeout:
+                        return
+                    break
+                break
+            except HttpResponseError as error:
+                if (
+                    not error.error
+                    or self._parse_detail_errors(error.error)
+                    != ["Conflict: The tenant pipeline is currently running."]
+                    or attempt == 2
+                ):
+                    raise
+                delay = 30 * (attempt + 1)
+                log.warning(
+                    "Deployment hit a tenant-pipeline conflict; "
+                    f"retrying in {delay} seconds (retry {attempt + 1}/2)."
+                )
+                retry_at = min(timeout, timer.elapsed(False) + delay)
+                while True:
+                    check_cancelled()
+                    remaining = retry_at - timer.elapsed(False)
+                    if remaining <= 0:
+                        break
+                    time.sleep(min(1, remaining))
+        self._save_console_log_and_check_panic(
+            resource_group_name, environment, log, False
+        )
+        raise LisaException(
+            f"Deployment timeout: Azure did not respond in "
+            f"{timeout // 60} minutes "
+            f"(usual response is 50 minutes)."
+        )
 
     def _maybe_retry_with_bumped_osdisk_size(
         self,

@@ -1822,7 +1822,7 @@ def get_environment_context(environment: Environment) -> EnvironmentContext:
 
 
 def wait_operation(
-    operation: Any, time_out: int = sys.maxsize, failure_identity: str = ""
+    operation: Any, time_out: float = sys.maxsize, failure_identity: str = ""
 ) -> Any:
     timer = create_timer()
     wait_result: Any = None
@@ -1834,10 +1834,10 @@ def wait_operation(
         check_cancelled()
         if operation.done():
             break
-        wait_result = operation.wait(1)
+        wait_result = operation.wait(min(1, max(0, time_out - timer.elapsed(False))))
         if wait_result:
             raise LisaException(f"{failure_identity} {wait_result}")
-    if time_out < timer.elapsed():
+    if time_out <= timer.elapsed():
         raise LisaTimeoutException(
             f"{failure_identity} timeout after {time_out} seconds."
         )
