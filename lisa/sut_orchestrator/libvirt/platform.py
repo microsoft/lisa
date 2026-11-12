@@ -812,6 +812,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
         if vm_disks_dir:
             try:
                 self.host_node.shell.remove(Path(vm_disks_dir), True)
+            except FileNotFoundError:
+                pass
             except Exception as ex:
                 log.warning(f"Failed to delete VM files directory: {ex}")
 
@@ -939,7 +941,8 @@ class BaseLibvirtPlatform(Platform, IBaseLibvirtPlatform):
                 f"-j DNAT --to {address}:22",
             ):
                 result = iptables.run(command, force_run=True, sudo=True)
-                if result.exit_code == 1 and result.stderr.strip().endswith(
+                output = f"{result.stdout}\n{result.stderr}".strip()
+                if result.exit_code == 1 and output.endswith(
                     "Bad rule (does a matching rule exist in that chain?)."
                 ):
                     log.debug(f"Port forwarding rule is already absent: {command}")
