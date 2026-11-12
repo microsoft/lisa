@@ -165,13 +165,12 @@ class TlbStress(Tool):
         ]
 
         for event in events_to_test:
-            result = self.node.execute(
+            result = self.node.execute_async(
                 f"{perf_command} stat -e {event} -- /bin/true",
                 sudo=True,
                 no_error_log=True,
-                timeout=10,
                 update_envs={"LC_ALL": "C"},
-            )
+            ).wait_result(timeout=10, raise_on_timeout=False)
             output = f"{result.stdout}\n{result.stderr}"
             supported = (
                 result.exit_code == 0
