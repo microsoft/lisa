@@ -1,22 +1,25 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import re
 from pathlib import Path
 from typing import cast
 
+from lisa.base_tools import Cat
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Debian, Posix
+from lisa.operating_system import CBLMariner, CpuArchitecture, Debian, Linux, Posix
 from lisa.util import LisaException, RepoNotExistException, parse_version
 from lisa.util.process import Process
 
 from .git import Git
+from .lscpu import Lscpu
 from .make import Make
 
 
 class StressNg(Tool):
     repo = "https://github.com/ColinIanKing/stress-ng"
-    # V0.22.00 is the first release that validates AVX-512 CPU features before
-    # selecting target-cloned code, avoiding SIGILL on virtualized CPUs.
+    # V0.22.00 fixes AVX-512 target-clone selection; guests without usable
+    # AVX also need the portable build selected below.
     branch = "V0.22.00"
     _minimum_safe_version = parse_version("0.22.0")
 
@@ -58,7 +61,41 @@ class StressNg(Tool):
                 f"{self.branch}; installing a fixed build from source"
             )
             return False
+        if self._requires_portable_build():
+            build_info = self.node.execute(
+                f"{self.command} --buildinfo --dry-run --cpu 1 --timeout 1",
+                shell=True,
+                sudo=self._use_sudo,
+                no_error_log=True,
+                no_info_log=True,
+            )
+            build_info.assert_exit_code(
+                message=(
+                    "could not inspect stress-ng build flags: "
+                    f"{build_info.stdout}\n{build_info.stderr}"
+                )
+            )
+            if "-DBUILD_SMALL" not in (
+                f"{build_info.stdout}\n{build_info.stderr}".split()
+            ):
+                self._log.debug(
+                    "installed stress-ng lacks a portable build for this "
+                    "guest without usable AVX; rebuilding from source"
+                )
+                return False
         return True
+
+    def _requires_portable_build(self) -> bool:
+        if not isinstance(self.node.os, Linux):
+            return False
+        if self.node.tools[Lscpu].get_architecture() != CpuArchitecture.X64:
+            return False
+
+        cpu_info = self.node.tools[Cat].read("/proc/cpuinfo")
+        flags = re.findall(r"^flags[ \t]*:[ \t]*(.*)$", cpu_info, re.M)
+        if not flags or any(not value.strip() for value in flags):
+            raise LisaException("could not determine usable x86 CPU flags")
+        return any("avx" not in value.split() for value in flags)
 
     def install(self) -> bool:
         posix_os: Posix = cast(Posix, self.node.os)
@@ -161,11 +198,30 @@ class StressNg(Tool):
 
     def _install_from_src(self) -> bool:
         tool_path = self.get_tool_path()
+        portable_build = self._requires_portable_build()
         git = self.node.tools[Git]
-        git.clone(self.repo, tool_path, ref=self.branch, shallow=True)
+        git.clone(
+            self.repo,
+            tool_path,
+            ref=self.branch,
+            shallow=True,
+            fail_on_exists=not portable_build,
+        )
 
         make = self.node.tools[Make]
         self._install_required_packages()
         code_path = tool_path.joinpath("stress-ng")
-        make.make_install(cwd=code_path)
+        if portable_build:
+            self._log.warning(
+                "Building stress-ng with BUILD_SMALL=1 to disable "
+                "architecture-based target clones on a guest without usable AVX."
+            )
+            # Do not reuse objects compiled with unsafe architecture clones.
+            make.make("clean", cwd=code_path)
+        make.make_install(
+            cwd=code_path,
+            update_envs=(
+                {"BUILD_SMALL": "1", "EXTRA_BUILDINFO": "1"} if portable_build else None
+            ),
+        )
         return self._check_exists()

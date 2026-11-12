@@ -26,6 +26,7 @@ class Git(Tool):
     CERTIFICATE_ISSUE_PATTERN = re.compile(
         r"server certificate verification failed", re.M
     )
+    HTTPS_SIGILL_PATTERN = re.compile(r"git-remote-https? died of signal 4(?:\s|$)")
     VERSION_PATTERN = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 
     @property
@@ -85,6 +86,25 @@ class Git(Tool):
                 timeout=timeout,
             )
 
+        if (
+            result.exit_code == 128
+            and url.startswith("https://")
+            and self.HTTPS_SIGILL_PATTERN.search(f"{result.stdout}\n{result.stderr}")
+        ):
+            # GnuTLS can select AVX code when the guest OS has disabled XSAVE.
+            self._log.warning(
+                "Git HTTPS helper received SIGILL; retrying the clone with "
+                "GnuTLS CPU acceleration disabled for this command only."
+            )
+            result = self.run(
+                cmd,
+                cwd=cwd,
+                no_error_log=True,
+                force_run=True,
+                timeout=timeout,
+                update_envs={"GNUTLS_CPUID_OVERRIDE": "0x1"},
+            )
+
         # mark directory safe
         self._mark_safe(cwd)
 
@@ -94,7 +114,7 @@ class Git(Tool):
                 output = result.stdout
             code_dir = get_matched_str(output, self.CODE_FOLDER_PATTERN)
         else:
-            stdout = result.stdout
+            stdout = f"{result.stdout}\n{result.stderr}".strip()
             code_dir = get_matched_str(stdout, self.CODE_FOLDER_ON_EXISTS_PATTERN)
             if code_dir:
                 if fail_on_exists:
