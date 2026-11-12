@@ -529,7 +529,10 @@ class TlbStress(Tool):
             if stress_ng_parameters:
                 stress_ng_command = self.node.tools[StressNg].command
                 workloads.append(f"{stress_ng_command} {stress_ng_parameters}")
-            workload_script = "pids=; "
+            workload_script = (
+                f"printf '%s\\n' \"$$\" > {shlex.quote(workload_pid_file)}; "
+                "pids=; "
+            )
             workload_script += " ".join(
                 f'{workload} & pids="$pids $!";' for workload in workloads
             )
@@ -538,10 +541,8 @@ class TlbStress(Tool):
                 'exit "$status"'
             )
             workload_group_script = (
-                f"setsid sh -c {shlex.quote(workload_script)} & "
+                f"setsid --wait sh -c {shlex.quote(workload_script)} & "
                 f"workload_pid=$!; "
-                f"printf '%s\\n' \"$workload_pid\" > "
-                f"{shlex.quote(workload_pid_file)}; "
                 'wait "$workload_pid"'
             )
             command = f"sh -c {shlex.quote(workload_group_script)}"
