@@ -5,6 +5,7 @@ import math
 import re
 import shlex
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, cast
@@ -520,6 +521,8 @@ class TlbStress(Tool):
             duration, tlb_threads, tlb_pages, use_numa, use_hugepages
         )
         perf_monitor_process = None
+        workload_pid_file = f"/tmp/lisa-tlb-stress-{uuid.uuid4().hex}.pid"
+        workload_completed = False
         try:
             events = self._get_fallback_events(self._probe_perf_events())
             workloads = [tlb_cmd]
@@ -534,7 +537,14 @@ class TlbStress(Tool):
                 ' status=0; for pid in $pids; do wait "$pid" || status=$?; done; '
                 'exit "$status"'
             )
-            command = f"sh -c {shlex.quote(workload_script)}"
+            workload_group_script = (
+                f"setsid sh -c {shlex.quote(workload_script)} & "
+                f"workload_pid=$!; "
+                f"printf '%s\\n' \"$workload_pid\" > "
+                f"{shlex.quote(workload_pid_file)}; "
+                'wait "$workload_pid"'
+            )
+            command = f"sh -c {shlex.quote(workload_group_script)}"
             interrupts_sample_start_time = time.monotonic()
             interrupts_before = self._get_proc_interrupts() if events else {}
             cpu_before = (
@@ -551,6 +561,7 @@ class TlbStress(Tool):
                 update_envs={"LC_ALL": "C"},
             )
             perf_result = perf_monitor_process.wait_result(timeout=duration + 30)
+            workload_completed = True
             if not events:
                 perf_result.assert_exit_code(
                     message="TLB stress workload failed without perf monitoring"
@@ -573,6 +584,29 @@ class TlbStress(Tool):
                     and perf_monitor_process.is_running()
                 ):
                     perf_monitor_process.kill()
+                terminate_workload = (
+                    'workload_pid=$(cat '
+                    f"{shlex.quote(workload_pid_file)}); "
+                    'case "$workload_pid" in '
+                    '""|*[!0-9]*) ;; '
+                    f'*) kill -KILL -"$workload_pid" 2>/dev/null || true ;; '
+                    "esac; "
+                    if not workload_completed
+                    else ""
+                )
+                cleanup_command = (
+                    f"if [ -r {shlex.quote(workload_pid_file)} ]; then "
+                    f"{terminate_workload}"
+                    f"rm -f {shlex.quote(workload_pid_file)}; "
+                    "fi"
+                )
+                self.node.execute(
+                    cleanup_command,
+                    shell=True,
+                    sudo=True,
+                    timeout=10,
+                    no_error_log=True,
+                )
             finally:
                 if original_thp_mode is not None:
                     self._set_thp_mode(original_thp_mode)
