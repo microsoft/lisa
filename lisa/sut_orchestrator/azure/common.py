@@ -743,6 +743,8 @@ class AzureNodeSchema:
     # True by default for SIG and vhd, and is parsed from marketplace
     # image.
     is_linux: Optional[bool] = None
+    # Control-plane-only Windows tests do not need the OpenSSH bootstrap.
+    enable_ssh: bool = True
 
     _marketplace: InitVar[Optional[AzureVmMarketplaceSchema]] = None
 

@@ -501,6 +501,7 @@ class LisaRunner(BaseRunner):
             # parent as used as well.
             environment.is_new = False
 
+        was_connected = tested_environment.status == EnvironmentStatus.Connected
         test_suite.start(
             environment=tested_environment,
             case_results=test_results,
@@ -518,7 +519,8 @@ class LisaRunner(BaseRunner):
         # Cases that explicitly opt out of remote connections use control-plane
         # operations instead. Preserve the existing check for the default True.
         if (
-            not is_unittest()
+            was_connected
+            and not is_unittest()
             and test_result.runtime_data.metadata.requirement.remote_connection_required
             and not tested_environment.nodes.test_connections()
         ):
