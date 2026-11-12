@@ -14,6 +14,8 @@ from lisa.operating_system import (
 )
 from lisa.tools.gcc import Gcc
 from lisa.tools.git import Git
+from lisa.tools.meson import Meson
+from lisa.tools.ninja import Ninja
 from lisa.util import UnsupportedDistroException
 
 
@@ -76,13 +78,6 @@ class Modetest(Tool):
                     ),
                     extra_args=[f"--enablerepo=ol{major}_codeready_builder"],
                 )
-            else:
-                self.node.os.install_packages(
-                    (
-                        f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/ninja-build-1.10.2-6.el9.{arch}.rpm",  # noqa: E501
-                        f"http://mirror.stream.centos.org/9-stream/CRB/{arch}/os/Packages/meson-0.58.2-1.el9.noarch.rpm",  # noqa: E501
-                    )
-                )
         elif isinstance(self.node.os, Suse):
             arch = self.node.os.get_kernel_information().hardware_platform
             os_version = self.node.os.information.release.split(".")
@@ -107,6 +102,17 @@ class Modetest(Tool):
 
     def _install_from_src(self) -> None:
         self._install_dep_packages()
+        # Install distro-compatible tools and verify the sudo build environment.
+        for tool in (Meson, Ninja):
+            self.node.tools[tool].run(
+                "--version",
+                sudo=True,
+                force_run=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"{tool.__name__} is unavailable under sudo for the Modetest build."
+                ),
+            )
         tool_path = self.get_tool_path()
         self.node.tools[Git].clone(self.repo, tool_path)
         code_path = tool_path.joinpath("libdrm")
