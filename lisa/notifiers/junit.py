@@ -2,9 +2,9 @@
 # Licensed under the MIT license.
 
 import xml.etree.ElementTree as ET  # noqa: N817
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import IO, Any, Dict, List, Optional, Type, cast
+from typing import Any, Dict, List, Optional, Type, cast
 
 from dataclasses_json import dataclass_json
 
@@ -47,6 +47,7 @@ class _TestCaseInfo:
         self.active_subtest_name: Optional[str] = None
         self.last_seen_timestamp: float = 0.0
         self.subtest_total_elapsed: float = 0.0
+        self.pending_result: Optional[ET.Element] = None
 
 
 # Outputs tests results in JUnit format.
@@ -64,7 +65,6 @@ class JUnit(Notifier):
         super().__init__(runbook=runbook)
 
         self._report_path: Path
-        self._report_file: IO[Any]
         self._testsuites: ET.Element
         self._testsuites_info: Dict[str, _TestSuiteInfo]
         self._testcases_info: Dict[str, _TestCaseInfo]
@@ -76,30 +76,29 @@ class JUnit(Notifier):
 
         self._report_path = constants.RUN_LOCAL_LOG_PATH / runbook.path
 
-        # Open file now, to avoid errors occurring after all the tests have completed.
-        self._report_file = open(self._report_path, "wb")
-
         self._testsuites = ET.Element("testsuites")
         self._xml_tree = ET.ElementTree(self._testsuites)
 
         self._testsuites_info = {}
         self._testcases_info = {}
+        self._write_results()
 
     # Test runner is closing.
     def finalize(self) -> None:
-        try:
-            self._write_results()
-
-        finally:
-            self._report_file.close()
-
+        self._write_results()
         self._log.info(f"JUnit: {self._report_path}")
 
     def _write_results(self) -> None:
-        self._report_file.truncate(0)
-        self._report_file.seek(0)
-        self._xml_tree.write(self._report_file, xml_declaration=True, encoding="utf-8")
-        self._report_file.flush()
+        self._update_test_counts()
+        temporary_path = self._report_path.with_name(f".{self._report_path.name}.tmp")
+        try:
+            with temporary_path.open("wb") as report_file:
+                self._xml_tree.write(
+                    report_file, xml_declaration=True, encoding="utf-8"
+                )
+            temporary_path.replace(self._report_path)
+        finally:
+            temporary_path.unlink(missing_ok=True)
 
     # The types of messages that this class supports.
     def _subscribed_message_type(self) -> List[Type[MessageBase]]:
@@ -135,11 +134,10 @@ class JUnit(Notifier):
 
     # Handle a test case message.
     def _received_test_result(self, message: TestResultMessage) -> None:
-        if message.status in [TestStatus.RUNNING, TestStatus.SKIPPED]:
-            self._test_case_running(message)
-
         if message.is_completed:
             self._test_case_completed(message)
+        else:
+            self._test_case_running(message)
 
     # Handle a sub test case message.
     def _received_sub_test(self, message: SubTestMessage) -> None:
@@ -165,9 +163,6 @@ class JUnit(Notifier):
 
             self._testsuites_info[message.suite_full_name] = testsuite_info
 
-            # Write out current results to file.
-            self._write_results()
-
     def _set_test_case_info(self, message: TestResultMessage) -> None:
         testcase_info = _TestCaseInfo()
         testcase_info.suite_full_name = message.suite_full_name
@@ -181,6 +176,10 @@ class JUnit(Notifier):
 
     # Test run completed message.
     def _test_run_completed(self, message: TestRunMessage) -> None:
+        self._testsuites.attrib["time"] = self._get_elapsed_str(message.elapsed)
+        self._update_test_counts()
+
+    def _update_test_counts(self) -> None:
         total_tests = 0
         total_failures = 0
 
@@ -192,7 +191,6 @@ class JUnit(Notifier):
             total_tests += testsuite_info.test_count
             total_failures += testsuite_info.failed_count
 
-        self._testsuites.attrib["time"] = self._get_elapsed_str(message.elapsed)
         self._testsuites.attrib["tests"] = str(total_tests)
         self._testsuites.attrib["failures"] = str(total_failures)
         self._testsuites.attrib["errors"] = "0"
@@ -201,8 +199,41 @@ class JUnit(Notifier):
     def _test_case_running(self, message: TestResultMessage) -> None:
         self._set_test_suite_info(message)
 
-        # Initialize test-case info.
-        self._set_test_case_info(message)
+        if message.id_ not in self._testcases_info:
+            self._set_test_case_info(message)
+        testcase_info = self._testcases_info[message.id_]
+        self._remove_pending_result(testcase_info)
+        if message.status == TestStatus.RUNNING:
+            testcase_info.subtest_total_elapsed = 0.0
+            testcase_info.last_seen_timestamp = message.elapsed
+            pending_message = replace(
+                message,
+                status=TestStatus.FAILED,
+                message="Test execution was interrupted before a terminal result.",
+            )
+        else:
+            pending_message = replace(
+                message,
+                status=TestStatus.SKIPPED,
+                message="Test was selected but did not reach execution.",
+            )
+        testcase_info.pending_result = self._add_test_case_result(
+            pending_message,
+            message.suite_full_name,
+            message.suite_full_name,
+            message.elapsed,
+        )
+        self._write_results()
+
+    def _remove_pending_result(self, testcase_info: _TestCaseInfo) -> None:
+        pending_result = testcase_info.pending_result
+        if pending_result is not None:
+            testsuite_info = self._testsuites_info[testcase_info.suite_full_name]
+            testsuite_info.xml.remove(pending_result)
+            testsuite_info.test_count -= 1
+            if pending_result.find("failure") is not None:
+                testsuite_info.failed_count -= 1
+            testcase_info.pending_result = None
 
     # Test case completed message.
     def _test_case_completed(self, message: TestResultMessage) -> None:
@@ -231,6 +262,7 @@ class JUnit(Notifier):
 
             self._sub_test_case_completed(completed_message)
 
+        self._remove_pending_result(testcase_info)
         # Calculate total time spent in test case that was not spent in a sub-test case.
         elapsed = message.elapsed - testcase_info.subtest_total_elapsed
 
@@ -238,6 +270,7 @@ class JUnit(Notifier):
         self._add_test_case_result(
             message, message.suite_full_name, message.suite_full_name, elapsed
         )
+        self._write_results()
 
     # Sub test case started message.
     def _sub_test_case_running(self, message: SubTestMessage) -> None:
@@ -288,6 +321,7 @@ class JUnit(Notifier):
             f"{testcase_info.suite_full_name}.{testcase_info.name}",
             elapsed,
         )
+        self._write_results()
 
         testcase_info.last_seen_timestamp = message.elapsed
 
@@ -298,7 +332,7 @@ class JUnit(Notifier):
         suite_full_name: str,
         class_name: str,
         elapsed: float,
-    ) -> None:
+    ) -> ET.Element:
         testsuite_info = self._testsuites_info.get(suite_full_name)
         if not testsuite_info:
             raise LisaException("Test suite not started.")
@@ -330,8 +364,7 @@ class JUnit(Notifier):
 
         testsuite_info.test_count += 1
 
-        # Write out current results to file.
-        self._write_results()
+        return testcase
 
     def _get_elapsed_str(self, elapsed: float) -> str:
         return f"{elapsed:.3f}"

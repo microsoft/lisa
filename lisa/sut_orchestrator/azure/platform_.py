@@ -2438,14 +2438,28 @@ class AzurePlatform(Platform):
             )
             node.provision_time = environment_context.provision_time
 
-        # enable ssh for windows, if it's not Windows, or SSH reachable, it will
-        # skip.
-        run_in_parallel(
-            [
-                partial(self._enable_ssh_on_windows, node=x)
-                for x in environment.nodes.list()
-            ]
-        )
+        if self._is_remote_connection_required(environment):
+            # Enable SSH for Windows. Linux nodes and reachable SSH endpoints
+            # are skipped by the helper.
+            run_in_parallel(
+                [
+                    partial(self._enable_ssh_on_windows, node=x)
+                    for x in environment.nodes.list()
+                ]
+            )
+        else:
+            log.debug(
+                "skipping Windows SSH bootstrap because the selected test "
+                "does not require a remote connection"
+            )
+
+    @staticmethod
+    def _is_remote_connection_required(environment: Environment) -> bool:
+        source_test_result = environment.source_test_result
+        if source_test_result is None:
+            return True
+        requirement = source_test_result.runtime_data.metadata.requirement
+        return requirement.remote_connection_required
 
     @classmethod
     def _resource_sku_to_capability(  # noqa: C901
@@ -3091,7 +3105,7 @@ class AzurePlatform(Platform):
 
     def _enable_ssh_on_windows(self, node: Node) -> None:
         runbook = node.capability.get_extended_runbook(AzureNodeSchema)
-        if runbook.is_linux:
+        if runbook.is_linux or not runbook.enable_ssh:
             return
 
         context = get_node_context(node)

@@ -326,7 +326,9 @@ class CloudHypervisorPlatform(BaseLibvirtPlatform):
             if self._reconcile_domain_absence(node_context, log):
                 node_context.domain_stop_failed = False
                 return
-            assert node_context.domain
+            assert (
+                node_context.domain
+            ), f"Missing domain handle for VM {node_context.vm_name} during cleanup"
             if not node_context.domain.isActive():
                 log.debug(
                     f"VM {node_context.vm_name} is already stopped; "
