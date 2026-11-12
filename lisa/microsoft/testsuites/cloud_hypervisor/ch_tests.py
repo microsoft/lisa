@@ -16,7 +16,7 @@ from lisa import (
 from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.testsuite import TestResult, simple_requirement
 from lisa.tools import Dmesg, Journalctl, Ls, Lscpu, Modprobe, Usermod
-from lisa.util import SkippedException
+from lisa.util import SkippedException, to_bool
 
 from .ch_tests_tool import CloudHypervisorTests
 
@@ -103,6 +103,9 @@ class CloudHypervisorTestSuite(TestSuite):
             ref,
             include_list,
             exclude_list,
+            continue_on_failure=to_bool(
+                variables.get("ch_integration_continue_on_failure", True)
+            ),
         )
 
     @TestCaseMetadata(
@@ -144,6 +147,9 @@ class CloudHypervisorTestSuite(TestSuite):
             only=include_list,
             skip=exclude_list,
             cli_test_filter="live_migration",
+            continue_on_failure=to_bool(
+                variables.get("ch_integration_continue_on_failure", True)
+            ),
         )
 
     @TestCaseMetadata(

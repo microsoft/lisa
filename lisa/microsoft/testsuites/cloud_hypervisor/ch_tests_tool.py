@@ -4,8 +4,9 @@ import json
 import os
 import re
 import shlex
+import time
 import xml.etree.ElementTree as ETree  # noqa: N817
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePath, PurePosixPath
 from typing import Any, Dict, List, Optional, Set, Tuple, Type, cast
 
@@ -472,19 +473,23 @@ class CloudHypervisorTests(Tool):
         log_path: Path,
         subtests: Set[str],
         test_name: str,
+        junit_files: Optional[List[Path]] = None,
     ) -> None:
         """Process test results and handle various failure scenarios."""
         # Prefer nextest JUnit output when present. If nextest was invoked
         # but produced no JUnit output, fail with a clear diagnostic. If no
         # JUnit and no nextest markers, fall back to the cargo stdout parser.
-        junit_files = self._collect_nextest_junit_files(log_path)
+        if junit_files is None:
+            junit_files = self._collect_nextest_junit_files(log_path)
         nextest_invoked_no_junit = (
             not junit_files and "cargo nextest" in f"{result.stdout}\n{result.stderr}"
         )
 
         if junit_files:
             self._log.info(f"Parsing nextest JUnit output ({len(junit_files)} file(s))")
-            results = self._extract_test_results_from_junit(junit_files, subtests)
+            results = self._extract_test_results_from_junit(
+                junit_files, subtests, preserve_completed=True
+            )
         elif nextest_invoked_no_junit:
             results = [CloudHypervisorTestResult(name=name) for name in subtests]
         else:
@@ -575,6 +580,7 @@ class CloudHypervisorTests(Tool):
         only: Optional[List[str]] = None,
         skip: Optional[List[str]] = None,
         cli_test_filter: Optional[str] = None,
+        continue_on_failure: bool = True,
     ) -> None:
         self.validate_integration_test_type(test_type, hypervisor)
         if test_type == self.CVM_INTEGRATION_TEST_TYPE:
@@ -620,23 +626,15 @@ class CloudHypervisorTests(Tool):
         safe_test_type = self._sanitize_name(test_type.replace("-", "_"))
         test_name = self._sanitize_name(f"ch_{safe_test_type}_{hypervisor}")
 
-        # Wipe any nextest JUnit output left by a previous run on this node.
-        # The cloud-hypervisor nextest config recreates the directory as
-        # needed. This avoids stale results from a prior invocation being
-        # attributed to the current run. Tolerate non-zero exit silently
-        # since the directory may not exist on first run.
-        self.node.execute(
-            f"rm -rf {self._get_nextest_junit_dir()}",
-            shell=True,
-            no_error_log=True,
-        )
-
         try:
-            result = self._run_with_enhanced_diagnostics(
-                cmd_args=cmd_args,
-                timeout=self.CMD_TIME_OUT,
-                test_name=test_name,
-                numa_cmd="",
+            result, junit_files = self._run_integration_attempts(
+                cmd_args,
+                test_type,
+                hypervisor,
+                log_path,
+                subtests["subtest_set"],
+                test_name,
+                continue_on_failure,
             )
         except Exception:
             # Check for kernel panic before re-raising
@@ -645,10 +643,6 @@ class CloudHypervisorTests(Tool):
                     saved_path=log_path, force_run=True, test_result=test_result
                 )
             raise
-        finally:
-            # Always copy back artifacts, even on failure/timeout
-            self._copy_back_artifacts(log_path, test_name)
-
         self._process_test_results(
             result,
             test_result,
@@ -657,6 +651,130 @@ class CloudHypervisorTests(Tool):
             log_path,
             subtests["subtest_set"],
             test_name,
+            junit_files=junit_files,
+        )
+
+    def _run_integration_attempts(
+        self,
+        cmd_args: str,
+        test_type: str,
+        hypervisor: str,
+        log_path: Path,
+        subtests: Set[str],
+        test_name: str,
+        continue_on_failure: bool,
+    ) -> Tuple[ExecutableResult, List[Path]]:
+        deadline = time.monotonic() + self.CMD_TIME_OUT
+        pending = subtests.copy()
+        attempts: List[ExecutableResult] = []
+        junit_files: List[Path] = []
+        while True:
+            attempt_name = (
+                test_name
+                if not attempts
+                else f"{test_name}_attempt_{len(attempts) + 1}"
+            )
+            # Archive each invocation before the native profiles overwrite their XMLs.
+            attempt_path = log_path / f"attempt_{len(attempts) + 1}"
+            # The container can create root-owned JUnit directories on the host.
+            self.node.execute(
+                f"rm -f {shlex.quote(self._get_nextest_junit_dir())}/*.xml",
+                shell=True,
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="Failed to clear CH JUnit files",
+            )
+            remaining = int(deadline - time.monotonic())
+            if remaining <= 0:
+                if not attempts:
+                    raise LisaException(
+                        "Cloud Hypervisor command budget expired before execution."
+                    )
+                attempts[-1].is_timeout = True
+                self._log.info(
+                    "Cloud Hypervisor continuation exhausted the command timeout; "
+                    f"{len(pending)} selected subtests remain unstarted."
+                )
+                break
+            try:
+                result = self._run_with_enhanced_diagnostics(
+                    cmd_args=cmd_args,
+                    timeout=remaining,
+                    test_name=attempt_name,
+                    numa_cmd="",
+                )
+            finally:
+                self._copy_back_artifacts(log_path, attempt_name)
+            attempts.append(result)
+            current_junit = self._collect_nextest_junit_files(attempt_path)
+            junit_files.extend(current_junit)
+            current_results = self._extract_test_results_from_junit(
+                current_junit, pending
+            )
+            completed = {
+                child.name
+                for child in current_results
+                if child.name in pending and child.status != TestStatus.QUEUED
+            }
+            if len(attempts) > 1 and result.exit_code == 0 and completed != pending:
+                message = (
+                    "Cloud Hypervisor continuation exited successfully without "
+                    f"results for {len(pending - completed)} selected subtests."
+                )
+                self._log.info(message)
+                result.stderr += f"\n{message}"
+                result.exit_code = 1
+            if (
+                not continue_on_failure
+                or test_type != self.INTEGRATION_TEST_TYPE
+                or result.is_timeout
+                or result.exit_code != 100
+            ):
+                break
+            if not completed or not any(
+                child.name in pending and child.status == TestStatus.FAILED
+                for child in current_results
+            ):
+                self._log.info(
+                    "Not continuing Cloud Hypervisor execution: exit code 100 "
+                    "has no new, confirmed test failures in the collected JUnit."
+                )
+                break
+            pending.difference_update(completed)
+            if not pending:
+                break
+            self._log.info(
+                "Cloud Hypervisor tests failed; continuing with "
+                f"{len(pending)} unstarted selected subtests. "
+                "The overall test will remain failed."
+            )
+            included = "|".join(
+                f"test(={self._escape_nextest_filter_matcher(name)})"
+                for name in sorted(pending)
+            )
+            nextest_filter = shlex.quote("--filterset=" + included)
+            cmd_args = self._build_tests_command(
+                test_type,
+                hypervisor,
+                test_script_args=f"--test-filter {nextest_filter}",
+            )
+        return (
+            replace(
+                attempts[0],
+                _stdout="\n".join(attempt.stdout for attempt in attempts),
+                _stderr="\n".join(attempt.stderr for attempt in attempts),
+                exit_code=next(
+                    (
+                        attempt.exit_code
+                        for attempt in reversed(attempts)
+                        if attempt.exit_code != 0
+                    ),
+                    0,
+                ),
+                elapsed=sum(attempt.elapsed for attempt in attempts),
+                is_timeout=any(attempt.is_timeout for attempt in attempts),
+            ),
+            junit_files,
         )
 
     def run_metrics_tests(
@@ -1964,6 +2082,7 @@ exit $ec
         self,
         junit_files: List[Path],
         subtests: Set[str],
+        preserve_completed: bool = False,
     ) -> List[CloudHypervisorTestResult]:
         """Parse nextest JUnit XML files into per-subtest results.
 
@@ -1974,7 +2093,9 @@ exit $ec
 
         For tests that nextest retried (same name appears multiple times),
         the last occurrence wins, matching nextest's final-outcome
-        reporting. Tests present in ``subtests`` but absent from every
+        reporting. With ``preserve_completed``, filtered/skipped records from
+        later invocations cannot replace completed passes or failures.
+        Tests present in ``subtests`` but absent from every
         JUnit file are reported as QUEUED with message
         ``"Subtest did not start"`` until the completed runner's results are
         finalized by ``_process_test_results``. Tests present in JUnit but not in the
@@ -2017,6 +2138,13 @@ exit $ec
                     message = ""
 
                 if name in subtest_status:
+                    if (
+                        preserve_completed
+                        and status == TestStatus.SKIPPED
+                        and subtest_status[name]
+                        in (TestStatus.PASSED, TestStatus.FAILED)
+                    ):
+                        continue
                     subtest_status[name] = status
                     if message:
                         subtest_messages[name] = message
