@@ -449,6 +449,7 @@ class OpenVmmTests(Tool):
             raise LisaException(f"Unexpected OpenVMM temporary path: {alias!r}")
         try:
             self.node.execute(
+                f"mkdir -p -- {shlex.quote(str(target))} && "
                 f"rmdir -- {shlex.quote(alias)} && "
                 f"ln -s -- {shlex.quote(str(target))} {shlex.quote(alias)}",
                 shell=True,
