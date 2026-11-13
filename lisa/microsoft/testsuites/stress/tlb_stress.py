@@ -562,7 +562,9 @@ class TlbStress(Tool):
                 update_envs={"LC_ALL": "C"},
             )
             perf_result = perf_monitor_process.wait_result(timeout=duration + 30)
-            workload_completed = True
+            workload_completed = (
+                not perf_result.is_timeout and perf_result.exit_code == 0
+            )
             if not events:
                 perf_result.assert_exit_code(
                     message="TLB stress workload failed without perf monitoring"
