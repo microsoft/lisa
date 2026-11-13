@@ -123,6 +123,8 @@ class TlbStressTestSuite(TestSuite):
         to create maximum TLB pressure while monitoring performance degradation.
         Features baseline/stress comparison with configurable thresholds to detect
         performance regressions in virtual memory subsystems.
+        If perf is unavailable, the workloads and kernel checks still run;
+        the performance-comparison subtest is reported as skipped.
         """,
         priority=3,
         requirement=simple_requirement(min_core_count=4, min_memory_mb=2048),

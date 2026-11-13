@@ -45,7 +45,7 @@ void *tlb_flush_worker(void *arg) {
     struct thread_data *data = (struct thread_data *)arg;
     void **memory_regions;
     int i, j;
-    time_t start_time, current_time;
+    struct timespec deadline, current_time;
     size_t region_size = data->pages_per_thread * PAGE_SIZE;
     
     printf("[Thread %d] Starting TLB flush stress with %d pages (%zu bytes)\n", 
@@ -59,12 +59,24 @@ void *tlb_flush_worker(void *arg) {
         return NULL;
     }
     
-    start_time = time(NULL);
+    if (clock_gettime(CLOCK_MONOTONIC, &deadline) != 0) {
+        fprintf(stderr, "[Thread %d] Failed to read monotonic clock: %s\n",
+                data->thread_id, strerror(errno));
+        free(memory_regions);
+        return NULL;
+    }
+    deadline.tv_sec += data->duration_seconds;
     data->thread_tlb_flushes = 0;
     
     while (keep_running) {
-        current_time = time(NULL);
-        if (current_time - start_time >= data->duration_seconds) {
+        if (clock_gettime(CLOCK_MONOTONIC, &current_time) != 0) {
+            fprintf(stderr, "[Thread %d] Failed to read monotonic clock: %s\n",
+                    data->thread_id, strerror(errno));
+            break;
+        }
+        if (current_time.tv_sec > deadline.tv_sec ||
+            (current_time.tv_sec == deadline.tv_sec &&
+             current_time.tv_nsec >= deadline.tv_nsec)) {
             break;
         }
         
