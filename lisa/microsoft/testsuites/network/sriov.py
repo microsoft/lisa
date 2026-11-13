@@ -4,6 +4,7 @@ import re
 import sys
 from decimal import Decimal
 from pathlib import Path, PurePosixPath
+from time import monotonic
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 from assertpy import assert_that
@@ -402,6 +403,7 @@ class Sriov(TestSuite):
         ),
         priority=2,
         timeout=600,
+        maturity="preview",
         requirement=simple_requirement(
             network_interface=features.Sriov(),
             unsupported_os=[BSD, Windows],
@@ -409,6 +411,7 @@ class Sriov(TestSuite):
         tags=["ai-generated"],
     )
     def verify_vf_ethtool_private_flags(self, node: Node, log: Logger) -> None:
+        deadline = monotonic() + 600
         vf_nics = self._get_vf_nics(node, log, "private flags")
         ethtool = node.tools[Ethtool]
         ip = node.tools[Ip]
@@ -438,6 +441,13 @@ class Sriov(TestSuite):
             )
             node.mark_dirty()
             for flag, original_value in original_flags.items():
+                # Reserve 120s for writes/readbacks, 60s for restoration, and
+                # 60s for state checks before the case's outer timeout.
+                if deadline - monotonic() < 240:
+                    raise LisaTimeoutException(
+                        "Insufficient time to start another private-flag cycle "
+                        f"on {interface}; reserving time for verification and cleanup."
+                    )
                 outcome = (
                     f"{interface} {flag} "
                     f"(original={'on' if original_value else 'off'}, "
