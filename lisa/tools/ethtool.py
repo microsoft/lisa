@@ -807,12 +807,13 @@ class Ethtool(Tool):
         return driver_info.group("value")
 
     def get_device_private_flags(self, interface: str) -> Dict[str, bool]:
-        """Read all advertised private flags without using cached command output."""
+        """Read fresh private flags, allowing at most 30 seconds for the command."""
         result = self.run(
             f"--show-priv-flags {shlex.quote(interface)}",
             sudo=True,
             force_run=True,
             shell=True,
+            timeout=30,
         )
         if result.is_timeout:
             raise LisaException(
@@ -845,7 +846,7 @@ class Ethtool(Tool):
         return flags
 
     def set_device_private_flag(self, interface: str, flag: str, enabled: bool) -> None:
-        """Set a private flag; callers must separately verify fresh readback."""
+        """Set a flag within 30 seconds; callers must verify fresh readback."""
         value = "on" if enabled else "off"
         result = self.run(
             f"--set-priv-flags {shlex.quote(interface)} "
@@ -853,6 +854,7 @@ class Ethtool(Tool):
             sudo=True,
             force_run=True,
             shell=True,
+            timeout=30,
         )
         if result.is_timeout:
             raise LisaException(
