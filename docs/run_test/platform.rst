@@ -366,6 +366,15 @@ Run on Linux and QEMU
 
 You can run the tests on Linux machine that has QEMU and KVM installed.
 
+.. note::
+
+   For libvirt guests, set ``capture_boot_time: true`` on the ``qemu`` or
+   ``cloud-hypervisor`` platform entry to collect timings using
+   ``systemd-analyze time``. This defaults to ``false`` and is applied before
+   the guest's first initialization, including initialization during cloud-init
+   setup. Collection emits a ``ProvisionBootTime`` message; saving it to a
+   database requires an enabled notifier that handles that message.
+
 Currently, only the `CBL-Mariner <https://github.com/microsoft/CBL-Mariner>`_ distro
 is supported. But it should be fairly straightforward to extend support to other
 distros. Also, only the the tier 0 tests are currently supported.
