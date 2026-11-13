@@ -40,17 +40,18 @@ def _cache_vmm_version_in_node(node: Node, version: str) -> None:
 
 def get_vmm_version(node: Node) -> str:
     """
-    Detects cloud-hypervisor VMM version from cached value, local binary,
-    or git repository.
+    Returns the selected VMM's cached version, otherwise detects Cloud Hypervisor
+    from a local binary or git repository.
 
     Checks in order:
-    1. Cached value from CloudHypervisorTests tool (if installed)
+    1. Cached value from the active VMM test tool (including OpenVMM)
     2. Local binary (fast, works for most installations)
     3. Git repository (for Docker-based tests where binaries are compiled on-demand)
 
-    Returns the version string as reported by ``cloud-hypervisor --version`` after
-    the ``cloud-hypervisor `` prefix (for example, ``"v41.0.0-41.0.120.g4ea35aaf"``
-    or ``"48.0.235"``), or ``"UNKNOWN"`` if detection fails.
+    A selected VMM's cached version is returned unchanged. Otherwise, returns the
+    version from ``cloud-hypervisor --version`` after the ``cloud-hypervisor ``
+    prefix (for example, ``"v41.0.0-41.0.120.g4ea35aaf"`` or ``"48.0.235"``),
+    or ``"UNKNOWN"`` if detection fails.
 
     To force re-detection after a previous failure (e.g., when
     cloud-hypervisor is installed after an initial detection attempt),
@@ -62,7 +63,7 @@ def get_vmm_version(node: Node) -> str:
     """
     result: str = "UNKNOWN"
     try:
-        # Check if CloudHypervisorTests tool has already cached the version.
+        # Check if the active VMM test tool has already cached the version.
         # This lookup does not require SSH connectivity and should be usable
         # even during teardown when the node may be disconnected.
         extended_resources = getattr(node.capability, "extended_resources", None)
