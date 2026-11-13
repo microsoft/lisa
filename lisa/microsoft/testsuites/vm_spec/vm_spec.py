@@ -550,6 +550,31 @@ class VmSpec(TestSuite):
         ),
     )
     def verify_vm_max_premium_ssd_disk_count(self, node: Node, log: Logger) -> None:
+        self._verify_max_data_disk_count(node, log)
+
+    @TestCaseMetadata(
+        maturity="preview",
+        description="""
+        Verify that the VM supports the maximum number of Standard SSD
+        data disks allowed by the VM size's container policy.
+        Provision a fresh VM with the maximum disk count, discover the
+        attached raw data disks inside the guest, and assert their count
+        matches node.capability.disk.max_data_disk_count.
+        """,
+        priority=4,
+        use_new_environment=True,
+        requirement=simple_requirement(
+            supported_platform_type=[AZURE],
+            disk=schema.DiskOptionSettings(
+                data_disk_type=schema.DiskType.StandardSSDLRS,
+                data_disk_count=search_space.IntRange(min=1, choose_max_value=True),
+            ),
+        ),
+    )
+    def verify_vm_max_standard_ssd_disk_count(self, node: Node, log: Logger) -> None:
+        self._verify_max_data_disk_count(node, log)
+
+    def _verify_max_data_disk_count(self, node: Node, log: Logger) -> None:
         expected_max_disks = _expected_max_data_disk_count(node)
         vm_size = _vm_size(node)
 
