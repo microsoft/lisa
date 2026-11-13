@@ -60,7 +60,11 @@ class OpenVmmTestsToolTestCase(TestCase):
         tool._log = MagicMock()
         with TemporaryDirectory() as temp_dir, patch.object(
             tool, "_has_cargo_nextest", side_effect=[False, True]
-        ), patch.object(tool, "_run_logged_command") as run_logged_command:
+        ), patch.object(
+            tool, "_get_nextest_version", return_value="0.9.101"
+        ), patch.object(
+            tool, "_run_logged_command"
+        ) as run_logged_command:
             tool._ensure_cargo_nextest(Path(temp_dir), {})
 
         install_command = run_logged_command.call_args.kwargs["command"]
@@ -83,7 +87,7 @@ class OpenVmmTestsToolTestCase(TestCase):
             junit_file.write_text(
                 """<?xml version="1.0" encoding="utf-8"?>
 <testsuites>
-  <testsuite name="x64-linux-vmm-tests" tests="17" failures="7" errors="0" skipped="41">
+  <testsuite name="x64-linux-vmm-tests" tests="48" failures="7" errors="0" skipped="41">
     <testcase
       classname="vmm_tests::tests"
       name="multiarch::ic::openvmm_uefi_x64_ubuntu_2504_server_x64_timesync_ic">
@@ -103,7 +107,7 @@ class OpenVmmTestsToolTestCase(TestCase):
                 )
 
             self.assertIn(
-                "17 tests run: 0 passed, 7 failed, 41 skipped",
+                "7 tests run: 0 passed, 7 failed, 41 skipped",
                 str(context.exception),
             )
             self.assertIn("Failed tests:", str(context.exception))
@@ -213,7 +217,7 @@ encountered at least one test failure!
                 junit_file=junit_file,
             )
 
-        self.assertEqual(2, summary.tests)
+        self.assertEqual(1, summary.tests)
         self.assertEqual(1, summary.skipped)
         self.assertEqual(
             ["vmm_tests::tests multiarch::openvmm_boot"],
