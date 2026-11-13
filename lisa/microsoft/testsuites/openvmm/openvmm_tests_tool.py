@@ -171,81 +171,84 @@ class OpenVmmTests(Tool):
         with self._native_workspace(
             manifest["source_sha"], log_path, install_missing_deps
         ) as env:
-            self._validate_native_contract()
-            input_dir = self.repo_root / "input"
-            self._build_native_content(
-                configuration,
-                input_dir,
-                selected_filter,
-                env,
-                log_path,
-                install_missing_deps,
-            )
-            target = GNU if configuration == CONFIGURATIONS[1] else MUSL
-            binary_path = str(input_dir / target / "openvmm")
-            manifest["binary_version"] = self._record_vmm_version(binary_path)
-            manifest["binary_path"] = binary_path
-            (log_path / "openvmm_manifest.json").write_text(
-                json.dumps(manifest, indent=2), encoding="utf-8"
-            )
-            env.update(
-                VMM_TESTS_CONTENT_DIR=str(input_dir),
-                VMM_TEST_IMAGES=str(input_dir / "images"),
-                TEST_OUTPUT_PATH=str(input_dir / "test_results"),
-                TMPDIR=str(input_dir / "temp"),
-                PETRI_REMOTE_ARTIFACTS="0",
-                RUST_BACKTRACE="1",
-                RUST_LOG="trace",
-            )
-            if configuration == CONFIGURATIONS[1]:
-                env["OPENVMM_REQUIRE_2MB_HUGETLB"] = "1"
             name = "openvmm_vmm_tests"
             local_junit = log_path / f"{name}.junit.xml"
             local_junit.unlink(missing_ok=True)
-            try:
-                self._prepare_native_execution(
-                    configuration,
-                    input_dir,
-                    env,
-                    log_path,
-                    install_missing_deps,
-                )
-                command = shlex.join(
-                    [
-                        self.node.tools[Cargo].command,
-                        "nextest",
-                        "run",
-                        "--profile",
-                        "ci",
-                        "--config-file",
-                        str(self.repo_root / ".config/nextest.toml"),
-                        "--workspace-remap",
-                        str(self.repo_root),
-                        "--archive-file",
-                        str(input_dir / target / "vmm_tests.tar.zst"),
-                        "--filter-expr",
+            with self._short_temp_path(self.repo_root / "input") as input_dir:
+                try:
+                    self._validate_native_contract()
+                    self._build_native_content(
+                        configuration,
+                        input_dir,
                         selected_filter,
-                    ]
+                        env,
+                        log_path,
+                        install_missing_deps,
+                    )
+                    target = GNU if configuration == CONFIGURATIONS[1] else MUSL
+                    binary_path = str(input_dir / target / "openvmm")
+                    manifest["binary_version"] = self._record_vmm_version(binary_path)
+                    manifest["binary_path"] = binary_path
+                    (log_path / "openvmm_manifest.json").write_text(
+                        json.dumps(manifest, indent=2), encoding="utf-8"
+                    )
+                    env.update(
+                        VMM_TESTS_CONTENT_DIR=str(input_dir),
+                        VMM_TEST_IMAGES=str(input_dir / "images"),
+                        TEST_OUTPUT_PATH=str(input_dir / "test_results"),
+                        TMPDIR=str(input_dir / "temp"),
+                        PETRI_REMOTE_ARTIFACTS="0",
+                        RUST_BACKTRACE="1",
+                        RUST_LOG="trace",
+                    )
+                    if configuration == CONFIGURATIONS[1]:
+                        env["OPENVMM_REQUIRE_2MB_HUGETLB"] = "1"
+                    with self._prepare_native_execution(
+                        configuration,
+                        input_dir,
+                        env,
+                        log_path,
+                        install_missing_deps,
+                    ):
+                        command = shlex.join(
+                            [
+                                self.node.tools[Cargo].command,
+                                "nextest",
+                                "run",
+                                "--profile",
+                                "ci",
+                                "--config-file",
+                                str(self.repo_root / ".config/nextest.toml"),
+                                "--workspace-remap",
+                                str(self.repo_root),
+                                "--archive-file",
+                                str(input_dir / target / "vmm_tests.tar.zst"),
+                                "--filter-expr",
+                                selected_filter,
+                            ]
+                        )
+                        self._run_logged_command(
+                            name=name,
+                            command=self._wrap_command_for_group(
+                                f"ulimit -c unlimited && "
+                                f"{self._native_environment_prefix(configuration)} "
+                                f"{command}"
+                            ),
+                            log_path=log_path,
+                            timeout=self.VMM_TIMEOUT,
+                            update_envs=env,
+                        )
+                finally:
+                    # Preserve diagnostics from build, setup and execution before
+                    # the temporary source worktree is removed.
+                    self._collect_native_results(log_path, local_junit)
+                if not local_junit.exists():
+                    raise LisaException(
+                        "Native OpenVMM execution produced no JUnit report"
+                    )
+                return self._check_vmm_tests_results(
+                    name, log_path / f"{name}.log", local_junit
                 )
-                self._run_logged_command(
-                    name=name,
-                    command=self._wrap_command_for_group(
-                        f"ulimit -c unlimited && "
-                        f"{self._native_environment_prefix(configuration)} {command}"
-                    ),
-                    log_path=log_path,
-                    timeout=self.VMM_TIMEOUT,
-                    update_envs=env,
-                )
-            finally:
-                # Preserve available diagnostics even when preparation or tests
-                # fail, before the temporary source worktree is removed.
-                self._collect_native_results(log_path, local_junit)
-            if not local_junit.exists():
-                raise LisaException("Native OpenVMM execution produced no JUnit report")
-            return self._check_vmm_tests_results(
-                name, log_path / f"{name}.log", local_junit
-            )
 
     def _build_native_content(
         self,
@@ -337,10 +340,15 @@ class OpenVmmTests(Tool):
             update_envs={"GIT_TERMINAL_PROMPT": "0"},
             expected_exit_code=0,
         )
+        working_path = str(self.node.working_path).rstrip("/")
         workspace = self.node.execute(
-            "mktemp -d /tmp/ovn-XXXXXXXX", shell=True, expected_exit_code=0
+            f"mktemp -d {shlex.quote(working_path)}/ovn-XXXXXXXX",
+            shell=True,
+            expected_exit_code=0,
         ).stdout.strip()
-        if not re.fullmatch(r"/tmp/ovn-[A-Za-z0-9]{8}", workspace):
+        if not re.fullmatch(
+            rf"{re.escape(working_path)}/ovn-[A-Za-z0-9]{{8}}", workspace
+        ):
             raise LisaException(f"Unexpected OpenVMM workspace: {workspace!r}")
         added = False
         try:
@@ -415,6 +423,50 @@ class OpenVmmTests(Tool):
                 if not has_error:
                     raise LisaException("failed to remove OpenVMM workspace")
 
+    @contextmanager
+    def _short_temp_path(self, target: PurePath) -> Iterator[PurePath]:
+        alias = self._create_short_temp_path(target)
+        try:
+            yield alias
+        finally:
+            self.node.execute(
+                f"rm -f -- {shlex.quote(str(alias))}",
+                shell=True,
+                expected_exit_code=None,
+                no_info_log=True,
+            )
+
+    def _create_short_temp_path(self, target: PurePath) -> PurePath:
+        alias = self.node.execute(
+            "mktemp -d /tmp/ovi-XXXXXXXX",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to create a short path for OpenVMM temporary files"
+            ),
+        ).stdout.strip()
+        if not re.fullmatch(r"/tmp/ovi-[A-Za-z0-9]{8}", alias):
+            raise LisaException(f"Unexpected OpenVMM temporary path: {alias!r}")
+        try:
+            self.node.execute(
+                f"rmdir -- {shlex.quote(alias)} && "
+                f"ln -s -- {shlex.quote(str(target))} {shlex.quote(alias)}",
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to link the OpenVMM working-volume content directory"
+                ),
+            )
+        except Exception:
+            self.node.execute(
+                f"rm -f -- {shlex.quote(alias)}",
+                shell=True,
+                expected_exit_code=None,
+                no_info_log=True,
+            )
+            raise
+        return self.node.get_pure_path(alias)
+
     def _validate_native_contract(self) -> None:
         result = self.node.execute(
             "sha256sum " + shlex.join(CONTRACT_FILES),
@@ -442,6 +494,7 @@ class OpenVmmTests(Tool):
             prefix += " -u OPENVMM_REQUIRE_2MB_HUGETLB"
         return prefix
 
+    @contextmanager
     def _prepare_native_execution(
         self,
         configuration: str,
@@ -449,7 +502,7 @@ class OpenVmmTests(Tool):
         env: Dict[str, str],
         log_path: Path,
         install_missing_deps: bool,
-    ) -> None:
+    ) -> Iterator[None]:
         self._ensure_cargo_nextest(log_path, env, install_missing_deps)
         paths = [content / "temp", content / "test_results", content / "images"]
         self.node.execute(
@@ -462,67 +515,175 @@ class OpenVmmTests(Tool):
             expected_exit_code=0,
         )
         device = "/dev/kvm" if configuration == CONFIGURATIONS[1] else "/dev/mshv"
-        # Install/configure prerequisites only when requested; access and
-        # hugepage checks below still apply when installation is disabled.
-        setup = []
-        if install_missing_deps:
-            setup.append(f"chmod a+rw {device}")
-            if configuration != CONFIGURATIONS[2]:
-                setup.extend(
-                    [
-                        "modprobe vhost_vsock",
-                        "udevadm settle",
-                        "chmod a+rw /dev/vhost-vsock",
-                    ]
-                )
-            if configuration == CONFIGURATIONS[1]:
-                setup.append(
-                    "echo 4096 > "
-                    "/sys/kernel/mm/hugepages/hugepages-2048kB/nr_overcommit_hugepages"
-                )
-            self.node.execute(
-                " && ".join(setup),
-                shell=True,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message="failed native VMM host preparation",
-            )
-        checks = [f"test -r {device} && test -w {device}"]
-        if configuration != CONFIGURATIONS[2]:
-            checks.append("test -r /dev/vhost-vsock && test -w /dev/vhost-vsock")
-        if configuration == CONFIGURATIONS[1]:
-            checks.append(
-                'test "$(cat /sys/kernel/mm/hugepages/hugepages-2048kB/'
-                'nr_overcommit_hugepages)" -ge 4096'
-            )
-        self.node.execute(
-            " && ".join(checks),
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "native VMM host prerequisites are unmet"
-            ),
+        vsock = "/dev/vhost-vsock"
+        hugepage_path = (
+            "/sys/kernel/mm/hugepages/hugepages-2048kB/" "nr_overcommit_hugepages"
         )
-        if configuration == CONFIGURATIONS[2]:
-            return
-        images = IMAGES + (ARM_IMAGES if configuration == CONFIGURATIONS[1] else ())
-        for filename, size in images:
-            path = shlex.quote(str(content / "images" / filename))
-            url = shlex.quote(
-                "https://hvlitetestvhds.blob.core.windows.net/vhds/" + filename
-            )
-            self._run_logged_command(
-                name=f"openvmm_download_{filename}",
-                command=(
-                    f"if ! test -f {path} || "
-                    f'test "$(stat -c %s {path})" -ne {size}; then '
-                    f"curl --fail --location --retry 3 {url} -o {path}; fi && "
-                    f'test "$(stat -c %s {path})" -eq {size}'
+        original_hugepage_value: Optional[str] = None
+        original_vsock_acl: Optional[str] = None
+        acl_user: Optional[str] = None
+        changed_hugepage_value = False
+        try:
+            if install_missing_deps:
+                # vhost_vsock is a host-global module and is not unloaded here;
+                # force LISA to discard this host even if later setup fails.
+                self.node.mark_dirty()
+                setup = []
+                if configuration != CONFIGURATIONS[2]:
+                    setup.extend(["modprobe vhost_vsock", "udevadm settle"])
+                if configuration == CONFIGURATIONS[1]:
+                    original_hugepage_value = self.node.execute(
+                        f"cat {shlex.quote(hugepage_path)}",
+                        shell=True,
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message=(
+                            "failed to read the original hugepage overcommit limit"
+                        ),
+                    ).stdout.strip()
+                    if not original_hugepage_value.isdigit():
+                        raise LisaException(
+                            "Invalid original hugepage overcommit limit: "
+                            f"{original_hugepage_value!r}"
+                        )
+                    changed_hugepage_value = True
+                    # The upstream prerequisite caps surplus hugepages at 8 GiB;
+                    # it is not an immediate memory reservation.
+                    setup.append(f"echo 4096 > {shlex.quote(hugepage_path)}")
+                if setup:
+                    self.node.execute(
+                        " && ".join(setup),
+                        shell=True,
+                        sudo=True,
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message=(
+                            "failed native VMM host preparation"
+                        ),
+                    )
+                if configuration != CONFIGURATIONS[2]:
+                    vsock_check = self._wrap_command_for_group(
+                        f"test -r {vsock} && test -w {vsock}"
+                    )
+                    access = self.node.execute(
+                        vsock_check,
+                        shell=True,
+                        expected_exit_code=None,
+                        no_info_log=True,
+                        no_error_log=True,
+                    )
+                    if access.exit_code:
+                        cast(Posix, self.node.os).install_packages(["acl"])
+                        original_vsock_acl = self.node.execute(
+                            f"getfacl -cp {shlex.quote(vsock)}",
+                            shell=True,
+                            sudo=True,
+                            expected_exit_code=0,
+                            expected_exit_code_failure_message=(
+                                "failed to preserve existing vhost-vsock ACL"
+                            ),
+                        ).stdout.strip()
+                        acl_user = self.node.execute(
+                            "id -un",
+                            shell=True,
+                            expected_exit_code=0,
+                            expected_exit_code_failure_message=(
+                                "failed to identify the OpenVMM test user"
+                            ),
+                        ).stdout.strip()
+                        if not acl_user or not original_vsock_acl:
+                            raise LisaException(
+                                "Could not safely prepare restricted vhost-vsock access"
+                            )
+                        self.node.execute(
+                            f"setfacl -m "
+                            f"{shlex.quote(f'u:{acl_user}:rw')} {shlex.quote(vsock)}",
+                            shell=True,
+                            sudo=True,
+                            expected_exit_code=0,
+                            expected_exit_code_failure_message=(
+                                "failed to grant temporary vhost-vsock access"
+                            ),
+                        )
+
+            checks = [f"test -r {device} && test -w {device}"]
+            if configuration != CONFIGURATIONS[2]:
+                checks.append(f"test -r {vsock} && test -w {vsock}")
+            if configuration == CONFIGURATIONS[1]:
+                # Upstream's 4096-page threshold is an 8 GiB surplus-page cap,
+                # not an immediate memory reservation.
+                checks.append(f'test "$(cat {shlex.quote(hugepage_path)})" -ge 4096')
+            self.node.execute(
+                self._wrap_command_for_group(" && ".join(checks)),
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "native VMM host prerequisites are unmet"
                 ),
-                log_path=log_path,
-                timeout=self.RESTORE_TIMEOUT,
-                update_envs=env,
             )
+            if configuration != CONFIGURATIONS[2]:
+                images = IMAGES + (
+                    ARM_IMAGES if configuration == CONFIGURATIONS[1] else ()
+                )
+                for filename, size in images:
+                    path = shlex.quote(str(content / "images" / filename))
+                    url = shlex.quote(
+                        "https://hvlitetestvhds.blob.core.windows.net/vhds/" + filename
+                    )
+                    self._run_logged_command(
+                        name=f"openvmm_download_{filename}",
+                        command=(
+                            f"if ! test -f {path} || "
+                            f'test "$(stat -c %s {path})" -ne {size}; then '
+                            f"curl --fail --location --retry 3 {url} -o {path}; fi && "
+                            f'test "$(stat -c %s {path})" -eq {size}'
+                        ),
+                        log_path=log_path,
+                        timeout=self.RESTORE_TIMEOUT,
+                        update_envs=env,
+                    )
+            yield
+        finally:
+            has_error = sys.exc_info()[0] is not None
+            cleanup_errors = []
+            if acl_user and original_vsock_acl is not None:
+                restore_acl = (
+                    f"printf '%s\\n' {shlex.quote(original_vsock_acl)} | "
+                    f"setfacl --set-file=- {shlex.quote(vsock)}"
+                )
+                try:
+                    result = self.node.execute(
+                        restore_acl,
+                        shell=True,
+                        sudo=True,
+                        expected_exit_code=None,
+                        no_info_log=True,
+                    )
+                    if result.exit_code:
+                        cleanup_errors.append("failed to restore vhost-vsock ACL")
+                except Exception as error:
+                    cleanup_errors.append(f"failed to restore vhost-vsock ACL: {error}")
+            if changed_hugepage_value and original_hugepage_value is not None:
+                try:
+                    result = self.node.execute(
+                        f"echo {shlex.quote(original_hugepage_value)} > "
+                        f"{shlex.quote(hugepage_path)}",
+                        shell=True,
+                        sudo=True,
+                        expected_exit_code=None,
+                        no_info_log=True,
+                    )
+                    if result.exit_code:
+                        cleanup_errors.append(
+                            "failed to restore hugepage overcommit limit"
+                        )
+                except Exception as error:
+                    cleanup_errors.append(
+                        f"failed to restore hugepage overcommit limit: {error}"
+                    )
+            if cleanup_errors:
+                self.node.mark_dirty()
+                self._log.error("; ".join(cleanup_errors))
+                if not has_error:
+                    raise LisaException("; ".join(cleanup_errors))
 
     def _collect_native_results(self, log_path: Path, junit: Path) -> None:
         self._copy_back_if_exists(self.repo_root / "target/nextest/ci/junit.xml", junit)
@@ -578,20 +739,25 @@ class OpenVmmTests(Tool):
             node_os.install_packages("openvmm")
         original_identity = self._get_prebuilt_binary_identity(binary_path)
         output_dir: Optional[PurePath] = None
+        output_storage_dir: Optional[PurePath] = None
         try:
             ref, ref_source = self._resolve_prebuilt_tests_ref(ref)
             env = self._prepare_repo(log_path, ref)
-            # Petri creates Unix sockets beneath this path (limited to 108 bytes).
-            output_dir = self.node.get_pure_path(
+            working_path = str(self.node.working_path).rstrip("/")
+            output_storage_dir = self.node.get_pure_path(
                 self.node.execute(
-                    "mktemp -d /tmp/ovmm-XXXXXXXX",
+                    f"mktemp -d {shlex.quote(working_path)}/ovmm-XXXXXXXX",
                     shell=True,
                     expected_exit_code=0,
                     expected_exit_code_failure_message=(
-                        "failed to create a short OpenVMM test output directory"
+                        "failed to create an OpenVMM test output directory on "
+                        "the configured working volume"
                     ),
                 ).stdout.strip()
             )
+            # Keep Petri's socket paths short while all large outputs remain on
+            # the configured working volume.
+            output_dir = self._create_short_temp_path(output_storage_dir)
             self._log.info(f"Prebuilt OpenVMM test output directory: {output_dir}")
             command = [
                 self.node.tools[Cargo].command,
@@ -671,30 +837,57 @@ class OpenVmmTests(Tool):
                         "during validation."
                     )
             finally:
-                if output_dir is not None:
+                if output_dir is not None or output_storage_dir is not None:
                     # Preserve the original test error if cleanup also fails.
                     has_error = sys.exc_info()[0] is not None
-                    try:
-                        if not re.fullmatch(
-                            r"/tmp/ovmm-[A-Za-z0-9]{8}", str(output_dir)
-                        ):
-                            raise LisaException(
-                                f"Refusing to remove unexpected test path: {output_dir}"
+                    cleanup_errors = []
+                    if output_dir is not None:
+                        try:
+                            if not re.fullmatch(
+                                r"/tmp/ovi-[A-Za-z0-9]{8}", str(output_dir)
+                            ):
+                                raise LisaException(
+                                    f"Refusing to remove unexpected temporary path: "
+                                    f"{output_dir}"
+                                )
+                            self.node.execute(
+                                f"rm -f -- {shlex.quote(str(output_dir))}",
+                                shell=True,
+                                expected_exit_code=0,
+                                expected_exit_code_failure_message=(
+                                    f"failed to remove OpenVMM temporary path: "
+                                    f"{output_dir}"
+                                ),
                             )
-                        self.node.execute(
-                            f"rm -rf -- {shlex.quote(str(output_dir))}",
-                            shell=True,
-                            expected_exit_code=0,
-                            expected_exit_code_failure_message=(
-                                f"failed to remove OpenVMM test directory: {output_dir}"
-                            ),
-                        )
-                    except (AssertionError, LisaException, OSError) as error:
+                        except (AssertionError, LisaException, OSError) as error:
+                            cleanup_errors.append(str(error))
+                    if output_storage_dir is not None:
+                        try:
+                            if not str(output_storage_dir).startswith(
+                                f"{working_path}/ovmm-"
+                            ):
+                                raise LisaException(
+                                    "Refusing to remove unexpected OpenVMM "
+                                    f"working directory: {output_storage_dir}"
+                                )
+                            self.node.execute(
+                                f"rm -rf -- {shlex.quote(str(output_storage_dir))}",
+                                shell=True,
+                                expected_exit_code=0,
+                                expected_exit_code_failure_message=(
+                                    "failed to remove OpenVMM test directory: "
+                                    f"{output_storage_dir}"
+                                ),
+                            )
+                        except (AssertionError, LisaException, OSError) as error:
+                            cleanup_errors.append(str(error))
+                    if cleanup_errors:
                         self._log.error(
-                            f"OpenVMM test directory cleanup failed: {error}"
+                            "OpenVMM test directory cleanup failed: "
+                            + "; ".join(cleanup_errors)
                         )
                         if not has_error:
-                            raise
+                            raise LisaException("; ".join(cleanup_errors))
 
     def _resolve_prebuilt_tests_ref(self, ref: str) -> Tuple[str, str]:
         if ref.strip():
@@ -1109,7 +1302,11 @@ class OpenVmmTests(Tool):
         if self._has_cargo_nextest(update_envs, version):
             return
         if not install_missing_deps:
-            raise LisaException("The pinned cargo-nextest must be installed")
+            raise LisaException(
+                f"cargo-nextest {version} must be installed. Enable "
+                "openvmm_vmm_tests_install_missing_deps to install the pinned "
+                "standalone binary, or install that exact version manually."
+            )
 
         self._log.debug(
             f"cargo-nextest {version} was not available; "
@@ -1391,6 +1588,7 @@ class OpenVmmTests(Tool):
                 suite.attrib.get("skipped", suite.attrib.get("disabled", "0"))
             )
 
+        has_failed_testcase = False
         for testcase in root.iter("testcase"):
             classname = testcase.attrib.get("classname", "").strip()
             test_name = testcase.attrib.get("name", "").strip()
@@ -1401,12 +1599,18 @@ class OpenVmmTests(Tool):
                     summary.passed_tests.append(full_name)
                 continue
 
+            has_failed_testcase = True
             if full_name:
                 summary.failed_tests.append(full_name)
 
         summary.passed_tests = self._deduplicate_test_names(summary.passed_tests)
         summary.failed_tests = self._deduplicate_test_names(summary.failed_tests)
         summary.tests -= summary.skipped
+        if has_failed_testcase and not (summary.failures or summary.errors):
+            raise LisaException(
+                f"Inconsistent JUnit failure elements in {junit_file}: "
+                "testcase failures or errors are present but suite counts report none"
+            )
         summary.passed = summary.tests - summary.failures - summary.errors
         if summary.passed < 0:
             raise LisaException(

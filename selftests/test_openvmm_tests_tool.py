@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
+from lisa.microsoft.testsuites.openvmm.openvmm_artifacts import CONFIGURATIONS
 from lisa.microsoft.testsuites.openvmm.openvmm_tests_tool import OpenVmmTests
 from lisa.tools import Curl
 from lisa.util import LisaException
@@ -76,6 +77,101 @@ class OpenVmmTestsToolTestCase(TestCase):
         self.assertIn(f"{release_url}/{asset_name}.tar.gz", install_command)
         self.assertIn(f"{release_url}/{asset_name}.sha256", install_command)
 
+    def test_native_prerequisite_checks_use_selected_device_group(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.node = MagicMock()
+        tool.node.execute.return_value = SimpleNamespace(exit_code=0, stdout="")
+        tool.command_group = "kvm"
+        with TemporaryDirectory() as temp_dir, patch.object(
+            tool, "_ensure_cargo_nextest"
+        ), patch.object(tool, "_run_logged_command"):
+            with tool._prepare_native_execution(
+                CONFIGURATIONS[1],
+                PurePosixPath("/content"),
+                {},
+                Path(temp_dir),
+                install_missing_deps=False,
+            ):
+                pass
+
+        commands = [call.args[0] for call in tool.node.execute.call_args_list]
+        prerequisite_check = commands[-1]
+        self.assertIn("sg kvm -c", prerequisite_check)
+        self.assertIn("/dev/kvm", prerequisite_check)
+        self.assertIn("/dev/vhost-vsock", prerequisite_check)
+        self.assertNotIn("chmod a+rw", " ".join(commands))
+
+    def test_native_kvm_setup_restores_hugepage_limit(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.node = MagicMock()
+        tool.node.execute.side_effect = [
+            SimpleNamespace(exit_code=0, stdout=""),
+            SimpleNamespace(exit_code=0, stdout="17"),
+            SimpleNamespace(exit_code=0, stdout=""),
+            SimpleNamespace(exit_code=0, stdout=""),
+            SimpleNamespace(exit_code=0, stdout=""),
+            SimpleNamespace(exit_code=0, stdout=""),
+        ]
+        tool.command_group = "kvm"
+        with TemporaryDirectory() as temp_dir, patch.object(
+            tool, "_ensure_cargo_nextest"
+        ), patch.object(tool, "_run_logged_command"):
+            with tool._prepare_native_execution(
+                CONFIGURATIONS[1],
+                PurePosixPath("/content"),
+                {},
+                Path(temp_dir),
+                install_missing_deps=True,
+            ):
+                pass
+
+        commands = [call.args[0] for call in tool.node.execute.call_args_list]
+        self.assertIn("echo 4096", commands[2])
+        self.assertIn("sg kvm -c", commands[3])
+        self.assertIn("echo 17 >", commands[-1])
+        tool.node.mark_dirty.assert_called_once_with()
+
+    def test_native_setup_restores_temporary_vsock_acl(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.node = MagicMock()
+        commands = []
+
+        def execute(command: str, **kwargs: object) -> SimpleNamespace:
+            commands.append(command)
+            if command.startswith("getfacl"):
+                return SimpleNamespace(
+                    exit_code=0,
+                    stdout="user::rw-\ngroup::rw-\nother::---\n",
+                )
+            if command == "id -un":
+                return SimpleNamespace(exit_code=0, stdout="runner\n")
+            if command.startswith("sg mshv -c 'test -r /dev/vhost-vsock"):
+                return SimpleNamespace(exit_code=1, stdout="")
+            return SimpleNamespace(exit_code=0, stdout="")
+
+        tool.node.execute.side_effect = execute
+        tool.command_group = "mshv"
+        with TemporaryDirectory() as temp_dir, patch.object(
+            tool, "_ensure_cargo_nextest"
+        ), patch.object(tool, "_run_logged_command"):
+            with tool._prepare_native_execution(
+                CONFIGURATIONS[0],
+                PurePosixPath("/content"),
+                {},
+                Path(temp_dir),
+                install_missing_deps=True,
+            ):
+                pass
+
+        self.assertTrue(any("setfacl -m u:runner:rw " in cmd for cmd in commands))
+        restore = next(cmd for cmd in commands if "setfacl --set-file=-" in cmd)
+        self.assertIn("user::rw-", restore)
+        self.assertIn(
+            "sg mshv -c", next(cmd for cmd in commands if "vhost-vsock" in cmd)
+        )
+        self.assertNotIn("chmod a+rw", " ".join(commands))
+        tool.node.mark_dirty.assert_called_once_with()
+
     def test_check_vmm_tests_results_raises_on_junit_failures(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
 
@@ -115,6 +211,20 @@ class OpenVmmTestsToolTestCase(TestCase):
             "multiarch::ic::openvmm_uefi_x64_ubuntu_2504_server_x64_timesync_ic",
             str(context.exception),
         )
+
+    def test_parse_junit_rejects_failure_elements_with_zero_suite_counts(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        with TemporaryDirectory() as temp_dir:
+            junit_file = Path(temp_dir) / "inconsistent.junit.xml"
+            junit_file.write_text(
+                """<testsuite tests="1" failures="0" errors="0">
+  <testcase classname="suite" name="failed"><failure /></testcase>
+</testsuite>
+""",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(LisaException, "failure elements"):
+                tool._parse_junit_summary(junit_file)
 
     def test_check_vmm_tests_results_raises_on_log_summary_without_junit(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
