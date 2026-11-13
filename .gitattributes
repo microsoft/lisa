@@ -1,3 +1,4 @@
 * text=auto
 *.sh eol=lf
 *.bash eol=lf
+lisa/microsoft/testsuites/vm_extensions/scripts/hibernate_memory_load.cs linguist-detectable=false
