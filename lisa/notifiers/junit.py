@@ -2,6 +2,7 @@
 # Licensed under the MIT license.
 
 import xml.etree.ElementTree as ET  # noqa: N817
+from copy import deepcopy
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type, cast
@@ -47,6 +48,10 @@ class _TestCaseInfo:
         self.active_subtest_name: Optional[str] = None
         self.last_seen_timestamp: float = 0.0
         self.subtest_total_elapsed: float = 0.0
+        self.results: List[ET.Element] = []
+        self.previous_attempt: Optional["_TestCaseInfo"] = None
+        self.attempt_history: List[str] = []
+        self.completed: bool = False
         self.pending_result: Optional[ET.Element] = None
 
 
@@ -199,9 +204,25 @@ class JUnit(Notifier):
     def _test_case_running(self, message: TestResultMessage) -> None:
         self._set_test_suite_info(message)
 
-        if message.id_ not in self._testcases_info:
+        previous = self._testcases_info.get(message.id_)
+        if previous is not None and not previous.completed:
+            testcase_info = previous
+        else:
             self._set_test_case_info(message)
-        testcase_info = self._testcases_info[message.id_]
+            testcase_info = self._testcases_info[message.id_]
+            if previous is not None:
+                testcase_info.previous_attempt = previous
+                snapshots = []
+                for result in previous.results:
+                    snapshot = deepcopy(result)
+                    for history in snapshot.findall("system-out"):
+                        snapshot.remove(history)
+                    snapshots.append(ET.tostring(snapshot, encoding="unicode"))
+                testcase_info.attempt_history = previous.attempt_history + [
+                    f"Attempt {len(previous.attempt_history) + 1}:\n"
+                    + "\n".join(snapshots)
+                ]
+
         self._remove_pending_result(testcase_info)
         if message.status == TestStatus.RUNNING:
             testcase_info.subtest_total_elapsed = 0.0
@@ -233,17 +254,18 @@ class JUnit(Notifier):
             testsuite_info.test_count -= 1
             if pending_result.find("failure") is not None:
                 testsuite_info.failed_count -= 1
+            testcase_info.results.remove(pending_result)
             testcase_info.pending_result = None
 
     # Test case completed message.
     def _test_case_completed(self, message: TestResultMessage) -> None:
         self._set_test_suite_info(message)
 
-        # check if the message id is in the testcases_info dictionary
-        # if not, then it is a test case  was attached to a failed environment
-        # and we should add it to the results
-        if message.id_ not in self._testcases_info.keys():
-            self._set_test_case_info(message)
+        if (
+            message.id_ not in self._testcases_info
+            or self._testcases_info[message.id_].completed
+        ):
+            self._test_case_running(message)
 
         testcase_info = self._testcases_info[message.id_]
 
@@ -266,10 +288,22 @@ class JUnit(Notifier):
         # Calculate total time spent in test case that was not spent in a sub-test case.
         elapsed = message.elapsed - testcase_info.subtest_total_elapsed
 
+        # Keep earlier failures visible until a retry has a terminal outcome.
+        previous = testcase_info.previous_attempt
+        if previous is not None:
+            suite = self._testsuites_info[previous.suite_full_name]
+            for result in previous.results:
+                suite.xml.remove(result)
+                suite.test_count -= 1
+                if result.find("failure") is not None:
+                    suite.failed_count -= 1
+            testcase_info.previous_attempt = None
+
         # Add test case result.
         self._add_test_case_result(
             message, message.suite_full_name, message.suite_full_name, elapsed
         )
+        testcase_info.completed = True
         self._write_results()
 
     # Sub test case started message.
@@ -361,6 +395,12 @@ class JUnit(Notifier):
         ):
             skipped = ET.SubElement(testcase, "skipped")
             skipped.attrib["message"] = message.message
+
+        testcase_info = self._testcases_info[message.id_]
+        testcase_info.results.append(testcase)
+        if isinstance(message, TestResultMessage) and testcase_info.attempt_history:
+            history = ET.SubElement(testcase, "system-out")
+            history.text = "\n\n".join(testcase_info.attempt_history)
 
         testsuite_info.test_count += 1
 
