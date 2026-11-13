@@ -2,11 +2,12 @@
 # Licensed under the MIT license.
 
 from pathlib import Path
-from typing import List, Optional, Union, cast
+from typing import Any, List, Optional, Union, cast
 from unittest import TestCase
+from unittest.mock import MagicMock, patch
 
 import lisa
-from lisa import LisaException, constants, schema
+from lisa import LisaException, ResourceAwaitableException, constants, schema
 from lisa.environment import EnvironmentStatus, load_environments
 from lisa.messages import TestResultMessage, TestStatus
 from lisa.notifier import register_notifier
@@ -88,6 +89,26 @@ class RunnerTestCase(TestCase):
             expected_message=["", "", ""],
             test_results=test_results,
         )
+
+    def test_resource_awaitable_retry_cleans_up_before_reset(self) -> None:
+        runner = generate_runner(None)
+        runner.platform = MagicMock()
+        runner.platform.deploy_environment.side_effect = ResourceAwaitableException(
+            "vm size"
+        )
+        environment = cast(Any, MagicMock())
+        environment.status = EnvironmentStatus.Prepared
+        test_result = MagicMock()
+
+        with patch.object(runner, "_need_retry", return_value=True), patch.object(
+            runner, "_is_awaitable_timeout", return_value=False
+        ), patch.object(runner, "_delete_environment_task") as delete_environment_task:
+            runner._deploy_environment_task(environment, [test_result])
+
+        delete_environment_task.assert_called_once_with(
+            environment=environment, test_results=[]
+        )
+        self.assertEqual(EnvironmentStatus.New, environment.status)
 
     def test_merge_req(self) -> None:
         # each test case will create an environment candidate.
@@ -638,11 +659,13 @@ class RunnerTestCase(TestCase):
                 "generated_2",
             ],
             expected_deployed_envs=[],
-            expected_deleted_envs=[
-                "generated_0",
-                "generated_1",
-                "generated_2",
-            ],
+            # Each environment is deleted once per failed deployment attempt:
+            # the initial attempt plus `env_runbook.retry` retries.
+            expected_deleted_envs=(
+                ["generated_0"] * (env_runbook.retry + 1)
+                + ["generated_1"] * (env_runbook.retry + 1)
+                + ["generated_2"] * (env_runbook.retry + 1)
+            ),
             runner=runner,
         )
         self.verify_test_results(
