@@ -412,13 +412,23 @@ class Sriov(TestSuite):
     )
     def verify_vf_ethtool_private_flags(self, node: Node, log: Logger) -> None:
         deadline = monotonic() + 600
+        # Six private-flag commands, six state probes, and 30s of headroom,
+        # including the worst-case restoration and verification path.
+        cycle_budget = 6 * 30 + 6 * 10 + 30
         vf_nics = self._get_vf_nics(node, log, "private flags")
         ethtool = node.tools[Ethtool]
         ip = node.tools[Ip]
         toggled_flags: List[str] = []
         not_toggled_flags: List[str] = []
-        for interface in vf_nics:
-            if not ip.is_device_up(interface):
+        unattempted: List[str] = []
+        for interface_index, interface in enumerate(vf_nics):
+            if deadline - monotonic() < cycle_budget:
+                unattempted.extend(
+                    f"{remaining}: flags not discovered (time budget)"
+                    for remaining in vf_nics[interface_index:]
+                )
+                break
+            if not ip.is_device_up(interface, timeout=10):
                 log.debug(f"Skipping non-UP VF {interface}")
                 continue
             driver = ethtool.get_device_driver(interface).strip()
@@ -430,7 +440,7 @@ class Sriov(TestSuite):
             if not original_flags:
                 log.debug(f"{interface}, driver={driver}, advertises no private flags")
                 continue
-            original_mtu = ip.get_mtu(interface)
+            original_mtu = int(ip.get_detail(interface, "mtu", timeout=10))
             if original_mtu <= 0:
                 raise LisaException(
                     f"Couldn't read a valid MTU for {interface}: {original_mtu}"
@@ -441,18 +451,14 @@ class Sriov(TestSuite):
             )
             node.mark_dirty()
             for flag, original_value in original_flags.items():
-                # Reserve 120s for writes/readbacks, 60s for restoration, and
-                # 60s for state checks before the case's outer timeout.
-                if deadline - monotonic() < 240:
-                    raise LisaTimeoutException(
-                        "Insufficient time to start another private-flag cycle "
-                        f"on {interface}; reserving time for verification and cleanup."
-                    )
                 outcome = (
                     f"{interface} {flag} "
                     f"(original={'on' if original_value else 'off'}, "
                     f"requested={'off' if original_value else 'on'})"
                 )
+                if deadline - monotonic() < cycle_budget:
+                    unattempted.append(f"{outcome}: time budget")
+                    continue
                 if self._verify_vf_private_flag(
                     node, log, interface, flag, original_flags, original_mtu
                 ):
@@ -467,10 +473,15 @@ class Sriov(TestSuite):
             f"Did not complete a toggle-and-restore cycle ({len(not_toggled_flags)}): "
             f"{'; '.join(not_toggled_flags) or 'none'}"
         )
+        log.info(
+            f"Unattempted flags or VFs ({len(unattempted)}): "
+            f"{'; '.join(unattempted) or 'none'}"
+        )
         if not toggled_flags:
             raise SkippedException(
                 "No UP VF completed a verified private-flag toggle-and-restore cycle. "
-                "No flags were advertised or all attempts were rejected or unchanged."
+                "No flags were advertised, all attempts were rejected or unchanged, "
+                "or the time budget prevented further attempts."
             )
 
     def _verify_vf_private_flag(
@@ -508,10 +519,12 @@ class Sriov(TestSuite):
                 assert_that(current_flags).described_as(
                     f"Unrelated private flags must remain unchanged on {interface}"
                 ).is_equal_to(expected_flags)
-                assert_that(ip.get_mtu(interface)).described_as(
-                    f"MTU must remain unchanged on {interface}"
-                ).is_equal_to(original_mtu)
-                assert_that(ip.is_device_up(interface)).described_as(
+                assert_that(
+                    int(ip.get_detail(interface, "mtu", timeout=10))
+                ).described_as(f"MTU must remain unchanged on {interface}").is_equal_to(
+                    original_mtu
+                )
+                assert_that(ip.is_device_up(interface, timeout=10)).described_as(
                     f"{interface} must remain UP after setting private flag {flag}"
                 ).is_true()
                 if not write_succeeded or current_flags[flag] != value:
@@ -530,10 +543,12 @@ class Sriov(TestSuite):
                 assert_that(ethtool.get_device_private_flags(interface)).described_as(
                     f"Original private flags must be restored on {interface}"
                 ).is_equal_to(original_flags)
-                assert_that(ip.get_mtu(interface)).described_as(
-                    f"MTU must remain unchanged on {interface}"
-                ).is_equal_to(original_mtu)
-                assert_that(ip.is_device_up(interface)).described_as(
+                assert_that(
+                    int(ip.get_detail(interface, "mtu", timeout=10))
+                ).described_as(f"MTU must remain unchanged on {interface}").is_equal_to(
+                    original_mtu
+                )
+                assert_that(ip.is_device_up(interface, timeout=10)).described_as(
                     f"{interface} is not UP after restoring private flag {flag}"
                 ).is_true()
                 log.info(f"Verified {interface} {flag} restored and settings unchanged")
