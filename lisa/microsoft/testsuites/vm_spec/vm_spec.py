@@ -220,6 +220,7 @@ class VmSpec(TestSuite):
     """Validate VM hardware against the Azure container policy."""
 
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify the guest CPU architecture against CpuArchitectureType
         from the Azure SKU. Normalize Azure x64/Arm64 names to the
@@ -259,6 +260,7 @@ class VmSpec(TestSuite):
     # CPU validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify that the VM's vCPU count matches the value published by
         the VM size's container policy.
@@ -287,6 +289,7 @@ class VmSpec(TestSuite):
     # Memory validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify that the VM's total memory is within an acceptable range
         of the value published by the VM size's container policy.
@@ -328,6 +331,7 @@ class VmSpec(TestSuite):
     # GPU count validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify that the VM exposes the expected number of GPU devices
         as published by the container policy.
@@ -366,6 +370,7 @@ class VmSpec(TestSuite):
     # SR-IOV NIC count validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify the VM exposes the maximum number of accelerated NICs.
         Validate PCI devices separately using the NIC-to-device mapping;
@@ -416,6 +421,7 @@ class VmSpec(TestSuite):
     # Synthetic NIC count validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify the VM supports the expected number of synthetic NICs by
         provisioning with the maximum NIC count and validating that
@@ -469,6 +475,7 @@ class VmSpec(TestSuite):
     # InfiniBand / RDMA NIC count validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify that the VM exposes at least one InfiniBand / RDMA NIC
         when the VM size's container policy advertises ``RdmaEnabled =
@@ -518,6 +525,7 @@ class VmSpec(TestSuite):
     # Max data disk count validation — provision with max disks
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify that the VM supports the expected maximum number of data
         disks by provisioning with the maximum disk count allowed by the
@@ -561,6 +569,7 @@ class VmSpec(TestSuite):
     # Disk controller and capacity validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify the resolved disk controller type is advertised by the
         SKU's DiskControllerTypes and matches the guest OS and every
@@ -618,6 +627,7 @@ class VmSpec(TestSuite):
             ).is_equal_to(expected)
 
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify every attached data disk has the resolved provisioned
         data_disk_size. Compare raw block-device bytes against GiB
@@ -660,6 +670,7 @@ class VmSpec(TestSuite):
             ).is_equal_to(expected_bytes)
 
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify local NVMe capacity against NvmeSizePerDiskInMiB for
         each device and NvmeDiskSizeInMiB for the aggregate. Request
@@ -712,6 +723,7 @@ class VmSpec(TestSuite):
     # NVMe local disk count validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify that the VM exposes the expected number of local NVMe
         disks by provisioning a VM size that supports NVMe and
@@ -753,6 +765,7 @@ class VmSpec(TestSuite):
     # Disk IOPS validation — provision max disks, fio all of them
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify that the VM can achieve at least the expected disk IOPS
         published by the container policy by provisioning with the
@@ -787,6 +800,7 @@ class VmSpec(TestSuite):
         self._verify_data_disk_iops(environment, node, log)
 
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify aggregate Standard SSD IOPS with host caching disabled.
         The target is the resolved per-disk IOPS multiplied by the VM's
@@ -886,6 +900,7 @@ class VmSpec(TestSuite):
     # Storage throughput validation — fio random read, 1024K blocks
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify that the VM can achieve at least the expected storage
         throughput published by the container policy by provisioning
@@ -923,6 +938,7 @@ class VmSpec(TestSuite):
         self._verify_data_disk_throughput(environment, node, log)
 
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify the VM's UncachedDiskBytesPerSecond limit using Standard
         SSD data disks with host caching disabled. Provision the maximum
@@ -1015,6 +1031,7 @@ class VmSpec(TestSuite):
     # Resource (temp) disk size validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify that the size of the local resource (temp) disk attached
         to the VM matches the value published by the container policy
@@ -1068,6 +1085,7 @@ class VmSpec(TestSuite):
     # Resource (temp) disk IOPS validation
     # ------------------------------------------------------------------
     @TestCaseMetadata(
+        maturity="preview",
         description="""
         Verify that the local resource (temp) disk can deliver the IOPS
         published by the container policy via
