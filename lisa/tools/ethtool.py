@@ -806,6 +806,72 @@ class Ethtool(Tool):
 
         return driver_info.group("value")
 
+    def get_device_private_flags(self, interface: str) -> Dict[str, bool]:
+        """Read fresh private flags, allowing at most 30 seconds for the command."""
+        result = self.run(
+            f"--show-priv-flags {shlex.quote(interface)}",
+            sudo=True,
+            force_run=True,
+            shell=True,
+            timeout=30,
+        )
+        if result.is_timeout:
+            raise LisaException(
+                f"Private-flag read timed out on {interface}: "
+                f"stdout={result.stdout}, stderr={result.stderr}"
+            )
+        if result.exit_code != 0 and _is_unsupported(result):
+            raise UnsupportedOperationException(
+                f"Private-flag reads are not supported on {interface}: "
+                f"exit code={result.exit_code}, "
+                f"stdout={result.stdout}, stderr={result.stderr}"
+            )
+        result.assert_exit_code(
+            message=f"Couldn't read private flags on {interface}.",
+            include_output=True,
+        )
+        if result.stdout.strip() == "No private flags defined":
+            return {}
+        flags: Dict[str, bool] = {}
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if not line or line.startswith("Private flags for "):
+                continue
+            match = re.fullmatch(r"(\S+)\s*:\s*(on|off)", line)
+            if not match or match[1] in flags:
+                raise LisaException(
+                    f"Invalid private-flag output on {interface}: {result.stdout}"
+                )
+            flags[match[1]] = match[2] == "on"
+        return flags
+
+    def set_device_private_flag(self, interface: str, flag: str, enabled: bool) -> None:
+        """Set a flag within 30 seconds; callers must verify fresh readback."""
+        value = "on" if enabled else "off"
+        result = self.run(
+            f"--set-priv-flags {shlex.quote(interface)} "
+            f"{shlex.quote(flag)} {value}",
+            sudo=True,
+            force_run=True,
+            shell=True,
+            timeout=30,
+        )
+        if result.is_timeout:
+            raise LisaException(
+                f"Setting private flag {flag}={value} timed out on {interface}: "
+                f"stdout={result.stdout}, stderr={result.stderr}"
+            )
+        if result.exit_code != 0 and _is_unsupported(result):
+            raise UnsupportedOperationException(
+                f"Setting private flag {flag}={value} on {interface} "
+                f"is not supported: exit code={result.exit_code}, "
+                f"stdout={result.stdout}, stderr={result.stderr}"
+            )
+        result.assert_exit_code(
+            message=f"Couldn't set private flag {flag}={value} on {interface}.",
+            include_output=True,
+        )
+
     def get_device_list(self, force_run: bool = False) -> Set[str]:
         if (not force_run) and self._device_set:
             return self._device_set
