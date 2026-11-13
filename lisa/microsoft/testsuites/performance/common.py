@@ -133,7 +133,7 @@ def perf_disk(
     ioengine: IoEngine = IoEngine.LIBAIO,
     cwd: Optional[pathlib.PurePath] = None,
     fio_modes: Optional[List[str]] = None,
-    per_disk_jobs: bool = False,
+    per_disk_jobs: bool = True,
 ) -> None:
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
