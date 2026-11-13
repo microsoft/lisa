@@ -100,7 +100,7 @@ class TlbStressTestSuite(TestSuite):
                 "--matrix 1 --matrix-size 128 --timeout 30 --metrics-brief",
                 force_run=True,
                 timeout=40,
-            )
+            ).assert_exit_code(message="stress-ng warm-up failed")
 
             # Run stress test
             tlb_tool.run_stress_with_monitoring(
@@ -123,6 +123,8 @@ class TlbStressTestSuite(TestSuite):
         to create maximum TLB pressure while monitoring performance degradation.
         Features baseline/stress comparison with configurable thresholds to detect
         performance regressions in virtual memory subsystems.
+        If perf is unavailable, the workloads and kernel checks still run;
+        the performance-comparison subtest is reported as skipped.
         """,
         priority=3,
         requirement=simple_requirement(min_core_count=4, min_memory_mb=2048),
@@ -149,7 +151,7 @@ class TlbStressTestSuite(TestSuite):
                 "--matrix 1 --matrix-size 128 --timeout 30 --metrics-brief",
                 force_run=True,
                 timeout=40,
-            )
+            ).assert_exit_code(message="stress-ng warm-up failed")
 
             # Phase 1: Capture baseline performance metrics
             baseline_metrics = tlb_tool.capture_performance_baseline()
@@ -166,7 +168,7 @@ class TlbStressTestSuite(TestSuite):
                 f"--vm {vm_workers} --vm-bytes 128M --timeout 60 --metrics-brief",
                 force_run=True,
                 timeout=70,
-            )
+            ).assert_exit_code(message="stress-ng VM warm-up failed")
 
             # Memory mapping stressor (scaled workers, 256MB, 60s)
             stress_ng.run(
@@ -174,30 +176,11 @@ class TlbStressTestSuite(TestSuite):
                 f"--timeout 60 --metrics-brief",
                 force_run=True,
                 timeout=70,
-            )
+            ).assert_exit_code(message="stress-ng mmap warm-up failed")
 
             # Parallel TLB-intensive stressors with performance monitoring
 
-            # Start performance monitoring with portable events
-            perf_monitor_process = tlb_tool.node.execute_async(
-                "perf stat -e cycles,instructions,cache-misses,page-faults,"
-                "context-switches "
-                "-I 1000 --append -o perf_stress_output.txt sleep 300",
-                cwd=tlb_tool.node.get_working_path(),
-                sudo=True,
-            )
-
-            # Launch parallel stressors for maximum TLB pressure
-            processes = []
-
-            # Custom TLB flush stressor with optimal thread count
             optimal_threads = self._calculate_optimal_thread_count(nodes[0])
-            tlb_cmd = (
-                f"{tlb_tool.command} -t {optimal_threads} "
-                f"-p {self.TLB_TEST_PAGES} -d {self.TLB_TEST_DURATION_SECONDS}"
-            )
-            tlb_proc = nodes[0].execute_async(tlb_cmd)
-            processes.append(tlb_proc)
 
             # Combined stress-ng stressors running in parallel (300s)
             # Scale workers for larger SKUs
@@ -219,19 +202,14 @@ class TlbStressTestSuite(TestSuite):
                 "--madvise 1 "
                 "--timeout 300 --metrics-brief"
             )
-            stress_proc = stress_ng.run_async(combined_stress_cmd, force_run=True)
-            processes.append(stress_proc)
-
-            # Wait for all parallel processes to complete
-            for process in processes:
-                process.wait_result(timeout=330)
-
-            # Wait for performance monitoring to complete
-            perf_monitor_process.wait_result(timeout=330)
-
-            # Phase 3: Capture stress performance metrics and analyze
-            # Use the same baseline capture method to get consistent metrics
-            stress_metrics = tlb_tool.capture_performance_baseline()
+            stress_metrics = tlb_tool.run_stress_with_monitoring(
+                duration=self.TLB_TEST_DURATION_SECONDS,
+                tlb_threads=optimal_threads,
+                tlb_pages=self.TLB_TEST_PAGES,
+                use_numa=False,
+                use_hugepages=False,
+                stress_ng_parameters=combined_stress_cmd,
+            )
 
             analysis_result = tlb_tool.analyze_performance_degradation(
                 baseline_metrics, stress_metrics, test_result=result
