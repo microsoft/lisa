@@ -171,16 +171,20 @@ class Ip(Tool):
             "subnet_mask": matched.group("subnet_mask"),
         }
 
-    def is_device_up(self, nic_name: str) -> bool:
-        device_info = self.node.execute(
+    def is_device_up(self, nic_name: str, timeout: int = 600) -> bool:
+        result = self.node.execute(
             f"ip -br link show {nic_name}",
             shell=True,
             sudo=True,
+            timeout=timeout,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 f"ip show could not get info for device {nic_name}"
             ),
-        ).stdout
+        )
+        if result.is_timeout:
+            raise LisaException(f"Timed out checking link state for {nic_name}")
+        device_info = result.stdout
         matched = self.__ip_br_show_regex.match(device_info)
         assert matched is not None, f"Could not parse result: {device_info}"
         return matched.group("status") == "UP"
@@ -610,16 +614,20 @@ class Ip(Tool):
             self._log.debug(f"found routes: {log_routes}")
         return len(found_routes) > 0
 
-    def get_detail(self, interface: str, attribute: str) -> str:
-        details = self.run(
+    def get_detail(self, interface: str, attribute: str, timeout: int = 600) -> str:
+        result = self.run(
             f"-d link show {interface}",
             shell=True,
             force_run=True,
+            timeout=timeout,
             expected_exit_code=0,
             expected_exit_code_failure_message=(
                 "Could not fetch interface details with 'ip -d link show'"
             ),
-        ).stdout
+        )
+        if result.is_timeout:
+            raise LisaException(f"Timed out fetching interface details for {interface}")
+        details = result.stdout
 
         groups = find_group_in_lines(
             details, self.__ip_detail_show_regex, single_line=False
