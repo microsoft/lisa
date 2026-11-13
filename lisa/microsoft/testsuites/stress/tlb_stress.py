@@ -530,8 +530,7 @@ class TlbStress(Tool):
                 stress_ng_command = self.node.tools[StressNg].command
                 workloads.append(f"{stress_ng_command} {stress_ng_parameters}")
             workload_script = (
-                f"printf '%s\\n' \"$$\" > {shlex.quote(workload_pid_file)}; "
-                "pids=; "
+                f"printf '%s\\n' \"$$\" > {shlex.quote(workload_pid_file)}; " "pids=; "
             )
             workload_script += " ".join(
                 f'{workload} & pids="$pids $!";' for workload in workloads
@@ -588,7 +587,7 @@ class TlbStress(Tool):
                 ):
                     perf_monitor_process.kill()
                 terminate_workload = (
-                    'workload_pid=$(cat '
+                    "workload_pid=$(cat "
                     f"{shlex.quote(workload_pid_file)}); "
                     'case "$workload_pid" in '
                     '""|*[!0-9]*) ;; '
