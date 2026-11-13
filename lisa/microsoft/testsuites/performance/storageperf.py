@@ -247,6 +247,7 @@ class StoragePerformance(TestSuite):
         Use fio with 4K blocks and libaio on the VM's maximum data-disk count.
         Each Premium SSD is provisioned for at least 5,000 IOPS.
         """,
+        maturity="preview",
         priority=3,
         timeout=TIME_OUT,
         requirement=simple_requirement(
@@ -269,6 +270,7 @@ class StoragePerformance(TestSuite):
         Use fio with 1024K blocks and libaio on the VM's maximum data-disk count.
         Each Premium SSD is provisioned for at least 5,000 IOPS.
         """,
+        maturity="preview",
         priority=3,
         timeout=TIME_OUT,
         requirement=simple_requirement(
@@ -291,6 +293,7 @@ class StoragePerformance(TestSuite):
         Use fio with 4K blocks and io_uring on the VM's maximum data-disk count.
         Each Premium SSD is provisioned for at least 5,000 IOPS.
         """,
+        maturity="preview",
         priority=3,
         timeout=TIME_OUT,
         requirement=simple_requirement(
@@ -321,6 +324,7 @@ class StoragePerformance(TestSuite):
         Use fio with 1024K blocks and io_uring on the VM's maximum data-disk count.
         Each Premium SSD is provisioned for at least 5,000 IOPS.
         """,
+        maturity="preview",
         priority=3,
         timeout=TIME_OUT,
         requirement=simple_requirement(
@@ -416,6 +420,7 @@ class StoragePerformance(TestSuite):
         Use fio with 4K blocks and libaio on the VM's maximum data-disk count.
         Each Standard SSD is provisioned for 6,000 IOPS, its highest supported tier.
         """,
+        maturity="preview",
         priority=3,
         timeout=TIME_OUT,
         requirement=simple_requirement(
@@ -440,6 +445,7 @@ class StoragePerformance(TestSuite):
         Use fio with 1024K blocks and libaio on the VM's maximum data-disk count.
         Each Standard SSD is provisioned for 6,000 IOPS, its highest supported tier.
         """,
+        maturity="preview",
         priority=3,
         timeout=TIME_OUT,
         requirement=simple_requirement(
