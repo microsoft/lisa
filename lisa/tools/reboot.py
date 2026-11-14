@@ -122,7 +122,7 @@ class Reboot(Tool):
                 raise BadEnvironmentStateException(f"after reboot, {e}")
             raise e
 
-        def _wait_before_reboot(self, last_boot_time: datetime) -> None:
+    def _wait_before_reboot(self, last_boot_time: datetime) -> None:
         # who -b returns time without seconds.
         # so if the node rebooted in one minute, the who -b is not changed.
         # The reboot will wait forever.
