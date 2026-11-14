@@ -4,7 +4,8 @@ import random
 import re
 import string
 import time
-from typing import Any, Dict, List, Pattern, cast
+from contextlib import contextmanager
+from typing import Any, Dict, Generator, List, Pattern, Tuple, cast
 
 from assertpy.assertpy import assert_that
 
@@ -60,9 +61,11 @@ from lisa.tools import (
 from lisa.tools.blkid import PartitionInfo
 from lisa.tools.journalctl import Journalctl
 from lisa.tools.kernel_config import KernelConfig
+from lisa.tools.lsblk import DiskInfo
 from lisa.util import (
     BadEnvironmentStateException,
     LisaException,
+    LisaTimeoutException,
     SkippedException,
     check_till_timeout,
     constants,
@@ -435,6 +438,8 @@ class Storage(TestSuite):
         2. Get the number of data disks already added to the vm.
         3. Serially add and remove the data disks and verify that the added
         disks are present in the vm.
+        4. Wait up to 30 seconds after removal for the original disk inventory
+        and LUN mappings to return. Recycle the VM if cleanup is not verified.
         """,
         priority=2,
         timeout=TIME_OUT,
@@ -486,6 +491,8 @@ class Storage(TestSuite):
         4. Verify that the disks are added are available in the OS.
         5. Remove the disks from the vm in parallel.
         6. Verify that the disks are removed from the OS.
+        Wait up to 30 seconds for the original disk inventory and LUN mappings
+        to return. Recycle the VM if cleanup is not verified.
         """,
         priority=2,
         timeout=TIME_OUT,
@@ -992,6 +999,68 @@ class Storage(TestSuite):
         posix_os: Posix = cast(Posix, node.os)
         posix_os.install_packages("cifs-utils")
 
+    @contextmanager
+    def _hot_add_disk_guard(
+        self, log: Logger, node: Node
+    ) -> Generator[Tuple[List[DiskInfo], Dict[str, int]], None, None]:
+        disk = node.features[Disk]
+        lsblk = node.tools[Lsblk]
+        assert node.capability.disk
+        expected_count = node.capability.disk.data_disk_count
+        baseline_luns = disk.get_luns()
+        if len(baseline_luns) != expected_count:
+            raise BadEnvironmentStateException(
+                "Guest data disks do not match the expected hot-add baseline: "
+                f"expected count: {expected_count}, guest LUNs: {baseline_luns}"
+            )
+        baseline_disks = lsblk.get_disks(force_run=True)
+        baseline_names = {disk_info.name for disk_info in baseline_disks}
+        cleanup_verified = False
+        try:
+            yield baseline_disks, baseline_luns
+
+            timer = create_timer()
+            last_inventory = "not sampled"
+
+            def _baseline_restored() -> bool:
+                nonlocal last_inventory
+                current_names = {
+                    disk_info.name for disk_info in lsblk.get_disks(force_run=True)
+                }
+                current_luns = disk.get_luns()
+                remaining_disks = sorted(current_names - baseline_names)
+                missing_disks = sorted(baseline_names - current_names)
+                last_inventory = (
+                    f"remaining added/unexpected disks: {remaining_disks}, "
+                    f"missing baseline disks: {missing_disks}, "
+                    f"expected LUNs: {baseline_luns}, current LUNs: {current_luns}"
+                )
+                log.debug(f"Waiting for hot-add disk cleanup: {last_inventory}")
+                return (
+                    not remaining_disks
+                    and not missing_disks
+                    and current_luns == baseline_luns
+                )
+
+            try:
+                check_till_timeout(
+                    _baseline_restored,
+                    timeout_message="guest disk inventory did not return to baseline",
+                    timeout=30,
+                    interval=1,
+                )
+            except LisaTimeoutException as error:
+                raise BadEnvironmentStateException(
+                    f"Hot-add disk cleanup did not converge within 30 seconds: "
+                    f"{last_inventory}"
+                ) from error
+            log.debug(f"Hot-add disk cleanup verified in {timer.elapsed():.3f} seconds")
+            cleanup_verified = True
+        finally:
+            if not cleanup_verified:
+                log.warning("Hot-add disk cleanup was not verified; recycling node.")
+                node.mark_dirty()
+
     def _hot_add_disk_serial(
         self,
         log: Logger,
@@ -1016,114 +1085,93 @@ class Storage(TestSuite):
         current_data_disk_count = node.capability.disk.data_disk_count
         log.debug(f"current_data_disk_count: {current_data_disk_count}")
 
-        # get partition info before adding data disk
-        partitions_before_adding_disk = lsblk.get_disks(force_run=True)
-        added_disk_count = 0
-        disks_added = []
-        occupied_luns = set(disk.get_luns().values())
-        free_luns = [
-            lun for lun in range(max_data_disk_count) if lun not in occupied_luns
-        ][: max_data_disk_count - current_data_disk_count]
-
-        if len(free_luns) < 1:
+        if max_data_disk_count <= current_data_disk_count:
             raise SkippedException(
                 "No data disks can be added. "
                 "Consider manually setting max_data_disk_count in the runbook."
             )
 
-        # Randomize the luns if randomize_luns is set to True
-        # Using seed 6 to get consistent randomization across runs
-        # Create own random.Random instance, with its own seed, which will not
-        # affect the global functions
-        if randomize_luns:
-            random.Random(6).shuffle(free_luns)
-            log.debug(f"free_luns: {free_luns}")
-        for lun in free_luns:
-            linux_device_luns = disk.get_luns()
-            # add data disk
-            disks_added.append(disk.add_data_disk(1, disk_type, size, lun))
-            added_disk_count += 1
-            log.debug(f"Added managed disk #{added_disk_count} at lun {lun}")
+        with self._hot_add_disk_guard(log, node) as (baseline_disks, baseline_luns):
+            before_names = {disk_info.name for disk_info in baseline_disks}
+            added_disk_count = 0
+            disks_added = []
+            occupied_luns = set(baseline_luns.values())
+            free_luns = [
+                lun for lun in range(max_data_disk_count) if lun not in occupied_luns
+            ][: max_data_disk_count - current_data_disk_count]
 
-            # verify that partition count is increased by 1
-            # and the size of partition is correct
-            partitons_after_adding_disk = lsblk.get_disks(force_run=True)
-            before_names = {d.name for d in partitions_before_adding_disk}
-            added_partitions = [
-                item
-                for item in partitons_after_adding_disk
-                if item.name not in before_names
-            ]
-            log.debug(f"added_partitions: {added_partitions}")
-            assert_that(added_partitions, "Data disk should be added").is_length(
-                added_disk_count
-            )
-            assert_that(
-                added_partitions[added_disk_count - 1].size_in_gb,
-                f"data disk {added_partitions[added_disk_count - 1].name}"
-                f" size should be equal to {size} GB",
-            ).is_equal_to(size)
+            # Use a local RNG to keep randomized LUN selection reproducible.
+            if randomize_luns:
+                random.Random(6).shuffle(free_luns)
+                log.debug(f"free_luns: {free_luns}")
+            for lun in free_luns:
+                linux_device_luns = disk.get_luns()
+                # add data disk
+                disks_added.append(disk.add_data_disk(1, disk_type, size, lun))
+                added_disk_count += 1
+                log.debug(f"Added managed disk #{added_disk_count} at lun {lun}")
 
-            # verify the lun number from linux VM
-            # Retry to allow udev to create the LUN symlink after disk attach
-            linux_device_luns_after = disk.get_luns()
+                # verify that partition count is increased by 1
+                # and the size of partition is correct
+                partitons_after_adding_disk = lsblk.get_disks(force_run=True)
+                added_partitions = [
+                    item
+                    for item in partitons_after_adding_disk
+                    if item.name not in before_names
+                ]
+                log.debug(f"added_partitions: {added_partitions}")
+                assert_that(added_partitions, "Data disk should be added").is_length(
+                    added_disk_count
+                )
+                assert_that(
+                    added_partitions[added_disk_count - 1].size_in_gb,
+                    f"data disk {added_partitions[added_disk_count - 1].name}"
+                    f" size should be equal to {size} GB",
+                ).is_equal_to(size)
 
-            def _new_lun_detected(
-                _baseline: Dict[str, int] = linux_device_luns,
-            ) -> bool:
-                nonlocal linux_device_luns_after
+                # Retry to allow udev to create the LUN symlink after disk attach.
                 linux_device_luns_after = disk.get_luns()
-                new_keys = set(linux_device_luns_after) - set(_baseline)
-                return len(new_keys) > 0
 
-            # 30s matches the disk-detection timeout used in
-            # _hot_add_disk_parallel for partition appearance after attach.
-            check_till_timeout(
-                _new_lun_detected,
-                timeout_message=(
-                    f"new LUN not detected after disk attach at lun {lun}, "
-                    f"luns_before: {linux_device_luns}, "
-                    f"luns_after: {linux_device_luns_after}"
-                ),
-                timeout=30,
-                interval=1,
-            )
-            new_device_keys: List[str] = list(
-                set(linux_device_luns_after) - set(linux_device_luns)
-            )
-            assert_that(
-                new_device_keys,
-                f"Expected exactly one new device at lun {lun} but found "
-                f"{len(new_device_keys)}. Before: {linux_device_luns}, "
-                f"After: {linux_device_luns_after}. This may indicate "
-                f"the VM size does not support this many data disks "
-                f"(max_data_disk_count={max_data_disk_count}).",
-            ).is_length(1)
-            linux_device_lun_diff = linux_device_luns_after[new_device_keys[0]]
-            log.debug(f"linux_device_luns: {linux_device_luns}")
-            log.debug(f"linux_device_luns_after: {linux_device_luns_after}")
-            log.debug(f"linux_device_lun_diff: {linux_device_lun_diff}")
-            assert_that(linux_device_lun_diff, "New device lun mismatch").is_equal_to(
-                lun
-            )
+                def _new_lun_detected(
+                    _baseline: Dict[str, int] = linux_device_luns,
+                ) -> bool:
+                    nonlocal linux_device_luns_after
+                    linux_device_luns_after = disk.get_luns()
+                    new_keys = set(linux_device_luns_after) - set(_baseline)
+                    return len(new_keys) > 0
 
-        # Remove all attached data disks
-        for disk_added in disks_added:
-            # remove data disk
-            log.debug(f"Removing managed disk: {disk_added}")
-            disk.remove_data_disk(disk_added)
+                check_till_timeout(
+                    _new_lun_detected,
+                    timeout_message=(
+                        f"new LUN not detected after disk attach at lun {lun}, "
+                        f"luns_before: {linux_device_luns}, "
+                        f"luns_after: {linux_device_luns_after}"
+                    ),
+                    timeout=30,
+                    interval=1,
+                )
+                new_device_keys: List[str] = list(
+                    set(linux_device_luns_after) - set(linux_device_luns)
+                )
+                assert_that(
+                    new_device_keys,
+                    f"Expected exactly one new device at lun {lun} but found "
+                    f"{len(new_device_keys)}. Before: {linux_device_luns}, "
+                    f"After: {linux_device_luns_after}. This may indicate "
+                    f"the VM size does not support this many data disks "
+                    f"(max_data_disk_count={max_data_disk_count}).",
+                ).is_length(1)
+                linux_device_lun_diff = linux_device_luns_after[new_device_keys[0]]
+                log.debug(f"linux_device_luns: {linux_device_luns}")
+                log.debug(f"linux_device_luns_after: {linux_device_luns_after}")
+                log.debug(f"linux_device_lun_diff: {linux_device_lun_diff}")
+                assert_that(
+                    linux_device_lun_diff, "New device lun mismatch"
+                ).is_equal_to(lun)
 
-        # verify that all the attached disks are removed
-        partitions_after_removing_disks = lsblk.get_disks(force_run=True)
-        after_names = {d.name for d in partitions_after_removing_disks}
-        partitions_available = [
-            item
-            for item in partitions_before_adding_disk
-            if item.name not in after_names
-        ]
-        assert_that(partitions_available, "data disks should not be present").is_length(
-            0
-        )
+            for disk_added in disks_added:
+                log.debug(f"Removing managed disk: {disk_added}")
+                disk.remove_data_disk(disk_added)
 
     def _hot_add_disk_parallel(
         self, log: Logger, node: Node, disk_type: DiskType, size: int
@@ -1153,52 +1201,38 @@ class Storage(TestSuite):
                 "Consider manually setting max_data_disk_count in the runbook."
             )
 
-        # get partition info before adding data disks
-        partitions_before_adding_disks = lsblk.get_disks(force_run=True)
+        with self._hot_add_disk_guard(log, node) as (baseline_disks, _):
+            before_names = {disk_info.name for disk_info in baseline_disks}
+            log.debug(f"Adding {disks_to_add} managed disks")
+            disks_added = disk.add_data_disk(disks_to_add, disk_type, size)
 
-        # add data disks
-        log.debug(f"Adding {disks_to_add} managed disks")
-        disks_added = disk.add_data_disk(disks_to_add, disk_type, size)
-
-        # verify that partition count is increased by disks_to_add
-        # and the size of partition is correct
-        timeout = 30
-        timer = create_timer()
-        while timeout > timer.elapsed(False):
-            partitons_after_adding_disks = lsblk.get_disks(force_run=True)
-            before_names = {d.name for d in partitions_before_adding_disks}
-            added_partitions = [
-                item
-                for item in partitons_after_adding_disks
-                if item.name not in before_names
-            ]
-            if len(added_partitions) == disks_to_add:
-                break
-            else:
-                log.debug(f"added disks count: {len(added_partitions)}")
-                time.sleep(1)
-        assert_that(
-            added_partitions, f"{disks_to_add} disks should be added"
-        ).is_length(disks_to_add)
-        for partition in added_partitions:
+            # verify that partition count is increased by disks_to_add
+            # and the size of partition is correct
+            timeout = 30
+            timer = create_timer()
+            while timeout > timer.elapsed(False):
+                partitons_after_adding_disks = lsblk.get_disks(force_run=True)
+                added_partitions = [
+                    item
+                    for item in partitons_after_adding_disks
+                    if item.name not in before_names
+                ]
+                if len(added_partitions) == disks_to_add:
+                    break
+                else:
+                    log.debug(f"added disks count: {len(added_partitions)}")
+                    time.sleep(1)
             assert_that(
-                partition.size_in_gb,
-                f"data disk {partition.name} size should be equal to {size} GB",
-            ).is_equal_to(size)
+                added_partitions, f"{disks_to_add} disks should be added"
+            ).is_length(disks_to_add)
+            for partition in added_partitions:
+                assert_that(
+                    partition.size_in_gb,
+                    f"data disk {partition.name} size should be equal to {size} GB",
+                ).is_equal_to(size)
 
-        # remove data disks
-        log.debug(f"Removing managed disks: {disks_added}")
-        disk.remove_data_disk(disks_added)
-
-        # verify that partition count is decreased by disks_to_add
-        partition_after_removing_disk = lsblk.get_disks(force_run=True)
-        after_names = {d.name for d in partition_after_removing_disk}
-        added_partitions = [
-            item
-            for item in partitions_before_adding_disks
-            if item.name not in after_names
-        ]
-        assert_that(added_partitions, "data disks should not be present").is_length(0)
+            log.debug(f"Removing managed disks: {disks_added}")
+            disk.remove_data_disk(disks_added)
 
     def _get_managed_disk_id(self, identifier: str) -> str:
         return f"disk_{identifier}"
