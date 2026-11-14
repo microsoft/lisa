@@ -122,12 +122,7 @@ class Reboot(Tool):
                 raise BadEnvironmentStateException(f"after reboot, {e}")
             raise e
 
-    def reboot(self, time_out: int = 300) -> None:
-        timer = create_timer()
-
-        last_boot_time = self._get_last_boot_time()
-        current_boot_time = last_boot_time
-
+    def _wait_before_reboot(self, last_boot_time: datetime) -> None:
         # who -b returns time without seconds.
         # so if the node rebooted in one minute, the who -b is not changed.
         # The reboot will wait forever.
@@ -135,7 +130,7 @@ class Reboot(Tool):
         date = self.node.tools[Date]
         # boot time has no tzinfo, so remove from date result to avoid below error.
         # TypeError: can't subtract offset-naive and offset-aware datetimes
-        current_delta = date.current().replace(tzinfo=None) - current_boot_time
+        current_delta = date.current().replace(tzinfo=None) - last_boot_time
         self._log.debug(f"delta time since last boot: {current_delta}")
         while current_delta < timedelta(minutes=1):
             # wait until one minute
@@ -144,9 +139,9 @@ class Reboot(Tool):
             sleep(wait_seconds)
             # Reconnect because the SSH session may become inactive during the wait.
             self.node.close()
-            current_delta = date.current().replace(tzinfo=None) - current_boot_time
+            current_delta = date.current().replace(tzinfo=None) - last_boot_time
 
-        self._log.debug(f"rebooting with boot time: {last_boot_time}")
+    def _trigger_reboot(self) -> None:
         try:
             # Reboot is not reliable, and sometime stuck,
             # like SUSE sles-15-sp1-sapcal gen1 2020.10.23.
@@ -175,9 +170,11 @@ class Reboot(Tool):
             # it doesn't matter to exceptions here. The system may reboot fast
             self._log.debug(f"ignorable exception on rebooting: {e}")
 
+    def _wait_for_reboot(
+        self, last_boot_time: datetime, time_out: int, timer: Any
+    ) -> None:
         connected: bool = False
-        # The previous steps may take longer time than time out. After that, it
-        # needs to connect at least once.
+        current_boot_time = last_boot_time
         tried_times: int = 0
         while (timer.elapsed(False) < time_out) or tried_times < 1:
             tried_times += 1
@@ -208,6 +205,14 @@ class Reboot(Tool):
                     "timeout to wait reboot, the node may stuck on reboot command."
                 )
 
+    def reboot(self, time_out: int = 300) -> None:
+        timer = create_timer()
+        last_boot_time = self._get_last_boot_time()
+
+        self._wait_before_reboot(last_boot_time)
+        self._log.debug(f"rebooting with boot time: {last_boot_time}")
+        self._trigger_reboot()
+        self._wait_for_reboot(last_boot_time, time_out, timer)
 
 class WindowsReboot(Reboot):
     @property
