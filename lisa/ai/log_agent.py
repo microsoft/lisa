@@ -979,8 +979,8 @@ def analyze(
     log_folder_path: Union[str, List[str]],
     error_message: str,
     azure_openai_api_key: str = "",
-    general_deployment_name: str = "gpt-4.1",
-    software_deployment_name: str = "gpt-5.2",
+    general_deployment_name: str = "gpt-5.4",
+    software_deployment_name: str = "gpt-5.4",
     selected_flow: str = "default",
 ) -> str:
     """
