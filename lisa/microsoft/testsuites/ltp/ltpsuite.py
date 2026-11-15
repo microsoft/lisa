@@ -1,7 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
-from logging import Logger
 from typing import Any, Dict
 
 from microsoft.testsuites.ltp.ltp import Ltp
@@ -17,7 +16,7 @@ from lisa import (
 )
 from lisa.operating_system import BSD, Windows
 from lisa.testsuite import TestResult
-from lisa.tools import Lsblk, Swap
+from lisa.tools import Lsblk
 
 
 @TestSuiteMetadata(
@@ -35,6 +34,8 @@ class LtpTestsuite(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will run Ltp lite tests in following priority sequence:
+        Temporary swap scales with reported RAM up to 16 GiB, supplementing
+        existing swap on a separate ext4 data disk rather than the OS disk.
         1. When ltp_binary_file (prebuilt ltp tar) is specified in .yml, case will
         run ltp directly from extracted ltp_binary_file without any configuration.
         2. When ltp_source_file (downloaded ltp code) is specified in .yml,
@@ -51,8 +52,8 @@ class LtpTestsuite(TestSuite):
         requirement=simple_requirement(
             min_core_count=8,
             disk=schema.DiskOptionSettings(
-                data_disk_count=search_space.IntRange(min=1),
-                data_disk_size=search_space.IntRange(min=12),
+                data_disk_count=search_space.IntRange(min=2),
+                data_disk_size=search_space.IntRange(min=32),
             ),
             unsupported_os=[BSD, Windows],
         ),
@@ -72,6 +73,8 @@ class LtpTestsuite(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will run Ltp Full tests.
+        Temporary swap scales with reported RAM up to 16 GiB, supplementing
+        existing swap on a separate ext4 data disk rather than the OS disk.
         1. When ltp_source_file (downloaded ltp code) is specified in .yml,
         case will use it to extract the tar and run ltp, instead of downloading runtime.
         Example:
@@ -85,8 +88,8 @@ class LtpTestsuite(TestSuite):
         requirement=simple_requirement(
             min_core_count=8,
             disk=schema.DiskOptionSettings(
-                data_disk_count=search_space.IntRange(min=1),
-                data_disk_size=search_space.IntRange(min=12),
+                data_disk_count=search_space.IntRange(min=2),
+                data_disk_size=search_space.IntRange(min=32),
             ),
             unsupported_os=[BSD, Windows],
         ),
@@ -100,12 +103,6 @@ class LtpTestsuite(TestSuite):
     ) -> None:
         test_str = variables.get("ltp_test", "")
         self._verify_ltp(node, variables, test_str, log_path, result)
-
-    def after_case(self, log: Logger, **kwargs: Any) -> None:
-        # remove swap file created by ltp run since
-        # can interfere with other tests
-        node: Node = kwargs.pop("node")
-        node.tools[Swap].delete_swap()
 
     def _verify_ltp(
         self,

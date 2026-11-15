@@ -3,13 +3,15 @@
 import os
 import re
 import shlex
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import PurePath, PurePosixPath
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, Iterator, List, Optional, Type
 
 from assertpy import assert_that
 
 from lisa.executable import Tool
+from lisa.features import Disk
 from lisa.messages import TestStatus, send_sub_test_result_message
 from lisa.node import Node
 from lisa.operating_system import CBLMariner, Debian, Fedora, Posix, Redhat, Suse
@@ -17,20 +19,23 @@ from lisa.testsuite import TestResult
 from lisa.tools import (
     Cat,
     Chmod,
+    Df,
     Echo,
     Free,
     Gcc,
     Git,
     Ls,
+    Lsblk,
     Make,
     Mkdir,
+    Mount,
     Pidof,
     RemoteCopy,
     Rm,
-    Swap,
     Sysctl,
     Tar,
 )
+from lisa.tools.swap import MkSwap, SwapOff, SwapOn
 from lisa.util import LisaException, find_patterns_in_lines
 
 
@@ -155,7 +160,127 @@ class Ltp(Tool):
                 f"Attempted to write: {skip_tests}"
             )
 
+    @contextmanager
+    def _temporary_swap(self, block_device: Optional[str]) -> Iterator[None]:
+        free = self.node.tools[Free]
+        memory_gb = free.get_total_memory_gb()
+        if memory_gb < 1:
+            raise LisaException("LTP requires at least 1 GiB of reported guest RAM.")
+        target_mb = min(memory_gb, 16) * 1024
+        swap_mb = target_mb - free.get_swap_size()
+        if swap_mb <= 0:
+            yield
+            return
+
+        excluded_device = ""
+        if block_device:
+            excluded_device = self.node.execute(
+                f"readlink -f {shlex.quote(block_device)}",
+                expected_exit_code=0,
+            ).stdout.strip()
+            if not excluded_device:
+                raise LisaException(f"Cannot resolve LTP block device {block_device}.")
+
+        data_disks = self.node.features[Disk].get_raw_data_disks()
+        required_gb = (swap_mb + 1023) // 1024 + 2
+        mountpoint = ""
+        for disk in self.node.tools[Lsblk].get_disks(force_run=True):
+            if (
+                disk.is_os_disk
+                or disk.device_name not in data_disks
+                or disk.device_name == excluded_device
+                or disk.partitions
+                or disk.fstype not in ("", "ext4")
+                or disk.size_in_gb < required_gb
+            ):
+                continue
+            candidate = disk.mountpoint
+            if not candidate:
+                candidate = (
+                    self.node.get_working_path() / f"ltp-swap-{disk.name}"
+                ).as_posix()
+                self.node.tools[Mount].mount(
+                    disk.device_name, candidate, format_=not disk.fstype
+                )
+            if (
+                self.node.tools[Df].get_filesystem_available_space(candidate, True)
+                >= required_gb
+            ):
+                mountpoint = candidate
+                break
+        if not mountpoint:
+            raise LisaException(
+                f"LTP needs a separate ext4 data disk with {required_gb} GiB free "
+                "for temporary swap; the OS and LTP block-test disks are excluded."
+            )
+
+        path = self.node.execute(
+            f"mktemp {shlex.quote(mountpoint + '/ltp-swap.XXXXXXXX')}",
+            sudo=True,
+            expected_exit_code=0,
+        ).stdout.strip()
+        if not path.startswith(mountpoint + "/ltp-swap.") or "\n" in path:
+            raise LisaException(f"Unexpected temporary swap path: {path!r}")
+        quoted_path = shlex.quote(path)
+        active = False
+        try:
+            self._log.info(
+                f"Adding {swap_mb} MiB temporary LTP swap at {path}; "
+                f"target total swap is {target_mb} MiB."
+            )
+            self.node.execute(
+                f"dd if=/dev/zero of={quoted_path} bs=1M count={swap_mb}",
+                sudo=True,
+                timeout=600,
+                expected_exit_code=0,
+            )
+            self.node.tools[MkSwap].run(
+                quoted_path, sudo=True, force_run=True, expected_exit_code=0
+            )
+            self.node.tools[SwapOn].run(
+                quoted_path, sudo=True, force_run=True, expected_exit_code=0
+            )
+            active = True
+            if free.get_swap_size() < target_mb - 1:
+                raise LisaException("LTP temporary swap did not reach the target size.")
+            yield
+        finally:
+            if active:
+                self.node.tools[SwapOff].run(
+                    quoted_path,
+                    sudo=True,
+                    force_run=True,
+                    expected_exit_code=0,
+                    timeout=600,
+                )
+            self.node.tools[Rm].run(
+                quoted_path, sudo=True, force_run=True, expected_exit_code=0
+            )
+
     def run_test(
+        self,
+        test_result: TestResult,
+        ltp_tests: List[str],
+        skip_tests: List[str],
+        log_path: str,
+        user_input_skip_file: str = "",
+        block_device: Optional[str] = None,
+        temp_dir: str = "/tmp/",
+        ltp_run_timeout: int = 12000,
+    ) -> List[LtpResult]:
+        with self._temporary_swap(block_device):
+            return self._run_test(
+                test_result,
+                ltp_tests,
+                skip_tests,
+                log_path,
+                user_input_skip_file,
+                block_device,
+                temp_dir,
+                ltp_run_timeout,
+            )
+
+    def _run_test(
         self,
         test_result: TestResult,
         # empty ltp_tests will run LTP full test
@@ -229,10 +354,6 @@ class Ltp(Tool):
         elif len(skip_tests) > 0:
             self._write_skip_tests_to_remote(skip_file, skip_tests)
             parameters += f"-S {skip_file} "
-
-        # Minimum 4M swap space is needed by some mmp test
-        if self.node.tools[Free].get_swap_size() < 4:
-            self.node.tools[Swap].create_swap()
 
         # run ltp tests
         cur_command = f"echo y | {self.command} {parameters}"
