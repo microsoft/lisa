@@ -297,7 +297,6 @@ class GpuTestSuite(TestSuite):
         """,
         timeout=GPU_RESET_TIMEOUT,
         priority=3,
-        maturity="preview",
         requirement=simple_requirement(
             supported_features=[GpuEnabled()],
             unsupported_os=[AlmaLinux, Oracle, Suse],
