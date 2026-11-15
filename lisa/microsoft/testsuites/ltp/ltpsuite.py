@@ -35,6 +35,8 @@ class LtpTestsuite(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will run Ltp lite tests in following priority sequence:
+        Requires at least 256 GiB RAM as a proposed mitigation for OOM-test
+        interference with guest services; all test coverage is retained.
         1. When ltp_binary_file (prebuilt ltp tar) is specified in .yml, case will
         run ltp directly from extracted ltp_binary_file without any configuration.
         2. When ltp_source_file (downloaded ltp code) is specified in .yml,
@@ -50,6 +52,7 @@ class LtpTestsuite(TestSuite):
         timeout=_TIME_OUT,
         requirement=simple_requirement(
             min_core_count=8,
+            min_memory_mb=256 * 1024,
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=12),
@@ -72,6 +75,8 @@ class LtpTestsuite(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will run Ltp Full tests.
+        Requires at least 256 GiB RAM as a proposed mitigation for OOM-test
+        interference with guest services; all test coverage is retained.
         1. When ltp_source_file (downloaded ltp code) is specified in .yml,
         case will use it to extract the tar and run ltp, instead of downloading runtime.
         Example:
@@ -84,6 +89,7 @@ class LtpTestsuite(TestSuite):
         timeout=25200,
         requirement=simple_requirement(
             min_core_count=8,
+            min_memory_mb=256 * 1024,
             disk=schema.DiskOptionSettings(
                 data_disk_count=search_space.IntRange(min=1),
                 data_disk_size=search_space.IntRange(min=12),
