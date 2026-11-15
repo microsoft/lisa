@@ -224,6 +224,8 @@ class Ltp(Tool):
                 raise LisaException(
                     f"User provided skip file is empty: {user_input_skip_file}"
                 )
+            # Preserve explicit exclusions even when a skip file is supplied.
+            skip_lines = list(dict.fromkeys(skip_lines + skip_tests))
             self._write_skip_tests_to_remote(skip_file, skip_lines)
             parameters += f"-S {skip_file} "
         elif len(skip_tests) > 0:

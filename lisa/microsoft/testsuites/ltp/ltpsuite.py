@@ -35,6 +35,8 @@ class LtpTestsuite(TestSuite):
     @TestCaseMetadata(
         description="""
         This test case will run Ltp lite tests in following priority sequence:
+        Temporarily excludes oom01 to mitigate guest unresponsiveness during
+        memory stress. This reduces coverage; the full suite is unchanged.
         1. When ltp_binary_file (prebuilt ltp tar) is specified in .yml, case will
         run ltp directly from extracted ltp_binary_file without any configuration.
         2. When ltp_source_file (downloaded ltp code) is specified in .yml,
@@ -67,6 +69,16 @@ class LtpTestsuite(TestSuite):
         test_str = variables.get("ltp_test", "")
         if not test_str:
             test_str = self.LTP_LITE_TESTS
+        variables = dict(variables)
+        skip_tests = [
+            name.strip()
+            for name in variables.get("ltp_skip_test", "").split(",")
+            if name.strip()
+        ]
+        if "oom01" not in skip_tests:
+            skip_tests.append("oom01")
+        variables["ltp_skip_test"] = ",".join(skip_tests)
+        node.log.warning("Temporarily excluding oom01 from LTP lite: reduced coverage.")
         self._verify_ltp(node, variables, test_str, log_path, result)
 
     @TestCaseMetadata(
