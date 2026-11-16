@@ -1,0 +1,24 @@
+name: SSH-free Windows VM applications validation
+
+include:
+  - path: azure.yml
+
+variable:
+  - name: enable_tests
+    value: false
+  - name: concurrency
+    value: 1
+  - name: marketplace_image
+    value: "MicrosoftWindowsServer WindowsServer 2022-datacenter-azure-edition latest"
+  - name: use_public_address
+    value: false
+  - name: create_public_address
+    value: false
+
+testcase:
+  - criteria:
+      tags: VmApplicationsWindows
+      maturity:
+        - preview
+    retry: 0
+    times: 1

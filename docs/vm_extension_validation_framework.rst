@@ -177,6 +177,188 @@ Each publisher suite **must** include both ``"VM_Extension"`` (shared) and an
 extension-specific tag (typically the ``EXTENSION_TYPE`` value) in its
 ``@TestSuiteMetadata(tags=...)``.
 
+VM Applications: Windows and Linux Without SSH
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The VM applications suites use CRP application-profile and VM-application child
+APIs, not direct extension installation. CRP selects the handler version.
+Application-version updates and downgrades are tested; handler upgrades,
+version pinning, VMSS, host-response injection and timeout/retry-exhaustion
+scenarios are intentionally excluded.
+
+Run either serial, private-VM runbook:
+
+.. code-block:: powershell
+
+   python -m lisa list -t case -r .\lisa\microsoft\runbook\vm_applications.yml
+   python -m lisa run -r .\lisa\microsoft\runbook\vm_applications.yml
+   python -m lisa run -r .\lisa\microsoft\runbook\vm_applications_windows.yml
+
+Supply normal Azure subscription/authentication variables and Windows
+provisioning credentials through your normal secret-variable mechanism.
+The defaults are Ubuntu 22.04 Gen2 and Windows Server 2022 Azure Edition.
+Linux requires Python 3; Windows uses Windows PowerShell and .NET ZIP support.
+Neither suite establishes SSH, RDP or WinRM connections, and Windows SSH
+bootstrap is disabled. Managed Run Command is the only guest setup/validation
+channel. Its resource is updated in place.
+
+Each OS defines the same 16 preview cases. Four custom-action cases are
+temporarily disabled pending the PIR metadata issue described below, leaving
+12 active cases: nine functional cases and three reboot cases (CRP restart
+persistence, installation with ``None``, and installation with ``Rerun``).
+Windows and Linux share the scenario implementations,
+publishing, CRP operations, failure validation and cleanup. Only the guest
+scripts, command bootstrap, image and OS requirements differ.
+
+Related checks share application installations and profile updates within four
+grouped cases, rather than repeating per-case setup and cleanup:
+
+* ``verify_installation_and_configuration`` installs apps with default/custom
+  filenames, no/default/overridden configuration and a manually managed
+  companion in one profile update. It then checks that invalid CRP requests
+  neither change the profile nor execute guest commands.
+* ``verify_application_lifecycle`` installs once, checks identical/unrelated
+  updates, performs a native update and downgrade, and finishes with
+  remove/install replacement while retaining an unchanged companion app.
+* ``verify_ordered_failure_and_recovery`` checks peers, unordered continuation
+  and higher-order skipping, removes the skipped entry without running its
+  remove command, then recovers with a good version and reinstalls that entry.
+* ``verify_removal_and_reuse`` removes an app with modified cached files while
+  preserving another, removes the remaining app normally, and reinstalls using
+  the same handler.
+
+Each group logs its phases and checks execution history at phase boundaries.
+Failures stop later dependent phases; normal case cleanup still runs. Ordered
+mixed operations, deployment-failure flags, failed replacement/removal, child
+resource APIs and all three reboot scenarios remain separate cases.
+Guest fixtures and gallery publishing are unchanged, so grouping does not
+require republishing application versions.
+
+Defined coverage, including the temporarily disabled custom-action cases, includes:
+
+* Root/LocalSystem execution, working directory, exact downloaded bytes,
+  default/custom filenames, no/default/overridden configuration, and literal
+  custom-action parameters and defaults.
+* No-op settings and unrelated updates, native update, remove/install fallback,
+  application downgrade, failed replacement removal, and recovery.
+* Ordered operations, same-order peers, higher-order skips, unordered
+  continuation, skipped-entry cleanup, and install/update deployment-failure
+  flags both enabled and disabled.
+* Remove failure reporting, modified cached files, individual/all application
+  removal, preservation of an unrelated sentinel and independent audit
+  directory, and re-addition.
+* Custom-action invocation, unique-identifier replay protection, failure
+  reporting/recovery, and CRP action/parameter rejection.
+* Child PUT/PATCH/GET/LIST/DELETE and tag-only updates, manual-management
+  exclusion, and invalid profile/OS/reference/configuration rejection without
+  guest execution.
+* Three bounded reboot scenarios. Installer-triggered reboots have a durable
+  one-shot guard; these are not reboot-loop or timeout tests.
+
+Use one dedicated VM per OS and concurrency one. Both suites opt into
+``reuse_deployed_environment``; the runner preserves the deployed VM and skips
+post-case SSH probes. The reuse logic matches the CSE branch, while this
+branch's existing ``remote_connection_required`` compatibility path remains
+available for Hibernate and disables Windows SSH bootstrap here. A reuse case
+that unexpectedly connects its environment causes it to be discarded.
+
+The suites refuse to replace customer application profiles. Test applications
+are removed after each case, but the VM, resource group and CRP-managed
+extension are not deleted between cases. Failures during cleanup are explicit
+and mark the environment dirty. Audit records carry a fresh case identifier;
+the application commands validate their own inputs, and Run Command verifies
+execution counts, ordering, state and cleanup. Public per-application instance
+view is checked separately using VM API ``2025-04-01``, the first version
+exposing the ``vmApplications`` instance-view collection.
+For remove/custom-action results not retained in public instance view,
+Run Command reads the latest handler status file without
+editing it. An ARM/authentication error cannot satisfy an expected handler
+failure.
+
+Failure-policy cases require the original CRP VM-update operation to report a
+VM Applications extension failure and the per-application result to report
+failure. They do not require a later VM GET to retain a failed provisioning
+state: another operation may have updated that VM-wide state. An unrelated
+extension failure (for example, policy-installed Defender) does not count as
+the expected application failure.
+
+The install/update failure-policy matrix uses independent scenarios. After
+checking an intentional install failure, it removes that entry and installs
+successfully before injecting an update failure. This tests update-failure
+propagation from an installed application rather than chaining two failed
+operations. Audit events are checked at each failure and after the successful
+installation. Recovery from a failed install is covered separately by
+``verify_ordered_failure_and_recovery``.
+
+Failed replacement removal can be retried on subsequent goal states, including
+those generated by Managed Run Command inspection. That case requires the old
+version to remain installed and allows only failed removal attempts after its
+initial installation; any successful removal or new-version execution fails
+the case. No-op/idempotency checks in the normal lifecycle remain exact.
+
+The child-resource lifecycle creates applications through child PUT before
+PATCH or DELETE: adding an application through the VM profile alone does not
+register that child resource with ARM. Manually managed applications may appear
+in public instance view as empty name-only entries; the tests allow those
+placeholders but reject any reported version, result or action for them, and
+independently verify that no guest command ran.
+
+Fixtures reuse the regional shared storage account and
+``lisa_shared_resource``; no resource group is created per case. The private
+``lisa-vmapplications`` container uses Entra-authenticated uploads and read-only
+user-delegation SAS. If the account is absent, the separate storage ARM template
+creates it with HTTPS/TLS 1.2, OAuth defaults, Shared Key disabled and public
+blob access disabled. Like JsonADDomain staging, creation grants the deployer
+Storage Blob Data Contributor on that new account. Existing accounts are not
+reconfigured and existing caller permissions are not escalated.
+
+The caller needs VM update, VM-application child API and managed Run Command
+permissions, plus gallery/application/version and deployment permissions in
+the fixture resource group. Existing storage requires Blob Data Contributor
+and account-level delegation-key generation permission; a container-scoped
+data role needs a separate account-scoped delegation role. New account
+creation also requires role-assignment permission. New-role propagation is
+bounded and logged; authorization failures against existing accounts fail
+immediately.
+
+Optional case-visible variables:
+
+* ``vm_applications_storage_account``
+* ``vm_applications_storage_resource_group``
+* ``vm_applications_gallery_name``
+* ``vm_applications_gallery_resource_group``
+
+By default, publishing creates five fixture application definitions and nine
+versions per OS, including one opposite-OS version used only for CRP rejection.
+Packages/default configuration use page blobs, following the synthetic;
+configuration overrides use a private block blob. The gallery ARM template
+keeps SAS-bearing source properties in a secure-object parameter. Application
+names are content-versioned, existing fixture tags are checked, and regional
+replication must complete before testing. Immutable gallery fixtures and their
+source blobs deliberately survive runs to avoid repeated publication.
+Windows custom filenames use ``payload-data.zip`` and ``settings-data.json``;
+the gallery service rejected the space-containing package filename used by the
+Linux fixture. Linux retains its spaced filenames for quoting coverage.
+Changing fixture scripts or the publishing schema creates a new fixture
+generation. The filename correction bumps the schema so failed immutable
+versions from earlier runs are not reused. Do not remove the shared
+gallery/account/container as part of case cleanup.
+
+The custom-action execution, replay, failure/recovery and validation cases are
+temporarily disabled in both OS suites by commenting out their
+``TestCaseMetadata`` decorators. Each has a TODO to re-enable it after the PIR
+issue preventing CRP from receiving custom-action metadata is fixed. The
+published action definitions and shared test implementations remain intact.
+
+After re-enabling, the cases may expose additional handler compatibility issues:
+the supplied CRP source serializes custom-action parameters as an object, while
+the supplied handler source expects name/value entries in an array. Such a
+mismatch must fail rather than be hidden by protected-settings injection.
+Likewise, a custom-action failure missing from handler status is a test failure.
+Same-version configuration/manual-management changes are not assumed to force
+execution; those scenarios use fresh applications or explicit
+application-version changes.
+
 Windows Runtime Extension Boot Validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

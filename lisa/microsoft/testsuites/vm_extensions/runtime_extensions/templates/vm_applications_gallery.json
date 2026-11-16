@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {"type": "string"},
+    "galleryName": {"type": "string"},
+    "fixtureDigest": {"type": "string"},
+    "applications": {"type": "array"},
+    "versions": {"type": "secureObject"}
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Compute/galleries",
+      "apiVersion": "2024-03-03",
+      "name": "[parameters('galleryName')]",
+      "location": "[parameters('location')]",
+      "properties": {"description": "Reusable LISA VM application fixtures"}
+    },
+    {
+      "type": "Microsoft.Compute/galleries/applications",
+      "apiVersion": "2024-03-03",
+      "name": "[format('{0}/{1}', parameters('galleryName'), parameters('applications')[copyIndex()].name)]",
+      "location": "[parameters('location')]",
+      "tags": {"lisa_fixture": "[parameters('fixtureDigest')]"},
+      "copy": {
+        "name": "applications",
+        "count": "[length(parameters('applications'))]"
+      },
+      "dependsOn": ["[resourceId('Microsoft.Compute/galleries', parameters('galleryName'))]"],
+      "properties": {"supportedOSType": "[parameters('applications')[copyIndex()].osType]"}
+    },
+    {
+      "type": "Microsoft.Compute/galleries/applications/versions",
+      "apiVersion": "2024-03-03",
+      "name": "[format('{0}/{1}/{2}', parameters('galleryName'), parameters('versions').items[copyIndex()].application, parameters('versions').items[copyIndex()].version)]",
+      "location": "[parameters('location')]",
+      "tags": {"lisa_fixture": "[parameters('fixtureDigest')]"},
+      "copy": {
+        "name": "versions",
+        "count": "[length(parameters('versions').items)]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/galleries/applications', parameters('galleryName'), parameters('versions').items[copyIndex()].application)]"
+      ],
+      "properties": "[parameters('versions').items[copyIndex()].properties]"
+    }
+  ]
+}

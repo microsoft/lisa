@@ -491,7 +491,11 @@ class LisaRunner(BaseRunner):
         # connected after it's initialized. It breaks the flow, so the
         # transformers are in the connected phase will be ignored. So mark this
         # kind of environment is dirty to prevent it run other test cases.
-        if environment.status == EnvironmentStatus.Deployed:
+        was_connected = environment.status == EnvironmentStatus.Connected
+        if (
+            environment.status == EnvironmentStatus.Deployed
+            and not suite_metadata.reuse_deployed_environment
+        ):
             environment.mark_dirty()
 
         tested_environment = environment
@@ -506,6 +510,12 @@ class LisaRunner(BaseRunner):
             case_results=test_results,
             case_variables=case_variables,
         )
+        if (
+            suite_metadata.reuse_deployed_environment
+            and not was_connected
+            and environment.status == EnvironmentStatus.Connected
+        ):
+            environment.mark_dirty()
         # release environment reference to optimize memory.
         test_result.environment = None
 
@@ -518,7 +528,8 @@ class LisaRunner(BaseRunner):
         # Cases that explicitly opt out of remote connections use control-plane
         # operations instead. Preserve the existing check for the default True.
         if (
-            not is_unittest()
+            (was_connected or not suite_metadata.reuse_deployed_environment)
+            and not is_unittest()
             and test_result.runtime_data.metadata.requirement.remote_connection_required
             and not tested_environment.nodes.test_connections()
         ):
