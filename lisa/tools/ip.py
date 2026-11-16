@@ -182,8 +182,6 @@ class Ip(Tool):
                 f"ip show could not get info for device {nic_name}"
             ),
         )
-        if result.is_timeout:
-            raise LisaException(f"Timed out checking link state for {nic_name}")
         device_info = result.stdout
         matched = self.__ip_br_show_regex.match(device_info)
         assert matched is not None, f"Could not parse result: {device_info}"
@@ -625,8 +623,6 @@ class Ip(Tool):
                 "Could not fetch interface details with 'ip -d link show'"
             ),
         )
-        if result.is_timeout:
-            raise LisaException(f"Timed out fetching interface details for {interface}")
         details = result.stdout
 
         groups = find_group_in_lines(
