@@ -1,0 +1,189 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "vmName": {
+      "type": "string",
+      "maxLength": 15
+    },
+    "location": {
+      "type": "string"
+    },
+    "adminUsername": {
+      "type": "string"
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "minLength": 12
+    },
+    "subnetId": {
+      "type": "string"
+    },
+    "storageAccountName": {
+      "type": "string"
+    },
+    "packageBaseUrl": {
+      "type": "string"
+    },
+    "storageAccessScript": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "vmName": "[parameters('vmName')]",
+    "nicName": "[format('{0}-nic', parameters('vmName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2022-07-01",
+      "name": "[variables('nicName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "subnet": {
+                "id": "[parameters('subnetId')]"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2022-08-01",
+      "name": "[variables('vmName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "Standard_D2s_v3"
+        },
+        "osProfile": {
+          "computerName": "[variables('vmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]",
+          "windowsConfiguration": {
+            "provisionVMAgent": true
+          }
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "2022-datacenter",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "[format('{0}-os', variables('vmName'))]",
+            "createOption": "FromImage",
+            "deleteOption": "Delete",
+            "managedDisk": {
+              "storageAccountType": "StandardSSD_LRS"
+            }
+          },
+          "dataDisks": [
+            {
+              "name": "[format('{0}-data', variables('vmName'))]",
+              "lun": 0,
+              "createOption": "Empty",
+              "deleteOption": "Delete",
+              "diskSizeGB": 20,
+              "caching": "ReadWrite",
+              "managedDisk": {
+                "storageAccountType": "StandardSSD_LRS"
+              }
+            }
+          ]
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "name": "[guid(resourceGroup().id, parameters('storageAccountName'), variables('vmName'), 'reader')]",
+      "scope": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', variables('vmName'))]"
+      ],
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1')]",
+        "principalId": "[reference(resourceId('Microsoft.Compute/virtualMachines', variables('vmName')), '2022-08-01', 'Full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/runCommands",
+      "apiVersion": "2023-03-01",
+      "name": "[format('{0}/WaitStorageAccess', variables('vmName'))]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[extensionResourceId(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), 'Microsoft.Authorization/roleAssignments', guid(resourceGroup().id, parameters('storageAccountName'), variables('vmName'), 'reader'))]"
+      ],
+      "properties": {
+        "asyncExecution": false,
+        "timeoutInSeconds": 600,
+        "treatFailureAsDeploymentFailure": true,
+        "source": {
+          "script": "[parameters('storageAccessScript')]"
+        },
+        "parameters": [
+          {
+            "name": "PackageUrl",
+            "value": "[concat(parameters('packageBaseUrl'), 'CreateADPDC.zip')]"
+          }
+        ]
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "apiVersion": "2022-08-01",
+      "name": "[format('{0}/StageADPackage', variables('vmName'))]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines/runCommands', variables('vmName'), 'WaitStorageAccess')]"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Compute",
+        "type": "CustomScriptExtension",
+        "typeHandlerVersion": "1.10",
+        "autoUpgradeMinorVersion": true,
+        "protectedSettings": {
+          "managedIdentity": {},
+          "fileUris": [
+            "[concat(parameters('packageBaseUrl'), 'CreateADPDC.zip')]",
+            "[concat(parameters('packageBaseUrl'), 'json_ad_domain_stage.ps1')]",
+            "[concat(parameters('packageBaseUrl'), 'json_ad_domain_configure.ps1')]"
+          ],
+          "commandToExecute": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File json_ad_domain_stage.ps1"
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "privateIp": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Network/networkInterfaces', variables('nicName')), '2022-07-01').ipConfigurations[0].properties.privateIPAddress]"
+    },
+    "vmName": {
+      "type": "string",
+      "value": "[variables('vmName')]"
+    }
+  }
+}
