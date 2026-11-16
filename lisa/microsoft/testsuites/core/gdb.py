@@ -9,7 +9,7 @@ from pathlib import Path
 from assertpy import assert_that
 
 from lisa import Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, Debian
 from lisa.tools import Gcc, Gdb
 from lisa.util import get_matched_str
 
@@ -52,6 +52,8 @@ class GDB(TestSuite):
         # compile code with gdb options
         if type(node.os) is CBLMariner:
             node.os.install_packages(("binutils", "glibc-devel"))
+        elif isinstance(node.os, Debian):
+            node.os.install_packages("libc6-dev")
         node.tools[Gcc].compile(
             str(to_be_compiled_file_path), str(compiled_file_path), "-g -ggdb"
         )
