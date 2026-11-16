@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from pathlib import PurePosixPath
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
@@ -11,6 +12,7 @@ class YumConfigManagerTestCase(TestCase):
     def _create_tool(self) -> YumConfigManager:
         tool = YumConfigManager.__new__(YumConfigManager)
         tool.node = MagicMock()
+        tool.node.working_path = PurePosixPath("/remote/working")
         return tool
 
     def test_repo_id_from_url(self) -> None:
@@ -65,3 +67,37 @@ class YumConfigManagerTestCase(TestCase):
             tool.add_repository("https://example.com/custom.repo")
 
         mock_run.assert_not_called()
+
+    def test_add_repository_resolves_relative_path_on_remote(self) -> None:
+        tool = self._create_tool()
+        with patch.object(YumConfigManager, "run") as mock_run:
+            tool.add_repository("local-repo")
+
+        cmd = tool.node.execute.call_args.kwargs["cmd"]
+        self.assertIn('--add-repo "file:///remote/working/local-repo"', cmd)
+        mock_run.assert_called_once_with(
+            "--save --setopt=remote_working_local-repo.gpgcheck=0",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "fail to set opts remote_working_local-repo.gpgcheck=0"
+            ),
+        )
+
+    def test_add_repository_keeps_absolute_path(self) -> None:
+        tool = self._create_tool()
+        with patch.object(YumConfigManager, "run") as mock_run:
+            tool.add_repository("/opt/myrepo")
+
+        cmd = tool.node.execute.call_args.kwargs["cmd"]
+        self.assertIn('--add-repo "file:///opt/myrepo"', cmd)
+        mock_run.assert_called_once_with(
+            "--save --setopt=opt_myrepo.gpgcheck=0",
+            sudo=True,
+            force_run=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "fail to set opts opt_myrepo.gpgcheck=0"
+            ),
+        )

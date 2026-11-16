@@ -55,7 +55,15 @@ class YumConfigManager(Tool):
         repo: str,
         no_gpgcheck: bool = True,
     ) -> None:
-        cmd = f'{self.command} --add-repo "{repo}"'
+        url = str(repo)
+        if not urlparse(url).scheme:
+            # Resolve local paths against the remote working directory;
+            # yum-config-manager would otherwise resolve relative paths
+            # against the remote process cwd, which is not predictable.
+            url = "file://" + posixpath.normpath(
+                posixpath.join(str(self.node.working_path), url)
+            )
+        cmd = f'{self.command} --add-repo "{url}"'
         if no_gpgcheck:
             cmd += " --nogpgcheck"
         self.node.execute(
@@ -66,12 +74,8 @@ class YumConfigManager(Tool):
         )
         # dnf 4.19 silently ignores --nogpgcheck for --add-repo, leaving the
         # generated repo file without gpgcheck=0. Persist it explicitly.
-        if no_gpgcheck:
-            url = repo
-            if not urlparse(url).scheme:
-                url = "file://" + posixpath.abspath(url)
-            if not url.endswith(".repo"):
-                self.set_opt(f"{_repo_id_from_url(url)}.gpgcheck=0")
+        if no_gpgcheck and not url.endswith(".repo"):
+            self.set_opt(f"{_repo_id_from_url(url)}.gpgcheck=0")
 
     def set_opt(
         self,
