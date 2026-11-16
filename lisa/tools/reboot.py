@@ -137,9 +137,19 @@ class Reboot(Tool):
         # TypeError: can't subtract offset-naive and offset-aware datetimes
         current_delta = date.current().replace(tzinfo=None) - current_boot_time
         self._log.debug(f"delta time since last boot: {current_delta}")
-        while current_delta < timedelta(minutes=1):
+        boot_time_in_future = current_delta < timedelta(0)
+        if boot_time_in_future:
+            # The recorded boot time is later than the current time, e.g. the
+            # node booted while its RTC was set ahead and the clock was synced
+            # back afterwards. The uptime wait can never finish in that case;
+            # the reboot is detected by a changed boot time instead.
+            self._log.info(
+                f"boot time {current_boot_time} is later than the current time, "
+                "skip waiting before rebooting."
+            )
+        while timedelta(0) <= current_delta < timedelta(minutes=1):
             # wait until one minute
-            wait_seconds = 60 - current_delta.seconds + 1
+            wait_seconds = 60 - int(current_delta.total_seconds()) + 1
             self._log.debug(f"waiting {wait_seconds} seconds before rebooting")
             sleep(wait_seconds)
             # Reconnect because the SSH session may become inactive during the wait.
@@ -193,7 +203,12 @@ class Reboot(Tool):
                 # error is ignorable, as ssh may be closed suddenly.
                 self._log.debug(f"ignorable ssh exception: {e}")
             self._log.debug(f"reconnected with uptime: {current_boot_time}")
-            if last_boot_time < current_boot_time:
+            # A future boot time can only be replaced by an earlier one, so accept
+            # any change in that case; otherwise keep requiring a later boot time
+            # so that jitter in the uptime fallback is not taken as a reboot.
+            if current_boot_time > last_boot_time or (
+                boot_time_in_future and current_boot_time != last_boot_time
+            ):
                 remaining_stability_wait = max(0, time_out - int(timer.elapsed(False)))
                 if remaining_stability_wait > 0:
                     self._wait_ssh_session_stable(remaining_stability_wait)

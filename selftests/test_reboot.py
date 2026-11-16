@@ -61,3 +61,20 @@ class RebootTestCase(TestCase):
             ],
             events[:5],
         )
+
+    def test_reboots_when_recorded_boot_time_is_in_the_future(self) -> None:
+        # Values from a node that booted while its RTC was a year ahead.
+        future_boot_time = datetime(2027, 10, 30, 11, 7)
+        new_boot_time = datetime(2026, 10, 30, 11, 19)
+        boot_times = iter([future_boot_time, new_boot_time])
+        self.date.current.return_value = datetime(2026, 10, 30, 11, 18, 50)
+
+        with patch.object(
+            self.reboot, "_get_last_boot_time", side_effect=lambda: next(boot_times)
+        ), patch.object(self.reboot, "_wait_ssh_session_stable") as wait_stable, patch(
+            "lisa.tools.reboot.sleep"
+        ) as sleep:
+            self.reboot.reboot()
+
+        sleep.assert_not_called()
+        wait_stable.assert_called_once()
