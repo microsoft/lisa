@@ -136,10 +136,7 @@ class Sriov(TestSuite):
         re.M,
     )
 
-    def before_case(self, log: Logger, **kwargs: Any) -> None:
-        if kwargs["result"].runtime_data.name == "verify_vf_ethtool_private_flags":
-            return
-        environment: Environment = kwargs.pop("environment")
+    def _initialize_sriov(self, environment: Environment) -> None:
         for node in environment.nodes.list():
             node.tools[Firewall].stop()
             node.features[NetworkInterface].switch_sriov(
@@ -160,7 +157,8 @@ class Sriov(TestSuite):
             network_interface=features.Sriov(),
         ),
     )
-    def verify_services_state(self, node: Node) -> None:
+    def verify_services_state(self, node: Node, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         try:
             check_till_timeout(
                 lambda: node.tools[Systemctl].state() == "running",
@@ -196,6 +194,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_basic(self, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         initialize_nic_info(environment)
         sriov_basic_test(environment)
 
@@ -221,6 +220,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_single_vf_connection(self, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
@@ -251,6 +251,7 @@ class Sriov(TestSuite):
     def verify_sriov_single_vf_connection_max_cpu(
         self, environment: Environment
     ) -> None:
+        self._initialize_sriov(environment)
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
@@ -281,6 +282,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_max_vf_connection(self, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
@@ -312,6 +314,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_max_vf_connection_max_cpu(self, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment)
         sriov_vf_connection_test(environment, vm_nics)
@@ -335,6 +338,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_disable_enable(self, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         skip_if_pci_only_nics(environment)
 
         sriov_disable_enable(environment)
@@ -356,6 +360,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_disable_enable_pci(self, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         skip_if_pci_only_nics(environment)
 
         disable_enable_devices(environment)
@@ -382,6 +387,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_disable_enable_on_guest(self, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         skip_if_pci_only_nics(environment)
 
         vm_nics = initialize_nic_info(environment)
@@ -584,8 +590,9 @@ class Sriov(TestSuite):
         tags=["ai-generated"],
     )
     def verify_sriov_ethtool_ring_buffer_settings(
-        self, node: Node, log: Logger
+        self, node: Node, log: Logger, environment: Environment
     ) -> None:
+        self._initialize_sriov(environment)
         ethtool = node.tools[Ethtool]
         vf_nics = self._get_vf_nics(node, log, "ring buffer settings")
 
@@ -742,7 +749,10 @@ class Sriov(TestSuite):
         ),
         tags=["ai-generated"],
     )
-    def verify_sriov_ethtool_rss_hash_key(self, node: Node, log: Logger) -> None:
+    def verify_sriov_ethtool_rss_hash_key(
+        self, node: Node, log: Logger, environment: Environment
+    ) -> None:
+        self._initialize_sriov(environment)
         ethtool = node.tools[Ethtool]
         ip = node.tools[Ip]
 
@@ -852,8 +862,9 @@ class Sriov(TestSuite):
         tags=["ai-generated"],
     )
     def verify_sriov_ethtool_rss_indirection_table(
-        self, node: Node, log: Logger
+        self, node: Node, log: Logger, environment: Environment
     ) -> None:
+        self._initialize_sriov(environment)
         ethtool = node.tools[Ethtool]
         ip = node.tools[Ip]
 
@@ -1015,7 +1026,10 @@ class Sriov(TestSuite):
         ),
         tags=["ai-generated"],
     )
-    def verify_sriov_ethtool_coalesce_settings(self, node: Node, log: Logger) -> None:
+    def verify_sriov_ethtool_coalesce_settings(
+        self, node: Node, log: Logger, environment: Environment
+    ) -> None:
+        self._initialize_sriov(environment)
         ethtool = node.tools[Ethtool]
         ip = node.tools[Ip]
         vf_nics = self._get_vf_nics(node, log, "receive CQE coalescing settings")
@@ -1196,6 +1210,7 @@ class Sriov(TestSuite):
     def verify_sriov_ethtool_channels(
         self, environment: Environment, log: Logger
     ) -> None:
+        self._initialize_sriov(environment)
         node = cast(RemoteNode, environment.nodes[0])
         ethtool = node.tools[Ethtool]
 
@@ -1333,6 +1348,7 @@ class Sriov(TestSuite):
     def verify_sriov_ethtool_statistics(
         self, environment: Environment, log: Logger
     ) -> None:
+        self._initialize_sriov(environment)
         node = cast(RemoteNode, environment.nodes[0])
         ethtool = node.tools[Ethtool]
 
@@ -1562,7 +1578,10 @@ class Sriov(TestSuite):
         ),
         tags=["ai-generated"],
     )
-    def verify_sriov_debugfs_diagnostics(self, node: Node, log: Logger) -> None:
+    def verify_sriov_debugfs_diagnostics(
+        self, node: Node, log: Logger, environment: Environment
+    ) -> None:
+        self._initialize_sriov(environment)
         mount = node.tools[Mount]
         if not mount.check_mount_point_exist(self.DEBUGFS_PATH):
             log.info("mounting debugfs for SR-IOV diagnostics")
@@ -1745,7 +1764,10 @@ class Sriov(TestSuite):
         ),
         tags=["ai-generated"],
     )
-    def verify_sriov_netshaper_bandwidth_clamp(self, node: Node, log: Logger) -> None:
+    def verify_sriov_netshaper_bandwidth_clamp(
+        self, node: Node, log: Logger, environment: Environment
+    ) -> None:
+        self._initialize_sriov(environment)
         scope = "netdev"
         shaper_id = 1
         metric = "bps"
@@ -1891,6 +1913,7 @@ class Sriov(TestSuite):
     def verify_sriov_add_max_nics(
         self, log_path: Path, log: Logger, environment: Environment
     ) -> None:
+        self._initialize_sriov(environment)
         remove_extra_nics(environment)
         try:
             node = cast(RemoteNode, environment.nodes[0])
@@ -1936,6 +1959,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_provision_with_max_nics(self, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         initialize_nic_info(environment)
         sriov_basic_test(environment)
 
@@ -1960,6 +1984,7 @@ class Sriov(TestSuite):
     def verify_sriov_provision_with_max_nics_reboot(
         self, environment: Environment
     ) -> None:
+        self._initialize_sriov(environment)
         initialize_nic_info(environment)
         sriov_basic_test(environment)
         for node in environment.nodes.list():
@@ -1988,6 +2013,7 @@ class Sriov(TestSuite):
     def verify_sriov_provision_with_max_nics_reboot_from_platform(
         self, environment: Environment
     ) -> None:
+        self._initialize_sriov(environment)
         initialize_nic_info(environment)
         sriov_basic_test(environment)
         for node in environment.nodes.list():
@@ -2017,6 +2043,7 @@ class Sriov(TestSuite):
     def verify_sriov_provision_with_max_nics_stop_start_from_platform(
         self, environment: Environment
     ) -> None:
+        self._initialize_sriov(environment)
         initialize_nic_info(environment)
         sriov_basic_test(environment)
         for node in environment.nodes.list():
@@ -2046,6 +2073,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_reload_modules(self, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         vm_nics = initialize_nic_info(environment)
         sriov_basic_test(environment)
 
@@ -2098,6 +2126,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_ethtool_offload_setting(self, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         client_iperf3_log = "iperfResults.log"
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
@@ -2256,6 +2285,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_irqbalance(self, environment: Environment, log: Logger) -> None:
+        self._initialize_sriov(environment)
         err_msg: str = ""
 
         server_node = cast(RemoteNode, environment.nodes[0])
@@ -2368,6 +2398,7 @@ class Sriov(TestSuite):
         ),
     )
     def verify_sriov_interrupts_change(self, environment: Environment) -> None:
+        self._initialize_sriov(environment)
         server_node = cast(RemoteNode, environment.nodes[0])
         client_node = cast(RemoteNode, environment.nodes[1])
         client_lscpu = client_node.tools[Lscpu]
