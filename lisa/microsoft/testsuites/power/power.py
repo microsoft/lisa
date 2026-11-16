@@ -10,6 +10,7 @@ from microsoft.testsuites.power.common import (
     cleanup_env,
     hibernation_before_case,
     is_distro_supported,
+    prepare_hibernation_by_tool,
     run_network_workload,
     run_storage_workload,
     verify_hibernation,
@@ -105,6 +106,11 @@ class Power(TestSuite):
     )
     def verify_hibernation_time_sync(self, node: Node, log: Logger) -> None:
         is_distro_supported(node)
+        # Reboot before moving the RTC ahead. Rebooting afterwards would boot
+        # from the future RTC instead of resuming with it, and the future boot
+        # time would leak into later cases on the same node.
+        prepare_hibernation_by_tool(node)
+
         date = node.tools[Date]
         current_date = date.current()
         newdate = current_date.replace(year=current_date.year + 1)
@@ -117,7 +123,7 @@ class Power(TestSuite):
             changed_date_before_hb.year - current_date.year,
             "fail to reset time",
         ).is_equal_to(1)
-        verify_hibernation(node, log)
+        verify_hibernation(node, log, reboot_after_setup=False)
         timeout = 600
         timer = create_timer()
         while timeout > timer.elapsed(False):

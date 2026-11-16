@@ -137,6 +137,31 @@ def hibernation_before_case(node: Node, log: Logger) -> None:
     check_hibernation_disk_requirements(node)
 
 
+def reboot_to_apply_resume_config(node: Node) -> None:
+    """
+    The hibernation setup writes resume=/resume_offset= to the bootloader, which
+    only take effect after a reboot; without it the VM accepts the hibernate
+    uevent but never suspends (seen on Debian and Ubuntu). A sleep(100) also
+    works, but the exact time required is unknown, so reboot the VM.
+
+    Callers must reboot before sampling any per-boot state (hibernation log
+    markers, boot time), so that the samples come from the boot that is
+    hibernated.
+    """
+    if type(node.os) in (Redhat, AlmaLinux, SLES, Debian, Ubuntu):
+        node.reboot()
+
+
+def prepare_hibernation_by_tool(node: Node) -> None:
+    """
+    Install and run hibernation-setup-tool, then reboot to apply its resume
+    configuration. Use it before changing state that a reboot must not reset,
+    then call verify_hibernation with reboot_after_setup=False.
+    """
+    node.tools[HibernationSetup].start()
+    reboot_to_apply_resume_config(node)
+
+
 def _perform_hibernation_cycle(
     node: Node, log: Logger, throw_error: bool = True
 ) -> tuple[Any, Any]:
@@ -144,14 +169,6 @@ def _perform_hibernation_cycle(
     Common hibernation cycle logic shared by both hibernation methods.
     Returns (boot_time_before, boot_time_after) for verification.
     """
-
-    # The hibernation-setup tool writes resume=/resume_offset= to the
-    # bootloader, which only take effect after a reboot; without it the VM
-    # accepts the hibernate uevent but never suspends (seen on Debian and
-    # Ubuntu). A sleep(100) also works, but we are unsure of the exact time
-    # required. So it is safer to reboot the VM.
-    if type(node.os) in (Redhat, AlmaLinux, SLES, Debian, Ubuntu):
-        node.reboot()
 
     startstop = node.features[StartStop]
     dmesg = node.tools[Dmesg]
@@ -262,7 +279,11 @@ def _verify_common_hibernation_requirements(
 
 
 def verify_hibernation_by_tool(
-    node: Node, log: Logger, throw_error: bool = True, verify_using_logs: bool = True
+    node: Node,
+    log: Logger,
+    throw_error: bool = True,
+    verify_using_logs: bool = True,
+    reboot_after_setup: bool = True,
 ) -> None:
     """
     Verify hibernation using the hibernation-setup-tool.
@@ -270,24 +291,25 @@ def verify_hibernation_by_tool(
     This method installs and configures hibernation-setup-tool,
     then verifies hibernation through tool-specific logs and metrics.
     """
+    hibernation_setup_tool = node.tools[HibernationSetup]
+
+    # only set up hibernation setup tool for the first time
+    hibernation_setup_tool.start()
+    if reboot_after_setup:
+        reboot_to_apply_resume_config(node)
+
     # The synthetic NICs are stable from boot; the VF is verified against the
     # Azure-expected count after resume (see _verify_common_hibernation_...).
     upper_nics_before_hibernation = node.nics.get_nic_names()
 
-    hibernation_setup_tool = node.tools[HibernationSetup]
-
-    # Capture the marker baseline on the fully-booted VM, before start() and
-    # before the in-cycle reboot. Sampling here (rather than right after the
-    # reboot) is important: immediately post-reboot the syslog/journald state
-    # for the new boot has not settled, so a cumulative grep count taken then
-    # is unstable and produces spurious deltas.
+    # Capture the marker baseline after the setup reboot, from the same boot
+    # that is hibernated. Without /var/log/syslog or /var/log/messages the
+    # markers are counted from `journalctl -b`, which only covers the current
+    # boot, so a baseline taken before the reboot is not comparable.
     entry_before_hibernation = hibernation_setup_tool.check_entry()
     exit_before_hibernation = hibernation_setup_tool.check_exit()
     received_before_hibernation = hibernation_setup_tool.check_received()
     uevent_before_hibernation = hibernation_setup_tool.check_uevent()
-
-    # only set up hibernation setup tool for the first time
-    hibernation_setup_tool.start()
 
     hibfile_offset = hibernation_setup_tool.get_hibernate_resume_offset_from_hibfile()
 
@@ -391,6 +413,8 @@ def verify_hibernation_by_vm_extension(
         node.mark_dirty()
         raise
 
+    reboot_to_apply_resume_config(node)
+
     # The synthetic NICs are stable from boot; the VF is verified against the
     # Azure-expected count after resume (see _verify_common_hibernation_...).
     upper_nics_before_hibernation = node.nics.get_nic_names()
@@ -459,10 +483,13 @@ def verify_hibernation(
     throw_error: bool = True,
     verify_using_logs: bool = True,
     use_hibernation_setup_tool: bool = True,
+    reboot_after_setup: bool = True,
 ) -> None:
     # Delegate to the appropriate hibernation method
     if use_hibernation_setup_tool:
-        verify_hibernation_by_tool(node, log, throw_error, verify_using_logs)
+        verify_hibernation_by_tool(
+            node, log, throw_error, verify_using_logs, reboot_after_setup
+        )
     else:
         verify_hibernation_by_vm_extension(node, log, throw_error)
 
