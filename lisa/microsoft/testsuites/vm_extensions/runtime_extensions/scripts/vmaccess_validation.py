@@ -5,6 +5,7 @@
 import base64
 import ctypes
 import ctypes.util
+import hashlib
 import hmac
 import json
 import os
@@ -25,11 +26,32 @@ _STATE_FILES = (
 )
 
 
+def _account_fingerprint(users: List[str], groups: List[str]) -> str:
+    records = {}
+    for filename, names in (
+        ("/etc/passwd", users),
+        ("/etc/shadow", users),
+        ("/etc/group", groups),
+        ("/etc/gshadow", groups),
+    ):
+        path = Path(filename)
+        if filename == "/etc/gshadow" and not path.exists():
+            records[filename] = None
+        else:
+            records[filename] = sorted(
+                line
+                for line in path.read_text().splitlines()
+                if line.split(":", 1)[0] in names
+            )
+    return hashlib.sha256(json.dumps(records, sort_keys=True).encode()).hexdigest()
+
+
 def _snapshot_state() -> Dict[str, Any]:
     import grp
     import pwd
 
     users = [entry.pw_name for entry in pwd.getpwall()]
+    groups = [group.gr_name for group in grp.getgrall()]
     _require(
         not any(user.startswith(("vmaccess-", "vmaccessuser")) for user in users),
         "A VMAccess test account already exists; refusing to overwrite its state",
@@ -60,7 +82,8 @@ def _snapshot_state() -> Dict[str, Any]:
             {
                 "files": files,
                 "users": users,
-                "groups": [group.gr_name for group in grp.getgrall()],
+                "groups": groups,
+                "account_fingerprint": _account_fingerprint(users, groups),
                 "firewall": firewall,
             }
         )
@@ -131,6 +154,14 @@ def _restore_state(request: Dict[str, Any]) -> Dict[str, Any]:
         check=True,
         capture_output=True,
         text=True,
+    )
+    _require(
+        hmac.compare_digest(
+            _account_fingerprint(state["users"], state["groups"]),
+            state["account_fingerprint"],
+        ),
+        "Existing account state changed during VMAccess validation; "
+        "the VM must not be reused",
     )
     shutil.rmtree(directory)
     return {}

@@ -670,6 +670,11 @@ All 15 cases reuse a VM serially. Before each case the suite snapshots the
 SSH configuration, provisioning metadata, agent sudoers file, and available
 iptables rules. Cleanup removes test accounts and their new groups, restores
 the snapshot, restarts the SSH service locally, and removes both extensions.
+The snapshot also fingerprints existing local account records in ``passwd``,
+``shadow``, ``group``, and ``gshadow`` (when present). After test-account cleanup,
+any change to existing passwords, account attributes, or group membership
+causes cleanup to fail and marks the VM dirty rather than reusing it. Account
+records and password hashes are not returned to the runner or logged.
 A cleanup failure marks the VM dirty so it cannot be reused. A healthy full
 run therefore needs one reusable VM.
 If setup fails before creating a snapshot, the test body does not run and
