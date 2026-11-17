@@ -822,17 +822,26 @@ class NicsBSD(Nics):
                     "index"
                 ]
 
-                # get info about its pci slot and mlx module version
-                slot_regex = re.compile(
-                    rf"mlx(?P<index>\d+)_core{nic_index}@(?P<pci_slot>.*):\s+"
-                )
-                module_slot_info = self._node.execute("pciconf -l", sudo=True).stdout
-                matched = find_groups_in_lines(module_slot_info, slot_regex)[0]
-                module_version = matched["index"]
+                # MANA interface indices need not match the paired hn interface.
+                if re.fullmatch(r"mana\d+", lower):
+                    driver_pattern = rf"(?P<module>mana){lower[4:]}"
+                else:
+                    driver_pattern = rf"(?P<module>mlx\d+_core){nic_index}"
+                slot_regex = re.compile(rf"{driver_pattern}@(?P<pci_slot>.*):\s+")
+                module_slot_info = self._node.execute(
+                    "pciconf -l",
+                    sudo=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message="Could not list PCI devices",
+                ).stdout
+                matches = find_groups_in_lines(module_slot_info, slot_regex)
+                assert_that(matches).described_as(
+                    f"Could not uniquely identify PCI device for {nic_name} "
+                    f"paired with {lower} in pciconf output: {module_slot_info}"
+                ).is_length(1)
+                matched = matches[0]
                 pci_slot = matched["pci_slot"]
-
-                # set the module name
-                module = f"mlx{module_version}_core"
+                module = matched["module"]
 
             self.append(
                 NicInfo(

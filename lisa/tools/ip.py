@@ -722,6 +722,11 @@ class IpFreebsd(Ip):
     __ip_address_pattern = re.compile(
         r"inet\s+(?P<ip_addr>(?:[0-9]{1,3}\.){3}[0-9]{1,3})"
     )
+    __ipv6_address_pattern = re.compile(
+        r"^\s+inet6\s+(?P<ip_addr>[0-9a-fA-F:]+)(?:%\S+)?"
+        r"\s+prefixlen\s+\d+\b(?P<flags>[^\n]*)",
+        re.MULTILINE,
+    )
 
     @property
     def command(self) -> str:
@@ -757,6 +762,33 @@ class IpFreebsd(Ip):
         matched = find_patterns_in_lines(output, [self.__ip_address_pattern])
         assert_that(matched[0]).described_as("could not find ip address").is_length(1)
         return str(matched[0][0])
+
+    def get_global_ipv6_address(self, nic_name: str) -> str:
+        """Return a usable unicast IPv6 address outside host and link scopes."""
+        output = self.run(
+            f"{nic_name} inet6",
+            force_run=True,
+            sudo=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Could not get IPv6 addresses for nic {nic_name}"
+            ),
+        ).stdout
+        for matched in self.__ipv6_address_pattern.finditer(output):
+            address = ipaddress.IPv6Address(matched["ip_addr"])
+            if (
+                address.is_link_local
+                or address.is_loopback
+                or address.is_multicast
+                or address.is_unspecified
+                or address.is_site_local
+                or {"tentative", "duplicated", "detached"}.intersection(
+                    matched["flags"].split()
+                )
+            ):
+                continue
+            return matched["ip_addr"]
+        raise LisaException(f"not find global IPv6 address for nic {nic_name}")
 
     def down(self, nic_name: str, persist: bool = False) -> None:
         self.run(

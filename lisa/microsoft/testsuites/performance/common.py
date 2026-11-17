@@ -797,7 +797,7 @@ def perf_iperf(
     is_ipv6_enabled = server.nics.is_internal_address_ipv6()
     ip_version = "6" if is_ipv6_enabled else "4"
     server_comm_ip = (
-        server.internal_address
+        server.tools[Ip].get_global_ipv6_address(server.nics.default_nic)
         if is_ipv6_enabled
         else server.nics.get_internal_ipv4_address()
     )
@@ -806,7 +806,7 @@ def perf_iperf(
     if run_with_internal_address:
         server_interface_ip = server_comm_ip
         client_interface_ip = (
-            client.internal_address
+            client.tools[Ip].get_global_ipv6_address(client.nics.default_nic)
             if is_ipv6_enabled
             else client.nics.get_internal_ipv4_address()
         )
