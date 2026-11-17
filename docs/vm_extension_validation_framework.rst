@@ -181,8 +181,9 @@ Windows Runtime Extension Boot Validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Windows runtime suites require Azure, ``AzureExtension``, and a Windows
-guest. They are preview, priority-5 installation smoke tests, not VM reboot
-tests. The shared ``_boot_validation()`` helper verifies provisioning, checks
+guest. They are preview, priority-5 tests. Except for domain join (below),
+they are installation smoke tests, not VM reboot tests.
+The shared ``_boot_validation()`` helper verifies provisioning, checks
 the installed candidate version when a full version is requested, checks VM
 reachability, and removes the extension even when validation fails.
 
@@ -199,6 +200,106 @@ reachability, and removes the extension even when validation fails.
    * - ``Microsoft.CPlat.Core.RunCommandWindows``
      - ``microsoft_cplat_core_runcommandwindows_boot_validation_test``
      - ``run_command_windows_version``
+   * - ``Microsoft.Compute.JsonADDomainExtension``
+     - ``microsoft_compute_jsonaddomainextension_boot_validation_test``
+     - ``json_ad_domain_version``
+
+JsonADDomainExtension ports the AD domain synthetic's end-to-end scenario
+using only Azure control-plane operations. It does not enable SSH, connect
+to the guest, or require inbound public access. Select a fresh, workgroup-joined
+Windows VM. The test deploys an additional
+``Standard_D2s_v3`` Windows Server 2022 domain controller using the separate
+``runtime_extensions/templates/json_ad_domain_controller.json`` ARM template.
+It creates an AD DS forest, the ``testaccounts`` OU, and a pre-staged account
+for the client. The controller joins the client's existing subnet; only the
+client's DNS configuration changes, not the shared VNet's DNS settings.
+The client interface is selected using its primary NIC's private IP from the
+Azure API, without relying on connection-initialized node context.
+Guest commands run through the separate
+``runtime_extensions/templates/json_ad_domain_run_command.json`` managed
+Run Command template. Script failures fail their ARM deployments.
+
+The runner downloads the synthetic's ``CreateADPDC.zip`` package and uploads
+it and the staging scripts to a temporary, same-region Storage Account using
+its own identity. The separate ``json_ad_domain_storage.json`` ARM template
+disables shared-key authentication and public blob access, and assigns the
+deployment caller ``Storage Blob Data Contributor`` on that account using
+ARM's ``deployer().objectId``. No Microsoft Graph lookup or Graph token is
+required. The controller has
+a system-assigned managed identity with ``Storage Blob Data Reader`` scoped
+to the account. CSE uses ``managedIdentity: {}`` in its protected settings to
+download the private blobs, without storage keys or SAS tokens. Bounded checks
+wait for the storage role assignments to propagate.
+
+The downloaded DSC configuration and its bundled modules run locally through
+managed Run Command. Azure API calls perform any required controller reboots,
+so CSE and Run Command are not interrupted by guest-initiated reboots.
+Generated DSC credential files are restricted to SYSTEM and administrators on
+the temporary controller. The subnet must allow AD/DNS traffic between the
+VMs, access to IMDS and the Azure VM agent endpoints, and HTTPS access to the
+same-region Azure Storage endpoint. The test does not enable default outbound
+Internet access, add a public IP to the controller, or modify subnet routing.
+
+The test installs the requested candidate with ``Options=1``, restarts the
+client through the Azure API, and verifies both domain membership and the
+computer's secure channel through managed Run Command.
+The controller and package storage use
+``get_node_context(node).resource_group_name``, the same client VM resource group
+used by the base extension helpers through ``AzureExtension``. Resource and
+deployment names are unique per case. Overlong Run Command deployment names
+are shortened with a hash suffix to stay within ARM's 64-character limit.
+Their location is explicitly the client's
+region.
+It removes the extension and deletes only this case's controller, disks, NIC,
+storage account, role assignments, and deployment records in cleanup, including
+on failure. It never deletes the resource group, client VM, or sibling resources;
+the environment's lifecycle remains managed by LISA.
+The client is marked dirty for
+environment teardown because handler removal does not undo domain membership
+or DNS changes. The runner needs permission in the client VM resource group to
+deploy storage and role assignments, upload blobs using Entra authentication,
+deploy the controller and its extensions, run managed commands, restart the
+VMs, and attach the controller's NIC to the client's
+subnet. Allow quota for the additional VM and up to two hours for the case.
+Cleanup uses the case's unique deployment operation records to identify its
+resources, including resources from partially failed deployments.
+Cleanup failures are logged without replacing an earlier validation error.
+
+The suite requires a ``Deployed`` environment rather than a ``Connected`` one
+and declares ``azure.enable_ssh: false`` in its node requirement. It reuses the
+base extension install/delete helpers, but not ``_boot_validation()``, which
+requires SSH reachability. The runner also skips its post-case connection
+probe for environments that were not connected before the case.
+Existing Windows tests retain their normal SSH
+bootstrap behavior. For explicitly defined runbook nodes, also set
+``azure.enable_ssh: false`` on the node:
+
+.. code-block:: yaml
+
+   variable:
+     - name: json_ad_domain_version
+       value: "1.3"
+       is_case_visible: true
+     - name: create_public_address
+       value: false
+     - name: use_public_address
+       value: false
+   environment:
+     environments:
+       - nodes:
+           - type: requirement
+             azure:
+               marketplace: MicrosoftWindowsServer WindowsServer 2022-datacenter latest
+               enable_ssh: false
+   testcase:
+     - criteria:
+         name: microsoft_compute_jsonaddomainextension_boot_validation_test
+         maturity: preview
+
+Only the runner needs Internet access to download the Azure quickstart package.
+If network policies block access to same-region Storage endpoints, an approved
+private endpoint or route is still needed; enabling public outbound access is
+not required by this test.
 
 Set the scoped variable for each selected suite, or use ``extension_version``
 to override it. Boot validation requires an explicit two-, three-, or four-part

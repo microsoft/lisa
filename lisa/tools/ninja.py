@@ -35,10 +35,11 @@ class Ninja(Tool):
         if (
             isinstance(self.node.os, Posix)
             and self.node.os.get_kernel_information().version >= "5.15.0"
+            and self.node.os.is_package_in_repo("ninja-build")
         ):
             self.node.os.install_packages("ninja-build")
             return self._check_exists()
-        # otherwise, install a recent version from source
+        # Older distros or missing repository packages require a source build.
         git_tool = node.tools[Git]
         node.tools[Gcc].install_cpp_compiler()
         ninja_path = git_tool.clone(
