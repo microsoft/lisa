@@ -697,12 +697,11 @@ authentication. Sudo permissions are exercised locally through Custom Script.
 SSH configuration/firewall recovery checks configuration validity and firewall
 rules without connecting to port 22.
 
-The root ``vmaccess.local.yml`` selects the entire suite, disables the inherited
-tier-0 selection, and disables public IP creation. It sets ``concurrency: 1`` and
-``resource_group_name: lisa-vmaccess-validation`` so all test VMs use the same
-resource group without parallel guest changes. Override ``resource_group_name``
-to select another dedicated test group. Do not force ``use_new_environment``
-on the entire suite, since that defeats VM reuse.
+Configure the runbook with ``concurrency: 1`` and a dedicated
+``resource_group_name`` (for example, ``lisa-vmaccess-validation``). Select
+the suite as shown above and remove any inherited tier-0 selection. Disable
+public IP creation if inbound guest access is unnecessary. Do not force
+``use_new_environment`` on the entire suite, since that defeats VM reuse.
 
 LISA deletes individual test VMs, NICs, and disks from this specified group;
 the group and shared networking remain. Do not run multiple validation jobs
