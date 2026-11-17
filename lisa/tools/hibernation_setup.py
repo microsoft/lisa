@@ -5,9 +5,9 @@ from __future__ import annotations
 import re
 from typing import List, Type
 
-from lisa.base_tools import Cat, Systemctl
+from lisa.base_tools import Cat, Sed, Systemctl
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, Debian
 from lisa.tools.journalctl import Journalctl
 from lisa.util import LisaException, find_patterns_in_lines, get_matched_str
 
@@ -15,6 +15,8 @@ from .git import Git
 from .grep import Grep
 from .ls import Ls
 from .make import Make
+from .mkdir import Mkdir
+from .tee import Tee
 
 
 class HibernationSetup(Tool):
@@ -71,6 +73,14 @@ class HibernationSetup(Tool):
         return True
 
     def start(self) -> None:
+        if self.node.execute("command -v dracut", shell=True, sudo=True).exit_code == 0:
+            config_path = self.node.get_pure_path(
+                "/etc/dracut.conf.d/99-lisa-hibernation.conf"
+            )
+            self.node.tools[Mkdir].create_directory(str(config_path.parent), sudo=True)
+            self.node.tools[Tee].write_to_file(
+                'add_dracutmodules+=" resume "', config_path, sudo=True
+            )
         result = self.run(sudo=True)
 
         # Analyze stdout for error patterns first
@@ -129,12 +139,20 @@ class HibernationSetup(Tool):
         return offset
 
     def _install(self) -> bool:
-        if isinstance(self.node.os, CBLMariner):
+        if isinstance(self.node.os, Debian):
+            self.node.os.install_packages("libc6-dev")
+        elif isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages(["glibc-devel", "kernel-headers", "binutils"])
         tool_path = self.get_tool_path()
         git = self.node.tools[Git]
         git.clone(self._repo, tool_path)
         code_path = tool_path.joinpath("hibernation-setup-tool")
+        self.node.tools[Sed].substitute(
+            regexp="argv, NULL)",
+            replacement="argv, environ)",
+            file=str(code_path / "hibernation-setup-tool.c"),
+            match_lines="posix_spawnp(",
+        )
         make = self.node.tools[Make]
         make.make_install(code_path)
         return self._check_exists()
