@@ -443,6 +443,8 @@ class KvpClient(Tool):
 
         if isinstance(self.node.os, CBLMariner):
             self.node.os.install_packages("kernel-headers glibc-devel binutils")
+        elif isinstance(self.node.os, Debian):
+            self.node.os.install_packages("libc6-dev")
         gcc = self.node.tools[Gcc]
         # in C90, the status returned is undefined
         # use gnu89 to make sure the return value is correct
