@@ -509,9 +509,9 @@ class LisaRunner(BaseRunner):
             case_results=test_results,
             case_variables=case_variables,
         )
-        if (
-            not was_connected
-            and tested_environment.status == EnvironmentStatus.Connected
+        if not was_connected and (
+            tested_environment.status == EnvironmentStatus.Connected
+            or any(node._is_initialized for node in tested_environment.nodes.list())
         ):
             environment.mark_dirty()
         # release environment reference to optimize memory.

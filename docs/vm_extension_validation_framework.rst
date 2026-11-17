@@ -687,7 +687,9 @@ deploys new LISA-named VMs there, not pre-existing VMs. ``deploy: false`` and
 ``dry_run`` are refused. All cases run at ``EnvironmentStatus.Deployed``.
 ``reuse_deployed_environment=True`` on the suite metadata explicitly permits
 reuse while the environment stays deployed; other suites retain their
-existing teardown behavior, and a VM connected inside a case is still discarded.
+existing teardown behavior. A VM connected or directly initialized through a
+node inside a case is still discarded, even if the case closes the connection
+before returning without advancing the environment to ``Connected``.
 Guest setup and validation use the Linux Custom Script extension with protected,
 inline scripts; there are no runner-to-guest or localhost SSH connections and no
 SSH key file is required on the runner. Password checks compare against the
