@@ -97,15 +97,23 @@ class IdracSerialConsole(features.SerialConsole):
 
     def _get_console_log(self, saved_path: Optional[Path]) -> bytes:
         self._login()
-        if saved_path:
-            screenshot_file_name: str = "serial_console"
-            decoded_data = base64.b64decode(self.cluster.get_server_screen_shot())
-            screenshot_raw_name = saved_path / f"{screenshot_file_name}.png"
-            with open(screenshot_raw_name, "wb") as img_file:
-                img_file.write(decoded_data)
-        console_log = self.cluster.get_serial_console_log().encode("utf-8")
-        self._logout()
-        return console_log
+        try:
+            if saved_path:
+                try:
+                    screenshot_file_name: str = "serial_console"
+                    decoded_data = base64.b64decode(
+                        self.cluster.get_server_screen_shot()
+                    )
+                    screenshot_raw_name = saved_path / f"{screenshot_file_name}.png"
+                    with open(screenshot_raw_name, "wb") as img_file:
+                        img_file.write(decoded_data)
+                except LisaException as error:
+                    self._log.debug(
+                        f"Failed to collect iDRAC server screenshot: {error}"
+                    )
+            return self.cluster.get_serial_console_log().encode("utf-8")
+        finally:
+            self._logout()
 
 
 class Idrac(Cluster):
