@@ -135,7 +135,8 @@ class VMAccessTests(VmExtensionTestBase):  # type: ignore[misc]
         ).read_text(encoding="utf-8")
         script = (
             "#!/bin/bash\nset -euo pipefail\numask 077\n"
-            f"python3 - {shlex.quote(payload)} <<'VMACCESS_PYTHON'\n"
+            "python3 - <<'VMACCESS_PYTHON'\n"
+            f"import sys; sys.argv.append({payload!r})\n"
             f"{source}\nVMACCESS_PYTHON\n"
         )
         extension = node.features[AzureExtension]
