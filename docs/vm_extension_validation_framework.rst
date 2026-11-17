@@ -646,6 +646,7 @@ Select ``VMAccessForLinux`` to run the Linux VMAccess suite:
    testcase:
      - criteria:
          tags: VMAccessForLinux
+         maturity: [stable, preview]
        select_action: include
 
 ``extension_version`` takes precedence over ``vmaccess_version``. Functional
