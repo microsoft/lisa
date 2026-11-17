@@ -6,6 +6,7 @@ Troubleshoot Test Failures
 -  `Log Files <#log-files>`__
 -  `Search LISA Code for Issues <#search-lisa-code-for-issues>`__
 -  `Reproduce Failures Manually <#reproduce-failures-manually>`__
+-  `ARM64 PMU Diagnostics <#arm64-pmu-diagnostics>`__
 
 Overview
 -----------
@@ -270,3 +271,35 @@ might encounter similar issues.
    will stop test execution immediately after the first failure, saving time and
    resources by avoiding unnecessary test runs. See the
    :doc:`runbook reference <runbook>` for more details.
+
+ARM64 PMU Diagnostics
+--------------------
+
+``TimeSync.verify_pmu_disabled_for_arm64`` collects diagnostic evidence before
+applying its existing ``initcall_blacklist=arm_pmu_acpi_init`` command-line check.
+This is an evidence-gathering stage while the required CPU counting, sampling,
+and SPE/TRBE behavior is agreed with the platform and image owners.
+
+Search the case log for ``ARM64 PMU diagnostic`` and ``ARM64 PMU legacy gate``.
+The output includes the boot command line, firmware interface, PMU event-source
+names/types, relevant kernel configuration, PMU boot messages, perf permissions,
+and the version/results of an already-installed perf.
+
+Perf probes use a small bounded workload for software counting, CPU cycles,
+instructions, and CPU-cycle sampling. Sampling output goes to ``/dev/null`` with
+build-ID collection/cache disabled. The diagnostics do not install packages,
+change boot parameters or sysctls, or reboot the VM.
+
+The legacy PASS/FAIL rule is intentionally unchanged. A missing legacy token
+still fails even if another mechanism suppresses the CPU PMU. A PASS only
+indicates that the legacy string was present, not that the desired functional
+PMU state has been proven. Missing perf/configuration, permission errors, and
+unsupported events are explicitly logged and must not be interpreted as proof
+that the PMU is disabled.
+
+For the first run, leave the original image, kernel and boot settings unchanged.
+Share the case log and image/kernel/SKU identifiers. On RHEL, ``rpm -q kernel-core
+perf`` also provides useful package-release information. Do not change GRUB just
+to obtain a passing result. If the platform and Red Hat owners approve an
+alternative setting, collect a separate before/after run on the same baseline
+and preserve the logs; such a change/reboot is not performed by this test.

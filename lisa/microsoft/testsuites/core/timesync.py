@@ -4,6 +4,7 @@ from collections import Counter
 from copy import deepcopy
 from datetime import timedelta
 from pathlib import PurePosixPath
+from shlex import quote
 from time import sleep
 from typing import List, Optional, Union, cast
 
@@ -48,8 +49,10 @@ from lisa.tools import (
     Sysctl,
 )
 from lisa.tools.date import Date
+from lisa.tools.kernel_config import KernelConfig
 from lisa.tools.lscpu import CpuType
 from lisa.util import constants
+from lisa.util.process import ExecutableResult
 from lisa.util.shell import wait_tcp_port_ready
 
 
@@ -71,6 +74,44 @@ def _wait_file_changed(
                 return True
         sleep(0.5)
     return False
+
+
+def _run_pmu_diagnostic(
+    node: Node,
+    log: Logger,
+    label: str,
+    command: str,
+    *,
+    sudo: bool = False,
+    shell: bool = False,
+    filter_pattern: Optional[str] = None,
+) -> ExecutableResult:
+    result = node.execute(
+        command,
+        sudo=sudo,
+        shell=shell,
+        timeout=15,
+        update_envs={"LC_ALL": "C"},
+        no_debug_log=True,
+    )
+    output = result.stdout
+    if filter_pattern and result.exit_code == 0:
+        output = "\n".join(
+            line for line in output.splitlines() if re.search(filter_pattern, line)
+        )
+        if not output:
+            output = "<no matching lines>"
+    log.info(
+        f"ARM64 PMU diagnostic [{label}]: exit_code={result.exit_code}, "
+        f"timed_out={result.is_timeout}\ncommand:\n{command}\n"
+        f"stdout:\n{output or '<empty>'}\nstderr:\n{result.stderr or '<empty>'}"
+    )
+    if result.exit_code != 0:
+        log.warning(
+            f"ARM64 PMU diagnostic [{label}] was unsuccessful. "
+            "This is not proof that the CPU PMU is disabled."
+        )
+    return result
 
 
 @TestSuiteMetadata(
@@ -627,20 +668,20 @@ class TimeSync(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This test is to check "initcall_blacklist=arm_pmu_acpi_init"
-        kernel parameter for ARM64 images.
+        Collect ARM64 PMU configuration and functional diagnostics, then apply the
+        existing initcall_blacklist=arm_pmu_acpi_init command-line criterion.
 
-        Since Hyper-V right now doesn't surface a fully functional PMU. It is needed to
-        have "initcall_blacklist=arm_pmu_acpi_init" to disable the PMU driver
-        temporarily to fall back to a timer-based sampling instead of PMU-event-based
-        sampling.
+        The legacy criterion is retained while the required CPU counting, sampling,
+        and SPE/TRBE behavior is reviewed. Its outcome is not a functional PMU
+        compliance verdict. Diagnostics use an already-installed perf only and do
+        not change boot settings, sysctls, packages, or PMU policy.
         """,
         priority=1,
         requirement=simple_requirement(
             unsupported_os=[BSD, Windows],
         ),
     )
-    def verify_pmu_disabled_for_arm64(self, node: Node) -> None:
+    def verify_pmu_disabled_for_arm64(self, node: Node, log: Logger) -> None:
         lscpu = node.tools[Lscpu]
         arch = lscpu.get_architecture()
         if arch != CpuArchitecture.ARM64:
@@ -648,11 +689,117 @@ class TimeSync(TestSuite):
                 f"This test case does not support {arch}. "
                 "This validation is only for ARM64."
             )
-        # Check pmu is disabled in cmdline for arm64 images
         cat = node.tools[Cat]
         result = cat.run("/proc/cmdline", force_run=True)
+        result.assert_exit_code(
+            message="Unable to read /proc/cmdline for PMU validation"
+        )
+        log.info(f"ARM64 PMU diagnostic [cmdline]: {result.stdout}")
+        self._collect_pmu_diagnostics(node, log)
+        log.info(
+            "ARM64 PMU legacy gate: the existing command-line criterion is retained. "
+            "PASS/FAIL is not a functional CPU PMU verdict; review the diagnostics."
+        )
         if "initcall_blacklist=arm_pmu_acpi_init" not in result.stdout:
-            raise LisaException("PMU is not disabled in kernel cmdline")
+            raise LisaException(
+                "Legacy PMU command-line check failed: missing "
+                "'initcall_blacklist=arm_pmu_acpi_init'. "
+                "This does not establish runtime PMU state; review the diagnostics."
+            )
+
+    def _collect_pmu_diagnostics(self, node: Node, log: Logger) -> None:
+        _run_pmu_diagnostic(node, log, "kernel", "uname -a")
+        _run_pmu_diagnostic(
+            node,
+            log,
+            "firmware",
+            "if [ -d /sys/firmware/acpi/tables ]; then echo ACPI; "
+            "elif [ -d /sys/firmware/devicetree/base ]; then echo DeviceTree; "
+            "else echo 'Firmware interface not identified' >&2; exit 2; fi",
+            shell=True,
+        )
+        _run_pmu_diagnostic(
+            node,
+            log,
+            "perf_permissions",
+            "cat /proc/sys/kernel/perf_event_paranoid",
+        )
+        _run_pmu_diagnostic(
+            node,
+            log,
+            "event_sources",
+            "root=/sys/bus/event_source/devices; "
+            'if [ ! -d "$root" ]; then '
+            "echo 'PMU event-source directory unavailable' >&2; exit 2; fi; "
+            'for device in "$root"/*; do [ -d "$device" ] || continue; '
+            'printf "%s\\n" "${device##*/}"; '
+            "for field in type cpumask cpus caps/pmu_name; do "
+            'if [ -r "$device/$field" ]; then printf "  %s=" "$field"; '
+            'cat "$device/$field" || exit $?; fi; done; done',
+            shell=True,
+        )
+        # A missing optional config must not trigger tool installation or abort probes.
+        config = KernelConfig(node)
+        config.initialize()
+        if config.exists:
+            reader = "zcat" if config.config_path.endswith(".gz") else "cat"
+            _run_pmu_diagnostic(
+                node,
+                log,
+                "kernel_config",
+                f"{reader} {quote(config.config_path)}",
+                sudo=True,
+                filter_pattern=(
+                    r"^(# )?CONFIG_(ACPI|ARM_PMU|ARM_PMU_ACPI|ARM_PMUV3|"
+                    r"ARM_SPE_PMU|CORESIGHT_TRBE|KALLSYMS|PERF_EVENTS|"
+                    r"HW_PERF_EVENTS)(=| is not set)"
+                ),
+            )
+        else:
+            log.warning(
+                "ARM64 PMU diagnostic gap: kernel configuration is unavailable "
+                f"at {config.config_path}."
+            )
+        _run_pmu_diagnostic(
+            node,
+            log,
+            "boot_messages",
+            "dmesg --color=never",
+            sudo=True,
+            filter_pattern=r"(?i)(pmu|perfevents|\bspe\b|trbe|initcall.*blacklist)",
+        )
+        # Accessing node.tools[Perf] could install it and change the image baseline.
+        available = _run_pmu_diagnostic(
+            node, log, "perf_available", "command -v perf", shell=True
+        )
+        if available.exit_code != 0:
+            log.warning(
+                "ARM64 PMU diagnostic gap: perf is not installed or discoverable."
+            )
+            return
+        version = _run_pmu_diagnostic(node, log, "perf_version", "perf --version")
+        if version.exit_code != 0:
+            log.warning("ARM64 PMU diagnostic gap: installed perf is not usable.")
+            return
+        workload = "sh -c " + quote(
+            'i=0; while [ "$i" -lt 100000 ]; do i=$((i + 1)); done'
+        )
+        for event in ["task-clock", "cycles", "instructions"]:
+            _run_pmu_diagnostic(
+                node,
+                log,
+                f"count_{event}",
+                f"perf stat --no-big-num -x ';' -e {event} -- {workload}",
+                sudo=True,
+            )
+        _run_pmu_diagnostic(
+            node,
+            log,
+            "sample_cycles",
+            "perf record --no-buildid --no-buildid-cache -o /dev/null "
+            f"-e cycles -- {workload}",
+            sudo=True,
+        )
 
     @TestCaseMetadata(
         description="""
