@@ -77,7 +77,11 @@ DEVICE_ID_DICT: Dict[str, List[str]] = {
         "1016",  # Mellanox Technologies MT27710 Family [ConnectX-4 Lx Virtual Function]
         "1018",  # Mellanox Technologies MT27800 Family [ConnectX-5 Virtual Function]
         "101a",  # Mellanox Technologies MT28800 Family [ConnectX-5 Ex Virtual Function]
-        "00ba",  # Microsft Azure Network Adapter VF (MANA VF)
+        # Microsoft Azure Network Adapter (MANA), PCI vendor 1414.
+        # Linux definitions: https://github.com/torvalds/linux/blob/master/include/net/mana/gdma.h  # noqa: E501
+        "00ba",  # MANA_VF_DEVICE_ID: virtual function (1414:00ba)
+        "00b9",  # MANA_PF_DEVICE_ID: physical function (1414:00b9), not a VF
+        "00c1",  # MANA_PF2_DEVICE_ID: physical function PF2 (1414:00c1), not a VF
     ],
     constants.DEVICE_TYPE_INFINIBAND: [
         "1018",  # Mellanox Technologies MT27800 Family [ConnectX-5 Virtual Function]
