@@ -226,6 +226,7 @@ class AziHsm(TestSuite):
                     ],
                 )
             elif major_version == 4:
+                # Match the versioned key path in Azure Linux 4's stock repositories.
                 node.os.add_repository(
                     repo=(
                         "https://packages.microsoft.com/azurelinux/"
@@ -234,7 +235,8 @@ class AziHsm(TestSuite):
                     ),
                     repo_name="AZIHSM Packages",
                     keys_location=[
-                        "/etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY",
+                        "/etc/pki/rpm-gpg/RPM-GPG-KEY-azurelinux-"
+                        f"{node.os.information.release}-{arch_name}",
                         "https://packages.microsoft.com/keys/microsoft.asc",
                         "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                     ],
