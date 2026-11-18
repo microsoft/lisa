@@ -658,7 +658,8 @@ class OpenVmmTests(Tool):
         result = self.node.execute(
             f"tar -czf {shlex.quote(str(remote_archive))} "
             f"-C {shlex.quote(str(self.repo_root))} "
-            "logs $(for d in flow test/test_results input/test_results; do "
+            "logs $(for d in flow flowey-out input/flowey-out "
+            "test/test_results input/test_results; do "
             'if test -d "$d"; then printf \'%s\\n\' "$d"; fi; done)',
             cwd=self.repo_root,
             shell=True,
