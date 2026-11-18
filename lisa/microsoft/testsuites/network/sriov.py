@@ -880,7 +880,11 @@ class Sriov(TestSuite):
                         vf, f"adaptive-{direction}", enabled
                     )
                     current = ethtool.get_device_coalesce_settings(vf, force_run=True)
-                    unsupported = result.exit_code != 0 and _is_unsupported(result)
+                    unsupported = result.exit_code != 0 and _is_unsupported(
+                        result,
+                        "Operation not supported",
+                        "cannot modify an unsupported parameter",
+                    )
                     expected = dict(before.adaptive)
                     if not unsupported:
                         result.assert_exit_code(include_output=True)
@@ -895,12 +899,9 @@ class Sriov(TestSuite):
                             changed.remove(direction)
                         break
                     transitions += 1
-                    if enabled:
-                        self._adaptive_traffic(environment, nic, peer_nic, direction)
-                        current = ethtool.get_device_coalesce_settings(
-                            vf, force_run=True
-                        )
-                        assert_that(current.adaptive).is_equal_to(expected)
+                    self._adaptive_traffic(environment, nic, peer_nic, direction)
+                    current = ethtool.get_device_coalesce_settings(vf, force_run=True)
+                    assert_that(current.adaptive).is_equal_to(expected)
                 else:
                     completed.append(direction)
         finally:
