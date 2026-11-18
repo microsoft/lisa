@@ -374,7 +374,7 @@ resource nodes_image 'Microsoft.Compute/images@2019-03-01' = [for i in range(0, 
   properties: {
     storageProfile: {
       osDisk: {
-        osType: 'Linux'
+        osType: nodes[i].is_linux ? 'Linux' : 'Windows'
         osState: 'Generalized'
         blobUri: nodes[i].vhd.vhd_path
         storageAccountType: 'Standard_LRS'

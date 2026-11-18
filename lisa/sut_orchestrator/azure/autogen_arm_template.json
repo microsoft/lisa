@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.44.1.10279",
-      "templateHash": "4479114314922377252"
+      "templateHash": "14246009263459704889"
     }
   },
   "functions": [
@@ -710,7 +710,7 @@
       "properties": {
         "storageProfile": {
           "osDisk": {
-            "osType": "Linux",
+            "osType": "[if(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].is_linux, 'Linux', 'Windows')]",
             "osState": "Generalized",
             "blobUri": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vhd.vhd_path]",
             "storageAccountType": "Standard_LRS"

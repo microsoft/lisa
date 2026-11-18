@@ -7,6 +7,10 @@ To achieve this, follow these steps:
 
 1. **Update Bicep Template**: Update the `arm_template.bicep` file with your desired infrastructure configuration.
 
+   For generalized VHD images, set ``azure.is_linux`` on the node requirement to
+   ``false`` for Windows or ``true`` for Linux. The ordinary VHD managed image
+   uses this value for its OS type; it defaults to Linux when omitted.
+
 2. **Generate ARM Template**: Run the following command to compile the Bicep template into an ARM template:
 
    .. code-block:: bash
