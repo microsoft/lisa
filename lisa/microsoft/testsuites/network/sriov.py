@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import ipaddress
 import json
 import re
 import sys
@@ -842,9 +843,9 @@ class Sriov(TestSuite):
         initialize_nic_info(environment)
         node, peer = environment.nodes[0], environment.nodes[1]
         vfs = self._get_vf_nics(node, log, "adaptive moderation")
-        nic, peer_nic = (
-            self._get_adaptive_test_nic(node),
-            self._get_adaptive_test_nic(peer),
+        nic = self._get_adaptive_test_nic(node)
+        peer_nic = self._get_adaptive_test_nic(
+            peer, node.tools[Ip].get_subnet_address(nic.name)
         )
         if nic.pci_device_name not in vfs:
             raise SkippedException("No configured non-management VF test-network path.")
@@ -936,7 +937,7 @@ class Sriov(TestSuite):
                 "Neither adaptive direction is supported; see capability responses."
             )
 
-    def _get_adaptive_test_nic(self, node: Node) -> NicInfo:
+    def _get_adaptive_test_nic(self, node: Node, subnet: str = "") -> NicInfo:
         management = next(
             (
                 nic
@@ -955,6 +956,13 @@ class Sriov(TestSuite):
                 and nic.is_pci_module_enabled
                 and not nic.is_infiniband
                 and not management_devices.intersection((nic.name, nic.pci_device_name))
+                and (
+                    not subnet
+                    or ipaddress.ip_network(
+                        node.tools[Ip].get_subnet_address(nic.name), strict=False
+                    )
+                    == ipaddress.ip_network(subnet, strict=False)
+                )
             ):
                 return nic
         raise SkippedException("No configured non-management VF test-network path.")
