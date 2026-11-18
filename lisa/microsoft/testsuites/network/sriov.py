@@ -839,9 +839,9 @@ class Sriov(TestSuite):
     def verify_vf_ethtool_adaptive_moderation(
         self, environment: Environment, log: Logger
     ) -> None:
+        initialize_nic_info(environment)
         node, peer = environment.nodes[0], environment.nodes[1]
         vfs = self._get_vf_nics(node, log, "adaptive moderation")
-        peer.nics.reload()
         nic, peer_nic = node.nics.get_secondary_nic(), peer.nics.get_secondary_nic()
         if nic.pci_device_name not in vfs or not nic.ip_addr or not peer_nic.ip_addr:
             raise SkippedException("No configured non-management VF test-network path.")
@@ -981,43 +981,63 @@ class Sriov(TestSuite):
         original_mtu: int,
     ) -> None:
         ethtool = node.tools[Ethtool]
+        errors: List[str] = []
         for direction in sorted(changed):
-            current = ethtool.get_device_coalesce_settings(vf, force_run=True)
-            if current.adaptive[direction]:
+            try:
                 ethtool.set_device_coalesce_setting(
                     vf, f"adaptive-{direction}", False
                 ).assert_exit_code(include_output=True)
                 current = ethtool.get_device_coalesce_settings(vf, force_run=True)
                 assert_that(current.adaptive[direction]).is_false()
-            for name in (f"{direction}-usecs", f"{direction}-frames"):
-                if name in original.settings:
-                    if current.settings.get(name) != original.settings[name]:
-                        ethtool.set_device_coalesce_setting(
-                            vf, name, original.settings[name]
-                        ).assert_exit_code(include_output=True)
-                        current = ethtool.get_device_coalesce_settings(
-                            vf, force_run=True
-                        )
-                    assert_that(current.settings.get(name)).described_as(
-                        f"Restored {name}"
-                    ).is_equal_to(original.settings[name])
-            ethtool.set_device_coalesce_setting(
-                vf, f"adaptive-{direction}", original.adaptive[direction]
-            ).assert_exit_code(include_output=True)
-            current = ethtool.get_device_coalesce_settings(vf, force_run=True)
-            assert_that(current.adaptive[direction]).is_equal_to(
-                original.adaptive[direction]
-            )
+            except Exception as error:
+                errors.append(f"Disabling adaptive {direction}: {error}")
+            else:
+                values = {
+                    name: original.settings[name]
+                    for name in (f"{direction}-usecs", f"{direction}-frames")
+                    if name in original.settings
+                }
+                for name, value in values.items():
+                    try:
+                        if current.settings.get(name) != value:
+                            ethtool.set_device_coalesce_setting(
+                                vf, name, value
+                            ).assert_exit_code(include_output=True)
+                            current = ethtool.get_device_coalesce_settings(
+                                vf, force_run=True
+                            )
+                        assert_that(current.settings.get(name)).described_as(
+                            f"Restored {name}"
+                        ).is_equal_to(value)
+                    except Exception as error:
+                        errors.append(f"Restoring {name}: {error}")
+            try:
+                ethtool.set_device_coalesce_setting(
+                    vf, f"adaptive-{direction}", original.adaptive[direction]
+                ).assert_exit_code(include_output=True)
+                current = ethtool.get_device_coalesce_settings(vf, force_run=True)
+                assert_that(current.adaptive[direction]).is_equal_to(
+                    original.adaptive[direction]
+                )
+            except Exception as error:
+                errors.append(f"Restoring adaptive {direction}: {error}")
         ip = node.tools[Ip]
-        if ip.get_mtu(vf) != original_mtu:
-            ip.set_mtu(vf, original_mtu)
-        assert_that(ip.get_mtu(vf)).described_as(f"Restored MTU on {vf}").is_equal_to(
-            original_mtu
-        )
-        ip.up(vf)
-        assert_that(ip.is_device_up(vf)).described_as(
-            f"VF {vf} is not UP after restoring adaptive moderation."
-        ).is_true()
+        try:
+            if ip.get_mtu(vf) != original_mtu:
+                ip.set_mtu(vf, original_mtu)
+            assert_that(ip.get_mtu(vf)).described_as(
+                f"Restored MTU on {vf}"
+            ).is_equal_to(original_mtu)
+        except Exception as error:
+            errors.append(f"Restoring MTU: {error}")
+        try:
+            ip.up(vf)
+            assert_that(ip.is_device_up(vf)).described_as(
+                f"VF {vf} is not UP after restoring adaptive moderation."
+            ).is_true()
+        except Exception as error:
+            errors.append(f"Restoring link state: {error}")
+        assert_that(errors).described_as("Adaptive restoration failures").is_empty()
 
     @TestCaseMetadata(
         description="""
