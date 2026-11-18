@@ -533,6 +533,10 @@ class Sriov(TestSuite):
                 assert_that(ip.is_device_up(interface, timeout=10)).described_as(
                     f"{interface} must remain UP after setting private flag {flag}"
                 ).is_true()
+                if write_succeeded and value == original_value:
+                    assert_that(current_flags[flag]).described_as(
+                        f"Same-value write must preserve {interface} {flag}"
+                    ).is_equal_to(original_value)
                 if not write_succeeded or current_flags[flag] != value:
                     log.info(
                         f"Did not complete {interface} {flag}: requested={value}, "
