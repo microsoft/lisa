@@ -29,6 +29,19 @@ class OpenVmmTestsToolTestCase(TestCase):
         self.assertTrue(str(first_repo_root).startswith("/tools/openvmm-"))
         self.assertTrue(str(tool.repo_root).startswith("/tools/openvmm-"))
 
+    def test_preserve_short_path_in_launcher_uses_absolute_content_path(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.node = MagicMock()
+
+        tool._preserve_short_path_in_launcher(
+            PurePosixPath("/tmp/ovi-12345678/run.sh"),
+            PurePosixPath("/tmp/ovi-12345678"),
+        )
+
+        command = tool.node.execute.call_args.args[0]
+        self.assertIn("s|--dir \\.|--dir /tmp/ovi-12345678|", command)
+        self.assertIn("grep -F -- '--dir /tmp/ovi-12345678'", command)
+
     def test_run_logged_command_redirects_entire_command_to_log(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
         tool.repo_root = PurePosixPath("/repo/openvmm")
@@ -351,6 +364,24 @@ encountered at least one test failure!
         warning_message = tool._log.warning.call_args.args[0]
         self.assertIn("/remote/artifacts", warning_message)
         self.assertIn("/remote/artifacts.tar.gz", warning_message)
+
+    def test_collect_native_results_copies_staged_content_junit(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.repo_root = PurePosixPath("/workspace/openvmm")
+        tool.node = MagicMock()
+        tool.node.execute.return_value = SimpleNamespace(exit_code=0, stderr="")
+
+        with patch.object(tool, "_copy_back_if_exists") as copy_back:
+            tool._collect_native_results(
+                Path("/logs"), Path("/logs/openvmm_vmm_tests.junit.xml")
+            )
+
+        self.assertEqual(
+            PurePosixPath(
+                "/workspace/openvmm/input/target/nextest/ci/junit.xml"
+            ),
+            copy_back.call_args_list[0].args[0],
+        )
 
     def test_archive_remote_directory_does_not_warn_on_success(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)

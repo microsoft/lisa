@@ -184,6 +184,9 @@ class OpenVmmTests(Tool):
                         log_path,
                         install_missing_deps,
                     )
+                    self._preserve_short_path_in_launcher(
+                        input_dir / "run.sh", input_dir
+                    )
                     target = GNU if configuration == CONFIGURATIONS[1] else MUSL
                     binary_path = str(input_dir / target / "openvmm")
                     manifest["binary_version"] = self._record_vmm_version(binary_path)
@@ -630,8 +633,27 @@ class OpenVmmTests(Tool):
                 if not has_error:
                     raise LisaException("; ".join(cleanup_errors))
 
+    def _preserve_short_path_in_launcher(
+        self, launcher: PurePath, content: PurePath
+    ) -> None:
+        content_path = str(content)
+        launcher_path = shlex.quote(str(launcher))
+        target_dir_arg = shlex.quote(f"--dir {content_path}")
+        replace_dir_arg = shlex.quote(f"s|--dir \\.|--dir {content_path}|")
+        self.node.execute(
+            f"sed -i {replace_dir_arg} {launcher_path} && "
+            f"grep -F -- {target_dir_arg} {launcher_path}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to preserve the short OpenVMM content path in its launcher"
+            ),
+        )
+
     def _collect_native_results(self, log_path: Path, junit: Path) -> None:
-        self._copy_back_if_exists(self.repo_root / "target/nextest/ci/junit.xml", junit)
+        self._copy_back_if_exists(
+            self.repo_root / "input/target/nextest/ci/junit.xml", junit
+        )
         remote_archive = self.repo_root / "diagnostics.tar.gz"
         result = self.node.execute(
             f"tar -czf {shlex.quote(str(remote_archive))} "
@@ -743,6 +765,7 @@ class OpenVmmTests(Tool):
                     "Flowey build-only preparation did not produce the test launcher"
                 ),
             )
+            self._preserve_short_path_in_launcher(output_dir / "run.sh", output_dir)
             self._record_prebuilt_test_details(
                 log_path, binary_path, original_identity, ref, ref_source
             )
