@@ -309,54 +309,6 @@ class WindowsService(Tool):
     def enable_service(self, name: str) -> None:
         pass
 
-    def start_service(self, name: str, ignore_exit_code: int = 0) -> None:
-        escaped_name = name.replace("'", "''")
-        self.node.tools[PowerShell].run_cmdlet(
-            f"Start-Service -Name '{escaped_name}' -ErrorAction Stop",
-            force_run=True,
-        )
-        self.wait_for_service_start(name)
-
-    def is_service_running(self, name: str) -> bool:
-        return self._get_status(name) == WindowsServiceStatus.RUNNING
-
-    def get_process_id(self, name: str) -> int:
-        escaped_name = name.replace("'", "''")
-        output = self.node.tools[PowerShell].run_cmdlet(
-            "$ErrorActionPreference = 'Stop'; "
-            "$service = Get-CimInstance -ClassName Win32_Service | "
-            f"Where-Object {{ $_.Name -eq '{escaped_name}' }}; "
-            "if ($null -eq $service) { throw 'Service does not exist' }; "
-            "$service.ProcessId",
-            force_run=True,
-        )
-        process_id = str(output).strip()
-        if not process_id.isdigit():
-            raise LisaException(
-                f"Invalid process ID for service '{name}': {process_id!r}"
-            )
-        return int(process_id)
-
-    def configure_failure_restart(
-        self,
-        name: str,
-        restart_delay_ms: int = 1000,
-        reset_period_seconds: int = 86400,
-    ) -> None:
-        if not 1 <= restart_delay_ms <= 0xFFFFFFFF:
-            raise LisaException("Service restart delay must be a positive DWORD")
-        if not 0 <= reset_period_seconds <= 0xFFFFFFFF:
-            raise LisaException("Service failure reset period must be a DWORD")
-        escaped_name = name.replace("'", "''")
-        self.node.tools[PowerShell].run_cmdlet(
-            "$ErrorActionPreference = 'Stop'; "
-            f"& \"$env:SystemRoot\\System32\\sc.exe\" failure '{escaped_name}' "
-            f"reset= {reset_period_seconds} actions= restart/{restart_delay_ms}; "
-            "if ($LASTEXITCODE -ne 0) { "
-            'throw "Failed to configure service recovery: $LASTEXITCODE" }',
-            force_run=True,
-        )
-
     def restart_service(self, name: str, ignore_exit_code: int = 0) -> None:
         self.node.tools[PowerShell].run_cmdlet(
             f"Restart-service {name}",
