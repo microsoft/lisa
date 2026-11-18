@@ -840,9 +840,10 @@ class Sriov(TestSuite):
     def verify_vf_ethtool_adaptive_moderation(
         self, environment: Environment, log: Logger
     ) -> None:
-        initialize_nic_info(environment)
         node, peer = environment.nodes[0], environment.nodes[1]
         vfs = self._get_vf_nics(node, log, "adaptive moderation")
+        self._get_vf_nics(peer, log, "adaptive moderation peer")
+        initialize_nic_info(environment)
         nic = self._get_adaptive_test_nic(node)
         peer_nic = self._get_adaptive_test_nic(
             peer, node.tools[Ip].get_subnet_address(nic.name)
