@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
@@ -9,7 +10,7 @@ from lisa.environment import Environment
 from lisa.node import Node
 from lisa.platform_ import Platform
 from lisa.sut_orchestrator import platform_utils
-from lisa.util import LisaException
+from lisa.util import LisaException, SkippedException, constants, dump_file
 from lisa.util.logger import Logger
 from lisa.util.subclasses import Factory
 
@@ -24,6 +25,14 @@ from .key_loader import KeyLoader
 from .readychecker import ReadyChecker
 from .schema import BareMetalPlatformSchema, BuildSchema
 from .source import Source
+
+BAREMETAL_PLATFORM_HEALTH_FILE = "baremetal_platform_health.json"
+
+
+class BareMetalPlatformUnavailableException(LisaException):
+    """The BareMetal server cannot safely service additional environments."""
+
+    ...
 
 
 def convert_to_baremetal_node_space(node_space: schema.NodeSpace) -> None:
@@ -45,6 +54,7 @@ class BareMetalPlatform(Platform):
     ) -> None:
         super().__init__(runbook=runbook)
 
+        self._unavailable_reason: Optional[str] = None
         self._environment_information_hooks = {
             platform_utils.KEY_VMM_VERSION: platform_utils.get_vmm_version,
             platform_utils.KEY_MSHV_VERSION: platform_utils.get_mshv_version,
@@ -110,6 +120,9 @@ class BareMetalPlatform(Platform):
         return self._check_capability(environment, log, self.cluster.client)
 
     def _deploy_environment(self, environment: Environment, log: Logger) -> None:
+        if self._unavailable_reason:
+            raise SkippedException(self._unavailable_reason)
+
         ready_checker: Optional[ReadyChecker] = None
 
         # process the cluster elements from runbook
@@ -119,8 +132,22 @@ class BareMetalPlatform(Platform):
             ready_checker = self.ready_checker_factory.create_by_runbook(
                 self._cluster_runbook.ready_checker, parent_logger=log
             )
-            for node in environment.nodes.list():
-                ready_checker.prepare(node)
+            try:
+                for node in environment.nodes.list():
+                    ready_checker.prepare(node)
+            except Exception as preparation_error:
+                failure_message = self._mark_unavailable(
+                    marker_reason="pre_deployment_readiness_failed",
+                    unavailable_reason=(
+                        "BareMetal platform is unavailable after pre-deployment "
+                        "readiness preparation failed"
+                    ),
+                    error=preparation_error,
+                    log=log,
+                )
+                raise BareMetalPlatformUnavailableException(
+                    failure_message
+                ) from preparation_error
 
         self.cluster.deploy(environment)
 
@@ -132,8 +159,23 @@ class BareMetalPlatform(Platform):
                     f"Deployment readiness failed: {error}. "
                     "Attempting one platform-specific deployment recovery."
                 )
-                self.cluster.recover_deployment(environment)
-                self._check_ready(environment, ready_checker)
+                try:
+                    self.cluster.recover_deployment(environment)
+                    self._check_ready(environment, ready_checker)
+                except Exception as recovery_error:
+                    # Any recovery failure leaves the physical server state unverified.
+                    failure_message = self._mark_unavailable(
+                        marker_reason="deployment_recovery_failed",
+                        unavailable_reason=(
+                            "BareMetal platform is unavailable after deployment "
+                            "recovery failed"
+                        ),
+                        error=recovery_error,
+                        log=log,
+                    )
+                    raise BareMetalPlatformUnavailableException(
+                        failure_message
+                    ) from recovery_error
 
         for index, node in enumerate(environment.nodes.list()):
             node_context = get_node_context(node)
@@ -150,6 +192,36 @@ class BareMetalPlatform(Platform):
             node.initialize()
 
         self._log.debug(f"deploy environment {environment.name} successfully")
+
+    def _mark_unavailable(
+        self,
+        marker_reason: str,
+        unavailable_reason: str,
+        error: Exception,
+        log: Logger,
+    ) -> str:
+        self._unavailable_reason = unavailable_reason
+        failure_message = f"{unavailable_reason}: {error}"
+        health_path = constants.RUN_LOCAL_LOG_PATH / BAREMETAL_PLATFORM_HEALTH_FILE
+        try:
+            dump_file(
+                health_path,
+                json.dumps(
+                    {
+                        "reason": marker_reason,
+                        "schema_version": 1,
+                        "status": "unavailable",
+                    },
+                    sort_keys=True,
+                ),
+            )
+        except (OSError, ValueError) as health_error:
+            log.warning(
+                f"Failed to write BareMetal platform health to "
+                f"'{health_path}': {health_error}"
+            )
+        log.error(failure_message)
+        return failure_message
 
     @staticmethod
     def _check_ready(environment: Environment, ready_checker: ReadyChecker) -> None:
