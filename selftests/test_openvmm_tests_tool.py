@@ -377,9 +377,7 @@ encountered at least one test failure!
             )
 
         self.assertEqual(
-            PurePosixPath(
-                "/workspace/openvmm/input/target/nextest/ci/junit.xml"
-            ),
+            PurePosixPath("/workspace/openvmm/input/target/nextest/ci/junit.xml"),
             copy_back.call_args_list[0].args[0],
         )
 
