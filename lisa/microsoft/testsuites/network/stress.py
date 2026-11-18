@@ -1,5 +1,6 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import re
 from typing import Any, Optional, cast
 
 from assertpy import assert_that
@@ -29,7 +30,7 @@ from lisa.features import StartStop
 from lisa.nic import NicInfo
 from lisa.search_space import IntRange
 from lisa.sut_orchestrator import AZURE
-from lisa.tools import Cat, Iperf3
+from lisa.tools import Cat, Dmesg, Iperf3
 
 
 @TestSuiteMetadata(
@@ -43,15 +44,17 @@ class Stress(TestSuite):
     @TestCaseMetadata(
         description="""
         This case is to check whether the network connectivity is lost after running
-         iperf3 for 30 mins.
+         iperf3 with 8 parallel TCP streams for 24 hours.
 
         Steps,
         1. Start iperf3 on server node.
-        2. Start iperf3 for 30 minutes on client node.
+        2. Start iperf3 with 8 parallel TCP streams for 24 hours on client node.
         3. Do VF connection test.
+        4. Check both nodes' kernel logs for TX queue timeouts.
+        5. Check both nodes' devlink health error counters are zero.
         """,
         priority=4,
-        timeout=3000,
+        timeout=25 * 60 * 60,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 node_count=2,
@@ -65,11 +68,12 @@ class Stress(TestSuite):
         vm_nics = initialize_nic_info(environment)
 
         client_iperf3_log = "iperfResults.log"
+        run_time_seconds = 24 * 60 * 60
         server_iperf3 = server_node.tools[Iperf3]
         # 1. Start iperf3 on server node.
         server_iperf3.run_as_server_async()
 
-        # 2. Start iperf3 for 30 minutes on client node.
+        # 2. Start iperf3 with 8 parallel TCP streams for 24 hours on client node.
         client_nic_info_list = [
             x
             for _, x in vm_nics[client_node.name].items()
@@ -98,11 +102,17 @@ class Stress(TestSuite):
             f" {client_nic_info.ip_addr}"
         )
         client_iperf3 = client_node.tools[Iperf3]
-        client_iperf3.run_as_client(
+        client_process = client_iperf3.run_as_client_async(
             server_ip=matched_server_nic_info.ip_addr,
             log_file=client_iperf3_log,
-            run_time_seconds=1800,
+            run_time_seconds=run_time_seconds,
+            parallel_number=8,
             client_ip=client_nic_info.ip_addr,
+        )
+        client_process.wait_result(
+            timeout=run_time_seconds + 300,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="fail to complete iperf3 client",
         )
         client_cat = client_node.tools[Cat]
         iperf_log = client_cat.read(client_iperf3_log, sudo=True, force_run=True)
@@ -112,6 +122,43 @@ class Stress(TestSuite):
 
         # 3. Do VF connection test.
         sriov_vf_connection_test(environment, vm_nics)
+
+        for node in [server_node, client_node]:
+            kernel_log = node.tools[Dmesg].run(
+                sudo=True,
+                force_run=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"failed to read kernel log on {node.name}"
+                ),
+            )
+            assert_that(kernel_log.stdout).described_as(
+                f"TX queue timeout found in kernel log on {node.name}"
+            ).does_not_contain("TX timeout on queue:")
+
+            health = node.execute(
+                "devlink health show",
+                sudo=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    f"failed to read devlink health on {node.name}"
+                ),
+            )
+            if not health.stdout.strip():
+                node.log.info("devlink reported no health reporters")
+                continue
+            error_counts = re.findall(r"\berror\s+(\S+)", health.stdout)
+            assert_that(error_counts).described_as(
+                f"no error counters in devlink health on {node.name}:\n{health.stdout}"
+            ).is_not_empty()
+            for error_count in error_counts:
+                assert_that(error_count.isdigit()).described_as(
+                    f"invalid devlink health error counter on {node.name}: "
+                    f"{error_count}"
+                ).is_true()
+                assert_that(int(error_count)).described_as(
+                    f"devlink health errors on {node.name}:\n{health.stdout}"
+                ).is_zero()
 
     @TestCaseMetadata(
         description="""
