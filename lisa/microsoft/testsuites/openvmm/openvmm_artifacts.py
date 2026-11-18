@@ -22,7 +22,6 @@ CONFIGURATIONS = (
 GNU = "x86_64-unknown-linux-gnu"
 MUSL = "x86_64-unknown-linux-musl"
 
-# These mappings are used only with a validated upstream source contract.
 FILTERS = {
     CONFIGURATIONS[0]: "all() & !test(pcat) & !test(qemu)",
     CONFIGURATIONS[1]: "all() & !test(pcat)",
@@ -35,46 +34,6 @@ def execution_filter(configuration: str) -> str:
     # ignored Windows-host Hyper-V tests, which must not reach execution.
     return f"({FILTERS[configuration]}) & !test(/(?i)windows/) & !test(hyperv)"
 
-
-# Ordered upstream files defining the build, artifact layout and execution
-# contract. The execution tool fingerprints their normalized checksum records.
-CONTRACT_FILES = (
-    "flowey/flowey_hvlite/src/pipelines/checkin_gates.rs",
-    "flowey/flowey_lib_hvlite/src/init_vmm_tests_content_dir.rs",
-    "flowey/flowey_lib_hvlite/src/init_vmm_tests_env.rs",
-    "flowey/flowey_lib_hvlite/src/_jobs/consume_and_test_nextest_vmm_tests_archive.rs",
-    "flowey/flowey_lib_hvlite/src/test_nextest_vmm_tests_archive.rs",
-    "flowey/flowey_lib_hvlite/src/run_cargo_nextest_run.rs",
-    "flowey/flowey_lib_common/src/gen_cargo_nextest_run_cmd.rs",
-    "flowey/flowey_lib_hvlite/src/install_vmm_tests_external_deps.rs",
-    "flowey/flowey_lib_hvlite/src/run_prep_steps.rs",
-    "flowey/flowey_lib_hvlite/src/resolve_openvmm_test_linux_kernel.rs",
-    "flowey/flowey_lib_hvlite/src/download_release_igvm_files_from_gh.rs",
-    "petri/petri_artifacts_core/src/lib.rs",
-    "petri/petri_artifacts_common/src/lib.rs",
-    "vmm_tests/petri_artifacts_vmm_test/src/lib.rs",
-)
-# Validated against upstream 61994293a9e5e3bcc1d685d708cf462920eed030.
-# Other commits are supported if their contract fingerprint matches; changed
-# contracts fail closed until reviewed and added to this allowlist.
-SUPPORTED_CONTRACTS = {
-    "a3a3e9fcac8124755e43e25f1589e9cb50b4660227f4b6f72597a99e04e0815c",
-}
-
-# Guest disk/VMGS filenames and expected byte sizes used by the execution tool
-# to download and size-check artifacts, not to provision Azure VMs.
-IMAGES = (
-    ("nocloud_alpine-3.23.2-x86_64-uefi-cloudinit-r0.vhd", 224494080),
-    ("ubuntu-24.04-server-cloudimg-amd64.vhd", 3758211584),
-    ("ubuntu-25.04-server-cloudimg-amd64.vhd", 3758211584),
-    ("sample-vmgs.vhd", 4194816),
-    ("tpm-16k-vmgs.vhd", 4194816),
-)
-# Additional guests for ARM64 QEMU emulation in the AMD/KVM configuration.
-ARM_IMAGES = (
-    ("nocloud_alpine-3.23.2-aarch64-uefi-cloudinit-r0.vhd", 258015744),
-    ("ubuntu-24.04-server-cloudimg-arm64.vhd", 3758211584),
-)
 
 _lock = threading.Lock()
 _selections: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
@@ -90,7 +49,7 @@ class OpenVmmSource:
         )
         if not match:
             raise LisaException(
-                "Upstream configuration validation requires a GitHub repository URL."
+                "OpenVMM source resolution requires a GitHub repository URL."
             )
         self.repository = match.group(1)
         self.session = requests.Session()

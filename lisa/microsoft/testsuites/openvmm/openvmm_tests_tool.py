@@ -19,16 +19,7 @@ from lisa.tools import Cargo, Curl, Git, Ls, Uname
 from lisa.tools.openvmm import VERSION_PATTERN
 from lisa.util import LisaException, SkippedException, UnsupportedDistroException
 
-from .openvmm_artifacts import (
-    ARM_IMAGES,
-    CONFIGURATIONS,
-    CONTRACT_FILES,
-    GNU,
-    IMAGES,
-    MUSL,
-    SUPPORTED_CONTRACTS,
-    execution_filter,
-)
+from .openvmm_artifacts import CONFIGURATIONS, GNU, MUSL, execution_filter
 
 
 def _new_str_list() -> List[str]:
@@ -89,8 +80,17 @@ class OpenVmmTests(Tool):
             "pkg-config",
             "binutils",
             "glibc-devel",
+            "rpm",
+            "libarchive",
         ],
-        Ubuntu.__name__: ["build-essential", "libssl-dev", "perl", "pkg-config"],
+        Ubuntu.__name__: [
+            "build-essential",
+            "libssl-dev",
+            "perl",
+            "pkg-config",
+            "rpm2cpio",
+            "libarchive-tools",
+        ],
     }
 
     repo_root: PurePath
@@ -176,7 +176,6 @@ class OpenVmmTests(Tool):
             local_junit.unlink(missing_ok=True)
             with self._short_temp_path(self.repo_root / "input") as input_dir:
                 try:
-                    self._validate_native_contract()
                     self._build_native_content(
                         configuration,
                         input_dir,
@@ -210,23 +209,8 @@ class OpenVmmTests(Tool):
                         log_path,
                         install_missing_deps,
                     ):
-                        command = shlex.join(
-                            [
-                                self.node.tools[Cargo].command,
-                                "nextest",
-                                "run",
-                                "--profile",
-                                "ci",
-                                "--config-file",
-                                str(self.repo_root / ".config/nextest.toml"),
-                                "--workspace-remap",
-                                str(self.repo_root),
-                                "--archive-file",
-                                str(input_dir / target / "vmm_tests.tar.zst"),
-                                "--filter-expr",
-                                selected_filter,
-                            ]
-                        )
+                        # Build-only defers image downloads and prep to this launcher.
+                        command = shlex.join(["bash", str(input_dir / "run.sh")])
                         self._run_logged_command(
                             name=name,
                             command=self._wrap_command_for_group(
@@ -263,6 +247,7 @@ class OpenVmmTests(Tool):
         # KVM retains ARM64 QEMU coverage; the MSHV profiles use x64 MUSL.
         targets = [MUSL] + (["aarch64-unknown-linux-musl"] if emulated else [])
         if install_missing_deps:
+            self._install_dependencies()
             if emulated:
                 cast(Posix, self.node.os).install_packages(
                     ["gcc-aarch64-linux-gnu", "qemu-user-static", "binfmt-support"]
@@ -276,8 +261,7 @@ class OpenVmmTests(Tool):
             )
             self._restore_packages(log_path, env, include_emulated=emulated)
         self._ensure_cargo_nextest(log_path, env, install_missing_deps)
-        # Let upstream Flowey build the Linux-only payload, then execute its
-        # nextest archive separately so LISA can validate results and provenance.
+        # Flowey builds the Linux-only payload and generates the image-aware launcher.
         command = [
             self.node.tools[Cargo].command,
             "xflowey",
@@ -468,25 +452,6 @@ class OpenVmmTests(Tool):
             raise
         return self.node.get_pure_path(alias)
 
-    def _validate_native_contract(self) -> None:
-        result = self.node.execute(
-            "sha256sum " + shlex.join(CONTRACT_FILES),
-            cwd=self.repo_root,
-            shell=True,
-            expected_exit_code=0,
-        )
-        # SSH may return CRLF records; normalize them before comparing the
-        # maintained contract fingerprint, without weakening source validation.
-        checksums = "\n".join(result.stdout.strip().splitlines())
-        digest = hashlib.sha256(checksums.encode("utf-8")).hexdigest()
-        if digest not in SUPPORTED_CONTRACTS:
-            raise LisaException(
-                f"Unsupported upstream configuration/content contract: {digest}. "
-                "Update and validate the Python profile mappings before executing "
-                "this revision; no Rust source will be injected or patched."
-            )
-        self._log.info(f"Validated upstream contract: {digest}")
-
     @staticmethod
     def _native_environment_prefix(configuration: str) -> str:
         # Do not inherit settings that reuse guest disks or hide unstable failures.
@@ -620,27 +585,6 @@ class OpenVmmTests(Tool):
                     "native VMM host prerequisites are unmet"
                 ),
             )
-            if configuration != CONFIGURATIONS[2]:
-                images = IMAGES + (
-                    ARM_IMAGES if configuration == CONFIGURATIONS[1] else ()
-                )
-                for filename, size in images:
-                    path = shlex.quote(str(content / "images" / filename))
-                    url = shlex.quote(
-                        "https://hvlitetestvhds.blob.core.windows.net/vhds/" + filename
-                    )
-                    self._run_logged_command(
-                        name=f"openvmm_download_{filename}",
-                        command=(
-                            f"if ! test -f {path} || "
-                            f'test "$(stat -c %s {path})" -ne {size}; then '
-                            f"curl --fail --location --retry 3 {url} -o {path}; fi && "
-                            f'test "$(stat -c %s {path})" -eq {size}'
-                        ),
-                        log_path=log_path,
-                        timeout=self.RESTORE_TIMEOUT,
-                        update_envs=env,
-                    )
             yield
         finally:
             has_error = sys.exc_info()[0] is not None
@@ -743,6 +687,8 @@ class OpenVmmTests(Tool):
         output_storage_dir: Optional[PurePath] = None
         try:
             ref, ref_source = self._resolve_prebuilt_tests_ref(ref)
+            if install_missing_deps:
+                self._install_dependencies()
             env = self._prepare_repo(log_path, ref)
             working_path = str(self.node.working_path).rstrip("/")
             output_storage_dir = self.node.get_pure_path(
@@ -1066,7 +1012,7 @@ class OpenVmmTests(Tool):
         self.repo_root = self.get_tool_path(use_global=True) / self._get_repo_dir_name()
         self._artifact_root = self.repo_root / "target" / "lisa-openvmm-tests"
 
-    def _install(self) -> bool:
+    def _install_dependencies(self) -> None:
         node_os = cast(Posix, self.node.os)
         package_names = self._distro_package_mapping.get(type(node_os).__name__)
         if not package_names:
@@ -1075,7 +1021,11 @@ class OpenVmmTests(Tool):
                 "OpenVMM upstream tests are not supported on this distro.",
             )
 
+        # Flowey's local backend prompts for missing packages even with --ci-profile.
         node_os.install_packages(package_names)
+
+    def _install(self) -> bool:
+        self._install_dependencies()
 
         self._set_repo_paths()
 

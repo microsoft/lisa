@@ -57,6 +57,10 @@ def _get_openvmm_tests_type() -> Any:
     Source tests always build the resolved commit; a blank openvmm_tests_ref
     pins main once per LISA run. They do not download GitHub Actions archives.
     Windows guest tests are excluded, and incompatible hosts are skipped.
+    Flowey's generated launcher selects, downloads, and prepares guest images.
+    LISA installs host build and MSHV archive-extraction dependencies
+    noninteractively before Flowey preparation when missing-dependency
+    installation is enabled, including when reusing an existing checkout.
     vmm_version reports the selected OpenVMM executable's version, also recorded
     in the source manifest or packaged-binary provenance.
     The legacy openvmm_vmm_tests_profile variable applies only to the separate
@@ -117,7 +121,6 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         Build and run Linux guest tests for x64-linux-intel-mshv on an Intel
         Azure Linux host with /dev/mshv. Resolve openvmm_tests_ref (default main)
         to an immutable commit before building. Windows guests are excluded.
-        Unsupported source contracts fail before building.
         """,
         priority=2,
         timeout=43200,
@@ -140,7 +143,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         Build and run Linux guest tests for x64-linux-amd-kvm on an AMD Ubuntu
         host with /dev/kvm and without /dev/mshv, including ARM64 QEMU emulation.
         Resolve openvmm_tests_ref (default main) to an immutable commit before
-        building. Windows guests are excluded; unsupported source contracts fail.
+        building. Windows guests are excluded.
         """,
         priority=2,
         # Allow the full upstream suite's 12-hour budget on slower hardware.
@@ -164,7 +167,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         Build and run Linux SNP guest tests for x64-linux-amd-snp-mshv on an AMD
         Azure Linux host with /dev/mshv and SNP guest-launch support. Resolve
         openvmm_tests_ref (default main) to an immutable commit before building.
-        Windows guests are excluded; unsupported source contracts fail.
+        Windows guests are excluded.
         """,
         priority=2,
         # Allow the full upstream suite's 12-hour budget on slower hardware.
@@ -220,7 +223,6 @@ class OpenVmmUpstreamTestSuite(TestSuite):
             variables.get("openvmm_vmm_tests_install_missing_deps", "yes"),
             default=True,
         )
-        # Delegate contract checks, native build/preparation and nextest execution.
         run_summary = openvmm_tests.run_vmm_tests(
             log_path=log_path,
             configuration=profile,
