@@ -820,6 +820,8 @@ class Ethtool(Tool):
                 f"Private-flag read timed out on {interface}: "
                 f"stdout={result.stdout}, stderr={result.stderr}"
             )
+        if f"{result.stdout}\n{result.stderr}".strip() == "No private flags defined":
+            return {}
         if result.exit_code != 0 and _is_unsupported(result):
             raise UnsupportedOperationException(
                 f"Private-flag reads are not supported on {interface}: "
@@ -830,8 +832,6 @@ class Ethtool(Tool):
             message=f"Couldn't read private flags on {interface}.",
             include_output=True,
         )
-        if result.stdout.strip() == "No private flags defined":
-            return {}
         flags: Dict[str, bool] = {}
         for line in result.stdout.splitlines():
             line = line.strip()
