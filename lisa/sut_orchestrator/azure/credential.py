@@ -37,9 +37,15 @@ def _get_token_with_cli_retry(
         try:
             return get_token(*scopes, **kwargs)
         except ClientAuthenticationError as error:
-            if str(error).strip() not in (
+            retryable_errors = (
                 "Failed to invoke Azure CLI",
                 "Failed to invoke the Azure CLI",
+            )
+            message = str(error).strip()
+            if message not in retryable_errors and not any(
+                line.strip() == f"AzureCliCredential: {cli_error}"
+                for line in message.splitlines()
+                for cli_error in retryable_errors
             ):
                 raise
             if attempt == 3:
