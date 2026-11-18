@@ -842,8 +842,11 @@ class Sriov(TestSuite):
         initialize_nic_info(environment)
         node, peer = environment.nodes[0], environment.nodes[1]
         vfs = self._get_vf_nics(node, log, "adaptive moderation")
-        nic, peer_nic = node.nics.get_secondary_nic(), peer.nics.get_secondary_nic()
-        if nic.pci_device_name not in vfs or not nic.ip_addr or not peer_nic.ip_addr:
+        nic, peer_nic = (
+            self._get_adaptive_test_nic(node),
+            self._get_adaptive_test_nic(peer),
+        )
+        if nic.pci_device_name not in vfs:
             raise SkippedException("No configured non-management VF test-network path.")
         vf = nic.pci_device_name
         ip = node.tools[Ip]
@@ -932,6 +935,29 @@ class Sriov(TestSuite):
             raise SkippedException(
                 "Neither adaptive direction is supported; see capability responses."
             )
+
+    def _get_adaptive_test_nic(self, node: Node) -> NicInfo:
+        management = next(
+            (
+                nic
+                for nic in node.nics.nics.values()
+                if node.nics.default_nic
+                and node.nics.default_nic in (nic.name, nic.pci_device_name)
+            ),
+            None,
+        )
+        if management is None:
+            raise LisaException("Could not identify the management NIC.")
+        management_devices = {management.name, management.pci_device_name}
+        for nic in node.nics.nics.values():
+            if (
+                nic.ip_addr
+                and nic.is_pci_module_enabled
+                and not nic.is_infiniband
+                and not management_devices.intersection((nic.name, nic.pci_device_name))
+            ):
+                return nic
+        raise SkippedException("No configured non-management VF test-network path.")
 
     def _adaptive_traffic(
         self,
