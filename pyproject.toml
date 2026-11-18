@@ -218,6 +218,9 @@ ignore_missing_imports = true
 [tool.setuptools]
 packages = ["lisa"]
 
+[tool.setuptools.package-data]
+lisa = ["microsoft/testsuites/xdp/*.patch"]
+
 
 [tool.setuptools_scm]
 version_scheme = "post-release"
