@@ -100,6 +100,38 @@ class AziHsm(TestSuite):
             )
 
     #
+    # Azure Linux 4.0+'s DEFAULT system crypto policy disables SHA1
+    # signature verification (rh-allow-sha1-signatures=no in
+    # /etc/crypto-policies/back-ends/opensslcnf.config). This breaks the
+    # azihsm_api_cpp_tests RSA sign/verify cases that exercise SHA1
+    # (AZIHSM_STATUS_INTERNAL_ERROR on verify), even though the azihsm
+    # hardware/driver stack itself works correctly. Re-enable SHA1
+    # signatures via the system crypto policy on affected releases so the
+    # SDK tests can genuinely exercise SHA1 instead of failing due to the
+    # OS-level policy. This is a test-environment workaround, not a
+    # security-hardening recommendation.
+    def _allow_sha1_signatures_if_needed(self, node: Node, log: Logger) -> None:
+        if not isinstance(node.os, CBLMariner):
+            return
+
+        if node.os.information.version.major < 4:
+            return
+
+        log.info(
+            "Azure Linux 4.0+ detected: relaxing the system crypto policy "
+            "to allow SHA1 signatures (required by azihsm_api_cpp_tests)."
+        )
+        node.execute(
+            "update-crypto-policies --set DEFAULT:SHA1",
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to relax the crypto policy to allow SHA1 signatures"
+            ),
+        )
+
+    #
     # Collect extra diagnostics when an azihsm binary test fails under LISA.
     # This helps identify environment differences (permissions, device
     # ownership, stray processes, kernel messages, etc.) between a run
@@ -909,6 +941,8 @@ class AziHsm(TestSuite):
 
         # Make sure the azihsm packages are installed
         self.install_all_azihsm_packages(node=node, log=log)
+
+        self._allow_sha1_signatures_if_needed(node=node, log=log)
 
         sdk_test_list = [
             "azihsm_api",
