@@ -116,7 +116,7 @@ class RemoteComSerialConsole(features.SerialConsole):
 
         # entering to make sure connection is established, avoid it's too fast
         # to send content
-        process.input("\n")
+        process.input("\n\n")
         process.wait_output("\n", timeout=1, interval=0.1)
 
         self._process = process
@@ -137,18 +137,23 @@ class Ip9285StartStop(features.StartStop):
         assert pxe_cluster.start_stop, "start_stop is not defined"
 
         ip_power_runbook = pxe_cluster.start_stop.get_extended_runbook(schema.Ip9285)
+        port_command = (
+            f"&p6{ip_power_runbook.port_id}"
+            if ip_power_runbook.use_p6_api
+            else f"+{ip_power_runbook.port_id}"
+        )
 
         self._request_cmd = (
             f"http://{ip_power_runbook.host}/set.cmd?"
             f"user={ip_power_runbook.username}+pass="
             f"{ip_power_runbook.password}+cmd="
-            f"setpower+{ip_power_runbook.port_id}"
+            f"setpower{port_command}"
         )
 
     def _set_ip_power(self, power_cmd: str) -> None:
         response = requests.get(power_cmd, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
-        self._log.debug(f"Command {power_cmd} done in set_ip_power")
+        self._log.debug("IP power command completed.")
 
     def _stop(
         self,
