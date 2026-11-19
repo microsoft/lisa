@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest import TestCase
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from lisa.microsoft.testsuites.openvmm.openvmm_tests import (
     OpenVmmUpstreamTestSuite,
@@ -166,7 +166,7 @@ class OpenVmmTestsSuiteTestCase(TestCase):
 
         self.assertEqual(
             result,
-            "((test(linux_direct) | test(ubuntu) | test(alpine))) & (!test(pcat))",
+            "((test(linux_) | test(ubuntu) | test(alpine))) & (!test(pcat))",
         )
 
     def test_compose_vmm_tests_filter_keeps_pcat_on_wsl(self) -> None:
@@ -177,7 +177,7 @@ class OpenVmmTestsSuiteTestCase(TestCase):
             self._create_host("6.6.87.2-microsoft-standard-WSL2"),
         )
 
-        self.assertEqual(result, "(test(linux_direct) | test(ubuntu) | test(alpine))")
+        self.assertEqual(result, "(test(linux_) | test(ubuntu) | test(alpine))")
 
     def test_before_case_initializes_host_before_os_check(self) -> None:
         suite = self._suite_type.__new__(self._suite_type)
@@ -202,7 +202,9 @@ class OpenVmmTestsSuiteTestCase(TestCase):
             "https://example.com/openvmm.git", ""
         )
 
-    def test_verify_openvmm_upstream_vmm_tests_sets_multiline_summary(self) -> None:
+    def test_verify_openvmm_upstream_vmm_tests_intel_mshv_sets_multiline_summary(
+        self,
+    ) -> None:
         suite = self._suite_type.__new__(self._suite_type)
         host = MagicMock()
         node = MagicMock()
@@ -228,16 +230,25 @@ class OpenVmmTestsSuiteTestCase(TestCase):
         result = SimpleNamespace(message="")
 
         suite._get_host_node = MagicMock(return_value=host)
+        suite._ensure_configuration_host = MagicMock()
         suite._ensure_vmm_tests_supported = MagicMock(return_value="")
         suite._is_truthy = MagicMock(return_value=True)
         suite._compose_vmm_tests_filter = MagicMock(return_value="")
 
-        suite.verify_openvmm_upstream_vmm_tests(
-            node=node,
-            log_path=Path("."),
-            result=result,
-            variables={},
-        )
+        with patch(
+            "lisa.microsoft.testsuites.openvmm.openvmm_tests.OpenVmmSource"
+        ) as source:
+            source.return_value.resolve.return_value = {
+                "source_sha": "a" * 40,
+                "source": "custom-build",
+                "coverage": "Linux guests only; Windows guest tests excluded",
+            }
+            suite.verify_openvmm_upstream_vmm_tests_intel_mshv(
+                node=node,
+                log_path=Path("."),
+                result=result,
+                variables={},
+            )
 
         self.assertIn("upstream vmm_tests:", result.message)
         self.assertIn("3 tests run: 3 passed, 0 failed, 45 skipped", result.message)

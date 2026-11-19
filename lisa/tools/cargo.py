@@ -231,11 +231,23 @@ class Cargo(Tool):
         if os.path.dirname(self._command) not in path:
             path = f"{os.path.dirname(self._command)}:{path}"
 
+        update_envs = {"PATH": path}
+        if sudo:
+            home_dir = self._get_home_dir()
+            if not home_dir:
+                raise LisaException("failure to grab $HOME path")
+            update_envs.update(
+                {
+                    "CARGO_HOME": f"{home_dir}/.cargo",
+                    "RUSTUP_HOME": f"{home_dir}/.rustup",
+                }
+            )
+
         result = self.run(
             "-v test",
             sudo=sudo,
             cwd=cwd,
-            update_envs={"PATH": path},
+            update_envs=update_envs,
             shell=True,
             expected_exit_code=expected_exit_code,
             expected_exit_code_failure_message="cargo test failed",

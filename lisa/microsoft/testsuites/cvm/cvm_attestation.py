@@ -61,8 +61,9 @@ class AzureCVMAttestationTestSuite(TestSuite):
 
     @TestCaseMetadata(
         description="""
-            Runs get-snp-report tool to generate
-            and create attestation report for azure cvm.
+            Verifies platform and guest attestation for Ubuntu Azure CVMs
+            using separate endpoint configurations, or verifies an SNP
+            attestation report for Azure Linux.
         """,
         priority=3,
         requirement=simple_requirement(
@@ -82,14 +83,17 @@ class AzureCVMAttestationTestSuite(TestSuite):
         if isinstance(node.os, Ubuntu):
             cvm_tests: AzureCVMAttestationTests = node.tools[AzureCVMAttestationTests]
             if node.tools[Lscpu].get_cpu_type() == CpuType.AMD:
-                config_file = "config_snp_guest.json"
+                platform_config = "config_snp.json"
+                guest_config = "config_snp_guest.json"
             else:
-                config_file = "config_tdx_guest.json"
+                platform_config = "config_tdx.json"
+                guest_config = "config_tdx_guest.json"
 
             cvm_tests.run_cvm_attestation(
                 result,
                 environment,
-                config_file,
+                platform_config,
+                guest_config,
                 log_path,
             )
         elif isinstance(node.os, CBLMariner):

@@ -60,6 +60,53 @@ def generate_runner(
     return runner
 
 
+class RunnerConnectionTestCase(TestCase):
+    def _run_case(
+        self,
+        status: EnvironmentStatus,
+        accessible: bool = True,
+        case_status: TestStatus = TestStatus.PASSED,
+    ) -> Any:
+        runner = object.__new__(LisaRunner)
+        runner._log = MagicMock()
+        runner._guest_enabled = False
+        runner.platform = MagicMock()
+        runner.platform.runbook.keep_environment = "no"
+        environment = MagicMock()
+        environment.status = status
+        environment.is_dirty = False
+        environment.nodes.test_connections.return_value = accessible
+        result = MagicMock()
+        result.status = case_status
+        result.retried_times = 0
+        result.runtime_data.retry = 0
+        with patch(
+            "lisa.runners.lisa_runner.is_unittest", return_value=False
+        ), patch.object(runner, "_delete_environment_task"):
+            runner._run_test_task(environment, [result], {})
+        return environment
+
+    def test_deployed_case_does_not_probe_guest_after_completion(self) -> None:
+        environment = self._run_case(EnvironmentStatus.Deployed)
+        environment.nodes.test_connections.assert_not_called()
+        environment.nodes.check_kernel_panics.assert_not_called()
+
+    def test_connected_case_still_probes_guest_after_completion(self) -> None:
+        environment = self._run_case(EnvironmentStatus.Connected)
+        environment.nodes.test_connections.assert_called_once()
+
+    def test_failed_deployed_case_does_not_probe_guest(self) -> None:
+        environment = self._run_case(
+            EnvironmentStatus.Deployed, case_status=TestStatus.FAILED
+        )
+        environment.nodes.test_connections.assert_not_called()
+
+    def test_inaccessible_connected_case_is_still_marked_bad(self) -> None:
+        environment = self._run_case(EnvironmentStatus.Connected, accessible=False)
+        self.assertEqual(EnvironmentStatus.Bad, environment.status)
+        environment.nodes.check_kernel_panics.assert_called_once()
+
+
 class RunnerTestCase(TestCase):
     __skipped_no_env = "no available environment"
 

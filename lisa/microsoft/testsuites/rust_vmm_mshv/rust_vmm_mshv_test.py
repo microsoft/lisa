@@ -2,7 +2,7 @@
 # Licensed under the MIT license.
 import re
 from pathlib import Path, PurePath
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 from assertpy.assertpy import assert_that
 
@@ -78,34 +78,50 @@ class RustVmmTestSuite(TestSuite):
         testcase_log = log_path / "rust_vmm_mshv.log"
         cargo = node.tools[Cargo]
         test_result: ExecutableResult = cargo.test(cwd=repo_root, sudo=True)
+        test_output = "\n".join(
+            output for output in (test_result.stdout, test_result.stderr) if output
+        )
         with open(testcase_log, "w", encoding="utf-8") as f:
-            f.write(f"{test_result.stdout} {test_result.stderr}")
-        self.__process_result(
-            test_result.stdout,
+            f.write(test_output)
+        executed_testcases, failed_testcases = self.__process_result(
+            test_output,
             result,
         )
+        test_result.assert_exit_code(
+            message="cargo test failed",
+            include_output=True,
+        )
+        assert_that(
+            executed_testcases, "No RustVMM tests were executed."
+        ).is_greater_than(0)
+        assert_that(
+            failed_testcases, f"Failed Testcases: {failed_testcases}"
+        ).is_empty()
 
     def __process_result(
         self,
         data: str,
         result: TestResult,
-    ) -> None:
+    ) -> Tuple[int, List[str]]:
         pattern = r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])"
         ansi_escape = re.compile(pattern)
         data = ansi_escape.sub("", data)
         match = re.findall(
-            r"test (.*?) ... (ok|ignored|failed)(.*?)\n",
+            r"test (.*?) ... (ok|ignored|failed)(.*?)(?:\n|$)",
             data,
             re.IGNORECASE,
         )
-        failed_testcases = []
+        executed_testcases = 0
+        failed_testcases: List[str] = []
         for testcase in match:
             status = TestStatus.QUEUED
             testcase_name = testcase[0]
             log_status = testcase[-2]
             if log_status and log_status.strip().lower() == "ok":
+                executed_testcases += 1
                 status = TestStatus.PASSED
             elif log_status and log_status.strip().lower() == "failed":
+                executed_testcases += 1
                 failed_testcases.append(testcase_name)
                 status = TestStatus.FAILED
             elif log_status and log_status.strip().lower() == "ignored":
@@ -115,6 +131,4 @@ class RustVmmTestSuite(TestSuite):
                 test_case_name=testcase_name,
                 test_status=status,
             )
-        assert_that(
-            failed_testcases, f"Failed Testcases: {failed_testcases}"
-        ).is_empty()
+        return executed_testcases, failed_testcases

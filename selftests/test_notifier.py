@@ -1,14 +1,25 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+import xml.etree.ElementTree as ET  # noqa: N817
+from datetime import datetime, timezone
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import List, Type
 from unittest import TestCase
 
 from assertpy import assert_that
 
 from lisa import notifier, schema
-from lisa.messages import MessageBase, TestRunMessage
+from lisa.messages import (
+    MessageBase,
+    SubTestMessage,
+    TestResultMessage,
+    TestRunMessage,
+    TestStatus,
+)
 from lisa.notifier import Notifier
+from lisa.notifiers.junit import JUnit, JUnitSchema
 
 
 class MockNotifierA(Notifier):
@@ -201,3 +212,76 @@ class NotifierPriorityTestCase(TestCase):
         runbook = schema.Notifier(type="MockNotifierA")
 
         assert_that(runbook.priority).is_equal_to(100)
+
+
+class JUnitRetryTestCase(TestCase):
+    def test_terminal_status_correction_preserves_attempt_subtests(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            junit = JUnit(JUnitSchema(type="junit", append_message_id=False))
+            junit._testsuites = ET.Element("testsuites")
+            junit._xml_tree = ET.ElementTree(junit._testsuites)
+            junit._testsuites_info = {}
+            junit._testcases_info = {}
+            junit._report_path = Path(temp_dir) / "results.xml"
+            timestamp = datetime.now(timezone.utc)
+
+            def result(
+                status: TestStatus, elapsed: float, message: str = ""
+            ) -> TestResultMessage:
+                return TestResultMessage(
+                    id_="test-id",
+                    name="test_case",
+                    status=status,
+                    message=message,
+                    suite_full_name="suite",
+                    time=timestamp,
+                    elapsed=elapsed,
+                )
+
+            junit._test_case_running(result(TestStatus.QUEUED, 0))
+            junit._test_case_running(result(TestStatus.RUNNING, 0))
+            junit._sub_test_case_running(
+                SubTestMessage(
+                    id_="test-id",
+                    name="subtest",
+                    status=TestStatus.RUNNING,
+                    time=timestamp,
+                    elapsed=1,
+                )
+            )
+            junit._sub_test_case_completed(
+                SubTestMessage(
+                    id_="test-id",
+                    name="subtest",
+                    status=TestStatus.PASSED,
+                    time=timestamp,
+                    elapsed=2,
+                    subtest_duration=1,
+                )
+            )
+            junit._test_case_completed(result(TestStatus.PASSED, 3))
+            junit._test_case_completed(
+                result(TestStatus.FAILED, 3, "kernel panic correction")
+            )
+
+            suite = junit._testsuites_info["suite"]
+            cases = list(suite.xml.findall("testcase"))
+            self.assertEqual(2, len(cases))
+            parent = next(case for case in cases if case.get("classname") == "suite")
+            subtest = next(
+                case for case in cases if case.get("classname") == "suite.test_case"
+            )
+            self.assertEqual("test_case", parent.get("name"))
+            self.assertIsNotNone(parent.find("failure"))
+            self.assertEqual("subtest", subtest.get("name"))
+            self.assertEqual(2, suite.test_count)
+            self.assertEqual(1, suite.failed_count)
+
+            junit._test_case_running(result(TestStatus.QUEUED, 3))
+            junit._test_case_running(result(TestStatus.RUNNING, 3))
+            junit._test_case_completed(result(TestStatus.PASSED, 4))
+
+            cases = list(suite.xml.findall("testcase"))
+            self.assertEqual(3, len(cases))
+            self.assertEqual(2, sum(case.get("classname") == "suite" for case in cases))
+            self.assertEqual(3, suite.test_count)

@@ -55,13 +55,13 @@ class LogAgentSchema(schema.Notifier):
 
     # AI model deployment configuration
     general_deployment_name: str = field(
-        default="gpt-4o",
+        default="gpt-5.4",
         metadata=field_metadata(
             description="Primary GPT model deployment name for general analysis"
         ),
     )
     software_deployment_name: str = field(
-        default="gpt-4.1",
+        default="gpt-5.4",
         metadata=field_metadata(
             description="Specialized GPT model deployment for software analysis"
         ),

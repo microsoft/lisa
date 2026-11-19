@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 
 from assertpy import assert_that
 from microsoft.testsuites.mshv.cloud_hypervisor_tool import CloudHypervisor
+from paramiko.ssh_exception import SSHException
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.messages import TestStatus, send_sub_test_result_message
@@ -26,7 +27,12 @@ from lisa.tools import (
 )
 from lisa.tools.lsblk import DiskInfo
 from lisa.tools.mkfs import FileSystem
-from lisa.util import SkippedException
+from lisa.util import LisaException, SkippedException
+from lisa.util.process import ExecutableResult, Process
+
+
+class MshvGuestCleanupError(LisaException):
+    pass
 
 
 @TestSuiteMetadata(
@@ -84,6 +90,9 @@ class MshvHostStressTestSuite(TestSuite):
         CPUs available on the host. By default, the test is repeated 25
         times. All of these can be configured via the variable
         "mshv_vm_create_stress_configs" in the runbook.
+        Guest failures retain process output and VMM logs. Each iteration
+        stops its guests even on failure; uncertain cleanup aborts further
+        configurations rather than reusing the host.
         """,
         priority=4,
         timeout=10800,  # 3 hours
@@ -107,7 +116,7 @@ class MshvHostStressTestSuite(TestSuite):
         node.tools[Ssh].set_max_session()
 
         failures = 0
-        for config in configs:
+        for config_index, config in enumerate(configs):
             times = config.get("iterations", self.DEFAULT_ITERS)
             cpus_per_vm = config.get("cpus_per_vm", self.DEFAULT_CPUS_PER_VM)
             mem_per_vm_mb = config.get("mem_per_vm_mb", self.DEFAULT_MEM_PER_VM_MB)
@@ -120,6 +129,7 @@ class MshvHostStressTestSuite(TestSuite):
                     log=log,
                     node=node,
                     log_path=log_path,
+                    config_index=config_index,
                     guest_vm_type=guest_vm_type,
                     igvm_path=igvm_path,
                 )
@@ -137,6 +147,11 @@ class MshvHostStressTestSuite(TestSuite):
                     test_status=TestStatus.FAILED,
                     test_message=repr(e),
                 )
+                if isinstance(e, MshvGuestCleanupError):
+                    node.mark_dirty()
+                    cleanup_tool: CloudHypervisor = node.tools[CloudHypervisor]
+                    cleanup_tool.save_dmesg_logs(node, log_path)
+                    raise
         ch_tool: CloudHypervisor = node.tools[CloudHypervisor]
         ch_tool.save_dmesg_logs(node, log_path)
         assert_that(failures).is_equal_to(0)
@@ -150,6 +165,7 @@ class MshvHostStressTestSuite(TestSuite):
         log: Logger,
         node: Node,
         log_path: Path,
+        config_index: int,
         guest_vm_type: str = "NON-CVM",
         igvm_path: str = "",
     ) -> None:
@@ -164,59 +180,75 @@ class MshvHostStressTestSuite(TestSuite):
         failures = 0
         for test_iter in range(times):
             log.info(f"Test iteration {test_iter + 1} of {times}")
+            failure_log_path = log_path / (
+                f"config-{config_index + 1}_cpu-{cpus_per_vm}_"
+                f"memory-{mem_per_vm_mb}_iteration-{test_iter + 1}"
+            )
             node.tools[Free].log_memory_stats_mb()
-            procs = []
-            for i in range(vm_count):
-                vm_disk_img_path = disk_img_copy_path / f"VM{i}_{self.DISK_IMG_NAME}"
-                vm_log_file_path = disk_img_copy_path / f"CH_VM{i}.log"
-                is_os_disk_present = node.tools[Ls].path_exists(str(vm_disk_img_path))
-                if not is_os_disk_present:
-                    node.tools[Cp].copy(
-                        disk_img_path,
-                        vm_disk_img_path,
+            procs: List[Process] = []
+            try:
+                for i in range(vm_count):
+                    vm_disk_img_path = (
+                        disk_img_copy_path / f"VM{i}_{self.DISK_IMG_NAME}"
+                    )
+                    vm_log_file_path = disk_img_copy_path / f"CH_VM{i}.log"
+                    is_os_disk_present = node.tools[Ls].path_exists(
+                        str(vm_disk_img_path)
+                    )
+                    if not is_os_disk_present:
+                        node.tools[Cp].copy(
+                            disk_img_path,
+                            vm_disk_img_path,
+                            sudo=True,
+                            timeout=1200,
+                        )
+                    log.info(f"Starting VM {i}")
+                    ch_tool: CloudHypervisor = node.tools[CloudHypervisor]
+                    p = ch_tool.start_vm_async(
+                        kernel=hypervisor_fw_path,
+                        cpus=cpus_per_vm,
+                        memory_mb=mem_per_vm_mb,
+                        disk_path=str(vm_disk_img_path),
                         sudo=True,
-                        timeout=1200,
+                        guest_vm_type=guest_vm_type,
+                        igvm_path=igvm_path,
+                        log_file=str(vm_log_file_path),
                     )
-                log.info(f"Starting VM {i}")
-                ch_tool: CloudHypervisor = node.tools[CloudHypervisor]
-                p = ch_tool.start_vm_async(
-                    kernel=hypervisor_fw_path,
-                    cpus=cpus_per_vm,
-                    memory_mb=mem_per_vm_mb,
-                    disk_path=str(vm_disk_img_path),
-                    sudo=True,
-                    guest_vm_type=guest_vm_type,
-                    igvm_path=igvm_path,
-                    log_file=str(vm_log_file_path),
-                )
-                if not p:
-                    node.shell.copy_back(
-                        vm_log_file_path,
-                        log_path / vm_log_file_path,
-                    )
-                assert_that(p).described_as(f"Failed to create VM {i}").is_not_none()
-                procs.append(p)
-                node.tools[Free].log_memory_stats_mb()
-                assert_that(p.is_running()).described_as(
-                    f"VM {i} failed to start"
-                ).is_true()
+                    procs.append(p)
+                    node.tools[Free].log_memory_stats_mb()
+                    if not p.is_running():
+                        process_result = p.wait_result(timeout=30)
+                        self._save_vm_failure_logs(
+                            node,
+                            log,
+                            failure_log_path,
+                            vm_log_file_path,
+                            process_result,
+                        )
+                        raise LisaException(
+                            f"VM {i} failed to start (exit code "
+                            f"{process_result.exit_code}). stdout: "
+                            f"{process_result.stdout}\nstderr: {process_result.stderr}"
+                        )
 
-            # keep the VMs running for a while
-            sleep_time = 10
-            if guest_vm_type == "CVM":
-                # CVM guest take little more time to boot
-                # 20 seconds per VM (with default 1024M)
-                sleep_time = 20 * vm_count
-            time.sleep(sleep_time)
+                # Keep the VMs running for a while.
+                sleep_time = 10
+                if guest_vm_type == "CVM":
+                    sleep_time = 20 * vm_count
+                time.sleep(sleep_time)
 
-            for i in range(len(procs)):
-                p = procs[i]
-                if not p.is_running():
-                    log.info(f"VM {i} was not running")
-                    failures += 1
-                    continue
-                log.info(f"Killing VM {i}")
-                p.kill()
+                for i, p in enumerate(procs):
+                    if not p.is_running():
+                        failures += 1
+                        self._save_vm_failure_logs(
+                            node,
+                            log,
+                            failure_log_path,
+                            disk_img_copy_path / f"CH_VM{i}.log",
+                            p.wait_result(timeout=30),
+                        )
+            finally:
+                self._stop_guest_processes(procs, log)
 
             if guest_vm_type == "CVM":
                 # CVM guest killing takes sometime
@@ -232,6 +264,47 @@ class MshvHostStressTestSuite(TestSuite):
             node.tools[Rm].remove_file(str(vm_log_file), sudo=True)
 
         assert_that(failures).is_equal_to(0)
+
+    def _stop_guest_processes(self, procs: List[Process], log: Logger) -> None:
+        errors: List[str] = []
+        for i, process in enumerate(procs):
+            try:
+                if process.is_running():
+                    log.info(f"Killing VM {i}")
+                    process.kill()
+                process.wait_result(timeout=30)
+                if process.is_running():
+                    raise LisaException(f"VM {i} is still running after cleanup")
+            except (LisaException, SSHException, OSError) as error:
+                log.exception(f"Failed to clean up VM {i}")
+                errors.append(f"VM {i}: {error}")
+        if errors:
+            raise MshvGuestCleanupError(
+                f"Guest cleanup failed; stopping further configurations: "
+                f"{'; '.join(errors)}"
+            )
+
+    def _save_vm_failure_logs(
+        self,
+        node: Node,
+        log: Logger,
+        log_path: Path,
+        vm_log_file_path: PurePath,
+        process_result: ExecutableResult,
+    ) -> None:
+        output = (
+            f"exit code: {process_result.exit_code}\n"
+            f"stdout:\n{process_result.stdout}\nstderr:\n{process_result.stderr}"
+        )
+        log.error(f"Guest process failed: {output}")
+        log_path.mkdir(parents=True, exist_ok=True)
+        (log_path / f"{vm_log_file_path.stem}.console.log").write_text(
+            output, encoding="utf-8"
+        )
+        try:
+            node.shell.copy_back(vm_log_file_path, log_path / vm_log_file_path.name)
+        except (LisaException, SSHException, OSError) as error:
+            log.warning(f"Failed to collect {vm_log_file_path}: {error}")
 
     def _get_disk_img_copy_path(self, node: Node, log: Logger) -> PurePath:
         # The guest disk image is copied once per concurrent VM, so we need

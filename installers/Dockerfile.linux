@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/azurelinux/base/python:3
+FROM mcr.microsoft.com/azurelinux-beta/base/core:4.0
 
 WORKDIR /app
 
@@ -6,6 +6,9 @@ RUN tdnf update -y && \
     tdnf install -y \
         git \
         gcc \
+        gcc-c++ \
+        glibc-devel \
+        make \
         gobject-introspection-devel \
         cairo-gobject \
         cairo-devel \
@@ -13,12 +16,11 @@ RUN tdnf update -y && \
         libvirt-devel \
         python3-devel \
         python3-pip \
-        python3-virtualenv \
-        build-essential \
         cairo-gobject-devel \
         curl \
         wget \
         tar \
+        gzip \
         azure-cli \
         ca-certificates && \
     tdnf clean all && \

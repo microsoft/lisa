@@ -32,12 +32,14 @@ class AzureCVMAttestationTests(Tool):
         self,
         test_result: TestResult,
         environment: Environment,
-        config: str,
+        platform_config: str,
+        guest_config: str,
         log_path: Path,
     ) -> None:
-        config_path = self.attestation_dir / config
+        """Use each attestation mode's configuration to select its matching endpoint."""
+        config_path = self.attestation_dir / platform_config
 
-        command_option = f"--c {config_path}"
+        command_option = f"--c {config_path} --t PLATFORM"
         command_result = self.run(
             command_option,
             cwd=self.attestation_dir,
@@ -57,6 +59,7 @@ class AzureCVMAttestationTests(Tool):
             "The CVM platform attestation test failed",
         ).is_true()
 
+        config_path = self.attestation_dir / guest_config
         command_option = f"--c {config_path} --t GUEST"
         command_result = self.run(
             command_option,

@@ -226,6 +226,7 @@ class AziHsm(TestSuite):
                     ],
                 )
             elif major_version == 4:
+                # Match the versioned key path in Azure Linux 4's stock repositories.
                 node.os.add_repository(
                     repo=(
                         "https://packages.microsoft.com/azurelinux/"
@@ -234,7 +235,8 @@ class AziHsm(TestSuite):
                     ),
                     repo_name="AZIHSM Packages",
                     keys_location=[
-                        "/etc/pki/rpm-gpg/MICROSOFT-RPM-GPG-KEY",
+                        "/etc/pki/rpm-gpg/RPM-GPG-KEY-azurelinux-"
+                        f"{node.os.information.release}-{arch_name}",
                         "https://packages.microsoft.com/keys/microsoft.asc",
                         "https://packages.microsoft.com/keys/microsoft-rolling.asc",
                     ],
@@ -410,6 +412,8 @@ class AziHsm(TestSuite):
         description="""
         Package installation tests
 
+        Skip if no driver package matching the running kernel is available.
+
         Phase 1 - Installation.
         1. Package installs without errors.
         2. Package registered in package database.
@@ -429,6 +433,13 @@ class AziHsm(TestSuite):
         # Package management APIs are only available on Posix operating
         # systems, which is enforced by this suite's supported_os.
         posix_os = cast(Posix, node.os)
+
+        if not posix_os.is_package_in_repo(driver_package_name):
+            raise SkippedException(
+                f"{driver_package_name} package not found in repositories. "
+                "Check that a package that matches the target "
+                "kernel version exists."
+            )
 
         #
         # Remove the driver package so that we can explicitly test its install

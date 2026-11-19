@@ -651,11 +651,13 @@ class Gpu(AzureFeatureMixin, features.Gpu):
         """
         supported_versions: Dict[Any, List[str]] = {
             Redhat: ["7.9", "8.2"],
-            Ubuntu: ["20.04", "22.04", "24.04"],
+            Ubuntu: ["22.04", "24.04"],
         }
         release = self._node.os.information.release
         if release not in supported_versions.get(type(self._node.os), []):
-            raise UnsupportedOperationException("GPU Extension not supported")
+            raise UnsupportedOperationException(
+                f"GPU Extension not supported on {self._node.os.name} {release}"
+            )
         if type(self._node.os) is Redhat:
             self._node.os.handle_rhui_issue()
         extension = self._node.features[AzureExtension]

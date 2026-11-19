@@ -1,6 +1,10 @@
 Use LISA docker image on Linux
 ===============================
 
+The Linux runtime image uses the Azure Linux 4.0 beta core base image and
+installs Python from the distribution repositories during the image build.
+Python's built-in ``venv`` module is available for creating virtual environments.
+
 This guide provides two ways to run LISA in Docker on Linux:
 
 - **Option A: Quick Container Script** — automated, recommended for most users

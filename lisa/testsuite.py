@@ -411,6 +411,7 @@ class TestResult:
 class TestCaseRequirement:
     environment: Optional[EnvironmentSpace] = None
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected
+    remote_connection_required: bool = True
     platform_type: Optional[search_space.SetSpace[str]] = None
     os_type: Optional[search_space.SetSpace[Type[OperatingSystem]]] = None
     # Host capabilities the case needs (e.g. "mshv"). Selection-time metadata
@@ -434,6 +435,7 @@ def _create_test_case_requirement(
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
     supported_host_capabilities: Optional[List[str]] = None,
     unsupported_host_capabilities: Optional[List[str]] = None,
+    remote_connection_required: bool = True,
 ) -> TestCaseRequirement:
     if supported_features:
         node.features = search_space.SetSpace[schema.FeatureSettings](
@@ -467,6 +469,7 @@ def _create_test_case_requirement(
         os_type=os,
         host_capabilities=host_capabilities,
         environment_status=environment_status,
+        remote_connection_required=remote_connection_required,
     )
 
 
@@ -485,6 +488,7 @@ def node_requirement(
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
     supported_host_capabilities: Optional[List[str]] = None,
     unsupported_host_capabilities: Optional[List[str]] = None,
+    remote_connection_required: bool = True,
 ) -> TestCaseRequirement:
     return _create_test_case_requirement(
         node,
@@ -497,6 +501,7 @@ def node_requirement(
         environment_status,
         supported_host_capabilities=supported_host_capabilities,
         unsupported_host_capabilities=unsupported_host_capabilities,
+        remote_connection_required=remote_connection_required,
     )
 
 
@@ -523,6 +528,7 @@ def simple_requirement(
     environment_status: EnvironmentStatus = EnvironmentStatus.Connected,
     supported_host_capabilities: Optional[List[str]] = None,
     unsupported_host_capabilities: Optional[List[str]] = None,
+    remote_connection_required: bool = True,
 ) -> TestCaseRequirement:
     """
     define a simple requirement to support most test cases.
@@ -561,6 +567,7 @@ def simple_requirement(
         environment_status,
         supported_host_capabilities=supported_host_capabilities,
         unsupported_host_capabilities=unsupported_host_capabilities,
+        remote_connection_required=remote_connection_required,
     )
 
 
