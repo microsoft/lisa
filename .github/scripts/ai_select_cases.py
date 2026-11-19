@@ -11,6 +11,10 @@ This script:
 3. Calls Azure OpenAI (GPT-4o) to decide which test cases
    are relevant to the code changes.
 4. Outputs a LISA runbook YAML fragment with the selected test cases.
+
+TOOL_CASE_MAPPING supplies targeted coverage for tool calls hidden behind
+imported helpers, which the per-file AST analysis cannot follow. Map tools to
+existing integration test names; only discovered cases are eligible.
 """
 
 import ast
@@ -54,6 +58,9 @@ MAX_PROMPT_CANDIDATE_CASES = 120
 MAX_PROMPT_FALLBACK_CASES = 60
 MAX_SUMMARY_FEATURES = 4
 MAX_SUMMARY_TOOLS = 5
+TOOL_CASE_MAPPING: Dict[str, Tuple[str, ...]] = {
+    "HibernationSetup": ("verify_hibernation_synthetic_network",),
+}
 LOGIC_TOKEN_STOP_WORDS = frozenset(
     {
         "a",
@@ -618,6 +625,7 @@ def extract_changed_feature_names(
 def extract_changed_tool_names(
     repo_root: Path, changed_files: str, diff: str, known_tools: Set[str]
 ) -> Tuple[str, ...]:
+    known_tools = known_tools.union(TOOL_CASE_MAPPING)
     matched_tools = _extract_changed_named_classes(
         repo_root,
         changed_files,
@@ -887,9 +895,17 @@ def get_tool_related_cases(
         return []
 
     changed_tool_names = {tool.lower() for tool in changed_tools}
+    mapped_cases = {
+        case_name
+        for tool, case_names in TOOL_CASE_MAPPING.items()
+        if tool.lower() in changed_tool_names
+        for case_name in case_names
+    }
     related_cases: List[str] = []
     for _, _, case_name, _, _, used_tools in all_cases:
-        if any(used_tool.lower() in changed_tool_names for used_tool in used_tools):
+        if case_name in mapped_cases or any(
+            used_tool.lower() in changed_tool_names for used_tool in used_tools
+        ):
             related_cases.append(case_name)
 
     return related_cases
