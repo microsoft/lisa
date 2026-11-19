@@ -9,9 +9,9 @@ from dataclasses_json import dataclass_json
 
 from lisa import schema
 from lisa.feature import Feature
-from lisa.tools import Lspci, Lsvmbus, NvidiaSmi
+from lisa.tools import Cat, Find, Lspci, Lsvmbus, NvidiaSmi, Readlink
 from lisa.tools.gpu_drivers import ComputeSDK
-from lisa.tools.lspci import PciDevice
+from lisa.tools.lspci import CONTROLLER_ID_DICT, VENDOR_ID_MICROSOFT, PciDevice
 from lisa.util import constants
 
 FEATURE_NAME_GPU = "Gpu"
@@ -67,19 +67,44 @@ class Gpu(Feature):
 
     def get_gpu_count_with_lsvmbus(self) -> int:
         lsvmbus_device_count = 0
-        bridge_device_count = 0
-
-        lsvmbus_tool = self._node.tools[Lsvmbus]
-        device_list = lsvmbus_tool.get_device_channels()
+        cat = self._node.tools[Cat]
+        find = self._node.tools[Find]
+        readlink = self._node.tools[Readlink]
+        gpu_classes = tuple(
+            f"0x{class_id}"
+            for class_id in CONTROLLER_ID_DICT[constants.DEVICE_TYPE_GPU]
+        )
+        device_list = self._node.tools[Lsvmbus].get_device_channels(force_run=True)
         for device in device_list:
-            for name, id_, bridge_count in NvidiaSmi.gpu_devices:
-                if id_ in device.device_id:
-                    lsvmbus_device_count += 1
-                    bridge_device_count = bridge_count
-                    self._log.debug(f"GPU device {name} found!")
-                    break
+            if device.class_id.lower() != "44c4f61d-4444-4400-9d52-802e27ede19f":
+                continue
+            # Instance IDs are not GPU model identifiers. Inspect PCI endpoints
+            # beneath each VMBus channel so bridges are not counted as GPUs.
+            device_path = readlink.get_canonical_path(
+                f"/sys/bus/vmbus/devices/{device.device_id}"
+            )
+            class_files = find.find_files(
+                self._node.get_pure_path(device_path),
+                name_pattern="class",
+                path_pattern="*/pci*/*/class",
+                file_type="f",
+            )
+            for class_file in class_files:
+                pci_class = cat.read(class_file, force_run=True).strip().lower()
+                if not pci_class.startswith(gpu_classes):
+                    continue
+                pci_path = self._node.get_pure_path(class_file).parent
+                vendor = (
+                    cat.read(str(pci_path / "vendor"), force_run=True).strip().lower()
+                )
+                if vendor == f"0x{VENDOR_ID_MICROSOFT}":
+                    continue
+                lsvmbus_device_count += 1
+                self._log.debug(
+                    f"GPU PCI device {pci_path} found on VMBus {device.device_id}"
+                )
 
-        return lsvmbus_device_count - bridge_device_count
+        return lsvmbus_device_count
 
     def get_gpu_count_with_lspci(self) -> int:
         return len(self._get_gpu_from_lspci())
