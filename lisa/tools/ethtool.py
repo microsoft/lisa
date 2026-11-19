@@ -300,42 +300,54 @@ class DeviceRingBufferSettings:
     def _parse_ring_buffer_settings_info(self, interface: str, raw_str: str) -> None:
         current_settings_info = _current_settings_pattern.search(raw_str)
         max_settings_info = _max_settings_pattern.search(raw_str)
-        if (not current_settings_info) or (not max_settings_info):
-            raise LisaException(
-                f"Cannot get {interface} device ring buffer current and/or"
-                " max settings information"
-            )
+        headerless = (
+            "Pre-set maximums:" not in raw_str
+            and "Current hardware settings:" not in raw_str
+        )
+        error_message = (
+            f"Cannot get {interface} device ring buffer current and/or"
+            " max settings information"
+        )
+        if current_settings_info and max_settings_info:
+            current_settings_raw = current_settings_info.group("settings")
+            max_settings_raw = max_settings_info.group("settings")
+        elif headerless:
+            # Without headings, the two RX blocks still list maximums first.
+            groups = re.split(r"(?=^[ \t]*RX:)", raw_str, flags=re.MULTILINE)
+            if len(groups) != 3:
+                raise LisaException(error_message)
+            _, max_settings_raw, current_settings_raw = groups
+        else:
+            raise LisaException(error_message)
 
         self.device_name = interface
         self.current_ring_buffer_settings: Dict[str, str] = {}
         self.max_ring_buffer_settings: Dict[str, str] = {}
-        for row in current_settings_info.group("settings").splitlines():
-            current_setting = self._ring_buffer_settings_pattern.match(row)
-            if not current_setting:
-                continue
-            self.current_ring_buffer_settings[
-                current_setting.group("param")
-            ] = current_setting.group("value")
+        for settings_raw, settings, kind in (
+            (current_settings_raw, self.current_ring_buffer_settings, "current"),
+            (max_settings_raw, self.max_ring_buffer_settings, "max"),
+        ):
+            for row in settings_raw.splitlines():
+                setting = self._ring_buffer_settings_pattern.match(
+                    row.strip() if headerless else row
+                )
+                if not setting:
+                    continue
+                param = setting.group("param")
+                if headerless and param in settings:
+                    raise LisaException(error_message)
+                settings[param] = setting.group("value")
 
-        if not self.current_ring_buffer_settings:
-            raise LisaException(
-                f"Could not get current ring buffer settings for device {interface}"
-                " in the defined pattern"
-            )
-
-        for row in max_settings_info.group("settings").splitlines():
-            max_setting = self._ring_buffer_settings_pattern.match(row)
-            if not max_setting:
-                continue
-            self.max_ring_buffer_settings[
-                max_setting.group("param")
-            ] = max_setting.group("value")
-
-        if not self.max_ring_buffer_settings:
-            raise LisaException(
-                f"Could not get max ring buffer settings for device {interface}"
-                " in the defined pattern"
-            )
+            if not settings:
+                raise LisaException(
+                    f"Could not get {kind} ring buffer settings for device {interface}"
+                    " in the defined pattern"
+                )
+            if headerless and not all(
+                re.fullmatch(r"[0-9]+", settings.get(param, ""))
+                for param in ("RX", "TX")
+            ):
+                raise LisaException(error_message)
 
 
 class DeviceGroLroSettings:
