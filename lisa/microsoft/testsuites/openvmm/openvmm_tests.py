@@ -15,7 +15,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.environment import EnvironmentStatus
-from lisa.operating_system import CBLMariner
+from lisa.operating_system import CBLMariner, Ubuntu
 from lisa.secret import add_secret
 from lisa.testsuite import TestResult
 from lisa.tools import Ls, Lscpu, Uname
@@ -23,7 +23,10 @@ from lisa.tools.lscpu import CpuType
 from lisa.tools.usermod import Usermod
 from lisa.util import LisaException, SkippedException
 
-# Upstream Intel MSHV exclusions, additionally omitting its QEMU-backed cases.
+from .openvmm_artifacts import CONFIGURATIONS, OpenVmmSource
+
+# Preserve the legacy packaged-binary filter; source validation uses upstream's
+# revision-checked configuration at the selected source revision instead.
 _MSHV_FILTER = (
     "all() & !test(very_heavy)"
     " & !test(openvmm_openhcl_uefi_x64_windows_datacenter_core_2025_x64_prepped_vbs)"
@@ -41,15 +44,31 @@ def _get_openvmm_tests_type() -> Any:
     return OpenVmmTests
 
 
+# Orchestrate host selection and source provenance here; the tool builds and
+# executes upstream Rust tests and records the selected binary's VMM version.
 @TestSuiteMetadata(
     area="openvmm",
     category="community",
     description="""
-    This suite runs the upstream OpenVMM vmm_tests from the Linux OpenVMM host.
+    This suite builds and runs upstream OpenVMM vmm_tests on Linux hosts.
+    Select verify_openvmm_upstream_vmm_tests_intel_mshv,
+    verify_openvmm_upstream_vmm_tests_amd_kvm, or
+    verify_openvmm_upstream_vmm_tests_amd_snp_mshv for the matching host.
+    Source tests always build the resolved commit; a blank openvmm_tests_ref
+    pins main once per LISA run. They do not download GitHub Actions archives.
+    Windows guest tests are excluded, and incompatible hosts are skipped.
+    Flowey's generated launcher selects, downloads, and prepares guest images.
+    LISA installs host build and MSHV archive-extraction dependencies
+    noninteractively before Flowey preparation when missing-dependency
+    installation is enabled, including when reusing an existing checkout.
+    vmm_version reports the selected OpenVMM executable's version, also recorded
+    in the source manifest or packaged-binary provenance.
+    The legacy openvmm_vmm_tests_profile variable applies only to the separate
+    packaged-binary test; remove it from source-test runbooks.
     """,
     requirement=simple_requirement(
-        supported_os=[CBLMariner],
-        supported_host_capabilities=["mshv"],
+        # MSHV is not suite-wide: the Ubuntu configuration uses KVM instead.
+        supported_os=[CBLMariner, Ubuntu],
     ),
     maturity="preview",
 )
@@ -58,12 +77,14 @@ class OpenVmmUpstreamTestSuite(TestSuite):
         openvmm_tests_type = _get_openvmm_tests_type()
         node = cast(Node, kwargs["node"])
         host = self._get_initialized_host_node(node)
-        if not isinstance(host.os, CBLMariner):
+        if not isinstance(host.os, (CBLMariner, Ubuntu)):
             raise SkippedException(
                 f"OpenVMM upstream tests are not implemented for {host.os.name}"
             )
 
         variables: Dict[str, Any] = cast(Dict[str, Any], kwargs.get("variables", {}))
+        # Prefer an explicit test repository, then the installer repository,
+        # before falling back to upstream OpenVMM.
         repo_url = (
             str(variables.get("openvmm_tests_repo", "")).strip()
             or str(variables.get("openvmm_installer_repo", "")).strip()
@@ -93,76 +114,197 @@ class OpenVmmUpstreamTestSuite(TestSuite):
 
         return host.tools[openvmm_tests_type]
 
+    # Separate source-test entry points fix the profile independently of runbook
+    # variables; all three share the orchestration in _run_configuration.
     @TestCaseMetadata(
         description="""
-        Run the upstream OpenVMM vmm_tests flowey pipeline on the Linux x64 host.
-        Use openvmm_vmm_tests_guest_os=linux|windows|all to scope guest coverage,
-        and openvmm_vmm_tests_filter for any additional nextest filter expression.
-        Native Linux hosts automatically exclude PCAT coverage because upstream
-        PCAT firmware discovery depends on Windows or WSL-hosted firmware paths.
-        Set openvmm_vmm_tests_profile=linux-intel-mshv for MSHV-only coverage
-        across Linux and Windows guests, release builds and the CI nextest
-        profile. This builds and runs in an Ubuntu container on the MSHV host,
-        with Windows guest build prerequisites. QEMU-backed cases from the
-        upstream job are excluded; no ARM64 emulation or binfmt setup is needed.
+        Build and run Linux guest tests for x64-linux-intel-mshv on an Intel
+        Azure Linux host with /dev/mshv. Resolve openvmm_tests_ref (default main)
+        to an immutable commit before building. Windows guests are excluded.
         """,
         priority=2,
-        # The full upstream vmm_tests suite can take up to 12 hours on slower
-        # hardware; individual filtered runs are much shorter, but a generous
-        # ceiling avoids spurious timeouts when running the complete suite.
         timeout=43200,
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_os=[CBLMariner],
-            supported_host_capabilities=["mshv"],
         ),
     )
-    def verify_openvmm_upstream_vmm_tests(
+    def verify_openvmm_upstream_vmm_tests_intel_mshv(
         self,
         node: Node,
         log_path: Path,
         result: TestResult,
         variables: Dict[str, Any],
     ) -> None:
-        host = self._get_initialized_host_node(node)
-        profile = self._get_vmm_tests_profile(variables)
-        ci_profile = profile == "linux-intel-mshv"
-        test_filter = self._compose_vmm_tests_filter(variables, host)
-        if ci_profile and (
-            host.tools[Lscpu].get_cpu_type() != CpuType.Intel
-            or not host.tools[Ls].path_exists(path="/dev/mshv", sudo=True)
-        ):
-            raise SkippedException(
-                "The linux-intel-mshv profile requires an Intel host with /dev/mshv"
-            )
-        command_group = self._ensure_vmm_tests_supported(host)
-        if ci_profile:
-            command_group = "mshv"
-            host.execute(
-                "modprobe vhost_vsock && udevadm settle && "
-                "chgrp mshv /dev/vhost-vsock && chmod g+rw /dev/vhost-vsock",
-                shell=True,
-                sudo=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "failed to prepare vhost-vsock for the MSHV CI profile"
-                ),
-            )
-            if not self._can_open_device(host, "/dev/vhost-vsock", group="mshv"):
-                raise LisaException(
-                    "/dev/vhost-vsock is not accessible to the OpenVMM test user"
-                )
+        self._run_configuration(node, log_path, result, variables, CONFIGURATIONS[0])
 
+    @TestCaseMetadata(
+        description="""
+        Build and run Linux guest tests for x64-linux-amd-kvm on an AMD Ubuntu
+        host with /dev/kvm and without /dev/mshv, including ARM64 QEMU emulation.
+        Resolve openvmm_tests_ref (default main) to an immutable commit before
+        building. Windows guests are excluded.
+        """,
+        priority=2,
+        # Allow the full upstream suite's 12-hour budget on slower hardware.
+        timeout=43200,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_os=[Ubuntu],
+        ),
+    )
+    def verify_openvmm_upstream_vmm_tests_amd_kvm(
+        self,
+        node: Node,
+        log_path: Path,
+        result: TestResult,
+        variables: Dict[str, Any],
+    ) -> None:
+        self._run_configuration(node, log_path, result, variables, CONFIGURATIONS[1])
+
+    @TestCaseMetadata(
+        description="""
+        Build and run Linux SNP guest tests for x64-linux-amd-snp-mshv on an AMD
+        Azure Linux host with /dev/mshv and SNP guest-launch support. Resolve
+        openvmm_tests_ref (default main) to an immutable commit before building.
+        Windows guests are excluded.
+        """,
+        priority=2,
+        # Allow the full upstream suite's 12-hour budget on slower hardware.
+        timeout=43200,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Deployed,
+            supported_os=[CBLMariner],
+        ),
+    )
+    def verify_openvmm_upstream_vmm_tests_amd_snp_mshv(
+        self,
+        node: Node,
+        log_path: Path,
+        result: TestResult,
+        variables: Dict[str, Any],
+    ) -> None:
+        self._run_configuration(node, log_path, result, variables, CONFIGURATIONS[2])
+
+    def _run_configuration(
+        self,
+        node: Node,
+        log_path: Path,
+        result: TestResult,
+        variables: Dict[str, Any],
+        profile: str,
+    ) -> None:
+        host = self._get_initialized_host_node(node)
+        # Source validation must retain the selected upstream profile's complete
+        # Linux-only coverage; legacy profile/custom-filter knobs are package-only.
+        if str(variables.get("openvmm_vmm_tests_profile", "")).strip():
+            raise LisaException(
+                "Source-test profiles are fixed by the selected test method. "
+                "Remove openvmm_vmm_tests_profile and select the matching test."
+            )
+        if (
+            str(variables.get("openvmm_vmm_tests_guest_os", "all")).strip().lower()
+            not in ("", "all", "both")
+            or str(variables.get("openvmm_vmm_tests_filter", "")).strip()
+        ):
+            raise LisaException(
+                "Upstream configurations require their complete upstream filter. "
+                "Remove openvmm_vmm_tests_guest_os/filter overrides."
+            )
+        self._ensure_configuration_host(host, profile)
         openvmm_tests = host.tools[_get_openvmm_tests_type()]
-        openvmm_tests.command_group = command_group or ""
+        openvmm_tests.command_group = self._ensure_vmm_tests_supported(host) or ""
+        ref = str(variables.get("openvmm_tests_ref", "")).strip()
+        source = OpenVmmSource(openvmm_tests.repo_url, openvmm_tests.auth_token)
+        # Blank refs resolve main; pin an immutable SHA before building so the
+        # execution and reported provenance identify the same source revision.
+        manifest = source.resolve(ref)
+        install_deps = self._is_truthy(
+            variables.get("openvmm_vmm_tests_install_missing_deps", "yes"),
+            default=True,
+        )
         run_summary = openvmm_tests.run_vmm_tests(
             log_path=log_path,
-            ref=str(variables.get("openvmm_tests_ref", "")).strip()
-            or str(variables.get("openvmm_installer_ref", "")).strip(),
-            release=ci_profile
-            or self._is_truthy(variables.get("openvmm_tests_release", "")),
+            configuration=profile,
+            manifest=manifest,
+            install_missing_deps=install_deps,
+        )
+        result.message = (
+            f"upstream vmm_tests: {profile}, {manifest['source_sha']}, "
+            f"{manifest['source']}\n"
+            f"Coverage: {manifest['coverage']}\n"
+            f"{openvmm_tests.format_run_summary(run_summary, include_failed=False)}"
+        )
+
+    def _ensure_configuration_host(self, host: Node, configuration: str) -> None:
+        # Case metadata restricts the OS; runtime checks also enforce CPU vendor
+        # and hypervisor devices on the actual host, skipping incompatible hosts.
+        kvm = configuration == "x64-linux-amd-kvm"
+        expected_os = Ubuntu if kvm else CBLMariner
+        expected_cpu = (
+            CpuType.Intel if configuration == "x64-linux-intel-mshv" else CpuType.AMD
+        )
+        if not isinstance(host.os, expected_os):
+            raise SkippedException(
+                f"{configuration} requires {expected_os.__name__}, not {host.os.name}"
+            )
+        if host.tools[Lscpu].get_cpu_type() != expected_cpu:
+            raise SkippedException(f"{configuration} requires a {expected_cpu} host")
+        device = "/dev/kvm" if kvm else "/dev/mshv"
+        if not host.tools[Ls].path_exists(device, sudo=True):
+            raise SkippedException(f"{configuration} requires {device}")
+        if kvm and host.tools[Ls].path_exists("/dev/mshv", sudo=True):
+            raise SkippedException(
+                "The KVM configuration requires a host without /dev/mshv; "
+                "upstream would otherwise select MSHV instead of KVM."
+            )
+        # SNP guest launches validate hypervisor support, not Linux SEV CPUID flags.
+
+    @TestCaseMetadata(
+        description=(
+            "Run upstream OpenVMM community tests against the OS package binary. "
+            "Install the OpenVMM RPM if missing, or skip if unavailable in the OS "
+            "repositories. Use existing Flowey build-only "
+            "preparation for the harness, firmware and guest agents, then replace "
+            "the staged OpenVMM with the packaged executable before running tests. "
+            "Requires an explicit binary path. Select the harness from the RPM "
+            "version's upstream tag, falling back to main if absent, or override "
+            "with openvmm_tests_ref. Verify real test "
+            "execution and that the installed binary remains unchanged.\n"
+            "This test is generated by the lisa_test_writer prompt."
+        ),
+        priority=2,
+        # Allow the full upstream suite's 12-hour budget on slower hardware.
+        timeout=43200,
+        requirement=simple_requirement(
+            environment_status=EnvironmentStatus.Connected,
+            supported_os=[CBLMariner],
+            supported_host_capabilities=["mshv"],
+        ),
+        tags=["ai-generated"],
+    )
+    def verify_openvmm_pkg_using_upstream_vmm_tests(
+        self,
+        node: Node,
+        log_path: Path,
+        result: TestResult,
+        variables: Dict[str, Any],
+    ) -> None:
+        # Keep installed-package validation separate from source-profile builds;
+        # its existing guest/filter overrides remain available.
+        host = self._get_initialized_host_node(node)
+        command_group = self._ensure_vmm_tests_supported(host)
+        openvmm_tests = host.tools[_get_openvmm_tests_type()]
+        openvmm_tests.command_group = command_group or ""
+        test_filter = self._combine_nextest_filters(
+            ["test(openvmm_)", self._compose_vmm_tests_filter(variables, host)]
+        )
+        run_summary = openvmm_tests.run_vmm_tests_prebuilt_binary(
+            log_path=log_path,
+            binary_path=str(variables.get("openvmm_prebuilt_binary_path", "")).strip(),
+            ref=str(variables.get("openvmm_tests_ref", "")).strip(),
+            release=self._is_truthy(variables.get("openvmm_tests_release", "")),
             test_filter=test_filter,
-            ci_profile=ci_profile,
             install_missing_deps=self._is_truthy(
                 variables.get("openvmm_vmm_tests_install_missing_deps", "yes"),
                 default=True,
@@ -173,7 +315,7 @@ class OpenVmmUpstreamTestSuite(TestSuite):
             ),
         )
         result.message = (
-            "upstream vmm_tests:\n"
+            "upstream vmm_tests (prebuilt binary):\n"
             f"{openvmm_tests.format_run_summary(run_summary, include_failed=False)}"
         )
 
@@ -286,7 +428,12 @@ class OpenVmmUpstreamTestSuite(TestSuite):
             .lower()
         )
         custom_filter = str(variables.get("openvmm_vmm_tests_filter", "")).strip()
-        if self._get_vmm_tests_profile(variables) == "linux-intel-mshv":
+        profile = str(variables.get("openvmm_vmm_tests_profile", "")).strip().lower()
+        if profile not in {"", "custom", "linux-intel-mshv"}:
+            raise LisaException(
+                "Unsupported packaged-binary profile. Use custom or linux-intel-mshv."
+            )
+        if profile == "linux-intel-mshv":
             if guest_os not in {"", "all", "both"} or custom_filter:
                 raise LisaException(
                     "The linux-intel-mshv profile requires all guests and no custom "
@@ -294,6 +441,8 @@ class OpenVmmUpstreamTestSuite(TestSuite):
                 )
             return _MSHV_FILTER
 
+        # Current Linux-direct test names use linux_; retain distro-name matches
+        # for UEFI guests in this packaged-binary filter.
         guest_filters = {
             "": "",
             "all": "",
@@ -318,15 +467,6 @@ class OpenVmmUpstreamTestSuite(TestSuite):
             filters.append("!test(pcat)")
 
         return self._combine_nextest_filters(filters)
-
-    def _get_vmm_tests_profile(self, variables: Dict[str, Any]) -> str:
-        profile = str(variables.get("openvmm_vmm_tests_profile", "")).strip().lower()
-        if profile not in {"", "custom", "linux-intel-mshv"}:
-            raise LisaException(
-                "Unsupported openvmm_vmm_tests_profile. "
-                "Use custom or linux-intel-mshv."
-            )
-        return profile
 
     def _combine_nextest_filters(self, filters: Any) -> str:
         normalized = [

@@ -2,18 +2,24 @@
 # Licensed under the MIT license.
 
 import hashlib
+import json
 import re
 import shlex
-import uuid
+import sys
 import xml.etree.ElementTree as ETree
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path, PurePath
-from typing import Any, Dict, List, Optional, Type, cast
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, cast
 
 from lisa.executable import Tool
-from lisa.operating_system import CBLMariner, Posix
-from lisa.tools import Cargo, Curl, Docker, Git, Ls
-from lisa.util import LisaException, UnsupportedDistroException
+from lisa.operating_system import CBLMariner, Posix, Ubuntu
+from lisa.sut_orchestrator.platform_utils import _cache_vmm_version_in_node
+from lisa.tools import Cargo, Curl, Git, Ls, Uname
+from lisa.tools.openvmm import VERSION_PATTERN
+from lisa.util import LisaException, SkippedException, UnsupportedDistroException
+
+from .openvmm_artifacts import CONFIGURATIONS, GNU, MUSL, execution_filter
 
 
 def _new_str_list() -> List[str]:
@@ -43,7 +49,6 @@ class OpenVmmTests(Tool):
     VMM_TIMEOUT = 43200
     NEXTEST_LINUX_X64_TARGET = "x86_64-unknown-linux-gnu"
     # Flowey puts Unix sockets below --dir/temp; Linux socket paths must fit 108 bytes.
-    CONTAINER_ARTIFACT_ROOT = "/lisa-openvmm"
     _ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
     _SUMMARY_PATTERN = re.compile(
         r"Summary \[[^\]\r\n]+\]\s+(?P<run>\d+)(?:/(?P<total>\d+))? tests? run:"
@@ -66,8 +71,6 @@ class OpenVmmTests(Tool):
     repo_url = DEFAULT_REPO
     auth_token = ""
     command_group = ""
-    _container_name = ""
-    _image_name = ""
 
     _distro_package_mapping = {
         CBLMariner.__name__: [
@@ -77,6 +80,16 @@ class OpenVmmTests(Tool):
             "pkg-config",
             "binutils",
             "glibc-devel",
+            "rpm",
+            "libarchive",
+        ],
+        Ubuntu.__name__: [
+            "build-essential",
+            "libssl-dev",
+            "perl",
+            "pkg-config",
+            "rpm2cpio",
+            "libarchive-tools",
         ],
     }
 
@@ -95,7 +108,6 @@ class OpenVmmTests(Tool):
 
     @property
     def dependencies(self) -> List[Type[Tool]]:
-        # Native execution resolves Cargo lazily; container runs need no host Rust.
         return [Git, Curl, Ls]
 
     @classmethod
@@ -137,40 +149,596 @@ class OpenVmmTests(Tool):
     def run_vmm_tests(
         self,
         log_path: Path,
+        configuration: str,
+        manifest: Dict[str, Any],
+        install_missing_deps: bool = True,
+    ) -> _JUnitSummary:
+        # Source builds never fall back to CI artifacts.
+        if manifest["source"] != "custom-build":
+            raise LisaException(
+                "OpenVMM upstream tests require a source-build manifest."
+            )
+        _cache_vmm_version_in_node(self.node, "UNKNOWN")
+        selected_filter = execution_filter(configuration)
+        manifest = dict(
+            manifest, configuration=configuration, execution_filter=selected_filter
+        )
+        log_path.mkdir(parents=True, exist_ok=True)
+        (log_path / "openvmm_manifest.json").write_text(
+            json.dumps(manifest, indent=2), encoding="utf-8"
+        )
+        self._log.info(f"OpenVMM source provenance: {json.dumps(manifest)}")
+        with self._native_workspace(
+            manifest["source_sha"], log_path, install_missing_deps
+        ) as env:
+            name = "openvmm_vmm_tests"
+            local_junit = log_path / f"{name}.junit.xml"
+            local_junit.unlink(missing_ok=True)
+            with self._short_temp_path(self.repo_root / "input") as input_dir:
+                try:
+                    self._build_native_content(
+                        configuration,
+                        input_dir,
+                        selected_filter,
+                        env,
+                        log_path,
+                        install_missing_deps,
+                    )
+                    self._preserve_short_path_in_launcher(
+                        input_dir / "run.sh", input_dir
+                    )
+                    target = GNU if configuration == CONFIGURATIONS[1] else MUSL
+                    binary_path = str(input_dir / target / "openvmm")
+                    manifest["binary_version"] = self._record_vmm_version(binary_path)
+                    manifest["binary_path"] = binary_path
+                    (log_path / "openvmm_manifest.json").write_text(
+                        json.dumps(manifest, indent=2), encoding="utf-8"
+                    )
+                    env.update(
+                        VMM_TESTS_CONTENT_DIR=str(input_dir),
+                        VMM_TEST_IMAGES=str(input_dir / "images"),
+                        TEST_OUTPUT_PATH=str(input_dir / "test_results"),
+                        TMPDIR=str(input_dir / "temp"),
+                        PETRI_REMOTE_ARTIFACTS="0",
+                        RUST_BACKTRACE="1",
+                        RUST_LOG="trace",
+                    )
+                    if configuration == CONFIGURATIONS[1]:
+                        env["OPENVMM_REQUIRE_2MB_HUGETLB"] = "1"
+                    with self._prepare_native_execution(
+                        configuration,
+                        input_dir,
+                        env,
+                        log_path,
+                        install_missing_deps,
+                    ):
+                        # Build-only defers image downloads and prep to this launcher.
+                        command = shlex.join(["bash", str(input_dir / "run.sh")])
+                        self._run_logged_command(
+                            name=name,
+                            command=self._wrap_command_for_group(
+                                f"ulimit -c unlimited && "
+                                f"{self._native_environment_prefix(configuration)} "
+                                f"{command}"
+                            ),
+                            log_path=log_path,
+                            timeout=self.VMM_TIMEOUT,
+                            update_envs=env,
+                        )
+                finally:
+                    # Preserve diagnostics from build, setup and execution before
+                    # the temporary source worktree is removed.
+                    self._collect_native_results(log_path, local_junit)
+                if not local_junit.exists():
+                    raise LisaException(
+                        "Native OpenVMM execution produced no JUnit report"
+                    )
+                return self._check_vmm_tests_results(
+                    name, log_path / f"{name}.log", local_junit
+                )
+
+    def _build_native_content(
+        self,
+        configuration: str,
+        output: PurePath,
+        test_filter: str,
+        env: Dict[str, str],
+        log_path: Path,
+        install_missing_deps: bool,
+    ) -> None:
+        emulated = configuration == CONFIGURATIONS[1]
+        # KVM retains ARM64 QEMU coverage; the MSHV profiles use x64 MUSL.
+        targets = [MUSL] + (["aarch64-unknown-linux-musl"] if emulated else [])
+        if install_missing_deps:
+            self._install_dependencies()
+            if emulated:
+                cast(Posix, self.node.os).install_packages(
+                    ["gcc-aarch64-linux-gnu", "qemu-user-static", "binfmt-support"]
+                )
+            self._run_logged_command(
+                "openvmm_prepare_build_targets",
+                "rustup target add " + shlex.join(targets),
+                log_path,
+                self.RESTORE_TIMEOUT,
+                env,
+            )
+            self._restore_packages(log_path, env, include_emulated=emulated)
+        self._ensure_cargo_nextest(log_path, env, install_missing_deps)
+        # Flowey builds the Linux-only payload and generates the image-aware launcher.
+        command = [
+            self.node.tools[Cargo].command,
+            "xflowey",
+            "vmm-tests-run",
+            "--target",
+            "linux-x64" if emulated else "linux-musl-x64",
+            "--filter",
+            test_filter,
+            "--dir",
+            str(output),
+            "--release",
+            "--build-only",
+            "--ci-profile",
+            "--skip-vhd-prompt",
+            "--no-reuse-prepped-vhds",
+            "--no-lazy-fetch",
+        ]
+        if emulated:
+            command.append("--include-emulated")
+        if install_missing_deps:
+            command.append("--install-missing-deps")
+        self._run_logged_command(
+            "openvmm_build_artifacts",
+            shlex.join(command),
+            log_path,
+            self.VMM_TIMEOUT,
+            env,
+        )
+        windows_helper = output / "x86_64-pc-windows-msvc" / "pipette.exe"
+        self.node.execute(
+            f"test ! -e {shlex.quote(str(windows_helper))}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Linux-only custom build unexpectedly produced a Windows guest helper"
+            ),
+        )
+
+    @contextmanager
+    def _native_workspace(
+        self, sha: str, log_path: Path, install_missing_deps: bool = True
+    ) -> Iterator[Dict[str, str]]:
+        if not re.fullmatch(r"[0-9a-f]{40}", sha):
+            raise LisaException(f"Invalid immutable OpenVMM source SHA: {sha}")
+        if not self._check_exists() and not self._install():
+            raise LisaException("failed to install the OpenVMM source repository")
+        # Isolate the pinned source without changing the base checkout.
+        original_repo, original_artifacts = self.repo_root, self._artifact_root
+        arguments = []
+        if self.auth_token:
+            arguments.extend(
+                ["-c", f"http.extraheader=AUTHORIZATION: bearer {self.auth_token}"]
+            )
+        arguments.extend(["fetch", "origin", sha])
+        self.node.tools[Git].run(
+            shlex.join(arguments),
+            cwd=original_repo,
+            shell=True,
+            force_run=True,
+            update_envs={"GIT_TERMINAL_PROMPT": "0"},
+            expected_exit_code=0,
+        )
+        working_path = str(self.node.working_path).rstrip("/")
+        workspace = self.node.execute(
+            f"mktemp -d {shlex.quote(working_path)}/ovn-XXXXXXXX",
+            shell=True,
+            expected_exit_code=0,
+        ).stdout.strip()
+        if not re.fullmatch(
+            rf"{re.escape(working_path)}/ovn-[A-Za-z0-9]{{8}}", workspace
+        ):
+            raise LisaException(f"Unexpected OpenVMM workspace: {workspace!r}")
+        added = False
+        try:
+            self.node.tools[Git].run(
+                shlex.join(["worktree", "add", "--detach", workspace, sha]),
+                cwd=original_repo,
+                shell=True,
+                force_run=True,
+                expected_exit_code=0,
+            )
+            added = True
+            self.repo_root = self.node.get_pure_path(workspace)
+            self._artifact_root = self.repo_root / "logs"
+            self.node.execute(
+                f"mkdir -p {shlex.quote(str(self._artifact_root))} && "
+                "git submodule update --init --recursive",
+                cwd=self.repo_root,
+                shell=True,
+                timeout=self.RESTORE_TIMEOUT,
+                expected_exit_code=0,
+                update_envs={"GIT_TERMINAL_PROMPT": "0"},
+            )
+            env = self._get_cargo_environment()
+            # Build with the selected checkout's Rust pin, not the host default.
+            pin = self.node.execute(
+                "cat flowey/flowey_lib_hvlite/src/cfg_rustup_version.rs",
+                cwd=self.repo_root,
+                shell=True,
+                expected_exit_code=0,
+            ).stdout
+            match = re.search(
+                r'pub const RUSTUP_TOOLCHAIN:\s*&str\s*=\s*"'
+                r'(?P<version>\d+\.\d+\.\d+|nightly-\d{4}-\d{2}-\d{2})";',
+                pin,
+            )
+            if not match:
+                raise LisaException("Unrecognized upstream Rust toolchain pin")
+            version = match.group("version")
+            env["RUSTUP_TOOLCHAIN"] = version
+            env["GH_PROMPT_DISABLED"] = "1"
+            env["GIT_TERMINAL_PROMPT"] = "0"
+            if self.auth_token:
+                env["GH_TOKEN"] = self.auth_token
+            prepare_rust = (
+                f"rustup toolchain install {version} --profile minimal --no-self-update"
+                if install_missing_deps
+                else f"rustup run {version} rustc --version"
+            )
+            self._run_logged_command(
+                "openvmm_prepare_rust",
+                prepare_rust,
+                log_path,
+                self.RESTORE_TIMEOUT,
+                env,
+            )
+            yield env
+        finally:
+            # Restore tool paths and report cleanup failures without masking an
+            # earlier build/test exception.
+            has_error = sys.exc_info()[0] is not None
+            self.repo_root, self._artifact_root = original_repo, original_artifacts
+            cleanup = (
+                f"git worktree remove --force {shlex.quote(workspace)}"
+                if added
+                else f"rmdir -- {shlex.quote(workspace)}"
+            )
+            result = self.node.execute(
+                cleanup, cwd=original_repo, shell=True, expected_exit_code=None
+            )
+            if result.exit_code:
+                self._log.error(f"OpenVMM workspace cleanup failed: {result.stderr}")
+                if not has_error:
+                    raise LisaException("failed to remove OpenVMM workspace")
+
+    @contextmanager
+    def _short_temp_path(self, target: PurePath) -> Iterator[PurePath]:
+        alias = self._create_short_temp_path(target)
+        try:
+            yield alias
+        finally:
+            self.node.execute(
+                f"rm -f -- {shlex.quote(str(alias))}",
+                shell=True,
+                expected_exit_code=None,
+                no_info_log=True,
+            )
+
+    def _create_short_temp_path(self, target: PurePath) -> PurePath:
+        alias = self.node.execute(
+            "mktemp -d /tmp/ovi-XXXXXXXX",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to create a short path for OpenVMM temporary files"
+            ),
+        ).stdout.strip()
+        if not re.fullmatch(r"/tmp/ovi-[A-Za-z0-9]{8}", alias):
+            raise LisaException(f"Unexpected OpenVMM temporary path: {alias!r}")
+        try:
+            self.node.execute(
+                f"mkdir -p -- {shlex.quote(str(target))} && "
+                f"rmdir -- {shlex.quote(alias)} && "
+                f"ln -s -- {shlex.quote(str(target))} {shlex.quote(alias)}",
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "failed to link the OpenVMM working-volume content directory"
+                ),
+            )
+        except Exception:
+            self.node.execute(
+                f"rm -f -- {shlex.quote(alias)}",
+                shell=True,
+                expected_exit_code=None,
+                no_info_log=True,
+            )
+            raise
+        return self.node.get_pure_path(alias)
+
+    @staticmethod
+    def _native_environment_prefix(configuration: str) -> str:
+        # Do not inherit settings that reuse guest disks or hide unstable failures.
+        prefix = "env -u PETRI_REUSE_PREPPED_VHDS -u PETRI_IGNORE_UNSTABLE_FAILURES"
+        if configuration != CONFIGURATIONS[1]:
+            prefix += " -u OPENVMM_REQUIRE_2MB_HUGETLB"
+        return prefix
+
+    @contextmanager
+    def _prepare_native_execution(
+        self,
+        configuration: str,
+        content: PurePath,
+        env: Dict[str, str],
+        log_path: Path,
+        install_missing_deps: bool,
+    ) -> Iterator[None]:
+        self._ensure_cargo_nextest(log_path, env, install_missing_deps)
+        paths = [content / "temp", content / "test_results", content / "images"]
+        self.node.execute(
+            "mkdir -p " + shlex.join([str(path) for path in paths]) + " && "
+            f"find {shlex.quote(str(content))} -type f "
+            "\\( -name openvmm -o -name openvmm_vhost -o -name pipette "
+            "-o -name prep_steps -o -name tmk_vmm -o -name qemu-system-aarch64 "
+            "\\) -exec chmod a+x {} +",
+            shell=True,
+            expected_exit_code=0,
+        )
+        device = "/dev/kvm" if configuration == CONFIGURATIONS[1] else "/dev/mshv"
+        vsock = "/dev/vhost-vsock"
+        hugepage_path = (
+            "/sys/kernel/mm/hugepages/hugepages-2048kB/" "nr_overcommit_hugepages"
+        )
+        original_hugepage_value: Optional[str] = None
+        original_vsock_acl: Optional[str] = None
+        acl_user: Optional[str] = None
+        changed_hugepage_value = False
+        try:
+            if install_missing_deps:
+                # vhost_vsock is a host-global module and is not unloaded here;
+                # force LISA to discard this host even if later setup fails.
+                self.node.mark_dirty()
+                setup = []
+                if configuration != CONFIGURATIONS[2]:
+                    setup.extend(["modprobe vhost_vsock", "udevadm settle"])
+                if configuration == CONFIGURATIONS[1]:
+                    original_hugepage_value = self.node.execute(
+                        f"cat {shlex.quote(hugepage_path)}",
+                        shell=True,
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message=(
+                            "failed to read the original hugepage overcommit limit"
+                        ),
+                    ).stdout.strip()
+                    if not original_hugepage_value.isdigit():
+                        raise LisaException(
+                            "Invalid original hugepage overcommit limit: "
+                            f"{original_hugepage_value!r}"
+                        )
+                    changed_hugepage_value = True
+                    # The upstream prerequisite caps surplus hugepages at 8 GiB;
+                    # it is not an immediate memory reservation.
+                    setup.append(f"echo 4096 > {shlex.quote(hugepage_path)}")
+                if setup:
+                    self.node.execute(
+                        " && ".join(setup),
+                        shell=True,
+                        sudo=True,
+                        expected_exit_code=0,
+                        expected_exit_code_failure_message=(
+                            "failed native VMM host preparation"
+                        ),
+                    )
+                if configuration != CONFIGURATIONS[2]:
+                    vsock_check = self._wrap_command_for_group(
+                        f"test -r {vsock} && test -w {vsock}"
+                    )
+                    access = self.node.execute(
+                        vsock_check,
+                        shell=True,
+                        expected_exit_code=None,
+                        no_info_log=True,
+                        no_error_log=True,
+                    )
+                    if access.exit_code:
+                        cast(Posix, self.node.os).install_packages(["acl"])
+                        original_vsock_acl = self.node.execute(
+                            f"getfacl -cp {shlex.quote(vsock)}",
+                            shell=True,
+                            sudo=True,
+                            expected_exit_code=0,
+                            expected_exit_code_failure_message=(
+                                "failed to preserve existing vhost-vsock ACL"
+                            ),
+                        ).stdout.strip()
+                        acl_user = self.node.execute(
+                            "id -un",
+                            shell=True,
+                            expected_exit_code=0,
+                            expected_exit_code_failure_message=(
+                                "failed to identify the OpenVMM test user"
+                            ),
+                        ).stdout.strip()
+                        if not acl_user or not original_vsock_acl:
+                            raise LisaException(
+                                "Could not safely prepare restricted vhost-vsock access"
+                            )
+                        self.node.execute(
+                            f"setfacl -m "
+                            f"{shlex.quote(f'u:{acl_user}:rw')} {shlex.quote(vsock)}",
+                            shell=True,
+                            sudo=True,
+                            expected_exit_code=0,
+                            expected_exit_code_failure_message=(
+                                "failed to grant temporary vhost-vsock access"
+                            ),
+                        )
+
+            checks = [f"test -r {device} && test -w {device}"]
+            if configuration != CONFIGURATIONS[2]:
+                checks.append(f"test -r {vsock} && test -w {vsock}")
+            if configuration == CONFIGURATIONS[1]:
+                # Upstream's 4096-page threshold is an 8 GiB surplus-page cap,
+                # not an immediate memory reservation.
+                checks.append(f'test "$(cat {shlex.quote(hugepage_path)})" -ge 4096')
+            self.node.execute(
+                self._wrap_command_for_group(" && ".join(checks)),
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "native VMM host prerequisites are unmet"
+                ),
+            )
+            yield
+        finally:
+            has_error = sys.exc_info()[0] is not None
+            cleanup_errors = []
+            if acl_user and original_vsock_acl is not None:
+                restore_acl = (
+                    f"printf '%s\\n' {shlex.quote(original_vsock_acl)} | "
+                    f"setfacl --set-file=- {shlex.quote(vsock)}"
+                )
+                try:
+                    result = self.node.execute(
+                        restore_acl,
+                        shell=True,
+                        sudo=True,
+                        expected_exit_code=None,
+                        no_info_log=True,
+                    )
+                    if result.exit_code:
+                        cleanup_errors.append("failed to restore vhost-vsock ACL")
+                except Exception as error:
+                    cleanup_errors.append(f"failed to restore vhost-vsock ACL: {error}")
+            if changed_hugepage_value and original_hugepage_value is not None:
+                try:
+                    result = self.node.execute(
+                        f"echo {shlex.quote(original_hugepage_value)} > "
+                        f"{shlex.quote(hugepage_path)}",
+                        shell=True,
+                        sudo=True,
+                        expected_exit_code=None,
+                        no_info_log=True,
+                    )
+                    if result.exit_code:
+                        cleanup_errors.append(
+                            "failed to restore hugepage overcommit limit"
+                        )
+                except Exception as error:
+                    cleanup_errors.append(
+                        f"failed to restore hugepage overcommit limit: {error}"
+                    )
+            if cleanup_errors:
+                self.node.mark_dirty()
+                self._log.error("; ".join(cleanup_errors))
+                if not has_error:
+                    raise LisaException("; ".join(cleanup_errors))
+
+    def _preserve_short_path_in_launcher(
+        self, launcher: PurePath, content: PurePath
+    ) -> None:
+        content_path = str(content)
+        launcher_path = shlex.quote(str(launcher))
+        target_dir_arg = shlex.quote(f"--dir {content_path}")
+        replace_dir_arg = shlex.quote(f"s|--dir \\.|--dir {content_path}|")
+        self.node.execute(
+            f"sed -i {replace_dir_arg} {launcher_path} && "
+            f"grep -F -- {target_dir_arg} {launcher_path}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to preserve the short OpenVMM content path in its launcher"
+            ),
+        )
+
+    def _collect_native_results(self, log_path: Path, junit: Path) -> None:
+        self._copy_back_if_exists(
+            self.repo_root / "input/target/nextest/ci/junit.xml", junit
+        )
+        remote_archive = self.repo_root / "diagnostics.tar.gz"
+        result = self.node.execute(
+            f"tar -czf {shlex.quote(str(remote_archive))} "
+            f"-C {shlex.quote(str(self.repo_root))} "
+            "logs $(for d in flow flowey-out input/flowey-out "
+            "test/test_results input/test_results; do "
+            'if test -d "$d"; then printf \'%s\\n\' "$d"; fi; done)',
+            cwd=self.repo_root,
+            shell=True,
+            expected_exit_code=None,
+        )
+        if result.exit_code:
+            self._log.warning(
+                f"failed to archive native OpenVMM diagnostics: {result.stderr}"
+            )
+        self._copy_back_if_exists(
+            remote_archive, log_path / "openvmm_vmm_tests_artifacts.tar.gz"
+        )
+
+    def _initialize(self, *args: Any, **kwargs: Any) -> None:
+        self._set_repo_paths()
+        self._prepared_ref = None
+        self._repo_prepared = False
+
+    def run_vmm_tests_prebuilt_binary(
+        self,
+        log_path: Path,
+        binary_path: str,
         ref: str = "",
         release: bool = False,
         test_filter: str = "",
         install_missing_deps: bool = True,
         skip_vhd_prompt: bool = True,
-        ci_profile: bool = False,
     ) -> _JUnitSummary:
-        try:
-            env = self._prepare_repo(log_path, ref, ci_profile=ci_profile)
-            output_dir = self._artifact_root / "vmm-tests-run"
-            self.node.execute(
-                (
-                    f"rm -rf {shlex.quote(str(output_dir))} && "
-                    f"mkdir -p {shlex.quote(str(output_dir))}"
-                ),
-                shell=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "failed to prepare OpenVMM vmm-tests output directory"
-                ),
+        if not binary_path or not PurePath(binary_path).is_absolute():
+            raise LisaException(
+                "openvmm_prebuilt_binary_path must explicitly name an absolute "
+                "path to the packaged OpenVMM executable."
             )
-
+        _cache_vmm_version_in_node(self.node, "UNKNOWN")
+        node_os = cast(Posix, self.node.os)
+        if not node_os.package_exists("openvmm"):
+            if not node_os.is_package_in_repo("openvmm"):
+                raise SkippedException(
+                    "The openvmm RPM is not installed and is unavailable in the "
+                    "configured OS package repositories."
+                )
+            self._log.info(
+                "Installing the prebuilt OpenVMM package from the OS repository"
+            )
+            node_os.install_packages("openvmm")
+        original_identity = self._get_prebuilt_binary_identity(binary_path)
+        output_dir: Optional[PurePath] = None
+        output_storage_dir: Optional[PurePath] = None
+        try:
+            ref, ref_source = self._resolve_prebuilt_tests_ref(ref)
+            if install_missing_deps:
+                self._install_dependencies()
+            env = self._prepare_repo(log_path, ref)
+            working_path = str(self.node.working_path).rstrip("/")
+            output_storage_dir = self.node.get_pure_path(
+                self.node.execute(
+                    f"mktemp -d {shlex.quote(working_path)}/ovmm-XXXXXXXX",
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "failed to create an OpenVMM test output directory on "
+                        "the configured working volume"
+                    ),
+                ).stdout.strip()
+            )
+            # Keep Petri's socket paths short while all large outputs remain on
+            # the configured working volume.
+            output_dir = self._create_short_temp_path(output_storage_dir)
+            self._log.info(f"Prebuilt OpenVMM test output directory: {output_dir}")
             command = [
-                "cargo" if ci_profile else self.node.tools[Cargo].command,
+                self.node.tools[Cargo].command,
                 "xflowey",
                 "vmm-tests-run",
                 "--target",
                 "linux-x64",
                 "--dir",
-                (
-                    f"{self.CONTAINER_ARTIFACT_ROOT}/vmm-tests-run"
-                    if ci_profile
-                    else str(output_dir)
-                ),
+                str(output_dir),
+                "--build-only",
+                "--ci-profile",
             ]
             if install_missing_deps:
                 command.append("--install-missing-deps")
@@ -178,65 +746,287 @@ class OpenVmmTests(Tool):
                 command.append("--skip-vhd-prompt")
             if release:
                 command.append("--release")
-            if ci_profile:
-                command.extend(["--ci-profile", "--no-reuse-prepped-vhds"])
             if test_filter:
                 command.extend(["--filter", test_filter])
-
-            wrapped_command = shlex.join(command)
-            if not ci_profile:
-                wrapped_command = self._wrap_command_for_group(wrapped_command)
             self._run_logged_command(
-                name="openvmm_vmm_tests",
-                command=wrapped_command,
+                name="openvmm_prebuilt_prepare",
+                command=shlex.join(command),
                 log_path=log_path,
                 timeout=self.VMM_TIMEOUT,
                 update_envs=env,
             )
-
-            local_junit = log_path / "openvmm_vmm_tests.junit.xml"
-            self._copy_back_if_exists(output_dir / "junit.xml", local_junit)
-            return self._check_vmm_tests_results(
-                name="openvmm_vmm_tests",
-                log_file=log_path / "openvmm_vmm_tests.log",
-                junit_file=local_junit,
+            self._select_prebuilt_binary(original_identity[0], output_dir)
+            remote_junit = output_dir / "target" / "nextest" / "ci" / "junit.xml"
+            self.node.execute(
+                f"test -f {shlex.quote(str(output_dir / 'run.sh'))} && "
+                f"rm -f -- {shlex.quote(str(remote_junit))}",
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Flowey build-only preparation did not produce the test launcher"
+                ),
             )
-        finally:
-            container_name = self._container_name
-            image_name = self._image_name
-            self._container_name = ""
-            self._image_name = ""
-            if container_name:
-                self._repo_prepared = False
+            self._preserve_short_path_in_launcher(output_dir / "run.sh", output_dir)
+            self._record_prebuilt_test_details(
+                log_path, binary_path, original_identity, ref, ref_source
+            )
+            name = "openvmm_vmm_tests_prebuilt_binary"
+            local_junit = log_path / f"{name}.junit.xml"
+            local_junit.unlink(missing_ok=True)
             try:
-                if container_name:
-                    self.node.tools[Docker].run(
-                        f"rm --force {shlex.quote(container_name)}",
-                        sudo=True,
-                        force_run=True,
-                        expected_exit_code=0,
-                        expected_exit_code_failure_message=(
-                            "failed to remove the OpenVMM MSHV test container"
-                        ),
+                self._run_logged_command(
+                    name=name,
+                    command=self._wrap_command_for_group(
+                        f"bash {shlex.quote(str(output_dir / 'run.sh'))}"
+                    ),
+                    log_path=log_path,
+                    timeout=self.VMM_TIMEOUT,
+                    update_envs=env,
+                    artifact_dir=output_dir / "test_results",
+                )
+            finally:
+                self._copy_back_if_exists(remote_junit, local_junit)
+            if not local_junit.exists():
+                raise LisaException(
+                    "Prebuilt OpenVMM validation requires a fresh nextest JUnit "
+                    "report; check harness compatibility and artifact copy-back."
+                )
+            summary = self._check_vmm_tests_results(
+                name, log_path / f"{name}.log", local_junit
+            )
+            if not summary.passed_tests:
+                raise LisaException(
+                    "Prebuilt OpenVMM validation executed no passing tests. "
+                    "An empty or entirely ignored selection is not validation."
+                )
+            return summary
+        finally:
+            try:
+                if self._get_prebuilt_binary_identity(binary_path) != original_identity:
+                    raise LisaException(
+                        "The selected prebuilt OpenVMM binary path or SHA256 changed "
+                        "during validation."
                     )
             finally:
-                if image_name:
-                    result = self.node.tools[Docker].run(
-                        f"rmi --force {shlex.quote(image_name)}",
-                        sudo=True,
-                        force_run=True,
-                        expected_exit_code=None,
-                    )
-                    if result.exit_code != 0:
-                        self._log.warning(
-                            f"failed to remove the OpenVMM MSHV test image "
-                            f"{image_name}: {result.stderr}"
+                if output_dir is not None or output_storage_dir is not None:
+                    # Preserve the original test error if cleanup also fails.
+                    has_error = sys.exc_info()[0] is not None
+                    cleanup_errors = []
+                    if output_dir is not None:
+                        try:
+                            if not re.fullmatch(
+                                r"/tmp/ovi-[A-Za-z0-9]{8}", str(output_dir)
+                            ):
+                                raise LisaException(
+                                    f"Refusing to remove unexpected temporary path: "
+                                    f"{output_dir}"
+                                )
+                            self.node.execute(
+                                f"rm -f -- {shlex.quote(str(output_dir))}",
+                                shell=True,
+                                expected_exit_code=0,
+                                expected_exit_code_failure_message=(
+                                    f"failed to remove OpenVMM temporary path: "
+                                    f"{output_dir}"
+                                ),
+                            )
+                        except (AssertionError, LisaException, OSError) as error:
+                            cleanup_errors.append(str(error))
+                    if output_storage_dir is not None:
+                        try:
+                            if not str(output_storage_dir).startswith(
+                                f"{working_path}/ovmm-"
+                            ):
+                                raise LisaException(
+                                    "Refusing to remove unexpected OpenVMM "
+                                    f"working directory: {output_storage_dir}"
+                                )
+                            self.node.execute(
+                                f"rm -rf -- {shlex.quote(str(output_storage_dir))}",
+                                shell=True,
+                                expected_exit_code=0,
+                                expected_exit_code_failure_message=(
+                                    "failed to remove OpenVMM test directory: "
+                                    f"{output_storage_dir}"
+                                ),
+                            )
+                        except (AssertionError, LisaException, OSError) as error:
+                            cleanup_errors.append(str(error))
+                    if cleanup_errors:
+                        self._log.error(
+                            "OpenVMM test directory cleanup failed: "
+                            + "; ".join(cleanup_errors)
                         )
+                        if not has_error:
+                            raise LisaException("; ".join(cleanup_errors))
 
-    def _initialize(self, *args: Any, **kwargs: Any) -> None:
-        self._set_repo_paths()
-        self._prepared_ref = None
-        self._repo_prepared = False
+    def _resolve_prebuilt_tests_ref(self, ref: str) -> Tuple[str, str]:
+        if ref.strip():
+            self._log.info(f"Using explicit OpenVMM harness reference: {ref.strip()}")
+            return ref.strip(), "explicit"
+
+        version = self.node.execute(
+            "rpm -q --queryformat '%{VERSION}' openvmm",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to query the installed OpenVMM RPM version"
+            ),
+        ).stdout.strip()
+        if not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.+_~-]*", version):
+            raise LisaException(f"Invalid installed OpenVMM RPM version: {version!r}")
+
+        tag = f"openvmm-v{version}"
+        tag_ref = f"refs/tags/{tag}"
+        parameters: List[str] = []
+        if self.auth_token:
+            parameters.extend(
+                ["-c", f"http.extraheader=AUTHORIZATION: bearer {self.auth_token}"]
+            )
+        parameters.extend(
+            ["ls-remote", "--exit-code", "--tags", "--refs", self.repo_url, tag_ref]
+        )
+        result = self.node.tools[Git].run(
+            shlex.join(parameters),
+            shell=True,
+            force_run=True,
+            update_envs={"GIT_TERMINAL_PROMPT": "0"},
+            timeout=120,
+        )
+        if result.exit_code == 2:
+            self._log.info(
+                f"No upstream tag {tag} found for installed OpenVMM RPM {version}; "
+                "using main for the harness. The latest harness may be incompatible "
+                "with this package."
+            )
+            return "main", "missing-package-tag"
+        result.assert_exit_code(
+            message=(
+                f"Failed to look up OpenVMM harness tag {tag}: "
+                f"stdout={result.stdout}\nstderr={result.stderr}"
+            )
+        )
+        if not re.fullmatch(
+            rf"[0-9a-f]{{40,64}}\s+{re.escape(tag_ref)}", result.stdout.strip()
+        ):
+            raise LisaException(
+                f"Unexpected response looking up OpenVMM harness tag {tag}: "
+                f"stdout={result.stdout}\nstderr={result.stderr}"
+            )
+        self._log.info(
+            f"Selected OpenVMM harness tag {tag} for installed RPM version {version}"
+        )
+        return tag, "package-version"
+
+    def _get_prebuilt_binary_identity(self, binary_path: str) -> Tuple[str, str]:
+        if not binary_path or not PurePath(binary_path).is_absolute():
+            raise LisaException(
+                "openvmm_prebuilt_binary_path must explicitly name an absolute "
+                "path to an installed OpenVMM executable."
+            )
+        quoted_path = shlex.quote(binary_path)
+        resolved_path = self.node.execute(
+            f"test -f {quoted_path} && test -x {quoted_path} && "
+            f"readlink -f -- {quoted_path}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"Prebuilt OpenVMM executable is missing or not executable: "
+                f"{binary_path}. No source-build fallback is permitted."
+            ),
+        ).stdout.strip()
+        checksum_output = self.node.execute(
+            f"sha256sum -- {shlex.quote(resolved_path)}",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="failed to hash prebuilt OpenVMM",
+        ).stdout.split()
+        if not checksum_output or not re.fullmatch(r"[0-9a-f]{64}", checksum_output[0]):
+            raise LisaException("Invalid SHA256 output for the prebuilt OpenVMM binary")
+        return resolved_path, checksum_output[0]
+
+    def _select_prebuilt_binary(self, binary_path: str, content_dir: PurePath) -> None:
+        # Petri checks these content paths before falling back to Cargo outputs.
+        commands = []
+        for target in ("x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"):
+            directory = content_dir / target
+            commands.extend(
+                [
+                    f"mkdir -p {shlex.quote(str(directory))}",
+                    f"ln -sfnT -- {shlex.quote(binary_path)} "
+                    f"{shlex.quote(str(directory / 'openvmm'))}",
+                    f"test {shlex.quote(binary_path)} -ef "
+                    f"{shlex.quote(str(directory / 'openvmm'))}",
+                ]
+            )
+        self.node.execute(
+            " && ".join(commands),
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "failed to replace Flowey's staged OpenVMM with the packaged binary"
+            ),
+        )
+
+    def _record_prebuilt_test_details(
+        self,
+        log_path: Path,
+        binary_path: str,
+        identity: Tuple[str, str],
+        ref: str,
+        ref_source: str,
+    ) -> None:
+        version = self._record_vmm_version(identity[0])
+        package = self.node.execute(
+            f"rpm -qf -- {shlex.quote(identity[0])}",
+            shell=True,
+            expected_exit_code=None,
+        )
+        provenance = {
+            "binary_path": binary_path,
+            "resolved_binary_path": identity[0],
+            "sha256": identity[1],
+            "binary_version": version,
+            "rpm_query_exit_code": package.exit_code,
+            "rpm_query_stdout": package.stdout,
+            "rpm_query_stderr": package.stderr,
+            "host_os": str(self.node.os.information),
+            "host_kernel": self.node.tools[Uname]
+            .get_linux_information()
+            .kernel_version_raw,
+            "harness_ref": ref,
+            "harness_ref_source": ref_source,
+            "harness_sha": self.node.tools[Git].get_current_commit_hash(self.repo_root),
+        }
+        rendered = json.dumps(provenance, indent=2)
+        self._log.info(f"Prebuilt OpenVMM validation provenance:\n{rendered}")
+        (log_path / "openvmm_prebuilt_provenance.json").write_text(
+            rendered + "\n", encoding="utf-8"
+        )
+
+    def _record_vmm_version(self, binary_path: str) -> str:
+        # A host may also have Cloud Hypervisor installed; never report its version.
+        _cache_vmm_version_in_node(self.node, "UNKNOWN")
+        result = self.node.execute(
+            f"{shlex.quote(binary_path)} --version",
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"failed to query OpenVMM version from {binary_path}"
+            ),
+        )
+        output = self._ANSI_ESCAPE_PATTERN.sub("", result.stdout).strip()
+        # Real --version output has a banner followed by build details; splitlines
+        # handles both LF and SSH CRLF without treating those details as the banner.
+        match = VERSION_PATTERN.fullmatch(output.splitlines()[0]) if output else None
+        if not match or not match.group("version").strip():
+            raise LisaException(
+                f"Invalid OpenVMM version output from {binary_path}: {output!r}"
+            )
+        version = match.group("version").strip()
+        _cache_vmm_version_in_node(self.node, version)
+        self._log.info(f"OpenVMM version: {version} (binary: {binary_path})")
+        return version
 
     def _get_repo_dir_name(self) -> str:
         repo_hash = hashlib.sha256(self.repo_url.encode("utf-8")).hexdigest()[:8]
@@ -246,7 +1036,7 @@ class OpenVmmTests(Tool):
         self.repo_root = self.get_tool_path(use_global=True) / self._get_repo_dir_name()
         self._artifact_root = self.repo_root / "target" / "lisa-openvmm-tests"
 
-    def _install(self) -> bool:
+    def _install_dependencies(self) -> None:
         node_os = cast(Posix, self.node.os)
         package_names = self._distro_package_mapping.get(type(node_os).__name__)
         if not package_names:
@@ -255,7 +1045,11 @@ class OpenVmmTests(Tool):
                 "OpenVMM upstream tests are not supported on this distro.",
             )
 
+        # Flowey's local backend prompts for missing packages even with --ci-profile.
         node_os.install_packages(package_names)
+
+    def _install(self) -> bool:
+        self._install_dependencies()
 
         self._set_repo_paths()
 
@@ -278,9 +1072,7 @@ class OpenVmmTests(Tool):
 
         return self.node.tools[Ls].path_exists(str(self.repo_root))
 
-    def _prepare_repo(
-        self, log_path: Path, ref: str, ci_profile: bool = False
-    ) -> Dict[str, str]:
+    def _prepare_repo(self, log_path: Path, ref: str) -> Dict[str, str]:
         git = self.node.tools[Git]
         if not self._check_exists() and not self._install():
             raise LisaException(
@@ -288,7 +1080,7 @@ class OpenVmmTests(Tool):
                 f"{self.repo_url}"
             )
 
-        cargo_env = {} if ci_profile else self._get_cargo_environment()
+        cargo_env = self._get_cargo_environment()
         if ref and self._prepared_ref != ref:
             git.checkout(ref, self.repo_root)
             self.node.execute(
@@ -309,25 +1101,8 @@ class OpenVmmTests(Tool):
             f"requested ref: {ref or '<default>'}, HEAD: {openvmm_commit}"
         )
 
-        if ci_profile:
-            self._prepare_ci_container(log_path)
-
         if not self._repo_prepared:
-            restore_args = [
-                "cargo" if ci_profile else self.node.tools[Cargo].command,
-                "xflowey",
-                "restore-packages",
-                "--no-compat-igvm",
-            ]
-            if ci_profile:
-                restore_args.append("x86-64")
-            self._run_logged_command(
-                name="openvmm_restore_packages",
-                command=shlex.join(restore_args),
-                log_path=log_path,
-                timeout=self.RESTORE_TIMEOUT,
-                update_envs=cargo_env,
-            )
+            self._restore_packages(log_path, cargo_env)
             self._repo_prepared = True
             self._prepared_ref = ref or ""
 
@@ -335,85 +1110,23 @@ class OpenVmmTests(Tool):
 
         return cargo_env
 
-    def _prepare_ci_container(self, log_path: Path) -> None:
-        docker = self.node.tools[Docker]
-        identity = self.node.execute(
-            "id -u && id -g", shell=True, expected_exit_code=0
-        ).stdout.split()
-        if len(identity) != 2 or not all(value.isdecimal() for value in identity):
-            raise LisaException("failed to determine the MSHV checkout owner's UID/GID")
-        host_uid, host_gid = identity
-        build_dir = self._artifact_root / "container-build"
-        self.node.execute(
-            f"mkdir -p {shlex.quote(str(build_dir))}",
-            shell=True,
-            expected_exit_code=0,
-        )
-        self.node.shell.copy(
-            Path(__file__).with_name("mshv.Dockerfile"), build_dir / "Dockerfile"
-        )
-        image_name = f"lisa-openvmm-mshv:{uuid.uuid4().hex}"
-        self._image_name = image_name
+    def _restore_packages(
+        self, log_path: Path, env: Dict[str, str], include_emulated: bool = False
+    ) -> None:
+        command = [
+            self.node.tools[Cargo].command,
+            "xflowey",
+            "restore-packages",
+            "--no-compat-igvm",
+        ]
+        if include_emulated:
+            command.extend(["x86-64", "aarch64"])
         self._run_logged_command(
-            name="openvmm_build_container",
-            command=(
-                f"{docker.command} build --pull "
-                f"--build-arg HOST_UID={host_uid} --build-arg HOST_GID={host_gid} "
-                f"--tag {image_name} {shlex.quote(str(build_dir))}"
-            ),
+            name="openvmm_restore_packages",
+            command=shlex.join(command),
             log_path=log_path,
             timeout=self.RESTORE_TIMEOUT,
-            update_envs={},
-            sudo=True,
-        )
-        container_name = f"lisa-openvmm-{uuid.uuid4().hex}"
-        # io_uring and AF_VSOCK are needed by OpenVMM but blocked by Docker seccomp.
-        docker.run(
-            f"run --detach --rm --init --name {container_name} "
-            "--device /dev/mshv --device /dev/vhost-vsock "
-            '--group-add "$(stat -c %g /dev/mshv)" '
-            '--group-add "$(stat -c %g /dev/vhost-vsock)" '
-            "--sysctl net.ipv6.conf.all.disable_ipv6=0 "
-            "--security-opt seccomp=unconfined "
-            f"--volume {shlex.quote(f'{self.repo_root}:{self.repo_root}')} "
-            "--volume "
-            f"{shlex.quote(f'{self._artifact_root}:{self.CONTAINER_ARTIFACT_ROOT}')} "
-            f"--workdir {shlex.quote(str(self.repo_root))} "
-            f"{image_name} sleep infinity",
-            shell=True,
-            sudo=True,
-            force_run=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message="failed to start MSHV test container",
-        )
-        self._container_name = container_name
-        self._repo_prepared = False
-        self.node.execute(
-            self._wrap_container_command(
-                "test -r /dev/mshv && test -w /dev/mshv && "
-                "test -r /dev/vhost-vsock && test -w /dev/vhost-vsock && "
-                "cargo --version && rustc --version && "
-                "targets=$(rustup target list --installed) && "
-                "for target in x86_64-unknown-linux-musl x86_64-pc-windows-gnu; do "
-                'printf \'%s\\n\' "$targets" | grep -Fxq "$target" || '
-                '{ echo "Missing Rust target: $target" >&2; exit 1; }; done && '
-                "rustup component list --installed | grep -q '^rust-src'"
-            ),
-            sudo=True,
-            shell=True,
-            timeout=self.RESTORE_TIMEOUT,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "MSHV container device access or installed Rust prerequisites failed"
-            ),
-        )
-
-    def _wrap_container_command(self, command: str) -> str:
-        if not self._container_name:
-            return command
-        return (
-            f"{self.node.tools[Docker].command} exec "
-            f"{shlex.quote(self._container_name)} bash -c {shlex.quote(command)}"
+            update_envs=env,
         )
 
     def _get_cargo_environment(self) -> Dict[str, str]:
@@ -502,8 +1215,16 @@ class OpenVmmTests(Tool):
         artifact_dir: Optional[PurePath] = None,
         sudo: bool = False,
     ) -> None:
-        command = self._wrap_container_command(command)
         remote_log = self._artifact_root / f"{name}.log"
+        self.node.execute(
+            f": > {shlex.quote(str(remote_log))}",
+            shell=True,
+            cwd=self.repo_root,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                f"failed to create command log as checkout owner: {remote_log}"
+            ),
+        )
         command_result = self.node.execute(
             (
                 "bash -lc "
@@ -513,7 +1234,7 @@ class OpenVmmTests(Tool):
                 )
             ),
             shell=True,
-            sudo=sudo or bool(self._container_name),
+            sudo=sudo,
             cwd=self.repo_root,
             timeout=timeout,
             update_envs=update_envs,
@@ -550,13 +1271,20 @@ class OpenVmmTests(Tool):
         self,
         log_path: Path,
         update_envs: Dict[str, str],
+        install_missing_deps: bool = True,
     ) -> None:
         version = self._get_nextest_version()
         if self._has_cargo_nextest(update_envs, version):
             return
+        if not install_missing_deps:
+            raise LisaException(
+                f"cargo-nextest {version} must be installed. Enable "
+                "openvmm_vmm_tests_install_missing_deps to install the pinned "
+                "standalone binary, or install that exact version manually."
+            )
 
         self._log.debug(
-            f"cargo-nextest {version} was not available after restore-packages; "
+            f"cargo-nextest {version} was not available; "
             "installing the upstream pinned standalone binary"
         )
         install_dir = self._artifact_root / "cargo-nextest-install"
@@ -569,7 +1297,7 @@ class OpenVmmTests(Tool):
         )
         download_url = f"{release_url}/{archive_name}"
         sha256_url = f"{release_url}/{sha256_name}"
-        curl_command = "curl" if self._container_name else self.node.tools[Curl].command
+        curl_command = self.node.tools[Curl].command
         install_command = (
             f"rm -rf {shlex.quote(str(install_dir))} && "
             f"mkdir -p {shlex.quote(str(install_dir))} ~/.cargo/bin && "
@@ -603,6 +1331,7 @@ class OpenVmmTests(Tool):
             )
 
     def _get_nextest_version(self) -> str:
+        # Follow upstream's runner pin rather than a fixed LISA nextest version.
         result = self.node.execute(
             "cat flowey/flowey_lib_hvlite/src/_jobs/cfg_versions.rs",
             shell=True,
@@ -626,9 +1355,8 @@ class OpenVmmTests(Tool):
 
     def _has_cargo_nextest(self, update_envs: Dict[str, str], version: str) -> bool:
         result = self.node.execute(
-            self._wrap_container_command("cargo nextest --version"),
+            "cargo nextest --version",
             shell=True,
-            sudo=bool(self._container_name),
             cwd=self.repo_root,
             update_envs=update_envs,
             expected_exit_code=None,
@@ -693,6 +1421,7 @@ class OpenVmmTests(Tool):
         log_file: Path,
         junit_file: Optional[Path],
     ) -> _JUnitSummary:
+        # Reject missing, empty or inconsistent results instead of assuming success.
         summary: Optional[_JUnitSummary] = None
         if junit_file and junit_file.exists():
             try:
@@ -728,6 +1457,10 @@ class OpenVmmTests(Tool):
                         f"{name} produced conflicting JUnit and nextest "
                         "execution counts. Check that both reports are complete "
                         "and belong to the same run."
+                    )
+                if summary:
+                    log_summary.passed_tests = self._deduplicate_test_names(
+                        log_summary.passed_tests + summary.passed_tests
                     )
                 summary = log_summary
 
@@ -830,6 +1563,7 @@ class OpenVmmTests(Tool):
                 suite.attrib.get("skipped", suite.attrib.get("disabled", "0"))
             )
 
+        has_failed_testcase = False
         for testcase in root.iter("testcase"):
             classname = testcase.attrib.get("classname", "").strip()
             test_name = testcase.attrib.get("name", "").strip()
@@ -840,12 +1574,18 @@ class OpenVmmTests(Tool):
                     summary.passed_tests.append(full_name)
                 continue
 
+            has_failed_testcase = True
             if full_name:
                 summary.failed_tests.append(full_name)
 
         summary.passed_tests = self._deduplicate_test_names(summary.passed_tests)
         summary.failed_tests = self._deduplicate_test_names(summary.failed_tests)
         summary.tests -= summary.skipped
+        if has_failed_testcase and not (summary.failures or summary.errors):
+            raise LisaException(
+                f"Inconsistent JUnit failure elements in {junit_file}: "
+                "testcase failures or errors are present but suite counts report none"
+            )
         summary.passed = summary.tests - summary.failures - summary.errors
         if summary.passed < 0:
             raise LisaException(

@@ -7,61 +7,13 @@ from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 
+from lisa.microsoft.testsuites.openvmm.openvmm_artifacts import CONFIGURATIONS
 from lisa.microsoft.testsuites.openvmm.openvmm_tests_tool import OpenVmmTests
-from lisa.tools import Curl, Docker
+from lisa.tools import Curl
 from lisa.util import LisaException
 
 
 class OpenVmmTestsToolTestCase(TestCase):
-    def test_ci_startup_failure_removes_image(self) -> None:
-        tool = OpenVmmTests.__new__(OpenVmmTests)
-        docker = MagicMock()
-        docker.command = "docker"
-        image_names = []
-        container_names = []
-
-        def run_docker(command: str, **kwargs: object) -> SimpleNamespace:
-            if command.startswith("run --detach"):
-                image_names.append(tool._image_name)
-                container_names.append(tool._container_name)
-                raise LisaException("container startup failed")
-            return SimpleNamespace(exit_code=0, stderr="")
-
-        docker.run.side_effect = run_docker
-        tool.node = MagicMock()
-        tool.node.tools = {Docker: docker}
-        tool.node.execute.return_value = SimpleNamespace(
-            stdout="1000\n1000", exit_code=0
-        )
-        tool._artifact_root = PurePosixPath("/repo/target/lisa-openvmm-tests")
-        tool.repo_root = PurePosixPath("/repo/openvmm")
-        tool._repo_prepared = True
-
-        with patch.object(tool, "_run_logged_command"), patch.object(
-            tool,
-            "_prepare_repo",
-            side_effect=lambda log_path, ref, ci_profile: tool._prepare_ci_container(
-                log_path
-            ),
-        ), self.assertRaisesRegex(LisaException, "container startup failed"):
-            tool.run_vmm_tests(log_path=Path("."))
-
-        self.assertEqual(1, len(image_names))
-        self.assertEqual(1, len(container_names))
-        self.assertEqual("", container_names[0])
-        self.assertEqual(
-            [["rmi", "--force"]],
-            [
-                call_args.args[0].split()[0:2]
-                for call_args in docker.run.call_args_list[1:]
-            ],
-        )
-        self.assertIn(
-            f"rmi --force {image_names[0]}", docker.run.call_args_list[1].args[0]
-        )
-        self.assertEqual("", tool._container_name)
-        self.assertEqual("", tool._image_name)
-
     def test_set_repo_paths_uses_repo_url_hash(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
 
@@ -76,6 +28,19 @@ class OpenVmmTestsToolTestCase(TestCase):
         self.assertNotEqual(first_repo_root, tool.repo_root)
         self.assertTrue(str(first_repo_root).startswith("/tools/openvmm-"))
         self.assertTrue(str(tool.repo_root).startswith("/tools/openvmm-"))
+
+    def test_preserve_short_path_in_launcher_uses_absolute_content_path(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.node = MagicMock()
+
+        tool._preserve_short_path_in_launcher(
+            PurePosixPath("/tmp/ovi-12345678/run.sh"),
+            PurePosixPath("/tmp/ovi-12345678"),
+        )
+
+        command = tool.node.execute.call_args.args[0]
+        self.assertIn("s|--dir \\.|--dir /tmp/ovi-12345678|", command)
+        self.assertIn("grep -F -- '--dir /tmp/ovi-12345678'", command)
 
     def test_run_logged_command_redirects_entire_command_to_log(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
@@ -110,7 +75,7 @@ class OpenVmmTestsToolTestCase(TestCase):
         with TemporaryDirectory() as temp_dir, patch.object(
             tool, "_has_cargo_nextest", side_effect=[False, True]
         ), patch.object(
-            tool, "_get_nextest_version", return_value="0.9.133"
+            tool, "_get_nextest_version", return_value="0.9.101"
         ), patch.object(
             tool, "_run_logged_command"
         ) as run_logged_command:
@@ -119,11 +84,106 @@ class OpenVmmTestsToolTestCase(TestCase):
         install_command = run_logged_command.call_args.kwargs["command"]
         release_url = (
             "https://github.com/nextest-rs/nextest/releases/download/"
-            "cargo-nextest-0.9.133"
+            "cargo-nextest-0.9.101"
         )
-        asset_name = "cargo-nextest-0.9.133-x86_64-unknown-linux-gnu"
+        asset_name = "cargo-nextest-0.9.101-x86_64-unknown-linux-gnu"
         self.assertIn(f"{release_url}/{asset_name}.tar.gz", install_command)
         self.assertIn(f"{release_url}/{asset_name}.sha256", install_command)
+
+    def test_native_prerequisite_checks_use_selected_device_group(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.node = MagicMock()
+        tool.node.execute.return_value = SimpleNamespace(exit_code=0, stdout="")
+        tool.command_group = "kvm"
+        with TemporaryDirectory() as temp_dir, patch.object(
+            tool, "_ensure_cargo_nextest"
+        ), patch.object(tool, "_run_logged_command"):
+            with tool._prepare_native_execution(
+                CONFIGURATIONS[1],
+                PurePosixPath("/content"),
+                {},
+                Path(temp_dir),
+                install_missing_deps=False,
+            ):
+                pass
+
+        commands = [call.args[0] for call in tool.node.execute.call_args_list]
+        prerequisite_check = commands[-1]
+        self.assertIn("sg kvm -c", prerequisite_check)
+        self.assertIn("/dev/kvm", prerequisite_check)
+        self.assertIn("/dev/vhost-vsock", prerequisite_check)
+        self.assertNotIn("chmod a+rw", " ".join(commands))
+
+    def test_native_kvm_setup_restores_hugepage_limit(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.node = MagicMock()
+        tool.node.execute.side_effect = [
+            SimpleNamespace(exit_code=0, stdout=""),
+            SimpleNamespace(exit_code=0, stdout="17"),
+            SimpleNamespace(exit_code=0, stdout=""),
+            SimpleNamespace(exit_code=0, stdout=""),
+            SimpleNamespace(exit_code=0, stdout=""),
+            SimpleNamespace(exit_code=0, stdout=""),
+        ]
+        tool.command_group = "kvm"
+        with TemporaryDirectory() as temp_dir, patch.object(
+            tool, "_ensure_cargo_nextest"
+        ), patch.object(tool, "_run_logged_command"):
+            with tool._prepare_native_execution(
+                CONFIGURATIONS[1],
+                PurePosixPath("/content"),
+                {},
+                Path(temp_dir),
+                install_missing_deps=True,
+            ):
+                pass
+
+        commands = [call.args[0] for call in tool.node.execute.call_args_list]
+        self.assertIn("echo 4096", commands[2])
+        self.assertIn("sg kvm -c", commands[3])
+        self.assertIn("echo 17 >", commands[-1])
+        tool.node.mark_dirty.assert_called_once_with()
+
+    def test_native_setup_restores_temporary_vsock_acl(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.node = MagicMock()
+        commands = []
+
+        def execute(command: str, **kwargs: object) -> SimpleNamespace:
+            commands.append(command)
+            if command.startswith("getfacl"):
+                return SimpleNamespace(
+                    exit_code=0,
+                    stdout="user::rw-\ngroup::rw-\nother::---\n",
+                )
+            if command == "id -un":
+                return SimpleNamespace(exit_code=0, stdout="runner\n")
+            if command.startswith("sg mshv -c 'test -r /dev/vhost-vsock"):
+                return SimpleNamespace(exit_code=1, stdout="")
+            return SimpleNamespace(exit_code=0, stdout="")
+
+        tool.node.execute.side_effect = execute
+        tool.command_group = "mshv"
+        with TemporaryDirectory() as temp_dir, patch.object(
+            tool, "_ensure_cargo_nextest"
+        ), patch.object(tool, "_run_logged_command"):
+            with tool._prepare_native_execution(
+                CONFIGURATIONS[0],
+                PurePosixPath("/content"),
+                {},
+                Path(temp_dir),
+                install_missing_deps=True,
+            ):
+                pass
+
+        self.assertTrue(any("setfacl -m u:runner:rw " in cmd for cmd in commands))
+        restore = next(cmd for cmd in commands if "setfacl --set-file=-" in cmd)
+        self.assertIn("user::rw-", restore)
+        self.assertIn(
+            "sg mshv -c", next(cmd for cmd in commands if "vhost-vsock" in cmd)
+        )
+        self.assertNotIn("chmod a+rw", " ".join(commands))
+        tool.node.mark_dirty.assert_called_once_with()
 
     def test_check_vmm_tests_results_raises_on_junit_failures(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
@@ -136,7 +196,7 @@ class OpenVmmTestsToolTestCase(TestCase):
             junit_file.write_text(
                 """<?xml version="1.0" encoding="utf-8"?>
 <testsuites>
-  <testsuite name="x64-linux-vmm-tests" tests="58" failures="7" errors="0" skipped="41">
+  <testsuite name="x64-linux-vmm-tests" tests="48" failures="7" errors="0" skipped="41">
     <testcase
       classname="vmm_tests::tests"
       name="multiarch::ic::openvmm_uefi_x64_ubuntu_2504_server_x64_timesync_ic">
@@ -156,7 +216,7 @@ class OpenVmmTestsToolTestCase(TestCase):
                 )
 
             self.assertIn(
-                "17 tests run: 10 passed, 7 failed, 41 skipped",
+                "7 tests run: 0 passed, 7 failed, 41 skipped",
                 str(context.exception),
             )
             self.assertIn("Failed tests:", str(context.exception))
@@ -164,6 +224,20 @@ class OpenVmmTestsToolTestCase(TestCase):
             "multiarch::ic::openvmm_uefi_x64_ubuntu_2504_server_x64_timesync_ic",
             str(context.exception),
         )
+
+    def test_parse_junit_rejects_failure_elements_with_zero_suite_counts(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        with TemporaryDirectory() as temp_dir:
+            junit_file = Path(temp_dir) / "inconsistent.junit.xml"
+            junit_file.write_text(
+                """<testsuite tests="1" failures="0" errors="0">
+  <testcase classname="suite" name="failed"><failure /></testcase>
+</testsuite>
+""",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(LisaException, "failure elements"):
+                tool._parse_junit_summary(junit_file)
 
     def test_check_vmm_tests_results_raises_on_log_summary_without_junit(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
@@ -245,11 +319,7 @@ encountered at least one test failure!
             temp_path = Path(temp_dir)
             log_file = temp_path / "openvmm_vmm_tests.log"
             junit_file = temp_path / "openvmm_vmm_tests.junit.xml"
-            log_file.write_text(
-                "PASS [   1.000s] ( 1/1) vmm_tests::tests multiarch::openvmm_boot\n"
-                "Summary [   1.000s] 1 tests run: 1 passed, 67 skipped\n",
-                encoding="utf-8",
-            )
+            log_file.write_text("", encoding="utf-8")
             junit_file.write_text(
                 """<?xml version="1.0" encoding="utf-8"?>
 <testsuites>
@@ -271,7 +341,7 @@ encountered at least one test failure!
             )
 
         self.assertEqual(1, summary.tests)
-        self.assertEqual(67, summary.skipped)
+        self.assertEqual(1, summary.skipped)
         self.assertEqual(
             ["vmm_tests::tests multiarch::openvmm_boot"],
             summary.passed_tests,
@@ -294,6 +364,22 @@ encountered at least one test failure!
         warning_message = tool._log.warning.call_args.args[0]
         self.assertIn("/remote/artifacts", warning_message)
         self.assertIn("/remote/artifacts.tar.gz", warning_message)
+
+    def test_collect_native_results_copies_staged_content_junit(self) -> None:
+        tool = OpenVmmTests.__new__(OpenVmmTests)
+        tool.repo_root = PurePosixPath("/workspace/openvmm")
+        tool.node = MagicMock()
+        tool.node.execute.return_value = SimpleNamespace(exit_code=0, stderr="")
+
+        with patch.object(tool, "_copy_back_if_exists") as copy_back:
+            tool._collect_native_results(
+                Path("/logs"), Path("/logs/openvmm_vmm_tests.junit.xml")
+            )
+
+        self.assertEqual(
+            PurePosixPath("/workspace/openvmm/input/target/nextest/ci/junit.xml"),
+            copy_back.call_args_list[0].args[0],
+        )
 
     def test_archive_remote_directory_does_not_warn_on_success(self) -> None:
         tool = OpenVmmTests.__new__(OpenVmmTests)
