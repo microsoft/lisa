@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 _STATE_FILES = (
     "/etc/ssh/sshd_config",
@@ -27,7 +27,7 @@ _STATE_FILES = (
 
 
 def _account_fingerprint(users: List[str], groups: List[str]) -> str:
-    records = {}
+    records: Dict[str, Optional[List[str]]] = {}
     for filename, names in (
         ("/etc/passwd", users),
         ("/etc/shadow", users),
