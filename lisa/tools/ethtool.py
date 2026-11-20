@@ -1,7 +1,7 @@
 import re
 import shlex
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Set, Type, cast
+from typing import Any, Dict, List, Optional, Set, Type, Union, cast
 
 from lisa.base_tools import Wget
 from lisa.executable import Tool
@@ -506,8 +506,7 @@ class DeviceRssIndirectionTable:
 
 class DeviceCoalesceSettings:
     # ethtool -c reports integer tunables one per line. Unsupported parameters
-    # are printed as n/a, while the Adaptive RX/TX line contains two values and
-    # is intentionally excluded from this integer setting model.
+    # are printed as n/a; adaptive RX/TX states are stored separately.
     _coalesce_param_pattern = re.compile(
         r"^(?P<name>[\w-]+):[ \t]*(?P<value>\d+|n/a)[ \t]*\r?$", re.MULTILINE
     )
@@ -535,6 +534,27 @@ class DeviceCoalesceSettings:
         self.interface = interface
         self.settings = settings
         self.not_applicable = not_applicable
+        self.boolean_settings = {
+            match[1]: match[2] == "on"
+            for match in re.finditer(
+                r"^([\w-]+):[ \t]*(on|off)[ \t]*\r?$", raw_str, re.MULTILINE
+            )
+        }
+        self.adaptive: Dict[str, bool] = {}
+        adaptive_line = re.search(r"^Adaptive .*$", raw_str, re.MULTILINE)
+        if adaptive_line:
+            match = re.fullmatch(
+                r"Adaptive RX:\s*(on|off|n/a)\s+TX:\s*(on|off|n/a)\s*",
+                adaptive_line[0],
+            )
+            if not match:
+                raise LisaException(
+                    f"Invalid adaptive coalescing output for {interface}: "
+                    f"{adaptive_line[0]}"
+                )
+            for direction, value in zip(("rx", "tx"), match.groups()):
+                if value != "n/a":
+                    self.adaptive[direction] = value == "on"
 
 
 class DeviceRxHashLevel:
@@ -1231,12 +1251,13 @@ class Ethtool(Tool):
         return device.device_coalesce_settings
 
     def set_device_coalesce_setting(
-        self, interface: str, parameter: str, value: int
+        self, interface: str, parameter: str, value: Union[int, bool]
     ) -> ExecutableResult:
         """Set one coalescing parameter and return the raw command result."""
+        text = ("on" if value else "off") if isinstance(value, bool) else str(value)
         result = self.run(
             f"-C {shlex.quote(interface)} {shlex.quote(parameter)} "
-            f"{shlex.quote(str(value))}",
+            f"{shlex.quote(text)}",
             sudo=True,
             force_run=True,
             shell=True,
