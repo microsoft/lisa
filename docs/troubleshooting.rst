@@ -39,6 +39,21 @@ APT signature and validity checks remain enabled. LISA does not automatically
 repair broken dependencies with ``apt-get --fix-broken install``.
 
 
+Azure CLI token acquisition
+---------------------------
+
+For ``default`` and ``azcli`` authentication, LISA retries the generic
+``Failed to invoke Azure CLI`` and ``Failed to invoke the Azure CLI`` errors
+up to three attempts, with five seconds between attempts. This includes an
+initial ``DefaultAzureCredential`` failure whose attempted-credentials summary
+reports one of these exact errors for ``AzureCliCredential``.
+
+Explicit authentication errors, such as an expired login, tenant rejection,
+or an ``AADSTS`` error, are not retried. Other credentials' errors do not
+qualify as generic CLI failures. If all attempts fail, LISA reports the error
+without changing the configured identity.
+
+
 Using VSCode
 ------------
 
