@@ -157,7 +157,7 @@ class StressNg(Tool):
                 ]
             )
         elif isinstance(self.node.os, Debian):
-            self.node.os.install_packages("libapparmor-dev")
+            self.node.os.install_packages(["libc6-dev", "libapparmor-dev"])
 
     def _install_from_src(self) -> bool:
         tool_path = self.get_tool_path()
