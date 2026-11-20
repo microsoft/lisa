@@ -154,16 +154,23 @@ class AziHsm(TestSuite):
             log.info(
                 f"Restoring the original system crypto policy: {original_policy}"
             )
-            node.execute(
-                f"update-crypto-policies --set {original_policy}",
-                sudo=True,
-                shell=True,
-                expected_exit_code=0,
-                expected_exit_code_failure_message=(
-                    "Failed to restore the original crypto policy "
-                    f"'{original_policy}'"
-                ),
-            )
+            try:
+                node.execute(
+                    f"update-crypto-policies --set {original_policy}",
+                    sudo=True,
+                    shell=True,
+                    expected_exit_code=0,
+                    expected_exit_code_failure_message=(
+                        "Failed to restore the original crypto policy "
+                        f"'{original_policy}'"
+                    ),
+                )
+            except Exception:
+                # The node may still have SHA1 signatures allowed, so it
+                # cannot be safely reused by later tests; mark it dirty and
+                # let the restoration failure propagate.
+                node.mark_dirty()
+                raise
 
     #
     # Collect extra diagnostics when an azihsm binary test fails under LISA.
