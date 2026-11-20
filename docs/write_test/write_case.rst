@@ -252,6 +252,14 @@ The instance is available until the node is recycled, which means the
 same tool is already ready to use when ``node.tools[ToolName]`` is
 called again, as to avoid the redundant installation.
 
+To reboot a node from the guest, use ``node.reboot()``. On Linux, command
+discovery is best-effort: if discovering ``systemctl`` times out or encounters
+an SSH error, LISA attempts the fallback reboot command. If discovering that
+command also fails, LISA retains its cached path, initially ``/sbin/reboot``.
+An SSH disconnect during a reboot command does not trigger another reboot;
+LISA verifies that the boot time changed rather than treating the disconnect
+as proof of success.
+
 Scripts
 ~~~~~~~
 
