@@ -795,10 +795,10 @@ def initialize_node_resources(
     _set_forced_source_by_distro(node, variables)
     check_pmd_support(node, pmd)
 
-    dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE)
-    dpdk_branch = variables.get("dpdk_branch", "")
-    rdma_source = variables.get("rdma_source", "")
-    rdma_branch = variables.get("rdma_branch", "")
+    dpdk_source = variables.get("dpdk_source", PACKAGE_MANAGER_SOURCE).strip()
+    dpdk_branch = variables.get("dpdk_branch", "").strip()
+    rdma_source = variables.get("rdma_source", "").strip()
+    rdma_branch = variables.get("rdma_branch", "").strip()
     force_net_failsafe_pmd = variables.get("dpdk_force_net_failsafe_pmd", False)
     log.info(
         "Dpdk initialize_node_resources running"
