@@ -33,6 +33,10 @@ class Cluster(subclasses.BaseClassWithRunbookMixin, InitializableMixin):
         # the delete is not required for all clusters.
         pass
 
+    def recover_deployment(self, environment: Environment) -> None:
+        for node in environment.nodes.list():
+            node.features[features.StartStop].restart()
+
     def get_serial_console(self) -> Type[features.SerialConsole]:
         raise NotImplementedError()
 
