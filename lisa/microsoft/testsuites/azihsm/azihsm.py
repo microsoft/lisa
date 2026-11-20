@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import re
+from contextlib import contextmanager
 from threading import Lock
-from typing import List, cast
+from typing import Iterator, List, cast
 from weakref import WeakKeyDictionary, WeakSet
 
 from assertpy import assert_that
@@ -105,24 +106,41 @@ class AziHsm(TestSuite):
     # /etc/crypto-policies/back-ends/opensslcnf.config). This breaks the
     # azihsm_api_cpp_tests RSA sign/verify cases that exercise SHA1
     # (AZIHSM_STATUS_INTERNAL_ERROR on verify), even though the azihsm
-    # hardware/driver stack itself works correctly. Re-enable SHA1
-    # signatures via the system crypto policy on affected releases so the
+    # hardware/driver stack itself works correctly. Temporarily relax the
+    # crypto policy to allow SHA1 signatures on affected releases so the
     # SDK tests can genuinely exercise SHA1 instead of failing due to the
-    # OS-level policy. This is a test-environment workaround, not a
-    # security-hardening recommendation.
-    def _allow_sha1_signatures_if_needed(self, node: Node, log: Logger) -> None:
-        if not isinstance(node.os, CBLMariner):
+    # OS-level policy, then restore the original policy afterwards (even if
+    # the SDK tests fail) so the VM isn't left with a permanently relaxed,
+    # machine-wide security policy. This is a test-environment workaround,
+    # not a security-hardening recommendation.
+    @contextmanager
+    def _sha1_signatures_allowed(self, node: Node, log: Logger) -> Iterator[None]:
+        if not isinstance(node.os, CBLMariner) or node.os.information.version.major < 4:
+            yield
             return
 
-        if node.os.information.version.major < 4:
-            return
+        original_policy = node.execute(
+            "update-crypto-policies --show",
+            sudo=True,
+            shell=True,
+            expected_exit_code=0,
+            expected_exit_code_failure_message=(
+                "Failed to read the current system crypto policy"
+            ),
+        ).stdout.strip()
 
+        sha1_policy = (
+            original_policy
+            if ":SHA1" in original_policy
+            else f"{original_policy}:SHA1"
+        )
         log.info(
-            "Azure Linux 4.0+ detected: relaxing the system crypto policy "
-            "to allow SHA1 signatures (required by azihsm_api_cpp_tests)."
+            f"Azure Linux 4.0+ detected: relaxing the system crypto policy "
+            f"from '{original_policy}' to '{sha1_policy}' to allow SHA1 "
+            "signatures (required by azihsm_api_cpp_tests)."
         )
         node.execute(
-            "update-crypto-policies --set DEFAULT:SHA1",
+            f"update-crypto-policies --set {sha1_policy}",
             sudo=True,
             shell=True,
             expected_exit_code=0,
@@ -130,6 +148,22 @@ class AziHsm(TestSuite):
                 "Failed to relax the crypto policy to allow SHA1 signatures"
             ),
         )
+        try:
+            yield
+        finally:
+            log.info(
+                f"Restoring the original system crypto policy: {original_policy}"
+            )
+            node.execute(
+                f"update-crypto-policies --set {original_policy}",
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to restore the original crypto policy "
+                    f"'{original_policy}'"
+                ),
+            )
 
     #
     # Collect extra diagnostics when an azihsm binary test fails under LISA.
@@ -942,29 +976,80 @@ class AziHsm(TestSuite):
         # Make sure the azihsm packages are installed
         self.install_all_azihsm_packages(node=node, log=log)
 
-        self._allow_sha1_signatures_if_needed(node=node, log=log)
+        with self._sha1_signatures_allowed(node=node, log=log):
+            sdk_test_list = [
+                "azihsm_api",
+                # "azihsm_api_cpp_tests", - do this separately
+                "azihsm_api_native",
+                "azihsm_api_tests",
+                "azihsm_ddi_tests",
+            ]
 
-        sdk_test_list = [
-            "azihsm_api",
-            # "azihsm_api_cpp_tests", - do this separately
-            "azihsm_api_native",
-            "azihsm_api_tests",
-            "azihsm_ddi_tests",
-        ]
+            # The rust based tests only work single threaded
+            params = "--test-threads 1"
+            failed_tests = []
 
-        # The rust based tests only work single threaded
-        params = "--test-threads 1"
-        failed_tests = []
+            for test in sdk_test_list:
+                log.info(f"Running {test}")
+                try:
+                    result = node.execute(
+                        f"{node.get_pure_path(AZIHSM_BIN_DIR) / test} {params}",
+                        update_envs={"AZIHSM_USE_TPM": "1"},
+                        timeout=1800,
+                        # Don't assert here; the exit code is checked manually
+                        # below so we can log full output/diagnostics first.
+                        expected_exit_code=None,
+                        no_info_log=False,
+                    )
+                except LisaException as e:
+                    log.error(
+                        f"{test} raised an exception: {e}. See the azihsm "
+                        "diagnostics logged immediately below for details."
+                    )
+                    failed_tests.append(f"{test} ({e})")
+                    self._log_azihsm_test_failure_diagnostics(
+                        node=node, log=log, test_name=test
+                    )
+                    continue
 
-        for test in sdk_test_list:
+                log.info(f"{test} exit code: {result.exit_code}")
+                if result.stderr.strip():
+                    log.info(f"{test} stderr:\n{result.stderr.strip()}")
+
+                # These are Rust test binaries. The process exit code (0 on
+                # success, non-zero if any test fails) is the authoritative
+                # signal: cargo test's pretty-printed output can include a
+                # literal terminfo padding artifact (e.g. "ok\x0f$<2>.") when
+                # run over a non-interactive SSH session, which breaks a
+                # literal substring match on "test result: ok.".
+                if result.exit_code == 0:
+                    log.info(f"{test} Passed")
+                else:
+                    log.info(f"{test} Failed")
+                    failed_tests.append(test)
+                    self._log_azihsm_test_failure_diagnostics(
+                        node=node, log=log, test_name=test
+                    )
+
+            # Do the api_cpp_tests here because its output format differs from the
+            # Rust-based tests above; use the process exit code to determine
+            # success instead of matching a Rust-specific "test result: ok." line.
+            test = "azihsm_api_cpp_tests"
             log.info(f"Running {test}")
+            # Remove a stale persistence file potentially left behind by a prior
+            # run, so tests that depend on this file starting out absent aren't
+            # affected by leftover state.
+            node.tools[Rm].remove_file(
+                "/tmp/azihsm_ecc_persistence_test.bin", sudo=True
+            )
             try:
                 result = node.execute(
-                    f"{node.get_pure_path(AZIHSM_BIN_DIR) / test} {params}",
-                    update_envs={"AZIHSM_USE_TPM": "1"},
+                    f"{node.get_pure_path(AZIHSM_BIN_DIR) / test}",
+                    update_envs={
+                        "AZIHSM_USE_TPM": "1",
+                        "AZIHSM_DISABLE_MULTI_PROCESS_TESTS": "1",
+                    },
                     timeout=1800,
-                    # Don't assert here; the exit code is checked manually
-                    # below so we can log full output/diagnostics first.
                     expected_exit_code=None,
                     no_info_log=False,
                 )
@@ -977,69 +1062,19 @@ class AziHsm(TestSuite):
                 self._log_azihsm_test_failure_diagnostics(
                     node=node, log=log, test_name=test
                 )
-                continue
-
-            log.info(f"{test} exit code: {result.exit_code}")
-            if result.stderr.strip():
-                log.info(f"{test} stderr:\n{result.stderr.strip()}")
-
-            # These are Rust test binaries. The process exit code (0 on
-            # success, non-zero if any test fails) is the authoritative
-            # signal: cargo test's pretty-printed output can include a
-            # literal terminfo padding artifact (e.g. "ok\x0f$<2>.") when
-            # run over a non-interactive SSH session, which breaks a
-            # literal substring match on "test result: ok.".
-            if result.exit_code == 0:
-                log.info(f"{test} Passed")
             else:
-                log.info(f"{test} Failed")
-                failed_tests.append(test)
-                self._log_azihsm_test_failure_diagnostics(
-                    node=node, log=log, test_name=test
-                )
+                log.info(f"{test} exit code: {result.exit_code}")
+                if result.stderr.strip():
+                    log.info(f"{test} stderr:\n{result.stderr.strip()}")
 
-        # Do the api_cpp_tests here because its output format differs from the
-        # Rust-based tests above; use the process exit code to determine
-        # success instead of matching a Rust-specific "test result: ok." line.
-        test = "azihsm_api_cpp_tests"
-        log.info(f"Running {test}")
-        # Remove a stale persistence file potentially left behind by a prior
-        # run, so tests that depend on this file starting out absent aren't
-        # affected by leftover state.
-        node.tools[Rm].remove_file("/tmp/azihsm_ecc_persistence_test.bin", sudo=True)
-        try:
-            result = node.execute(
-                f"{node.get_pure_path(AZIHSM_BIN_DIR) / test}",
-                update_envs={
-                    "AZIHSM_USE_TPM": "1",
-                    "AZIHSM_DISABLE_MULTI_PROCESS_TESTS": "1",
-                },
-                timeout=1800,
-                expected_exit_code=None,
-                no_info_log=False,
-            )
-        except LisaException as e:
-            log.error(
-                f"{test} raised an exception: {e}. See the azihsm "
-                "diagnostics logged immediately below for details."
-            )
-            failed_tests.append(f"{test} ({e})")
-            self._log_azihsm_test_failure_diagnostics(
-                node=node, log=log, test_name=test
-            )
-        else:
-            log.info(f"{test} exit code: {result.exit_code}")
-            if result.stderr.strip():
-                log.info(f"{test} stderr:\n{result.stderr.strip()}")
-
-            if result.exit_code == 0:
-                log.info(f"{test} Passed")
-            else:
-                log.info(f"{test} Failed")
-                failed_tests.append(test)
-                self._log_azihsm_test_failure_diagnostics(
-                    node=node, log=log, test_name=test
-                )
+                if result.exit_code == 0:
+                    log.info(f"{test} Passed")
+                else:
+                    log.info(f"{test} Failed")
+                    failed_tests.append(test)
+                    self._log_azihsm_test_failure_diagnostics(
+                        node=node, log=log, test_name=test
+                    )
 
         assert_that(failed_tests).described_as(
             "Not all SDK tests passed, failed tests: "
