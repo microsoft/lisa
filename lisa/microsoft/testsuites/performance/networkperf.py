@@ -53,6 +53,7 @@ class NetworkPerformace(TestSuite):
         This test case uses lagscope to test synthetic network latency.
         """,
         priority=2,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -81,6 +82,7 @@ class NetworkPerformace(TestSuite):
         """,
         priority=3,
         timeout=PPS_TIMEOUT,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -111,6 +113,7 @@ class NetworkPerformace(TestSuite):
         """,
         priority=3,
         timeout=PPS_TIMEOUT,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -141,6 +144,7 @@ class NetworkPerformace(TestSuite):
         """,
         priority=2,
         timeout=TIMEOUT,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -157,6 +161,7 @@ class NetworkPerformace(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        runtime_synthetic=True,
         requirement=node_requirement(
             node=schema.NodeSpace(
                 node_count=2,
@@ -195,6 +200,7 @@ class NetworkPerformace(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -229,6 +235,7 @@ class NetworkPerformace(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -265,6 +272,7 @@ class NetworkPerformace(TestSuite):
         """,
         priority=3,
         timeout=TIMEOUT,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -336,6 +344,7 @@ class NetworkPerformace(TestSuite):
         This test case uses sockperf to test synthetic network latency.
         """,
         priority=3,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -350,6 +359,7 @@ class NetworkPerformace(TestSuite):
         This test case uses sockperf to test synthetic network latency.
         """,
         priority=3,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -402,6 +412,7 @@ class NetworkPerformace(TestSuite):
         This test case uses sockperf to test synthetic network latency.
         """,
         priority=3,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),
@@ -421,6 +432,7 @@ class NetworkPerformace(TestSuite):
         This test case uses sockperf to test synthetic network latency.
         """,
         priority=3,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             network_interface=Synthetic(),

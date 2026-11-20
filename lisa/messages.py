@@ -369,7 +369,9 @@ def create_perf_message(
     assert environment, "fail to get environment from testresult"
 
     data_path: str = ""
-    if node.capability.network_interface and isinstance(
+    if test_result.runtime_data.switch_to_synthetic:
+        data_path = NetworkDataPath.Synthetic.value
+    elif node.capability.network_interface and isinstance(
         node.capability.network_interface.data_path, NetworkDataPath
     ):
         data_path = node.capability.network_interface.data_path.value

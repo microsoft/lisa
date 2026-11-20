@@ -85,6 +85,7 @@ class XdpPerformance(TestSuite):
         nic.
         """,
         priority=3,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_nic_count=2,
             min_count=3,
@@ -122,6 +123,7 @@ class XdpPerformance(TestSuite):
         Refer to perf_xdp_tx_forward_singlecore_synthetic for more details.
         """,
         priority=3,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_nic_count=2,
             min_count=3,

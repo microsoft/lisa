@@ -373,6 +373,7 @@ class StoragePerformance(TestSuite):
         """,
         priority=3,
         timeout=TIME_OUT,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             disk=schema.DiskOptionSettings(
@@ -395,6 +396,7 @@ class StoragePerformance(TestSuite):
         """,
         priority=3,
         timeout=TIME_OUT,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_count=2,
             disk=schema.DiskOptionSettings(

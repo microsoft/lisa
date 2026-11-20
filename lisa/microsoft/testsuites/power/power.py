@@ -24,7 +24,7 @@ from lisa import (
     TestSuiteMetadata,
     schema,
 )
-from lisa.features import Disk, HibernationEnabled, Sriov, Synthetic
+from lisa.features import Disk, HibernationEnabled, NetworkInterface, Sriov, Synthetic
 from lisa.features.availability import AvailabilityTypeNoRedundancy
 from lisa.node import Node
 from lisa.operating_system import Linux
@@ -64,6 +64,7 @@ class Power(TestSuite):
             7. Fail the case if nics count and info changes after vm resume.
         """,
         priority=3,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_os_disk_size=500,
             network_interface=Synthetic(),
@@ -73,6 +74,8 @@ class Power(TestSuite):
     def verify_hibernation_synthetic_network(self, node: Node, log: Logger) -> None:
         is_distro_supported(node)
         verify_hibernation(node, log)
+        if node.features[NetworkInterface].runtime_synthetic:
+            node.features[NetworkInterface].verify_synthetic_path()
 
     @TestCaseMetadata(
         description="""
@@ -215,6 +218,7 @@ class Power(TestSuite):
             7. Fail the case if nics count and info changes after vm resume.
         """,
         priority=3,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             min_os_disk_size=500,
             network_interface=schema.NetworkInterfaceOptionSettings(
@@ -229,6 +233,8 @@ class Power(TestSuite):
     ) -> None:
         is_distro_supported(node)
         verify_hibernation(node, log)
+        if node.features[NetworkInterface].runtime_synthetic:
+            node.features[NetworkInterface].verify_synthetic_path()
 
     @TestCaseMetadata(
         description="""

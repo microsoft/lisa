@@ -1024,9 +1024,11 @@ class NetworkInterface(AzureFeatureMixin, features.NetworkInterface):
                     f"now set its status into [{enable}]."
                 )
                 updated_nic.enable_accelerated_networking = enable
-                network_client.network_interfaces.begin_create_or_update(
+                operation = network_client.network_interfaces.begin_create_or_update(
                     self._resource_group_name, updated_nic.name, updated_nic
                 )
+                if wait:
+                    wait_operation(operation, time_out=300, failure_identity=nic_name)
                 updated_nic = network_client.network_interfaces.get(
                     self._resource_group_name, nic_name
                 )

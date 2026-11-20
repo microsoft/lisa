@@ -454,7 +454,7 @@ class Nics(InitializableMixin):
                     "AN enablement and pci device are inconsistent"
                 ).is_equal_to(any(self.get_pci_nics()))
         else:
-            assert_that(self.get_device_slots()).described_as(
+            assert_that(self.get_device_slots(exclude_ib=True)).described_as(
                 "pci devices still on the test node."
             ).is_empty()
 

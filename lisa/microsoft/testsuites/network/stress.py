@@ -251,10 +251,10 @@ class Stress(TestSuite):
 class StressSynthetic(TestSuite):
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provisioning with max synthetic nics.
+        Verify the synthetic path with the maximum supported NIC count.
 
         Steps,
-        1. Provision VM with max network interfaces with synthetic network.
+        1. Provision max NICs; on Azure, switch to synthetic after deployment.
         2. Check each nic has an ip address.
         3. Reboot VM from guest.
         4. Check each nic has an ip address.
@@ -264,6 +264,7 @@ class StressSynthetic(TestSuite):
         # Each of the 10 reboot cycles can take several minutes on large VMs
         # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
         timeout=7200,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=IntRange(min=2, choose_max_value=True),
@@ -286,10 +287,10 @@ class StressSynthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provisioning with max synthetic nics.
+        Verify the synthetic path with the maximum supported NIC count.
 
         Steps,
-        1. Provision VM with max network interfaces with synthetic network.
+        1. Provision max NICs; on Azure, switch to synthetic after deployment.
         2. Check each nic has an ip address.
         3. Reboot VM from API.
         4. Check each nic has an ip address.
@@ -299,6 +300,7 @@ class StressSynthetic(TestSuite):
         # Each of the 10 restart cycles can take several minutes on large VMs
         # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
         timeout=7200,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=IntRange(min=2, choose_max_value=True),
@@ -322,10 +324,10 @@ class StressSynthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provisioning with max synthetic nics.
+        Verify the synthetic path with the maximum supported NIC count.
 
         Steps,
-        1. Provision VM with max network interfaces with synthetic network.
+        1. Provision max NICs; on Azure, switch to synthetic after deployment.
         2. Check each nic has an ip address.
         3. Stop and Start VM from API.
         4. Check each nic has an ip address.
@@ -335,6 +337,7 @@ class StressSynthetic(TestSuite):
         # Each of the 10 stop/start cycles can take several minutes on large VMs
         # (e.g. GB200-class SKUs), so the default 3600s timeout is insufficient.
         timeout=7200,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 nic_count=IntRange(min=2, choose_max_value=True),

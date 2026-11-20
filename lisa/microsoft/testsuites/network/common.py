@@ -62,6 +62,8 @@ def initialize_nic_info(
     vm_nics: Dict[str, Dict[str, NicInfo]] = {}
     for node in environment.nodes.list():
         network_interface_feature = node.features[NetworkInterface]
+        if not is_sriov and network_interface_feature.runtime_synthetic:
+            network_interface_feature.verify_synthetic_path()
         interfaces_info_list: List[
             IpInfo
         ] = network_interface_feature.get_all_primary_nics_ip_info()

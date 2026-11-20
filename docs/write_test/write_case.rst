@@ -49,6 +49,28 @@ can save everyone's time.
    for LISA. In some cases, you may need to improve or implement extensions for
    new test cases.
 
+Testing the synthetic network path
+----------------------------------
+
+Set ``runtime_synthetic=True`` on ``TestCaseMetadata`` alongside a synthetic
+network requirement when the workload needs the synthetic path, not a VM
+created without Accelerated Networking. Azure tries native synthetic provisioning
+first. To allow fallback, pass ``-v runtime_synthetic:true`` or add this runbook
+variable::
+
+    variable:
+      - name: runtime_synthetic
+        value: true
+
+If SKU matching rejects only the synthetic data path because the target requires
+SR-IOV, LISA retries matching with accelerated NICs. It disables acceleration
+for the case body, checks the guest interfaces and connectivity, and restores
+acceleration afterwards. The result field ``synthetic_network_mode`` distinguishes
+``native`` from ``runtime_fallback``; only native provisioning covers synthetic-only
+first boot. With the variable unset or false the original skip is preserved.
+Other mismatches and ARM deployment failures do not trigger this fallback.
+PCI-only Ethernet interfaces have no synthetic fallback.
+
 Test composition
 ----------------
 

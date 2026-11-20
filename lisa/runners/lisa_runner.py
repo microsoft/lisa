@@ -36,6 +36,7 @@ from lisa.util import (
     constants,
     deep_update_dict,
     is_unittest,
+    to_bool,
 )
 from lisa.util.os_resolver import infer_target_os
 from lisa.util.parallel import Task, check_cancelled
@@ -156,6 +157,16 @@ class LisaRunner(BaseRunner):
         # load predefined environments
         self.platform = load_platform(self._runbook.platform)
         self.platform.initialize()
+        if (
+            self.platform.type_name() == "azure"
+            and not self.platform.runbook.guest_enabled
+        ):
+            gate = variables_pool.get("runtime_synthetic", False)
+            allow_fallback = to_bool(getattr(gate, "data", gate))
+            for result in self.test_results:
+                result.runtime_data.allow_synthetic_fallback = (
+                    allow_fallback and result.runtime_data.metadata.runtime_synthetic
+                )
         platform_message = PlatformMessage(name=self.platform.type_name())
         notifier.notify(platform_message)
 

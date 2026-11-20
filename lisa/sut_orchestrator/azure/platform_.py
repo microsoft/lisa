@@ -613,6 +613,40 @@ class AzurePlatform(Platform):
         for req in nodes_requirement:
             self._set_image_features(req)
 
+        source = environment.source_test_result
+        case = source.runtime_data if source else None
+        if not (case and case.switch_to_synthetic):
+            try:
+                return self._match_environment(environment, nodes_requirement, log)
+            except NotMeetRequirementException as error:
+                if not (
+                    case
+                    and case.allow_synthetic_fallback
+                    and re.fullmatch(
+                        r"Requirement mismatch: (?:network_interface/)?"
+                        r"data_path: requires \[Synthetic\] but VM supports \[Sriov\]",
+                        str(error),
+                    )
+                ):
+                    raise
+                log.info(
+                    f"{error}; retrying SKU matching for runtime synthetic coverage"
+                )
+                case.resolve_network_requirement(self.type_name())
+
+        # Keep the original runbook intact across quota waits and prepare retries.
+        accelerated = deepcopy(nodes_requirement)
+        for req in accelerated:
+            assert req.network_interface
+            req.network_interface.data_path = schema.NetworkDataPath.Sriov
+        return self._match_environment(environment, accelerated, log)
+
+    def _match_environment(
+        self,
+        environment: Environment,
+        nodes_requirement: List[schema.NodeSpace],
+        log: Logger,
+    ) -> bool:
         is_success: bool = False
 
         # get eligible locations
@@ -670,6 +704,7 @@ class AzurePlatform(Platform):
 
         # resolve Latest to specified version
         if is_success:
+            assert environment.runbook.nodes_requirement
             self._resolve_marketplace_image_version(
                 environment.runbook.nodes_requirement
             )

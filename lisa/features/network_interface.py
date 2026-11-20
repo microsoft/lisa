@@ -1,16 +1,78 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
 
+from contextlib import contextmanager
 from functools import partial
-from typing import Any, List, Type
+from typing import Any, Iterator, List, Type
 
 from lisa import schema
 from lisa.feature import Feature
 from lisa.schema import NetworkInterfaceOptionSettings
 from lisa.tools import IpInfo
+from lisa.util import LisaException, SkippedException
 
 
 class NetworkInterface(Feature):
+    runtime_synthetic = False
+
+    def verify_synthetic_path(self) -> None:
+        expected = {nic.mac_addr for nic in self.get_all_primary_nics_ip_info()}
+        self._node.nics.reload()
+        synthetic = {
+            nic.mac_addr
+            for nic in self._node.nics.nics.values()
+            if not (nic.is_infiniband or nic.is_pci_only_nic or nic.lower)
+        }
+        if not expected or expected - synthetic or self.get_nic_count():
+            raise LisaException(
+                f"Synthetic path not active on every NIC: expected {expected}, "
+                f"guest synthetic MACs {synthetic}"
+            )
+        # A fresh SSH round trip also checks connectivity with the VFs absent.
+        self._node.execute("echo connected", timeout=30, expected_exit_code=0)
+
+    @contextmanager
+    def synthetic_path(self) -> Iterator[None]:
+        self._node.nics.reload()
+        for nic in self._node.nics.nics.values():
+            if not nic.is_infiniband and nic.is_pci_only_nic:
+                raise SkippedException(
+                    f"No synthetic pairing for Ethernet NIC {nic.name}"
+                )
+        if not self.is_enabled_sriov():
+            raise LisaException("Expected every NIC to have AN enabled before the test")
+        original_count = self.get_nic_count()
+        self._log.info("Testing post-deployment synthetic networking; disabling AN")
+        try:
+            self.switch_sriov(False)
+            self.verify_synthetic_path()
+            self.runtime_synthetic = True
+            yield
+        finally:
+            self.runtime_synthetic = False
+            restored = False
+            try:
+                self.switch_sriov(True)
+                if (
+                    self.get_nic_count() != original_count
+                    or not self.is_enabled_sriov()
+                ):
+                    raise LisaException(
+                        "Original accelerated NIC configuration not restored"
+                    )
+                restored = True
+            finally:
+                if not restored:
+                    self._node.mark_dirty()
+
+    def attach_synthetic_nics(self, extra_nic_count: int) -> None:
+        self.attach_nics(
+            extra_nic_count, enable_accelerated_networking=self.runtime_synthetic
+        )
+        if self.runtime_synthetic:
+            self.switch_sriov(False)
+            self.verify_synthetic_path()
+
     @classmethod
     def settings_type(cls) -> Type[schema.FeatureSettings]:
         return schema.NetworkInterfaceOptionSettings

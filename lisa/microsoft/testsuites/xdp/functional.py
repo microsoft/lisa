@@ -126,6 +126,7 @@ class XdpFunctional(TestSuite):
         The test step is the same as verify_xdp_basic, but it run once only.
         """,
         priority=2,
+        runtime_synthetic=True,
         requirement=simple_requirement(network_interface=Synthetic()),
     )
     def verify_xdp_synthetic(self, node: Node) -> None:

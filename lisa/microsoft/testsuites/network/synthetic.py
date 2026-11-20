@@ -31,13 +31,14 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max synthetic nics.
+        Verify the synthetic path with the maximum supported NIC count.
 
         Steps,
-        1. Provision VM with max network interfaces with synthetic network.
+        1. Provision max NICs; on Azure, switch to synthetic after deployment.
         2. Check each nic has an ip address.
         """,
         priority=2,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -56,15 +57,16 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max synthetic nics.
+        Verify the synthetic path with the maximum supported NIC count.
 
         Steps,
-        1. Provision VM with max network interfaces with synthetic network.
+        1. Provision max NICs; on Azure, switch to synthetic after deployment.
         2. Check each nic has an ip address.
         3. Reboot VM from guest.
         4. Check each nic has an ip address.
         """,
         priority=2,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -86,15 +88,16 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max synthetic nics.
+        Verify the synthetic path with the maximum supported NIC count.
 
         Steps,
-        1. Provision VM with max network interfaces with synthetic network.
+        1. Provision max NICs; on Azure, switch to synthetic after deployment.
         2. Check each nic has an ip address.
         3. Reboot VM from API.
         4. Check each nic has an ip address.
         """,
         priority=2,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -117,15 +120,16 @@ class Synthetic(TestSuite):
 
     @TestCaseMetadata(
         description="""
-        This case verify VM works well when provison with max synthetic nics.
+        Verify the synthetic path with the maximum supported NIC count.
 
         Steps,
-        1. Provision VM with max network interfaces with synthetic network.
+        1. Provision max NICs; on Azure, switch to synthetic after deployment.
         2. Check each nic has an ip address.
         3. Stop and Start VM from API.
         4. Check each nic has an ip address.
         """,
         priority=2,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -153,12 +157,13 @@ class Synthetic(TestSuite):
          in one time.
 
         Steps,
-        1. Provision VM with 1 network interface with synthetic network.
+        1. Start with one NIC; on Azure, switch to synthetic after deployment.
         2. Add 7 extra network interfaces in one time.
         3. Check each nic has an ip address.
         """,
         priority=2,
         use_new_environment=True,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -177,9 +182,7 @@ class Synthetic(TestSuite):
         try:
             for node in environment.nodes.list():
                 network_interface_feature = node.features[NetworkInterface]
-                network_interface_feature.attach_nics(
-                    extra_nic_count=7, enable_accelerated_networking=False
-                )
+                network_interface_feature.attach_synthetic_nics(extra_nic_count=7)
             initialize_nic_info(environment, is_sriov=False)
         finally:
             restore_extra_nics(environment)
@@ -190,12 +193,13 @@ class Synthetic(TestSuite):
          one by one.
 
         Steps,
-        1. Provision VM with 1 network interface with synthetic network.
+        1. Start with one NIC; on Azure, switch to synthetic after deployment.
         2. Add 7 extra network interfaces one by one.
         3. Check each nic has an ip address.
         """,
         priority=2,
         use_new_environment=True,
+        runtime_synthetic=True,
         requirement=simple_requirement(
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
@@ -215,9 +219,7 @@ class Synthetic(TestSuite):
             for node in environment.nodes.list():
                 network_interface_feature = node.features[NetworkInterface]
                 for _ in range(7):
-                    network_interface_feature.attach_nics(
-                        extra_nic_count=1, enable_accelerated_networking=False
-                    )
+                    network_interface_feature.attach_synthetic_nics(extra_nic_count=1)
                     initialize_nic_info(environment, is_sriov=False)
         finally:
             restore_extra_nics(environment)

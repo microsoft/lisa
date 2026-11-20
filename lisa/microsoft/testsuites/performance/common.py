@@ -457,7 +457,11 @@ def perf_ntttcp(  # noqa: C901
         client_mtu = client_ip.get_mtu(client_nic)
         server_mtu = server_ip.get_mtu(server_nic)
 
-        data_path = get_nic_datapath(client)
+        data_path = (
+            NetworkDataPath.Synthetic.value
+            if test_result.runtime_data.switch_to_synthetic
+            else get_nic_datapath(client)
+        )
         if NetworkDataPath.Sriov.value == data_path:
             if need_reboot:
                 # check sriov count not change after reboot

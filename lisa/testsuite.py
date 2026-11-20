@@ -6,6 +6,7 @@ from __future__ import annotations
 import copy
 import logging
 import traceback
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from functools import wraps
 from pathlib import Path
@@ -19,6 +20,7 @@ from lisa import notifier, schema, search_space
 from lisa.environment import Environment, EnvironmentSpace, EnvironmentStatus
 from lisa.feature import Feature
 from lisa.features import SerialConsole
+from lisa.features.network_interface import NetworkInterface
 from lisa.messages import TestResultMessage, TestStatus, _is_completed_status
 from lisa.operating_system import OperatingSystem, Windows
 from lisa.util import (
@@ -194,7 +196,7 @@ class TestResult:
         environment_platform_type: str = "",
         save_reason: bool = False,
     ) -> bool:
-        requirement = self.runtime_data.metadata.requirement
+        requirement = self.runtime_data.requirement
         assert requirement.environment
 
         check_result = search_space.ResultReason()
@@ -639,10 +641,12 @@ class TestCaseMetadata:
         requirement: Optional[TestCaseRequirement] = None,
         tags: Optional[List[str]] = None,
         maturity: str = "",
+        runtime_synthetic: bool = False,
     ) -> None:
         self.suite: TestSuiteMetadata
 
         self.priority = priority
+        self.runtime_synthetic = runtime_synthetic
         self.description = description
         self.timeout = timeout
         self.use_new_environment = use_new_environment
@@ -699,6 +703,8 @@ class TestCaseMetadata:
 class TestCaseRuntimeData:
     def __init__(self, metadata: TestCaseMetadata):
         self.metadata = metadata
+        self.allow_synthetic_fallback = False
+        self.switch_to_synthetic = False
 
         # all runtime setting fields
         self.select_action: str = ""
@@ -708,6 +714,21 @@ class TestCaseRuntimeData:
         self.use_new_environment: bool = metadata.use_new_environment
         self.ignore_failure: bool = False
         self.environment_name: str = ""
+
+    def resolve_network_requirement(self, platform_type: str) -> None:
+        if platform_type != "azure" or not self.metadata.runtime_synthetic:
+            return
+        # Metadata is shared by all runners, including non-Azure platforms.
+        self.requirement = copy.deepcopy(self.metadata.requirement)
+        assert self.requirement.environment
+        for node in self.requirement.environment.nodes:
+            nic = node.network_interface
+            if not nic or nic.data_path != schema.NetworkDataPath.Synthetic:
+                raise LisaException("runtime_synthetic requires a synthetic NIC")
+            # Expanded multi-node requirements can share a NIC settings object.
+            node.network_interface = copy.copy(nic)
+            node.network_interface.data_path = schema.NetworkDataPath.Sriov
+        self.switch_to_synthetic = True
 
     def __getattr__(self, key: str) -> Any:
         # return attributes of metadata for convenient
@@ -942,11 +963,24 @@ class TestSuite:
         test_method = getattr(self, case_name)
 
         try:
-            _call_with_timeout(
-                test_method,
-                timeout=timeout,
-                test_kwargs=test_kwargs,
-            )
+            if case_result.runtime_data.metadata.runtime_synthetic:
+                case_result.information["synthetic_network_mode"] = (
+                    "runtime_fallback"
+                    if case_result.runtime_data.switch_to_synthetic
+                    else "native"
+                )
+            with ExitStack() as stack:
+                if case_result.runtime_data.switch_to_synthetic:
+                    assert case_result.environment
+                    for node in case_result.environment.nodes.list():
+                        stack.enter_context(
+                            node.features[NetworkInterface].synthetic_path()
+                        )
+                _call_with_timeout(
+                    test_method,
+                    timeout=timeout,
+                    test_kwargs=test_kwargs,
+                )
             if case_result.environment is not None:
                 nodes = case_result.environment.nodes
                 for node in nodes.list():
