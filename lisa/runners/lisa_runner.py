@@ -396,6 +396,9 @@ class LisaRunner(BaseRunner):
         test_result: Optional[TestResult] = None
         try:
             test_result = test_results[0]
+            requirement = test_result.runtime_data.metadata.requirement
+            if not requirement.remote_connection_required:
+                environment.source_test_result = test_result
             test_result.subscribe_log(environment.log)
             try:
                 # Attempt to deploy the environment
@@ -484,11 +487,9 @@ class LisaRunner(BaseRunner):
         test_suite: TestSuite = suite_metadata.test_class(
             suite_metadata,
         )
-        # if a test case runs on a deployed environment, the environment will be
-        # connected after it's initialized. It breaks the flow, so the
-        # transformers are in the connected phase will be ignored. So mark this
-        # kind of environment is dirty to prevent it run other test cases.
-        was_connected = environment.status == EnvironmentStatus.Connected
+        # Deployed-only suites may opt into reuse if they restore guest state.
+        # Other deployed tests retain their existing teardown behavior because
+        # connecting inside a case bypasses the connected-phase transformers.
         if (
             environment.status == EnvironmentStatus.Deployed
             and not suite_metadata.reuse_deployed_environment
@@ -502,15 +503,15 @@ class LisaRunner(BaseRunner):
             # parent as used as well.
             environment.is_new = False
 
+        was_connected = tested_environment.status == EnvironmentStatus.Connected
         test_suite.start(
             environment=tested_environment,
             case_results=test_results,
             case_variables=case_variables,
         )
-        if (
-            suite_metadata.reuse_deployed_environment
-            and not was_connected
-            and environment.status == EnvironmentStatus.Connected
+        if not was_connected and (
+            tested_environment.status == EnvironmentStatus.Connected
+            or any(node._is_initialized for node in tested_environment.nodes.list())
         ):
             environment.mark_dirty()
         # release environment reference to optimize memory.
@@ -522,9 +523,12 @@ class LisaRunner(BaseRunner):
         tested_environment.nodes.close()
         # Try to connect node(s), if cannot access node(s) of this environment,
         # set the current environment as Bad. So that this environment won't be reused.
+        # Cases that explicitly opt out of remote connections use control-plane
+        # operations instead. Preserve the existing check for the default True.
         if (
-            (was_connected or not suite_metadata.reuse_deployed_environment)
+            was_connected
             and not is_unittest()
+            and test_result.runtime_data.metadata.requirement.remote_connection_required
             and not tested_environment.nodes.test_connections()
         ):
             environment.status = EnvironmentStatus.Bad

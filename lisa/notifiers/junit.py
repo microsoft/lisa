@@ -48,6 +48,8 @@ class _TestCaseInfo:
         self.last_seen_timestamp: float = 0.0
         self.subtest_total_elapsed: float = 0.0
         self.pending_result: Optional[ET.Element] = None
+        self.completed_result: Optional[ET.Element] = None
+        self.attempt_started: bool = False
 
 
 # Outputs tests results in JUnit format.
@@ -202,6 +204,7 @@ class JUnit(Notifier):
         if message.id_ not in self._testcases_info:
             self._set_test_case_info(message)
         testcase_info = self._testcases_info[message.id_]
+        testcase_info.attempt_started = True
         self._remove_pending_result(testcase_info)
         if message.status == TestStatus.RUNNING:
             testcase_info.subtest_total_elapsed = 0.0
@@ -266,11 +269,44 @@ class JUnit(Notifier):
         # Calculate total time spent in test case that was not spent in a sub-test case.
         elapsed = message.elapsed - testcase_info.subtest_total_elapsed
 
-        # Add test case result.
-        self._add_test_case_result(
-            message, message.suite_full_name, message.suite_full_name, elapsed
-        )
+        if (
+            testcase_info.completed_result is not None
+            and not testcase_info.attempt_started
+        ):
+            testcase_info.completed_result = self._replace_test_case_result(
+                testcase_info.completed_result,
+                message,
+                message.suite_full_name,
+                message.suite_full_name,
+                elapsed,
+            )
+        else:
+            testcase_info.completed_result = self._add_test_case_result(
+                message, message.suite_full_name, message.suite_full_name, elapsed
+            )
+            testcase_info.attempt_started = False
         self._write_results()
+
+    def _replace_test_case_result(
+        self,
+        previous_result: ET.Element,
+        message: TestResultMessage,
+        suite_full_name: str,
+        class_name: str,
+        elapsed: float,
+    ) -> ET.Element:
+        testsuite_info = self._testsuites_info[suite_full_name]
+        index = list(testsuite_info.xml).index(previous_result)
+        testsuite_info.xml.remove(previous_result)
+        testsuite_info.test_count -= 1
+        if previous_result.find("failure") is not None:
+            testsuite_info.failed_count -= 1
+        replacement = self._add_test_case_result(
+            message, suite_full_name, class_name, elapsed
+        )
+        testsuite_info.xml.remove(replacement)
+        testsuite_info.xml.insert(index, replacement)
+        return replacement
 
     # Sub test case started message.
     def _sub_test_case_running(self, message: SubTestMessage) -> None:

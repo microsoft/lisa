@@ -282,8 +282,9 @@ Windows Runtime Extension Boot Validation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The Windows runtime suites require Azure, ``AzureExtension``, and a Windows
-guest. They are preview, priority-5 installation smoke tests, not VM reboot
-tests. The shared ``_boot_validation()`` helper verifies provisioning, checks
+guest. They are preview, priority-5 tests. Except for domain join (below),
+they are installation smoke tests, not VM reboot tests.
+The shared ``_boot_validation()`` helper verifies provisioning, checks
 the installed candidate version when a full version is requested, checks VM
 reachability, and removes the extension even when validation fails.
 
@@ -300,6 +301,106 @@ reachability, and removes the extension even when validation fails.
    * - ``Microsoft.CPlat.Core.RunCommandWindows``
      - ``microsoft_cplat_core_runcommandwindows_boot_validation_test``
      - ``run_command_windows_version``
+   * - ``Microsoft.Compute.JsonADDomainExtension``
+     - ``microsoft_compute_jsonaddomainextension_boot_validation_test``
+     - ``json_ad_domain_version``
+
+JsonADDomainExtension ports the AD domain synthetic's end-to-end scenario
+using only Azure control-plane operations. It does not enable SSH, connect
+to the guest, or require inbound public access. Select a fresh, workgroup-joined
+Windows VM. The test deploys an additional
+``Standard_D2s_v3`` Windows Server 2022 domain controller using the separate
+``runtime_extensions/templates/json_ad_domain_controller.json`` ARM template.
+It creates an AD DS forest, the ``testaccounts`` OU, and a pre-staged account
+for the client. The controller joins the client's existing subnet; only the
+client's DNS configuration changes, not the shared VNet's DNS settings.
+The client interface is selected using its primary NIC's private IP from the
+Azure API, without relying on connection-initialized node context.
+Guest commands run through the separate
+``runtime_extensions/templates/json_ad_domain_run_command.json`` managed
+Run Command template. Script failures fail their ARM deployments.
+
+The runner downloads the synthetic's ``CreateADPDC.zip`` package and uploads
+it and the staging scripts to a temporary, same-region Storage Account using
+its own identity. The separate ``json_ad_domain_storage.json`` ARM template
+disables shared-key authentication and public blob access, and assigns the
+deployment caller ``Storage Blob Data Contributor`` on that account using
+ARM's ``deployer().objectId``. No Microsoft Graph lookup or Graph token is
+required. The controller has
+a system-assigned managed identity with ``Storage Blob Data Reader`` scoped
+to the account. CSE uses ``managedIdentity: {}`` in its protected settings to
+download the private blobs, without storage keys or SAS tokens. Bounded checks
+wait for the storage role assignments to propagate.
+
+The downloaded DSC configuration and its bundled modules run locally through
+managed Run Command. Azure API calls perform any required controller reboots,
+so CSE and Run Command are not interrupted by guest-initiated reboots.
+Generated DSC credential files are restricted to SYSTEM and administrators on
+the temporary controller. The subnet must allow AD/DNS traffic between the
+VMs, access to IMDS and the Azure VM agent endpoints, and HTTPS access to the
+same-region Azure Storage endpoint. The test does not enable default outbound
+Internet access, add a public IP to the controller, or modify subnet routing.
+
+The test installs the requested candidate with ``Options=1``, restarts the
+client through the Azure API, and verifies both domain membership and the
+computer's secure channel through managed Run Command.
+The controller and package storage use
+``get_node_context(node).resource_group_name``, the same client VM resource group
+used by the base extension helpers through ``AzureExtension``. Resource and
+deployment names are unique per case. Overlong Run Command deployment names
+are shortened with a hash suffix to stay within ARM's 64-character limit.
+Their location is explicitly the client's
+region.
+It removes the extension and deletes only this case's controller, disks, NIC,
+storage account, role assignments, and deployment records in cleanup, including
+on failure. It never deletes the resource group, client VM, or sibling resources;
+the environment's lifecycle remains managed by LISA.
+The client is marked dirty for
+environment teardown because handler removal does not undo domain membership
+or DNS changes. The runner needs permission in the client VM resource group to
+deploy storage and role assignments, upload blobs using Entra authentication,
+deploy the controller and its extensions, run managed commands, restart the
+VMs, and attach the controller's NIC to the client's
+subnet. Allow quota for the additional VM and up to two hours for the case.
+Cleanup uses the case's unique deployment operation records to identify its
+resources, including resources from partially failed deployments.
+Cleanup failures are logged without replacing an earlier validation error.
+
+The suite requires a ``Deployed`` environment rather than a ``Connected`` one
+and declares ``azure.enable_ssh: false`` in its node requirement. It reuses the
+base extension install/delete helpers, but not ``_boot_validation()``, which
+requires SSH reachability. The runner also skips its post-case connection
+probe for environments that were not connected before the case.
+Existing Windows tests retain their normal SSH
+bootstrap behavior. For explicitly defined runbook nodes, also set
+``azure.enable_ssh: false`` on the node:
+
+.. code-block:: yaml
+
+   variable:
+     - name: json_ad_domain_version
+       value: "1.3"
+       is_case_visible: true
+     - name: create_public_address
+       value: false
+     - name: use_public_address
+       value: false
+   environment:
+     environments:
+       - nodes:
+           - type: requirement
+             azure:
+               marketplace: MicrosoftWindowsServer WindowsServer 2022-datacenter latest
+               enable_ssh: false
+   testcase:
+     - criteria:
+         name: microsoft_compute_jsonaddomainextension_boot_validation_test
+         maturity: preview
+
+Only the runner needs Internet access to download the Azure quickstart package.
+If network policies block access to same-region Storage endpoints, an approved
+private endpoint or route is still needed; enabling public outbound access is
+not required by this test.
 
 Set the scoped variable for each selected suite, or use ``extension_version``
 to override it. Boot validation requires an explicit two-, three-, or four-part
@@ -630,6 +731,102 @@ When writing extension-specific tests, ask:
    settings, unsupported OS, timeout behavior — these justify dedicated tests.
 4. **Would this test make sense for a different extension?** If yes, it
    probably belongs in the base class, not your suite.
+
+VMAccess functional validation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Select ``VMAccessForLinux`` to run the Linux VMAccess suite:
+
+.. code-block:: yaml
+
+   variable:
+     - name: vmaccess_version
+       value: "1.5"
+       is_case_visible: true
+
+   testcase:
+     - criteria:
+         tags: VMAccessForLinux
+         maturity: [stable, preview]
+       select_action: include
+
+``extension_version`` takes precedence over ``vmaccess_version``. Functional
+cases retain their historical ``1.5`` default when neither is supplied; the
+boot-validation case requires an explicit candidate. A full
+version additionally checks the version actually installed by Azure.
+
+The suite covers:
+
+- New and existing users, password replacement (including checking that the old
+  password no longer matches the shadow hash), passwordless sudo opt-in,
+  empty-password preservation, and
+  preservation of other users' sudo permissions.
+- RSA, SSH2, and certificate-key content, ownership, and permissions.
+- Removal, missing credentials with provisioning keys excluded, missing
+  usernames, malformed credentials, conflicting operations,
+  system-account protection, and default, future, and past expiration.
+- SSH configuration reset, firewall recovery, backup restoration (including
+  missing-backup fallback).
+
+All 15 cases reuse a VM serially. Before each case the suite snapshots the
+SSH configuration, provisioning metadata, agent sudoers file, and available
+iptables rules. Cleanup removes test accounts and their new groups, restores
+the snapshot, restarts the SSH service locally, and removes both extensions.
+The snapshot also fingerprints existing local account records in ``passwd``,
+``shadow``, ``group``, and ``gshadow`` (when present). After test-account cleanup,
+any change to existing passwords, account attributes, or group membership
+causes cleanup to fail and marks the VM dirty rather than reusing it. Account
+records and password hashes are not returned to the runner or logged.
+A cleanup failure marks the VM dirty so it cannot be reused. A healthy full
+run therefore needs one reusable VM.
+If setup fails before creating a snapshot, the test body does not run and
+case cleanup is skipped. A failed snapshot operation still marks the VM dirty;
+an earlier control-plane lookup failure alone does not require replacing it.
+
+The suite accepts a specified resource group with ``deploy: true``: Azure
+deploys new LISA-named VMs there, not pre-existing VMs. ``deploy: false`` and
+``dry_run`` are refused. All cases run at ``EnvironmentStatus.Deployed``.
+``reuse_deployed_environment=True`` on the suite metadata explicitly permits
+reuse while the environment stays deployed; other suites retain their
+existing teardown behavior. A VM connected or directly initialized through a
+node inside a case is still discarded, even if the case closes the connection
+before returning without advancing the environment to ``Connected``.
+Guest setup and validation use the Linux Custom Script extension with protected,
+inline scripts; there are no runner-to-guest or localhost SSH connections and no
+SSH key file is required on the runner. Password checks compare against the
+shadow hash, expiration checks inspect account policy, and public-key checks
+inspect authorized keys and their permissions. These do not prove SSH/PAM
+authentication. Sudo permissions are exercised locally through Custom Script.
+SSH configuration/firewall recovery checks configuration validity and firewall
+rules without connecting to port 22.
+
+Configure the runbook with ``concurrency: 1`` and a dedicated
+``resource_group_name`` (for example, ``lisa-vmaccess-validation``). Select
+the suite as shown above and remove any inherited tier-0 selection. Disable
+public IP creation if inbound guest access is unnecessary. Do not force
+``use_new_environment`` on the entire suite, since that defeats VM reuse.
+
+LISA deletes individual test VMs, NICs, and disks from this specified group;
+the group and shared networking remain. Do not run multiple validation jobs
+concurrently against the same group. Supply ``subscription_id``
+and ``admin_password`` for Azure deployment;
+no inbound guest access is needed. The guest must already provide Python 3,
+libcrypt, sudo, OpenSSL, and OpenSSH key/configuration utilities; validation does
+not download scripts or install packages. The helper is sent inline using Azure's
+protected settings, and each invocation must return a unique completion marker
+through the extension instance view. Both VMAccess and the validation Custom
+Script extension are removed during case cleanup.
+
+When default or Azure CLI credentials report a generic CLI invocation failure,
+LISA retries token acquisition up to three times, waiting five seconds between
+attempts. It keeps the configured identity and normal token-refresh behavior;
+it does not reuse expired tokens. Explicit login, authorization, and tenant
+errors are not retried. A persistent failure is logged and propagated, and
+requires fixing the runner's Azure CLI authentication before rerunning.
+
+Disk checking and repair, key rotation/replay, existing-account expiration
+updates, provisioning-key fallback, and upgrade preservation are not covered
+by this suite.
 
 Coexistence with GenericVmExtension
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
