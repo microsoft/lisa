@@ -12,7 +12,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from azure.core.exceptions import AzureError, HttpResponseError, ResourceNotFoundError
+from azure.core.serialization import NULL
 from azure.mgmt.compute.models import (
+    UserAssignedIdentitiesValue,
     VirtualMachineExtension,
     VirtualMachineIdentity,
     VirtualMachineRunCommand,
@@ -82,6 +84,7 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
         self._policy_path = ""
         self._blobs: List[Any] = []
         self._temporary_roles: List[str] = []
+        self._identity_to_restore: Optional[VirtualMachineIdentity] = None
         self._node: Node = kwargs["node"]
         self._variables: Dict[str, Any] = kwargs["variables"]
         self._publisher = self._resolve_publisher(self._variables)
@@ -96,7 +99,11 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
         self._rg = self._context.resource_group_name
         self._vm_name = self._context.vm_name
         self._vm = self._compute.virtual_machines.get(self._rg, self._vm_name)
-        assert str(self._vm.storage_profile.os_disk.os_type).lower() == "linux"
+        os_type = str(self._vm.storage_profile.os_disk.os_type)
+        if os_type.lower() != "linux":
+            raise SkippedException(
+                f"Custom Script validation requires Linux; VM OS type is {os_type}."
+            )
         self._version = self._get_version(self._variables)
         self._root = f"/var/tmp/lisa-cse-{uuid.uuid4().hex}"
         self._resource_client = get_resource_management_client(
@@ -155,10 +162,19 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
                 for blob in self._blobs:
                     blob.delete_blob()
             finally:
-                for role in self._temporary_roles:
-                    self._resource_client.resources.begin_delete_by_id(
-                        role, _ROLE_API
-                    ).result()
+                try:
+                    for role in self._temporary_roles:
+                        self._resource_client.resources.begin_delete_by_id(
+                            role, _ROLE_API
+                        ).result()
+                finally:
+                    if self._identity_to_restore is not None:
+                        self._compute.virtual_machines.begin_update(
+                            self._rg,
+                            self._vm_name,
+                            VirtualMachineUpdate(identity=self._identity_to_restore),
+                        ).result()
+                        self._identity_to_restore = None
 
     def _guest(self, code: str, timeout: int = 120) -> Dict[str, Any]:
         marker = f"LISA-RC-{uuid.uuid4().hex}:"
@@ -206,6 +222,9 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
         error: Union[str, Tuple[str, ...]] = "",
         force: Optional[str] = None,
     ) -> Tuple[str, str]:
+        install_version, _ = AzureExtension.normalize_type_handler_version(
+            self._version
+        )
         self._log.info(f"Updating CSE: {marker or error}")
         try:
             self._compute.virtual_machine_extensions.begin_create_or_update(
@@ -216,7 +235,7 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
                     location=self._vm.location,
                     publisher=self._publisher,
                     type_properties_type=self._extension_type,
-                    type_handler_version=self._version,
+                    type_handler_version=install_version,
                     auto_upgrade_minor_version=True,
                     force_update_tag=uuid.uuid4().hex if force is None else force,
                     settings=settings or {},
@@ -248,15 +267,19 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
                 or str(status.level).lower() == "error"
                 for status in statuses
             )
-            if not error and state in ("failed", "canceled"):
-                break
-            if handler_failed and (
-                (error and any(item.lower() in message.lower() for item in errors))
-                or (marker and marker in message)
+            if (
+                error
+                and handler_failed
+                and any(item.lower() in message.lower() for item in errors)
             ):
                 break
-            if handler_succeeded and (
-                (marker and marker in message) or (error and state == "succeeded")
+            if (
+                not error
+                and state not in ("failed", "canceled")
+                and handler_succeeded
+                and not handler_failed
+                and marker
+                and marker in message
             ):
                 break
             if time.monotonic() >= deadline:
@@ -618,11 +641,9 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
 
     def _storage(self) -> Tuple[Any, str]:
         account_name = str(
-            self._variables.get(
-                "custom_script_storage_account",
-                get_storage_account_name(
-                    self._platform.subscription_id, self._vm.location
-                ),
+            self._variables.get("custom_script_storage_account")
+            or get_storage_account_name(
+                self._platform.subscription_id, self._vm.location
             )
         )
         container = get_or_create_storage_container(
@@ -696,17 +717,14 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
     )
     def verify_private_script_with_storage_credentials_run(self) -> None:
         account = str(
-            self._variables.get(
-                "custom_script_storage_account",
-                get_storage_account_name(
-                    self._platform.subscription_id, self._vm.location
-                ),
+            self._variables.get("custom_script_storage_account")
+            or get_storage_account_name(
+                self._platform.subscription_id, self._vm.location
             )
         )
         group = str(
-            self._variables.get(
-                "custom_script_storage_resource_group", AZURE_SHARED_RG_NAME
-            )
+            self._variables.get("custom_script_storage_resource_group")
+            or AZURE_SHARED_RG_NAME
         )
         storage = get_storage_client(
             self._platform.credential,
@@ -773,7 +791,7 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
         self._root_created = True
         blob, account, _ = self._private_blob()
         identities = get_managed_service_identity_client(self._platform)
-        assigned: Dict[str, Any] = {}
+        assigned: Dict[str, UserAssignedIdentitiesValue] = {}
         resources = []
         for suffix in ("reader", "denied"):
             name = f"lisa-cse-{self._vm.location}-{suffix}"
@@ -801,10 +819,23 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
                     AZURE_SHARED_RG_NAME, name
                 )
             resources.append(identity)
-            assigned[identity.id] = {}
+            assigned[identity.id] = UserAssignedIdentitiesValue()
         original = self._vm.identity
-        if original and original.user_assigned_identities:
-            assigned.update(original.user_assigned_identities)
+        original_assigned = original.user_assigned_identities if original else None
+        if original_assigned:
+            assigned.update(original_assigned)
+        self._identity_to_restore = VirtualMachineIdentity(
+            type=(original.type or "None") if original else "None",
+            # PATCH requires explicit nulls to detach test-added identities.
+            user_assigned_identities={
+                identity_id: (
+                    UserAssignedIdentitiesValue()
+                    if original_assigned and identity_id in original_assigned
+                    else NULL
+                )
+                for identity_id in assigned
+            },
+        )
         self._compute.virtual_machines.begin_update(
             self._rg,
             self._vm_name,
@@ -817,9 +848,8 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
         ).result()
         vm = self._compute.virtual_machines.get(self._rg, self._vm_name)
         group = str(
-            self._variables.get(
-                "custom_script_storage_resource_group", AZURE_SHARED_RG_NAME
-            )
+            self._variables.get("custom_script_storage_resource_group")
+            or AZURE_SHARED_RG_NAME
         )
         scope = (
             f"/subscriptions/{self._platform.subscription_id}/resourceGroups/{group}"
@@ -954,7 +984,7 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
         allowed["allowedDownloadedScripts"] = ["0" * 64]
         self._policy(json.dumps(allowed))
         self._apply(
-            {"fileUris": [url + "/crlf.sh"], "commandToExecute": blocked},
+            {"fileUris": [url + "/crlf.sh"], "commandToExecute": command},
             error="policy-allowlist failed",
         )
         self._policy("{invalid-json")
@@ -970,7 +1000,11 @@ class CustomScriptTests(VmExtensionTestBase):  # type: ignore[misc]
     @TestCaseMetadata(
         description="Explicit uninstall cleans owned data and reinstall succeeds.",
         priority=5,
-        tags=["microsoft.azure.extensions.customscript"],
+        tags=[
+            "VM_Extension",
+            "CustomScript",
+            "microsoft.azure.extensions.customscript",
+        ],
         maturity="preview",
     )
     def microsoft_azure_extensions_customscript_boot_validation_test(self) -> None:

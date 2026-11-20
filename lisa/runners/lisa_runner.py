@@ -514,7 +514,10 @@ class LisaRunner(BaseRunner):
             and not was_connected
             and (
                 environment.status == EnvironmentStatus.Connected
-                or any(node.is_connected for node in tested_environment.nodes.list())
+                or any(
+                    node._is_initialized or node.is_connected
+                    for node in tested_environment.nodes.list()
+                )
             )
         ):
             environment.mark_dirty()

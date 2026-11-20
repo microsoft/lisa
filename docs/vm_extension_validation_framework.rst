@@ -187,13 +187,17 @@ Run the serial, private-VM runbook with:
    python -m lisa -r .\lisa\microsoft\runbook\custom_script.yml
 
 Pass normal Azure subscription/authentication variables as required by
-``azure.yml``. Override ``custom_script_version`` to select a candidate. A full
-patch version is checked against the installed handler. The guest must already
-have Python 3 and a functioning Azure Linux Agent.
+``azure.yml``. Override ``custom_script_version`` to select a candidate. Deployment
+uses ``Major.Minor``; a full three- or four-component requested version is retained
+and checked against the installed handler. The guest must already
+have Python 3 and a functioning Azure Linux Agent. Non-Linux images are skipped
+using the Azure VM OS type, without connecting to the guest.
 
 The suite opts into ``reuse_deployed_environment`` and never initializes a
 guest SSH connection. This opt-in preserves deployed-only environments between
-cases, provided a case does not connect them internally. Keep concurrency at
+cases, provided a case does not connect or initialize their nodes internally.
+Closing a connection does not make an initialized environment reusable because
+the connected-phase transformers were bypassed. Keep concurrency at
 one, as in this runbook, and do not request new environments per case. One
 Linux VM and one CSE resource are reused; an existing CSE resource is adopted.
 Only the explicit uninstall/reinstall case deletes the extension. Other
@@ -227,7 +231,9 @@ enumerating settings/policy matrices:
   identity selected by client/object ID, and an identity without blob-read
   permission.
 * Runtime-policy command/hash allow and deny paths, policy removal, and
-  exactly one invalid-JSON policy fallback case. A handler lacking policy
+  exactly one invalid-JSON policy fallback case. Each denial violates only its
+  targeted rule, keeping the command allowed when testing hash enforcement.
+  A handler lacking policy
   support is explicitly skipped; select a policy-capable candidate to cover
   these paths. Inline-policy/signature matrices are intentionally omitted.
 * Extension-owned data removal on uninstall, preservation of unrelated
@@ -238,7 +244,9 @@ After the Azure update operation completes, validation uses handler
 instance-view success/failure and fresh script output. ARM can continue to
 report ``Updating`` after the handler has finished; that state alone does not
 fail a case. Missing or stale handler results are refreshed for up to 30 seconds
-using read-only checks, without rerunning the script. Positive checks still
+using read-only checks, without rerunning the script. Previous success or
+failed/canceled resource states do not end polling before the expected handler
+diagnostic or fresh successful marker appears. Positive checks still
 reject terminal ARM failures and failed handler statuses.
 Negative checks require handler errors, not unrelated ARM/authentication
 failures. Managed Run Command is used only for independent setup, loopback
@@ -251,7 +259,10 @@ The suite reuses LISA's shared regional storage account and creates a private
 Key. The Shared Key case is skipped if that authentication method is disabled;
 an existing permitted account can be selected with
 ``custom_script_storage_account`` and
-``custom_script_storage_resource_group``.
+``custom_script_storage_resource_group``. Both options are case-visible in
+``custom_script.yml`` and accept ordinary command-line overrides. Leaving
+either option empty uses its shared default: the regional storage account
+or ``lisa_shared_resource``, respectively.
 
 The caller needs VM/extension/managed-Run-Command permissions, Storage Blob
 Data Contributor on the fixture container or account, storage-account-scoped
@@ -271,7 +282,10 @@ Azure Policy can apply ``isolationScope`` restrictions without changing the
 subscription's policy. These identities, the reader role and the empty
 container deliberately remain after a run. System-assigned identity is
 VM-scoped and cannot outlive its VM; its test-created reader assignment is
-removed after the case. Readiness is checked before testing CSE; propagation
+removed after the case. Cleanup restores the VM's original identity type and
+user-assigned identity attachments, including after a case or fixture-cleanup
+failure. The reusable identity resources and persistent reader role remain.
+Readiness is checked before testing CSE; propagation
 can wait up to five minutes, with immediate continuation when access works.
 
 No duplicate settings/extension scenarios, command timeout tests, exhaustive

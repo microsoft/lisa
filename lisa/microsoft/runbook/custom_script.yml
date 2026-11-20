@@ -11,6 +11,12 @@ variable:
   - name: custom_script_version
     value: "2.1"
     is_case_visible: true
+  - name: custom_script_storage_account
+    value: ""
+    is_case_visible: true
+  - name: custom_script_storage_resource_group
+    value: ""
+    is_case_visible: true
   - name: marketplace_image
     value: "canonical 0001-com-ubuntu-server-jammy 22_04-lts-gen2 latest"
   - name: use_public_address
