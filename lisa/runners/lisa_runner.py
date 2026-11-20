@@ -510,7 +510,10 @@ class LisaRunner(BaseRunner):
         if (
             suite_metadata.reuse_deployed_environment
             and not was_connected
-            and environment.status == EnvironmentStatus.Connected
+            and (
+                environment.status == EnvironmentStatus.Connected
+                or any(node.is_connected for node in tested_environment.nodes.list())
+            )
         ):
             environment.mark_dirty()
         # release environment reference to optimize memory.
