@@ -498,7 +498,7 @@ class DpdkTestpmd(Tool):
         # the format is --vdev=(bus_address),mac=...,mac=...
         # as opposed to the multiple --vdev arguments
         # for non-vport setups.
-        if pmd == Pmd.MANA:
+        if pmd == Pmd.MANA or (self.is_mana and pmd == Pmd.NETVSC and len(nics) > 1):
             # nics which share a bus address (i.e. MANA vports) have to be
             # declared as one vdev with every mac listed on it.
             bus_to_mac: Dict[str, List[str]] = {}
@@ -507,6 +507,9 @@ class DpdkTestpmd(Tool):
             for bus, macs in bus_to_mac.items():
                 mac_fmt = [f"mac={m}" for m in macs]
                 nic_include_infos += [f"--vdev={bus}," + ",".join(mac_fmt)]
+            if pmd == Pmd.NETVSC:
+                include_flag = self._get_testpmd_include_flag()
+                nic_include_infos += [f"{include_flag} {nic.dev_uuid}" for nic in nics]
         else:
             for node_nic in nics:
                 nic_include_infos.append(
@@ -532,14 +535,7 @@ class DpdkTestpmd(Tool):
         # there is 1 shared bus address (MANA)
         # NOTE: I keep running into weird special cases of this.
         # 21.11 on ubuntu has -a even though 20.11+ shouldn't...
-        help_output = self.node.execute(
-            f"{self.command} --help", no_debug_log=True, no_info_log=True
-        )
-        allow_flag = "-a, --allow" in (help_output.stderr + help_output.stdout)
-        if allow_flag:
-            include_flag = "-a"
-        else:
-            include_flag = "-w"
+        include_flag = self._get_testpmd_include_flag()
 
         if self.is_mana:
             # MANA vports share one bus address, so the vmbus device uuid
@@ -579,6 +575,14 @@ class DpdkTestpmd(Tool):
             pmd_name = "net_vdev_netvsc"
             pmd_flags = f"iface={node_nic.name},force=1"
         return f'--vdev="{pmd_name}{vdev_id},{pmd_flags}" ' + include_flag
+
+    def _get_testpmd_include_flag(self) -> str:
+        help_output = self.node.execute(
+            f"{self.command} --help", no_debug_log=True, no_info_log=True
+        )
+        return (
+            "-a" if "-a, --allow" in help_output.stderr + help_output.stdout else "-w"
+        )
 
     def generate_testpmd_command(
         self,
@@ -801,6 +805,56 @@ cores=1-4
         self._check_for_shutdown_statistics(result)
         self.populate_performance_data()
         return result.stdout
+
+    def check_port_traffic(self, port_ids: List[int], direction: str) -> None:
+        port_packets: Dict[int, int] = {}
+        for match in re.finditer(
+            r"Forward statistics for port\s+(\d+)\s+-+\s*"
+            r"(.*?)(?=-{2,}\s*(?:Forward statistics|Accumulated)|\Z)",
+            self._last_run_output,
+            re.DOTALL,
+        ):
+            packets = re.search(rf"{direction}-packets:\s+(\d+)", match[2])
+            if packets:
+                port_packets[int(match[1])] = int(packets[1])
+        assert_that(set(port_packets)).described_as(
+            f"Expected {direction} statistics for every selected DPDK port."
+        ).is_equal_to(set(port_ids))
+        for port_id, packet_count in port_packets.items():
+            assert_that(packet_count).described_as(
+                f"DPDK port {port_id} must have {direction} traffic."
+            ).is_greater_than(0)
+
+    def get_port_throughput(
+        self, port_ids: List[int], direction: str
+    ) -> Dict[int, Tuple[int, int]]:
+        rate_prefix = direction.capitalize()
+        samples: Dict[int, Tuple[List[int], List[int]]] = {
+            port_id: ([], []) for port_id in port_ids
+        }
+        for match in re.finditer(
+            r"NIC statistics for port\s+(\d+)\s*#+(.*?)#{20,}",
+            self._last_run_output,
+            re.DOTALL,
+        ):
+            port_id = int(match[1])
+            rates = re.search(
+                rf"{rate_prefix}-pps:\s+(\d+)\s+{rate_prefix}-bps:\s+(\d+)",
+                match[2],
+            )
+            if port_id in samples and rates:
+                samples[port_id][0].append(int(rates[1]))
+                samples[port_id][1].append(int(rates[2]))
+        throughput: Dict[int, Tuple[int, int]] = {}
+        for port_id, (pps, bps) in samples.items():
+            assert_that(pps).described_as(
+                f"Expected {direction} rate samples for DPDK port {port_id}."
+            ).is_not_empty()
+            throughput[port_id] = (
+                _mean(_discard_first_and_last_sample(_discard_first_zeroes(pps))),
+                _mean(_discard_first_and_last_sample(_discard_first_zeroes(bps))),
+            )
+        return throughput
 
     def check_testpmd_is_running(
         self, tries: int = 10, want_dead: bool = False

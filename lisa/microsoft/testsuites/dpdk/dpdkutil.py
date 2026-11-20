@@ -681,6 +681,56 @@ def generate_testpmd_multiple_port_command(
     return kit_cmd_pairs
 
 
+def generate_max_port_run_info(
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+) -> Tuple[Dict[DpdkTestResources, str], Dict[DpdkTestResources, List[int]]]:
+    commands: Dict[DpdkTestResources, str] = {}
+    port_ids: Dict[DpdkTestResources, List[int]] = {}
+    for kit, mode in [(sender, "txonly"), (receiver, "rxonly")]:
+        # if kit is sender and len(kit.test_nics) > 1:
+        #     help_result = kit.node.execute(f"{kit.testpmd.command} -- --help")
+        #     if "--tx-ip=[port:]src,dst" not in help_result.stdout + help_result.stderr:
+        #         raise SkippedException(
+        #             "Max-ports send/receive requires testpmd support for "
+        #             "--tx-ip=[port:]src,dst to address each NIC's subnet."
+        #         )
+        nic_args = " ".join(
+            kit.testpmd.generate_testpmd_include(kit.test_nics, 0, Pmd.NETVSC)
+        )
+        devname = DpdkDevnameInfo(kit.testpmd)
+        devname.get_port_info(
+            kit.test_nics, expect_ports=len(kit.test_nics), nic_args=nic_args
+        )
+        expected_macs = {nic.mac_addr.lower() for nic in kit.test_nics}
+        assert_that(set(devname.port_ids)).described_as(
+            "DPDK must expose exactly the selected data NICs, excluding NIC0."
+        ).is_equal_to(expected_macs)
+        port_ids[kit] = [
+            devname.port_ids[nic.mac_addr.lower()] for nic in kit.test_nics
+        ]
+        extra_args = "--port-topology=loop --portlist=" + ",".join(
+            str(port_id) for port_id in port_ids[kit]
+        )
+        if kit is sender:
+            for nic, peer in zip(kit.test_nics, receiver.test_nics):
+                port_id = devname.port_ids[nic.mac_addr.lower()]
+                prefix = f"{port_id}:" if len(kit.test_nics) > 1 else ""
+                extra_args += (
+                    f" --tx-ip={prefix}{nic.ip_addr},{peer.ip_addr}"
+                    f" --eth-peer={port_id},{peer.mac_addr}"
+                )
+        commands[kit] = kit.testpmd.generate_testpmd_command(
+            kit.test_nics,
+            0,
+            mode,
+            pmd=Pmd.NETVSC,
+            extra_args=extra_args,
+            queues=1,
+        )
+    return commands, port_ids
+
+
 UIO_HV_GENERIC_SYSFS_PATH = "/sys/bus/vmbus/drivers/uio_hv_generic"
 HV_NETVSC_SYSFS_PATH = "/sys/bus/vmbus/drivers/hv_netvsc"
 
@@ -1188,6 +1238,30 @@ def verify_dpdk_build(
     return test_kit
 
 
+def _get_max_port_pairings(environment: Environment) -> Dict[Node, List[NicInfo]]:
+    nodes = list(environment.nodes.list())
+    assert_that(len(nodes)).is_equal_to(2)
+    pairings: Dict[Node, List[NicInfo]] = {node: [] for node in nodes}
+    nics_by_subnet = _get_test_nics_by_subnet(nodes)
+    for subnet in sorted(nics_by_subnet):
+        pair = nics_by_subnet[subnet]
+        primary = [
+            pair[node].name == node.nics.get_primary_nic().name for node in nodes
+        ]
+        if any(primary):
+            assert_that(all(primary)).described_as(
+                "NIC0 must be on the same management subnet on both nodes."
+            ).is_true()
+            continue
+        for node in nodes:
+            pairings[node].append(pair[node])
+    for node in nodes:
+        assert_that(len(pairings[node])).described_as(
+            f"{node.name} must use every NIC except NIC0."
+        ).is_equal_to(len(node.nics) - 1).is_greater_than(0)
+    return pairings
+
+
 def verify_dpdk_send_receive(
     environment: Environment,
     log: Logger,
@@ -1201,7 +1275,10 @@ def verify_dpdk_send_receive(
     set_mtu: int = 0,
     check_sender_packet_drops: bool = False,
     grading_metric: DpdkGradeMetric = DpdkGradeMetric.PPS,
+    use_all_ports: bool = False,
 ) -> Tuple[DpdkTestResources, DpdkTestResources]:
+    assert not use_all_ports or (pmd == Pmd.NETVSC and queues == 1 and not set_mtu)
+    specific_pairings = _get_max_port_pairings(environment) if use_all_ports else None
     should_grade_drops = True
     external_ips = []
     for node in environment.nodes.list():
@@ -1209,7 +1286,8 @@ def verify_dpdk_send_receive(
         # core per queue, plus service cores, plus 1 reserved for the OS)
         # can't each get a dedicated physical core; SMT siblings and
         # oversubscription cause drops unrelated to the NIC/driver.
-        required_cores = queues + use_service_cores + 1
+        port_count = len(specific_pairings[node]) if specific_pairings else 1
+        required_cores = queues * port_count + use_service_cores + 1
         physical_cores = node.tools[Lscpu].get_core_count()
         if physical_cores < required_cores:
             log.info(
@@ -1243,6 +1321,8 @@ def verify_dpdk_send_receive(
         pmd,
         hugepage_size=hugepage_size,
         cleanup_manager=cleanup_manager,
+        sample_apps=["devname"] if use_all_ports else None,
+        specific_pairings=specific_pairings,
     )
     for test_kit in test_kits:
         cleanup_manager.register(
@@ -1258,14 +1338,19 @@ def verify_dpdk_send_receive(
     if result is not None:
         annotate_dpdk_test_result(test_kit=sender, test_result=result, log=log)
 
-    kit_cmd_pairs = generate_send_receive_run_info(
-        pmd,
-        sender,
-        receiver,
-        use_service_cores=use_service_cores,
-        queues=queues,
-        set_mtu=set_mtu,
-    )
+    port_ids: Dict[DpdkTestResources, List[int]] = {}
+    if use_all_ports:
+        kit_cmd_pairs, port_ids = generate_max_port_run_info(sender, receiver)
+        log.info(f"Using all {len(sender.test_nics)} data NICs per VM, excluding NIC0.")
+    else:
+        kit_cmd_pairs = generate_send_receive_run_info(
+            pmd,
+            sender,
+            receiver,
+            use_service_cores=use_service_cores,
+            queues=queues,
+            set_mtu=set_mtu,
+        )
     receive_timeout = kill_timeout + 10
     receive_process = receiver.node.tools[Timeout].start_with_timeout(
         kit_cmd_pairs[receiver],
@@ -1299,6 +1384,11 @@ def verify_dpdk_send_receive(
         check_result_for_segfault(res, f"testpmd {label}")
     results[sender] = sender.testpmd.process_testpmd_output(send_result)
     results[receiver] = receiver.testpmd.process_testpmd_output(receive_result)
+    port_results = (
+        _get_max_port_results(sender, receiver, port_ids, result)
+        if use_all_ports
+        else []
+    )
 
     # helpful to have the outputs labeled
     log.debug(f"\nSENDER:\n{results[sender]}")
@@ -1331,7 +1421,8 @@ def verify_dpdk_send_receive(
         # so just annotate test result if it's available
         # a test crashing because of no data or dpdk failing to start
         # will still result in a fail.
-        if result:
+        # max-ports results already annotated the summed per-port totals.
+        if result and not use_all_ports:
             result.information["tx_gbps"] = sender_gbps
             result.information["rx_gbps"] = receiver_gbps
     else:
@@ -1349,7 +1440,89 @@ def verify_dpdk_send_receive(
     # annotate the amount of dropped packets on the receiver
     annotate_packet_drops(log, result, receiver)
 
+    _log_port_results(log, port_results)
+
     return sender, receiver
+
+
+def _log_port_results(log: Logger, port_results: List[str]) -> None:
+    if port_results:
+        log.info("\n".join(port_results))
+
+
+def _get_max_port_results(
+    sender: DpdkTestResources,
+    receiver: DpdkTestResources,
+    port_ids: Mapping[DpdkTestResources, List[int]],
+    result: Optional[TestResult],
+) -> List[str]:
+    sender.testpmd.check_port_traffic(port_ids[sender], "TX")
+    receiver.testpmd.check_port_traffic(port_ids[receiver], "RX")
+    throughputs = {
+        (role, direction): kit.testpmd.get_port_throughput(port_ids[kit], direction)
+        for role, direction, kit in [
+            ("sender", "TX", sender),
+            ("receiver", "RX", receiver),
+        ]
+    }
+    if result is not None:
+        result.information["dpdk_port_results"] = {
+            f"{role}_{direction.lower()}": port_throughput_information(throughput)
+            for (role, direction), throughput in throughputs.items()
+        }
+        for (_, direction), throughput in throughputs.items():
+            total_pps, total_bps = _port_throughput_totals(throughput)
+            result.information[f"{direction.lower()}_gbps"] = round(total_bps / 1e9, 1)
+            result.information[f"{direction.lower()}_mpps"] = round(total_pps / 1e6, 1)
+    return [
+        format_port_throughput(role, direction, throughput)
+        for (role, direction), throughput in throughputs.items()
+    ]
+
+
+def format_rate(value: float, unit: str) -> str:
+    prefixes = ["", "K", "M", "G", "T"]
+    index = 0
+    while index < len(prefixes) - 1 and round(value, 1 if value < 100 else 0) >= 1000:
+        value /= 1000
+        index += 1
+    precision = 1 if value < 100 else 0
+    return f"{value:.{precision}f} {prefixes[index]}{unit}"
+
+
+def _port_throughput_totals(
+    throughput: Mapping[int, Tuple[int, int]]
+) -> Tuple[int, int]:
+    return (
+        sum(pps for pps, _ in throughput.values()),
+        sum(bps for _, bps in throughput.values()),
+    )
+
+
+def port_throughput_information(
+    throughput: Mapping[int, Tuple[int, int]]
+) -> Dict[str, Dict[str, str]]:
+    return {
+        f"port_{port_id}": {
+            "pps": format_rate(pps, "pps"),
+            "bps": format_rate(bps, "bps"),
+        }
+        for port_id, (pps, bps) in throughput.items()
+    }
+
+
+def format_port_throughput(
+    role: str, direction: str, throughput: Mapping[int, Tuple[int, int]]
+) -> str:
+    stats = [
+        f"port {port_id}: {format_rate(pps, 'pps')} / {format_rate(bps, 'bps')}"
+        for port_id, (pps, bps) in throughput.items()
+    ]
+    total_pps, total_bps = _port_throughput_totals(throughput)
+    stats.append(
+        f"total: {format_rate(total_pps, 'pps')} / {format_rate(total_bps, 'bps')}"
+    )
+    return f"DPDK {role} {direction} results: " + " | ".join(stats)
 
 
 def annotate_packet_drops(
@@ -2121,13 +2294,18 @@ class DpdkDevnameInfo:
         self._node = testpmd.node
         self._testpmd = testpmd
 
-    def get_port_info(self, nics: List[NicInfo], expect_ports: int = 1) -> str:
+    def get_port_info(
+        self,
+        nics: List[NicInfo],
+        expect_ports: int = 1,
+        nic_args: Optional[str] = None,
+    ) -> str:
         # since we only need this for netvsc, we'll only generate
         # the device inclusion info for netvsc cases.
         # This is needed because the port_ids will change
         # depending on how many NICs are present _and_ enabled
         # by the EAL.
-        if self._node.nics.is_mana_device_present():
+        if nic_args is None and self._node.nics.is_mana_device_present():
             # mana needs a vdev argument of pci info
             # followed by kv pairs for mac addresses.
             # https://doc.dpdk.org/guides/nics/mana.html
@@ -2138,7 +2316,7 @@ class DpdkDevnameInfo:
                 )
                 + '"'
             )
-        else:
+        elif nic_args is None:
             # mlx nics; we get to cheat and just disallow the SSH interface.
             # the driver and EAL handles the rest.
             nic_args = f"-b {self._node.nics.get_primary_nic().pci_slot}"

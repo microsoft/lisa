@@ -1119,6 +1119,48 @@ class Dpdk(TestSuite):
 
     @TestCaseMetadata(
         description="""
+            Provision two VMs with their maximum supported NIC count and run
+            netvsc testpmd on every NIC except NIC0, reserved for SSH.
+            Use one queue and one forwarding core per data port, and verify
+            that every sender port transmits and every receiver port receives.
+            Requires testpmd support for --tx-ip=[port:]src,dst.
+        """,
+        priority=2,
+        maturity="preview",
+        requirement=simple_requirement(
+            min_core_count=3,
+            min_count=2,
+            network_interface=schema.NetworkInterfaceOptionSettings(
+                data_path=schema.NetworkDataPath.Sriov,
+                nic_count=search_space.IntRange(min=2, choose_max_value=True),
+            ),
+            unsupported_features=[Gpu, Infiniband],
+        ),
+    )
+    def verify_dpdk_send_receive_max_ports_netvsc(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        try:
+            verify_dpdk_send_receive(
+                environment,
+                log,
+                variables,
+                Pmd.NETVSC,
+                HugePageSize.HUGE_2MB,
+                self._dpdk_cleanup,
+                result=result,
+                use_all_ports=True,
+                grading_metric=DpdkGradeMetric.BPS,
+            )
+        except UnsupportedPackageVersionException as err:
+            raise SkippedException(err)
+
+    @TestCaseMetadata(
+        description="""
             Tests a basic sender/receiver setup for dpdk netvsc pmd with MTU of
             8k, using 4 rx/tx queues backed by 4 dedicated forwarding cores.
             Sender sends the packets, receiver receives them.
