@@ -139,16 +139,16 @@ class AziHsm(TestSuite):
             f"from '{original_policy}' to '{sha1_policy}' to allow SHA1 "
             "signatures (required by azihsm_api_cpp_tests)."
         )
-        node.execute(
-            f"update-crypto-policies --set {sha1_policy}",
-            sudo=True,
-            shell=True,
-            expected_exit_code=0,
-            expected_exit_code_failure_message=(
-                "Failed to relax the crypto policy to allow SHA1 signatures"
-            ),
-        )
         try:
+            node.execute(
+                f"update-crypto-policies --set {sha1_policy}",
+                sudo=True,
+                shell=True,
+                expected_exit_code=0,
+                expected_exit_code_failure_message=(
+                    "Failed to relax the crypto policy to allow SHA1 signatures"
+                ),
+            )
             yield
         finally:
             log.info(
