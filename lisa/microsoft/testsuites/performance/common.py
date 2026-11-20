@@ -40,6 +40,7 @@ from lisa.tools import (
     Iperf3,
     Kill,
     Lagscope,
+    Lsblk,
     Lscpu,
     Mdadm,
     Netperf,
@@ -132,6 +133,7 @@ def perf_disk(
     ioengine: IoEngine = IoEngine.LIBAIO,
     cwd: Optional[pathlib.PurePath] = None,
     fio_modes: Optional[List[str]] = None,
+    per_disk_jobs: bool = False,
 ) -> None:
     fio_result_list: List[FIOResult] = []
     fio = node.tools[Fio]
@@ -168,6 +170,8 @@ def perf_disk(
                 numjob=numjob,
                 cwd=cwd,
                 ioengine=ioengine,
+                per_file_jobs=per_disk_jobs,
+                offset_increment_mb=size_mb if per_disk_jobs else 0,
             )
             fio_result_list.append(fio_result)
             iodepth = iodepth * 2
@@ -950,10 +954,25 @@ def perf_premium_datadisks(
     assert_that(disk_count).described_as(
         "At least 1 data disk for fio testing."
     ).is_greater_than(0)
-    partition_disks = reset_partitions(node, data_disks)
-    filename = ":".join(partition_disks)
     cpu = node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
+    # Each fio job targets one disk (see perf_disk per_disk_jobs). Cap the
+    # per-job region so all jobs on a disk fit without overlapping.
+    total_jobs = min(thread_count, 256) if ioengine == IoEngine.LIBAIO else thread_count
+    if total_jobs < disk_count:
+        raise SkippedException(
+            f"per-disk fio needs at least one job per data disk: "
+            f"{total_jobs} jobs available for {disk_count} disks"
+        )
+    partition_disks = reset_partitions(node, data_disks)
+    filename = ":".join(partition_disks)
+    jobs_per_disk = (total_jobs + disk_count - 1) // disk_count
+    size_mb = min(
+        8192, _get_min_partition_size_mb(node, partition_disks) // jobs_per_disk
+    )
+    assert_that(size_mb).described_as(
+        f"per-job fio region for {jobs_per_disk} job(s) per data disk"
+    ).is_greater_than(0)
     perf_disk(
         node,
         start_iodepth,
@@ -966,11 +985,18 @@ def perf_premium_datadisks(
         disk_type=disk_type,
         numjob=thread_count,
         block_size=block_size,
-        size_mb=8192,
+        size_mb=size_mb,
         overwrite=True,
         test_result=test_result,
         ioengine=ioengine,
+        per_disk_jobs=True,
     )
+
+
+def _get_min_partition_size_mb(node: Node, partitions: List[str]) -> int:
+    lsblk = node.tools[Lsblk]
+    sizes = [lsblk.get_size_in_bytes(partition) for partition in partitions]
+    return min(sizes) // (1024 * 1024)
 
 
 def perf_resource_disks(
@@ -1043,7 +1069,7 @@ def calculate_middle_average(values: List[Union[float, int]]) -> float:
     return total / (len(values) - 2)
 
 
-@retry(exceptions=AssertionError, tries=30, delay=2)  # type:ignore
+@retry(exceptions=AssertionError, tries=30, delay=2)  # type: ignore
 def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
     node_nic_info = node.nics
     node_nic_info.reload()

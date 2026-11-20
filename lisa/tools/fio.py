@@ -136,7 +136,10 @@ class Fio(Tool):
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
         cwd: Optional[pathlib.PurePath] = None,
+        per_file_jobs: bool = False,
+        offset_increment_mb: int = 0,
     ) -> FIOResult:
+        """Run fio, distributing the total numjob across files in per-file mode."""
         cmd = self._get_command(
             name,
             filename,
@@ -157,6 +160,8 @@ class Fio(Tool):
             verify_fatal,
             verify,
             ioengine,
+            per_file_jobs,
+            offset_increment_mb,
         )
         result = self.run(
             cmd,
@@ -365,23 +370,35 @@ class Fio(Tool):
         verify_fatal: bool = False,
         verify: str = "",
         ioengine: IoEngine = IoEngine.LIBAIO,
+        per_file_jobs: bool = False,
+        offset_increment_mb: int = 0,
     ) -> str:
         if isinstance(self.node.os, BSD):
             ioengine = IoEngine.POSIXAIO
 
         self.ensure_ioengine(ioengine)
 
-        cmd = (
-            f"--ioengine={ioengine.value} --filename={filename} "
-            f"--readwrite={mode} --iodepth={iodepth} "
-            f"--name={name}"
-        )
+        if per_file_jobs:
+            # Global options come first; each "--name" then starts a job that
+            # inherits them and targets a single file. fio stalls writes when one
+            # job round-robins across many block devices, so per-file jobs are
+            # needed to drive multi-disk setups to the VM's IOPS limit.
+            cmd = (
+                f"--ioengine={ioengine.value} "
+                f"--readwrite={mode} --iodepth={iodepth}"
+            )
+        else:
+            cmd = (
+                f"--ioengine={ioengine.value} --filename={filename} "
+                f"--readwrite={mode} --iodepth={iodepth} "
+                f"--name={name}"
+            )
 
         if time:
             cmd += f" --runtime={time}"
         if block_size:
             cmd += f" --bs={block_size}"
-        if numjob:
+        if numjob and not per_file_jobs:
             cmd += f" --numjob={numjob}"
         if direct:
             cmd += " --direct=1"
@@ -389,6 +406,8 @@ class Fio(Tool):
             cmd += " --gtod_reduce=1"
         if size_gb:
             cmd += f" --size={size_gb}M"
+        if offset_increment_mb:
+            cmd += f" --offset_increment={offset_increment_mb}M"
         if group_reporting:
             cmd += " --group_reporting"
         if overwrite:
@@ -406,7 +425,29 @@ class Fio(Tool):
         if verify:
             cmd += f" --verify={verify}"
 
+        if per_file_jobs:
+            files = self._split_filenames(filename)
+            if not files:
+                raise LisaException(
+                    f"no file found in '{filename}' for per-file fio jobs"
+                )
+            if numjob < len(files):
+                raise SkippedException(
+                    f"per-file fio needs at least one job per file: "
+                    f"{numjob} jobs requested for {len(files)} files"
+                )
+            jobs_per_file, remainder = divmod(numjob, len(files))
+            for index, file in enumerate(files):
+                file_jobs = jobs_per_file + (1 if index < remainder else 0)
+                cmd += (
+                    f" --name={name}_{index} --filename={file}" f" --numjob={file_jobs}"
+                )
+
         return cmd
+
+    @staticmethod
+    def _split_filenames(filename: str) -> List[str]:
+        return [file for file in filename.split(":") if file]
 
     def _install_dep_packages(self) -> None:
         posix_os: Posix = cast(Posix, self.node.os)
