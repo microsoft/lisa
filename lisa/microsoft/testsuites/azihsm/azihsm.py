@@ -130,9 +130,7 @@ class AziHsm(TestSuite):
         ).stdout.strip()
 
         sha1_policy = (
-            original_policy
-            if ":SHA1" in original_policy
-            else f"{original_policy}:SHA1"
+            original_policy if ":SHA1" in original_policy else f"{original_policy}:SHA1"
         )
         log.info(
             f"Azure Linux 4.0+ detected: relaxing the system crypto policy "
@@ -151,9 +149,7 @@ class AziHsm(TestSuite):
             )
             yield
         finally:
-            log.info(
-                f"Restoring the original system crypto policy: {original_policy}"
-            )
+            log.info(f"Restoring the original system crypto policy: {original_policy}")
             try:
                 node.execute(
                     f"update-crypto-policies --set {original_policy}",
