@@ -203,6 +203,64 @@ def get_nic_datapath(node: Node) -> str:
     return data_path
 
 
+def get_ntttcp_nic(node: Node, nic_name: Optional[str] = None) -> Tuple[str, str]:
+    """Select packet/interrupt counters for a synthetic, paired, or PCI-only NIC.
+
+    Standalone PCI NICs can be PFs or VFs; neither requires a synthetic pair.
+    Explicit interface names are preserved for passthrough test callers.
+    """
+    requested_name = nic_name or node.nics.default_nic
+    if not requested_name:
+        raise LisaException(
+            f"No default interface on {node.name}; specify an NTTTCP interface"
+        )
+    for nic in node.nics.nics.values():
+        if requested_name in (nic.name, nic.lower):
+            break
+    else:
+        raise LisaException(
+            f"NTTTCP interface {requested_name!r} not found on {node.name}"
+        )
+
+    if nic.is_infiniband:
+        raise LisaException(f"NTTTCP requires an Ethernet NIC, not {requested_name}")
+
+    if get_nic_datapath(node) == NetworkDataPath.Sriov.value:
+        if not nic.is_pci_module_enabled:
+            raise LisaException(
+                f"NTTTCP requires a PCI-backed NIC on {node.name}, "
+                f"but {requested_name} has no enabled PCI datapath"
+            )
+        if not nic_name:
+            requested_name = nic.pci_device_name
+
+    driver = nic.lower_module_name if requested_name == nic.lower else nic.module_name
+    if requested_name == nic.lower or nic.is_pci_only_nic:
+        if not driver:
+            raise LisaException(
+                f"NTTTCP PCI interface {requested_name} on {node.name} "
+                "has no bound driver"
+            )
+        if driver.startswith("mlx"):
+            interrupt_filter = "mlx"
+        elif driver == "mana":
+            interrupt_filter = "mana"
+        else:
+            # IRQ action names are driver-specific, not always the module name.
+            interrupt_filter = ""
+            node.log.warning(
+                f"NTTTCP interrupt counters are unavailable for driver {driver} "
+                f"on {requested_name}; packet counters remain enabled"
+            )
+    else:
+        interrupt_filter = "Hypervisor callback interrupts"
+    node.log.debug(
+        f"NTTTCP interface {requested_name}: driver={driver}, "
+        f"PCI slot={nic.pci_slot}, interrupt filter={interrupt_filter}"
+    )
+    return requested_name, interrupt_filter
+
+
 def cleanup_process(environment: Environment, process_name: str) -> None:
     nodes = environment.nodes.list()
 
@@ -427,14 +485,14 @@ def perf_ntttcp(  # noqa: C901
             set_task_max = True
         else:
             set_task_max = False
-        # collect sriov nic counts before reboot
+        # Count PCI Ethernet interfaces, including standalone PFs and VFs.
         if not udp_mode and set_task_max:
             need_reboot = True
         else:
             need_reboot = False
         if need_reboot:
-            client_sriov_count = len(client.nics.get_pci_nics(exclude_ib=True))
-            server_sriov_count = len(server.nics.get_pci_nics(exclude_ib=True))
+            client_pci_nic_count = len(client.nics.get_pci_nics(exclude_ib=True))
+            server_pci_nic_count = len(server.nics.get_pci_nics(exclude_ib=True))
         client_ntttcp.setup_system(udp_mode, set_task_max)
         # skip_server_task_max: don't reboot the baremetal host (NIC DHCP state lost).
         server_ntttcp.setup_system(udp_mode, set_task_max and not skip_server_task_max)
@@ -443,6 +501,15 @@ def perf_ntttcp(  # noqa: C901
             refreshed_client_nic_name, refreshed_server_nic_name = post_ntttcp_setup()
             client_nic_name = refreshed_client_nic_name or client_nic_name
             server_nic_name = refreshed_server_nic_name or server_nic_name
+        if need_reboot:
+            if client_pci_nic_count or (
+                get_nic_datapath(client) == NetworkDataPath.Sriov.value
+            ):
+                check_sriov_count(client, client_pci_nic_count)
+            if server_pci_nic_count or (
+                get_nic_datapath(server) == NetworkDataPath.Sriov.value
+            ):
+                check_sriov_count(server, server_pci_nic_count)
         for lagscope in [client_lagscope, server_lagscope]:
             lagscope.set_busy_poll()
         client_nic = client.nics.default_nic
@@ -454,39 +521,20 @@ def perf_ntttcp(  # noqa: C901
             # set mtu for default nics
             client_ip.set_mtu(client_nic, mtu)
             server_ip.set_mtu(server_nic, mtu)
-        client_mtu = client_ip.get_mtu(client_nic)
-        server_mtu = server_ip.get_mtu(server_nic)
-
-        data_path = get_nic_datapath(client)
-        if NetworkDataPath.Sriov.value == data_path:
-            if need_reboot:
-                # check sriov count not change after reboot
-                check_sriov_count(client, client_sriov_count)
-                check_sriov_count(server, server_sriov_count)
-            server_nic_name = (
-                server_nic_name
-                if server_nic_name
-                else server.nics.get_primary_nic().pci_device_name
-            )
-
-            client_nic_name = (
-                client_nic_name
-                if client_nic_name
-                else client.nics.get_primary_nic().pci_device_name
-            )
-            dev_differentiator = "mlx"
-            if mtu != 0:
-                # set mtu for AN nics, MTU needs to be set on both AN and non-AN nics
+        server_nic_name, server_dev_differentiator = get_ntttcp_nic(
+            server, server_nic_name
+        )
+        client_nic_name, client_dev_differentiator = get_ntttcp_nic(
+            client, client_nic_name
+        )
+        if mtu != 0:
+            # Paired devices need the MTU applied to both synthetic and PCI NICs.
+            if client_nic_name != client_nic:
                 client_ip.set_mtu(client_nic_name, mtu)
+            if server_nic_name != server_nic:
                 server_ip.set_mtu(server_nic_name, mtu)
-        else:
-            server_nic_name = (
-                server_nic_name if server_nic_name else server.nics.default_nic
-            )
-            client_nic_name = (
-                client_nic_name if client_nic_name else client.nics.default_nic
-            )
-            dev_differentiator = "Hypervisor callback interrupts"
+        client_mtu = client_ip.get_mtu(client_nic_name)
+        server_mtu = server_ip.get_mtu(server_nic_name)
         max_server_threads = 64
         # On large VMs (>64 CPUs) the default 10s ntttcp run is too short for
         # throughput to stabilize across all queues, leading to noisy results.
@@ -564,7 +612,7 @@ def perf_ntttcp(  # noqa: C901
                         ),
                         ports_count=num_threads_p,
                         buffer_size=buffer_size,
-                        dev_differentiator=dev_differentiator,
+                        dev_differentiator=server_dev_differentiator,
                         udp_mode=udp_mode,
                         no_debug_log=True,
                         run_time_seconds=run_time_seconds,
@@ -602,7 +650,7 @@ def perf_ntttcp(  # noqa: C901
                         run_time_seconds=run_time_seconds,
                         cool_down_time_seconds=cool_down_time_seconds,
                         warm_up_time_seconds=warm_up_time_seconds,
-                        dev_differentiator=dev_differentiator,
+                        dev_differentiator=client_dev_differentiator,
                         udp_mode=udp_mode,
                         tolerance_seconds=client_ntttcp_timeout_tolerance_seconds,
                         no_debug_log=True,
@@ -1045,12 +1093,13 @@ def calculate_middle_average(values: List[Union[float, int]]) -> float:
 
 @retry(exceptions=AssertionError, tries=30, delay=2)  # type:ignore
 def check_sriov_count(node: RemoteNode, sriov_count: int) -> None:
+    """Check PCI Ethernet inventory stability, not the number of enabled VFs."""
     node_nic_info = node.nics
     node_nic_info.reload()
 
     pci_nics = node_nic_info.get_pci_nics(exclude_ib=True)
     pci_nic_count = len(pci_nics)
     assert_that(pci_nic_count).described_as(
-        f"VF count inside VM (without IB) is {pci_nic_count}, "
-        f"actual sriov nic count is {sriov_count}. "
+        f"PCI Ethernet NIC count (without IB) on {node.name} is {pci_nic_count}, "
+        f"expected {sriov_count} before setup. PCI interfaces: {pci_nics}. "
     ).is_equal_to(sriov_count)

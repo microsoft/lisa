@@ -6,12 +6,10 @@ import re
 from pathlib import Path, PurePath
 from typing import Dict, List, Type
 
-from smb.SMBConnection import SMBConnection
-
 from lisa import schema
 from lisa.node import quick_connect
 from lisa.tools import Ls, RemoteCopy
-from lisa.util import ContextMixin, InitializableMixin, subclasses
+from lisa.util import ContextMixin, InitializableMixin, LisaException, subclasses
 from lisa.util.logger import get_logger
 
 from .schema import BuildSchema, FileSchema, SMBBuildSchema, TftpBuildSchema
@@ -79,6 +77,14 @@ class SMBBuild(Build):
         password = self.smb_runbook.password
         server_name = self.smb_runbook.server_name
         share_name = self.smb_runbook.share
+
+        try:
+            from smb.SMBConnection import SMBConnection
+        except ModuleNotFoundError as e:
+            raise LisaException(
+                "SMB build requires 'pysmb'. Install baremetal extras or "
+                "run 'python -m pip install pysmb'."
+            ) from e
 
         with SMBConnection(
             username=username,
