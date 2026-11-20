@@ -52,6 +52,7 @@ from .free import Free
 from .fstab import Fstab, FstabEntry
 from .gcc import Gcc
 from .gdb import Gdb
+from .getconf import Getconf
 from .git import Git
 from .gpu_drivers import AmdGpuDriver, GpuDriver, NvidiaCudaDriver, NvidiaGridDriver
 from .gpu_smi import AmdSmi, GpuSmi, NvidiaSmi
@@ -126,6 +127,7 @@ from .remote_copy import RemoteCopy
 from .resize_partition import ResizePartition
 from .rm import Rm
 from .sar import Sar
+from .smaps import Smaps
 from .smb import SmbClient, SmbServer
 from .sockperf import Sockperf
 from .ss import Ss
@@ -205,6 +207,7 @@ __all__ = [
     "FstabEntry",
     "Gcc",
     "Gdb",
+    "Getconf",
     "Git",
     "GpuDriver",
     "GpuSmi",
@@ -296,6 +299,7 @@ __all__ = [
     "Rm",
     "Sar",
     "Sed",
+    "Smaps",
     "Service",
     "ServiceInternal",
     "SmbClient",
