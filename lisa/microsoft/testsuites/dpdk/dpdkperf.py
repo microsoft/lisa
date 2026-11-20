@@ -1,7 +1,11 @@
 from typing import Any, Dict, Tuple, cast
 
 from assertpy import assert_that
-from microsoft.testsuites.dpdk.common import Pmd, force_dpdk_default_source
+from microsoft.testsuites.dpdk.common import (
+    Pmd,
+    check_dpdk_environment,
+    force_dpdk_default_source,
+)
 from microsoft.testsuites.dpdk.dpdkutil import (
     DpdkCleanupManager,
     DpdkTestResources,
@@ -47,6 +51,7 @@ from lisa.util import constants
 class DpdkPerformance(TestSuite):
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         self._dpdk_cleanup = DpdkCleanupManager()
+        check_dpdk_environment(kwargs["environment"])
 
     @TestCaseMetadata(
         description="""

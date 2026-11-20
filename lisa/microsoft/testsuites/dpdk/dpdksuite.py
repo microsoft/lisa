@@ -12,6 +12,7 @@ from microsoft.testsuites.dpdk.common import (
     DpdkGradeMetric,
     PackageManagerInstall,
     Pmd,
+    check_dpdk_environment,
     force_dpdk_default_source,
 )
 from microsoft.testsuites.dpdk.dpdknffgo import DpdkNffGo
@@ -78,9 +79,7 @@ class Dpdk(TestSuite):
 
     def before_case(self, log: Logger, **kwargs: Any) -> None:
         self._dpdk_cleanup = DpdkCleanupManager()
-        node: Node = kwargs["node"]
-        if isinstance(node.os, BSD) or isinstance(node.os, Windows):
-            raise SkippedException(f"{node.os} is not supported.")
+        check_dpdk_environment(kwargs["environment"])
 
     @TestCaseMetadata(
         description="""

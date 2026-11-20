@@ -10,12 +10,21 @@ from assertpy import assert_that
 from semver import VersionInfo
 from urllib3.util.url import parse_url
 
-from lisa import Node
+from lisa import Environment, Node
 from lisa.executable import Tool
-from lisa.operating_system import Debian, Fedora, Oracle, Posix, Suse, Ubuntu
+from lisa.operating_system import (
+    BSD,
+    Debian,
+    Fedora,
+    Oracle,
+    Posix,
+    Suse,
+    Ubuntu,
+    Windows,
+)
 from lisa.tools import Git, Lscpu, Tar, Wget
 from lisa.tools.lscpu import CpuArchitecture
-from lisa.util import UnsupportedDistroException
+from lisa.util import SkippedException, UnsupportedDistroException
 
 DPDK_STABLE_GIT_REPO = "https://github.com/dpdk/dpdk-stable.git"
 
@@ -381,6 +390,12 @@ def is_ubuntu_lts_version(distro: Ubuntu) -> bool:
 # check if it's a lts release outside the initial 2 year lts window
 def ubuntu_needs_backports(os: Ubuntu) -> bool:
     return not is_ubuntu_latest_or_prerelease(os) and is_ubuntu_lts_version(os)
+
+
+def check_dpdk_environment(environment: Environment) -> None:
+    for node in environment.nodes.list():
+        if isinstance(node.os, (BSD, Windows)):
+            raise SkippedException(f"{node.os} is not supported.")
 
 
 def check_dpdk_support(node: Node) -> None:
