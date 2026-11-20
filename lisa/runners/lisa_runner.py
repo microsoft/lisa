@@ -161,7 +161,7 @@ class LisaRunner(BaseRunner):
             self.platform.type_name() == "azure"
             and not self.platform.runbook.guest_enabled
         ):
-            gate = variables_pool.get("runtime_synthetic", False)
+            gate = variables_pool.get("runtime_synthetic", True)
             allow_fallback = to_bool(getattr(gate, "data", gate))
             for result in self.test_results:
                 result.runtime_data.allow_synthetic_fallback = (
