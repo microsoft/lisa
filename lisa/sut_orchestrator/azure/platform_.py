@@ -179,7 +179,9 @@ OSDISK_SIZE_TOO_SMALL_PATTERN = re.compile(
 # newer VM families (v5 and later), so a synthetic-only NIC cannot be used.
 # Azure SKU API doesn't expose this, so detect it from the family name,
 # e.g. standardDDSv5Family, StandardDpdsv7Family.
-AN_MANDATORY_FAMILY_PATTERN = re.compile(r"v(?P<version>\d+)family$", re.IGNORECASE)
+AN_MANDATORY_FAMILY_PATTERN = re.compile(
+    r"^standard.*v(?P<version>\d+)family$", re.IGNORECASE
+)
 AN_MANDATORY_MIN_FAMILY_VERSION = 5
 
 VM_SIZE_FALLBACK_PATTERNS = [
