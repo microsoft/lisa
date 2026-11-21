@@ -214,6 +214,7 @@ class Reboot(Tool):
         self._trigger_reboot()
         self._wait_for_reboot(last_boot_time, time_out, timer)
 
+
 class WindowsReboot(Reboot):
     @property
     def command(self) -> str:
