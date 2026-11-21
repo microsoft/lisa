@@ -117,7 +117,21 @@ class StressNg(Tool):
             cmd += f" --cpu {num_cores} "
 
         cmd += f" --timeout {timeout_in_seconds} "
-        self.run(cmd, force_run=True, timeout=timeout_in_seconds)
+        self.run(
+            cmd,
+            force_run=True,
+            # extra time for stress-ng startup and teardown, so the command is
+            # not killed just as stress-ng finishes its own --timeout.
+            timeout=timeout_in_seconds + 120,
+            expected_exit_code=0,
+            expected_exit_code_failure_message="stress-ng cpu stressor failed",
+        )
+
+    def launch_cpu_async(self, num_cores: int, timeout_in_seconds: int) -> Process:
+        # --cpu N, start N CPU workers; --timeout T, stop after T seconds
+        return self.run_async(
+            f"--cpu {num_cores} --timeout {timeout_in_seconds}", force_run=True
+        )
 
     def launch_cpu_with_metrics(
         self, num_workers: int, timeout_in_seconds: int
