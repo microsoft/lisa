@@ -21,7 +21,8 @@ from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.testsuite import TestResult
 from lisa.tools import Chrony, Dmesg, Lscpu, StressNg
-from lisa.util import LisaException, SkippedException
+from lisa.util import LisaException, SkippedException, check_till_timeout
+from lisa.util.perf_timer import create_timer
 
 
 @TestSuiteMetadata(
@@ -43,6 +44,9 @@ class CpuOversubscription(TestSuite):
     MAX_DURATION_IN_SECONDS = 10800
     # Length of each throughput/steal sampling window.
     DEFAULT_WINDOW_IN_SECONDS = 60
+    # Lower bound so per-window command overhead stays small relative to the
+    # load and many tiny windows cannot push the run past TIMEOUT.
+    MIN_WINDOW_IN_SECONDS = 10
     # Experimental variability guardrails, NOT the contractual performance
     # floors. Below these, a warning is logged; they do not fail the test until
     # a baseline methodology against the base D-series size is agreed. Each is
@@ -52,10 +56,10 @@ class CpuOversubscription(TestSuite):
     A_SERIES_MIN_TO_PEAK_GUARDRAIL = 0.65
     # Used for sizes outside these families, e.g. base D-series baseline runs.
     DEFAULT_MIN_TO_PEAK_GUARDRAIL = DT_MIN_TO_PEAK_GUARDRAIL
-    # e.g. Standard_DT4s_v7, Standard_DT8ads_v7
-    _dt_size_pattern = re.compile(r"^Standard_DT\d+[a-z]*_v7$", re.IGNORECASE)
-    # e.g. Standard_A4s_v3, Standard_A8ds_v3 (not legacy Av2 sizes)
-    _a_series_size_pattern = re.compile(r"^Standard_A\d+[a-z]*_v3$", re.IGNORECASE)
+    # e.g. Standard_DT4s_v7, DT8ads_v7
+    _dt_size_pattern = re.compile(r"^(Standard_)?DT\d+[a-z]*_v7$", re.IGNORECASE)
+    # e.g. Standard_A4s_v3, A8ds_v3 (not legacy Av2 sizes)
+    _a_series_size_pattern = re.compile(r"^(Standard_)?A\d+[a-z]*_v3$", re.IGNORECASE)
     # MAX_DURATION plus room for stress-ng install and the cumulative startup
     # and teardown overhead of launching one stress-ng process per window.
     TIMEOUT = 14400
@@ -212,8 +216,9 @@ class CpuOversubscription(TestSuite):
         migration on oversubscribed hosts can cause clock drift or jumps that
         only show under load.
 
-        Runs back-to-back stress-ng cpu windows on all vCPUs and, between
-        windows, reads chrony's system clock offset and leap status. Fails if
+        Runs one stress-ng cpu load on all vCPUs for the full duration and,
+        while it runs, reads chrony's system clock offset and leap status every
+        window. Fails if
         the offset exceeds a provisional 100 ms bound, chrony loses sync, or the
         kernel logs new clocksource instability messages. Publishes max and p99
         offset as perf metrics.
@@ -238,6 +243,9 @@ class CpuOversubscription(TestSuite):
         thread_count = node.tools[Lscpu].get_thread_count()
         stress_ng = node.tools[StressNg]
         dmesg = node.tools[Dmesg]
+        # Installing chrony changes the image, so later cases need a clean VM.
+        if node.execute("command -v chronyc", shell=True).exit_code != 0:
+            node.mark_dirty()
         chrony = node.tools[Chrony]
 
         try:
@@ -256,16 +264,43 @@ class CpuOversubscription(TestSuite):
             f"starting {duration}s timesync-under-load check on {thread_count} "
             f"vCPUs of node '{node.name}', sampling every {window}s"
         )
-        for index in range(window_count):
-            stress_ng.launch_cpu(num_cores=thread_count, timeout_in_seconds=window)
-            offset, is_synchronized = chrony.get_tracking_status()
-            offsets.append(offset)
-            if not is_synchronized:
-                unsynchronized_samples.append(index + 1)
-            log.debug(
-                f"timesync under load window {index + 1}/{window_count}: "
-                f"offset {offset * 1000:.3f} ms, synchronized {is_synchronized}"
+        stress_process = stress_ng.launch_cpu_async(
+            num_cores=thread_count, timeout_in_seconds=duration
+        )
+        timer = create_timer()
+        try:
+            for index in range(window_count):
+                next_sample_at = (index + 1) * window
+                check_till_timeout(
+                    lambda target=next_sample_at: timer.elapsed(False) >= target,
+                    timeout_message=(
+                        f"waiting for timesync sample {index + 1}/{window_count}"
+                    ),
+                    # bounded by the sample time plus a small scheduling margin
+                    timeout=next_sample_at + 30,
+                )
+                assert_that(stress_process.is_running()).described_as(
+                    "stress-ng exited before the load duration ended, so later "
+                    "samples would not be under load. Check stress-ng output."
+                ).is_true()
+                offset, is_synchronized = chrony.get_tracking_status()
+                offsets.append(offset)
+                if not is_synchronized:
+                    unsynchronized_samples.append(index + 1)
+                log.info(
+                    f"timesync under load sample {index + 1}/{window_count}: "
+                    f"offset {offset * 1000:.3f} ms, "
+                    f"synchronized {is_synchronized}"
+                )
+            stress_process.wait_result(
+                # stress-ng should already be finishing; allow for teardown
+                timeout=120,
+                expected_exit_code=0,
+                expected_exit_code_failure_message="stress-ng cpu stressor failed",
             )
+        finally:
+            if stress_process.is_running():
+                stress_process.kill()
         clock_errors_after = self._get_clocksource_error_lines(dmesg)
 
         max_offset = max(offsets)
@@ -311,8 +346,13 @@ class CpuOversubscription(TestSuite):
         ).is_less_than_or_equal_to(self.PROVISIONAL_MAX_CLOCK_OFFSET_IN_SECONDS)
 
     def _get_min_to_peak_guardrail(self, node: Node) -> float:
-        # Empty on non-Azure platforms, which falls through to the default.
-        vm_size = node.capability.get_extended_runbook(AzureNodeSchema, AZURE).vm_size
+        try:
+            vm_size = node.capability.get_extended_runbook(
+                AzureNodeSchema, AZURE
+            ).vm_size
+        except LisaException:
+            # Non-Azure node with another platform's schema; no size family.
+            return self.DEFAULT_MIN_TO_PEAK_GUARDRAIL
         if self._a_series_size_pattern.match(vm_size):
             return self.A_SERIES_MIN_TO_PEAK_GUARDRAIL
         if self._dt_size_pattern.match(vm_size):
@@ -325,9 +365,14 @@ class CpuOversubscription(TestSuite):
             variables, "cpu_oversub_window", self.DEFAULT_WINDOW_IN_SECONDS
         )
         assert_that(window).described_as(
-            "cpu_oversub_window must be a positive number of seconds no larger "
-            "than cpu_oversub_duration. Fix the runbook variable."
-        ).is_greater_than(0).is_less_than_or_equal_to(duration)
+            f"cpu_oversub_window must be at least {self.MIN_WINDOW_IN_SECONDS} "
+            f"seconds and no larger than cpu_oversub_duration. Fix the runbook "
+            f"variable."
+        ).is_greater_than_or_equal_to(
+            self.MIN_WINDOW_IN_SECONDS
+        ).is_less_than_or_equal_to(
+            duration
+        )
         assert_that(duration % window).described_as(
             "cpu_oversub_duration must be divisible by cpu_oversub_window so "
             "all samples use equal durations. Fix the runbook variables."
