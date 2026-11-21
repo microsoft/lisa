@@ -17,6 +17,8 @@ from lisa import (
 from lisa.base_tools import Cat
 from lisa.messages import MetricRelativity, send_unified_perf_message
 from lisa.operating_system import BSD, Windows
+from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.testsuite import TestResult
 from lisa.tools import Chrony, Dmesg, Lscpu, StressNg
 from lisa.util import LisaException, SkippedException
@@ -41,10 +43,19 @@ class CpuOversubscription(TestSuite):
     MAX_DURATION_IN_SECONDS = 10800
     # Length of each throughput/steal sampling window.
     DEFAULT_WINDOW_IN_SECONDS = 60
-    # Experimental variability guardrail, NOT the contractual 50% performance
-    # floor. Below this, a warning is logged; it does not fail the test until a
-    # baseline methodology against the base D-series size is agreed.
-    PROVISIONAL_MIN_TO_PEAK_RATIO = 0.4
+    # Experimental variability guardrails, NOT the contractual performance
+    # floors. Below these, a warning is logged; they do not fail the test until
+    # a baseline methodology against the base D-series size is agreed. Each is
+    # set below its family's floor to allow for window-to-window jitter:
+    # DTv7/DTav7 floor is 50%, Asv3/Adsv3 floor is 75%.
+    DT_MIN_TO_PEAK_GUARDRAIL = 0.4
+    A_SERIES_MIN_TO_PEAK_GUARDRAIL = 0.65
+    # Used for sizes outside these families, e.g. base D-series baseline runs.
+    DEFAULT_MIN_TO_PEAK_GUARDRAIL = DT_MIN_TO_PEAK_GUARDRAIL
+    # e.g. Standard_DT4s_v7, Standard_DT8ads_v7
+    _dt_size_pattern = re.compile(r"^Standard_DT\d+[a-z]*_v7$", re.IGNORECASE)
+    # e.g. Standard_A4s_v3, Standard_A8ds_v3 (not legacy Av2 sizes)
+    _a_series_size_pattern = re.compile(r"^Standard_A\d+[a-z]*_v3$", re.IGNORECASE)
     # MAX_DURATION plus room for stress-ng install and the cumulative startup
     # and teardown overhead of launching one stress-ng process per window.
     TIMEOUT = 14400
@@ -184,12 +195,13 @@ class CpuOversubscription(TestSuite):
             f"cpu oversubscription summary on '{node.name}' ({thread_count} vCPUs, "
             f"{window_count} x {window}s windows): {metric_summary}"
         )
-        if min_to_peak_ratio < self.PROVISIONAL_MIN_TO_PEAK_RATIO:
+        guardrail = self._get_min_to_peak_guardrail(node)
+        if min_to_peak_ratio < guardrail:
             log.warning(
                 f"cpu oversubscription min-to-peak throughput ratio "
                 f"{min_to_peak_ratio:.2f} "
                 f"on '{node.name}' is below provisional guardrail "
-                f"{self.PROVISIONAL_MIN_TO_PEAK_RATIO}. Compare with a run on the "
+                f"{guardrail}. Compare with a run on the "
                 f"corresponding base D-series size."
             )
 
@@ -297,6 +309,15 @@ class CpuOversubscription(TestSuite):
             "during CPU pressure. Compare with the corresponding base VM size "
             "to tell oversubscription effects from image issues."
         ).is_less_than_or_equal_to(self.PROVISIONAL_MAX_CLOCK_OFFSET_IN_SECONDS)
+
+    def _get_min_to_peak_guardrail(self, node: Node) -> float:
+        # Empty on non-Azure platforms, which falls through to the default.
+        vm_size = node.capability.get_extended_runbook(AzureNodeSchema, AZURE).vm_size
+        if self._a_series_size_pattern.match(vm_size):
+            return self.A_SERIES_MIN_TO_PEAK_GUARDRAIL
+        if self._dt_size_pattern.match(vm_size):
+            return self.DT_MIN_TO_PEAK_GUARDRAIL
+        return self.DEFAULT_MIN_TO_PEAK_GUARDRAIL
 
     def _get_duration_and_window(self, variables: Dict[str, Any]) -> Tuple[int, int]:
         duration = self._get_duration(variables)
