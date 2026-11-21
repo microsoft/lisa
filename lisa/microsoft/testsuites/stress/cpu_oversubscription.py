@@ -2,11 +2,13 @@
 # Licensed under the MIT license.
 import re
 from collections import Counter
+from functools import partial
 from typing import Any, Dict, List, Tuple
 
 from assertpy import assert_that
 
 from lisa import (
+    Environment,
     Logger,
     Node,
     TestCaseMetadata,
@@ -22,6 +24,7 @@ from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.testsuite import TestResult
 from lisa.tools import Chrony, Dmesg, Lscpu, StressNg
 from lisa.util import LisaException, SkippedException, check_till_timeout
+from lisa.util.parallel import run_in_parallel
 from lisa.util.perf_timer import create_timer
 
 
@@ -63,6 +66,9 @@ class CpuOversubscription(TestSuite):
     # MAX_DURATION plus room for stress-ng install and the cumulative startup
     # and teardown overhead of launching one stress-ng process per window.
     TIMEOUT = 14400
+    # VMs loaded at once in the multi-VM test. Enough for several VMs to
+    # plausibly share a host, while keeping the cost of one run bounded.
+    MULTI_VM_COUNT = 4
     # Provisional bound on chrony's system clock offset under load. Azure's
     # PTP-based sync normally keeps the offset well under 1 ms, so 100 ms
     # indicates a real clock disruption rather than normal jitter.
@@ -141,6 +147,119 @@ class CpuOversubscription(TestSuite):
     ) -> None:
         duration, window = self._get_duration_and_window(variables)
         window_count = duration // window
+        self._run_cpu_windows_and_report(
+            node=node,
+            log=log,
+            result=result,
+            window_count=window_count,
+            window=window,
+            test_case_name="perf_cpu_steal_time",
+        )
+
+    @TestCaseMetadata(
+        description="""
+        Approximates a densely packed host by running the same back-to-back
+        stress-ng cpu windows concurrently on several VMs of the requested size,
+        so they compete for host CPU if Azure places them on the same node.
+        Publishes per-VM throughput and steal metrics plus the lowest
+        min-to-peak ratio across all VMs, and fails if any VM logs new soft
+        lockups, RCU stalls, or call traces.
+
+        Limitations: LISA cannot choose the host, so the VMs may land on
+        different nodes and see no contention. It cannot set the node overcommit
+        level or mix DT and standard D sizes, because the pipeline deploys one
+        size per run. It therefore does NOT validate the OK2GoLive packing
+        scenarios or the standard-VM no-degradation requirement; those need a
+        platform-packed node. Use it as supporting evidence alongside a run on
+        the corresponding base D-series size.
+
+        Runbook variables "cpu_oversub_duration" (max 10800) and
+        "cpu_oversub_window" set the total duration and window length in
+        seconds; the duration must be divisible by the window.
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=simple_requirement(
+            min_count=MULTI_VM_COUNT,
+            unsupported_os=[BSD, Windows],
+        ),
+    )
+    def perf_cpu_concurrent_load_multi_vm(
+        self,
+        environment: Environment,
+        log: Logger,
+        variables: Dict[str, Any],
+        result: TestResult,
+    ) -> None:
+        duration, window = self._get_duration_and_window(variables)
+        window_count = duration // window
+        nodes = environment.nodes.list()
+        errors_before = {
+            node.name: self._get_kernel_error_lines(node.tools[Dmesg]) for node in nodes
+        }
+        log.info(
+            f"starting {duration}s concurrent cpu load on {len(nodes)} VMs "
+            f"({window_count} x {window}s windows each)"
+        )
+        ratios = run_in_parallel(
+            [
+                partial(
+                    self._run_cpu_windows_and_report,
+                    node=node,
+                    log=log,
+                    result=result,
+                    window_count=window_count,
+                    window=window,
+                    test_case_name="perf_cpu_concurrent_load_multi_vm",
+                )
+                for node in nodes
+            ],
+            log,
+        )
+
+        lowest_ratio = min(ratios)
+        send_unified_perf_message(
+            node=nodes[0],
+            test_result=result,
+            test_case_name="perf_cpu_concurrent_load_multi_vm",
+            metric_name="cpu_throughput_min_to_peak_ratio_lowest_vm",
+            metric_value=lowest_ratio,
+            metric_relativity=MetricRelativity.HigherIsBetter,
+            tool="stress-ng",
+        )
+        log.info(
+            f"concurrent cpu load summary across {len(nodes)} VMs: per-VM "
+            f"min-to-peak ratios "
+            f"{[round(ratio, 3) for ratio in ratios]}, lowest {lowest_ratio:.3f}"
+        )
+
+        new_errors: Dict[str, List[str]] = {}
+        for node in nodes:
+            errors_after = self._get_kernel_error_lines(node.tools[Dmesg])
+            node_new_errors = list(
+                (Counter(errors_after) - Counter(errors_before[node.name])).elements()
+            )
+            if node_new_errors:
+                new_errors[node.name] = node_new_errors
+        assert_that(new_errors).described_as(
+            "one or more VMs reported kernel stability errors during concurrent "
+            "CPU load. Review host contention for those VMs and reproduce on "
+            "the corresponding base VM size."
+        ).is_empty()
+
+    def _run_cpu_windows_and_report(
+        self,
+        node: Node,
+        log: Logger,
+        result: TestResult,
+        window_count: int,
+        window: int,
+        test_case_name: str,
+    ) -> float:
+        """
+        Runs back-to-back cpu windows on all vCPUs of the node, publishes the
+        metrics, and returns the node's min-to-peak throughput ratio.
+        """
         thread_count = node.tools[Lscpu].get_thread_count()
         stress_ng = node.tools[StressNg]
 
@@ -161,8 +280,9 @@ class CpuOversubscription(TestSuite):
             throughputs.append(throughput)
             steal_percents.append(steal_percent)
             log.info(
-                f"cpu oversubscription window {index + 1}/{window_count}: "
-                f"{throughput:.2f} bogo ops/s, steal {steal_percent:.2f}%"
+                f"cpu oversubscription window {index + 1}/{window_count} on "
+                f"'{node.name}': {throughput:.2f} bogo ops/s, "
+                f"steal {steal_percent:.2f}%"
             )
 
         max_throughput = max(throughputs)
@@ -185,7 +305,7 @@ class CpuOversubscription(TestSuite):
             send_unified_perf_message(
                 node=node,
                 test_result=result,
-                test_case_name="perf_cpu_steal_time",
+                test_case_name=test_case_name,
                 metric_name=name,
                 metric_value=value,
                 metric_unit=unit,
@@ -208,6 +328,7 @@ class CpuOversubscription(TestSuite):
                 f"{guardrail}. Compare with a run on the "
                 f"corresponding base D-series size."
             )
+        return min_to_peak_ratio
 
     @TestCaseMetadata(
         description="""
