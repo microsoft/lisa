@@ -2573,6 +2573,7 @@ class Suse(Linux):
     #   extending overall LISA test runs.
     _ZYPPER_EXIT_LOCK = 7
     _ZYPPER_EXIT_COMMIT = 8
+    _ZYPPER_EXIT_REPOS_SKIPPED = 106
     _ZYPPER_LOCK_MAX_RETRIES = 5
     _ZYPPER_LOCK_RETRY_DELAY = 10  # seconds
     _rpm_lock_pattern = re.compile(
@@ -2817,6 +2818,9 @@ class Suse(Linux):
         # 4: ZYPPER_EXIT_ERR_ZYPP - A libzypp error (e.g. dependency conflict)
         # 100: ZYPPER_EXIT_INF_UPDATE_NEEDED - Updates available (install may succeed)
         # 104: ZYPPER_EXIT_INF_CAP_NOT_FOUND - Requested package/capability not found
+        # 106: ZYPPER_EXIT_INF_REPOS_SKIPPED - Install succeeded, but some
+        #      repositories failed to refresh. zypper keeps only the first
+        #      informational code, so this can also hide 107 (RPM script failed).
         # If installation failed due to dependency conflicts, retry with
         # --force-resolution to allow zypper to automatically resolve conflicts
         if install_result.exit_code in (1, 4, 100):
@@ -2843,6 +2847,11 @@ class Suse(Linux):
             )
         elif install_result.exit_code == 104:
             raise MissingPackagesException(packages)
+        elif install_result.exit_code == self._ZYPPER_EXIT_REPOS_SKIPPED:
+            self._log.warning(
+                f"{packages} is/are installed, but zypper skipped repositories "
+                "that failed to refresh."
+            )
         elif install_result.exit_code == 0:
             self._log.debug(f"{packages} is/are installed successfully.")
         else:
@@ -2866,9 +2875,29 @@ class Suse(Linux):
         return 0 == result.exit_code
 
     def _is_package_in_repo(self, package: str) -> bool:
-        command = f"zypper search -s --match-exact {package}"
+        command = f"zypper search -s -t package --match-exact {package}"
         result = self._node.execute(command, sudo=True, shell=True)
-        return 0 == result.exit_code
+        if result.exit_code == 0:
+            return True
+        # 106: ZYPPER_EXIT_INF_REPOS_SKIPPED - some repositories failed to
+        # refresh and were skipped. zypper reports 106 even when the search
+        # found nothing, so check the result rows from the usable repositories.
+        if result.exit_code == self._ZYPPER_EXIT_REPOS_SKIPPED:
+            self._log.warning(
+                "zypper skipped repositories that failed to refresh while "
+                f"searching for '{package}'."
+            )
+            return self._has_search_result(result.stdout, package)
+        return False
+
+    @staticmethod
+    def _has_search_result(search_output: str, package: str) -> bool:
+        # result rows look like: "   | git-core | package | 2.51.0 | x86_64 | repo"
+        for line in search_output.splitlines():
+            columns = [column.strip() for column in line.split("|")]
+            if len(columns) >= 2 and columns[1] == package:
+                return True
+        return False
 
     def _get_package_information(self, package_name: str) -> LisaVersionInfo:
         query_result = self._node.execute(
