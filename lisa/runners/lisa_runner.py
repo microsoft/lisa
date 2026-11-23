@@ -487,13 +487,11 @@ class LisaRunner(BaseRunner):
         test_suite: TestSuite = suite_metadata.test_class(
             suite_metadata,
         )
-        # Deployed-only suites may opt into reuse if they restore guest state.
-        # Other deployed tests retain their existing teardown behavior because
-        # connecting inside a case bypasses the connected-phase transformers.
-        if (
-            environment.status == EnvironmentStatus.Deployed
-            and not suite_metadata.reuse_deployed_environment
-        ):
+        # if a test case runs on a deployed environment, the environment will be
+        # connected after it's initialized. It breaks the flow, so the
+        # transformers are in the connected phase will be ignored. So mark this
+        # kind of environment is dirty to prevent it run other test cases.
+        if environment.status == EnvironmentStatus.Deployed:
             environment.mark_dirty()
 
         tested_environment = environment
@@ -509,11 +507,6 @@ class LisaRunner(BaseRunner):
             case_results=test_results,
             case_variables=case_variables,
         )
-        if not was_connected and (
-            tested_environment.status == EnvironmentStatus.Connected
-            or any(node._is_initialized for node in tested_environment.nodes.list())
-        ):
-            environment.mark_dirty()
         # release environment reference to optimize memory.
         test_result.environment = None
 
