@@ -3310,6 +3310,12 @@ class AzurePlatform(Platform):
     ) -> List[AzureCapability]:
         candidate_caps: List[AzureCapability] = []
         caps = self.get_location_info(location, log).capabilities
+        # An explicit "network_data_path: Synthetic" overrides the mandatory
+        # accelerated networking check, e.g. on subscriptions allowed to disable it.
+        requirement = self.runbook.requirement or {}
+        synthetic_requested = (requirement.get("network_interface") or {}).get(
+            "data_path"
+        ) == schema.NetworkDataPath.Synthetic
 
         for vm_size in vm_sizes:
             # force to use max capability to run test cases as much as possible,
@@ -3330,7 +3336,20 @@ class AzurePlatform(Platform):
                     cap_features
                     and [x for x in cap_features if features.IaaS.name() == x.type]
                 ):
-                    candidate_caps.append(caps[vm_size])
+                    azure_cap = caps[vm_size]
+                    nic = azure_cap.capability.network_interface
+                    if (
+                        synthetic_requested
+                        and nic
+                        and isinstance(nic.data_path, search_space.SetSpace)
+                        and schema.NetworkDataPath.Synthetic not in nic.data_path
+                    ):
+                        # copy, so the cached capability is not changed
+                        azure_cap = deepcopy(azure_cap)
+                        nic = azure_cap.capability.network_interface
+                        assert nic and isinstance(nic.data_path, search_space.SetSpace)
+                        nic.data_path.add(schema.NetworkDataPath.Synthetic)
+                    candidate_caps.append(azure_cap)
 
         return candidate_caps
 
