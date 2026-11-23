@@ -3,7 +3,7 @@
 import re
 from collections import Counter
 from functools import partial
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from assertpy import assert_that
 
@@ -48,8 +48,8 @@ class CpuOversubscription(TestSuite):
     # Length of each throughput/steal sampling window.
     DEFAULT_WINDOW_IN_SECONDS = 60
     # Lower bound so per-window command overhead stays small relative to the
-    # load and many tiny windows cannot push the run past TIMEOUT.
-    MIN_WINDOW_IN_SECONDS = 10
+    # load. Short windows catch brief CPU dips that longer windows average out.
+    MIN_WINDOW_IN_SECONDS = 5
     # Experimental variability guardrails, NOT the contractual performance
     # floors. Below these, a warning is logged; they do not fail the test until
     # a baseline methodology against the base D-series size is agreed. Each is
@@ -59,13 +59,24 @@ class CpuOversubscription(TestSuite):
     A_SERIES_MIN_TO_PEAK_GUARDRAIL = 0.65
     # Used for sizes outside these families, e.g. base D-series baseline runs.
     DEFAULT_MIN_TO_PEAK_GUARDRAIL = DT_MIN_TO_PEAK_GUARDRAIL
+    # Contractual floors from the OK2GoLive doc, as a fraction of baseline
+    # throughput. Enforced only when a baseline is passed in the runbook.
+    DT_PERFORMANCE_FLOOR = 0.5
+    A_SERIES_PERFORMANCE_FLOOR = 0.75
+    # Standard sizes should see no degradation; this provisional tolerance
+    # allows for normal run-to-run variation between baseline and test runs.
+    STANDARD_PERFORMANCE_FLOOR = 0.9
     # e.g. Standard_DT4s_v7, DT8ads_v7
     _dt_size_pattern = re.compile(r"^(Standard_)?DT\d+[a-z]*_v7$", re.IGNORECASE)
     # e.g. Standard_A4s_v3, A8ds_v3 (not legacy Av2 sizes)
     _a_series_size_pattern = re.compile(r"^(Standard_)?A\d+[a-z]*_v3$", re.IGNORECASE)
     # MAX_DURATION plus room for stress-ng install and the cumulative startup
-    # and teardown overhead of launching one stress-ng process per window.
-    TIMEOUT = 14400
+    # and teardown overhead of launching one stress-ng process per window,
+    # which is largest with MIN_WINDOW_IN_SECONDS windows.
+    TIMEOUT = 18000
+    # Extra load time after the last timesync sample, so every sample is taken
+    # while stress-ng is still running.
+    TIMESYNC_LOAD_MARGIN_IN_SECONDS = 30
     # VMs loaded at once in the multi-VM test. Enough for several VMs to
     # plausibly share a host, while keeping the cost of one run bounded.
     MULTI_VM_COUNT = 4
@@ -123,16 +134,23 @@ class CpuOversubscription(TestSuite):
         description="""
         Runs back-to-back stress-ng cpu windows on all vCPUs, recording per-window
         throughput (bogo ops/s) and steal time from /proc/stat, and publishes
-        them as perf metrics. This is a data-collection test: it does not
-        validate the 50% performance floor, which needs a baseline from the
-        corresponding D-series size. Steal time is telemetry only; Hyper-V may
-        not expose host throttling as guest steal time, so zero steal does not
+        them as perf metrics. Steal time is telemetry only; Hyper-V may not
+        expose host throttling as guest steal time, so zero steal does not
         prove there was no contention.
 
+        If runbook variable "cpu_oversub_baseline" gives this size's normal
+        throughput (bogo ops/s from an unpacked run), the test also reports
+        throughput as a percentage of it, and fails if the slowest window is
+        below the size family's floor: 50% for DTv7/DTav7, 75% for Asv3, and
+        a provisional 90% for standard sizes. Without a baseline it only
+        collects data. The value is a number, or comma-separated
+        "size=ops_per_sec" pairs, e.g.
+        "Standard_DT2as_v7=3288,Standard_DT32ads_v7=51853".
+
         Runbook variables "cpu_oversub_duration" (max 10800) and
-        "cpu_oversub_window" override the total duration and window length in
-        seconds. The duration must be divisible by the window so all samples
-        have equal length.
+        "cpu_oversub_window" (min 5) override the total duration and window
+        length in seconds. The duration must be divisible by the window so all
+        samples have equal length.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -147,14 +165,24 @@ class CpuOversubscription(TestSuite):
     ) -> None:
         duration, window = self._get_duration_and_window(variables)
         window_count = duration // window
-        self._run_cpu_windows_and_report(
+        _, baseline_ratio = self._run_cpu_windows_and_report(
             node=node,
             log=log,
             result=result,
             window_count=window_count,
             window=window,
             test_case_name="perf_cpu_steal_time",
+            baseline_ops_per_sec=self._get_baseline_ops_per_sec(variables, node),
         )
+        if baseline_ratio is not None:
+            floor = self._get_performance_floor(node)
+            assert_that(baseline_ratio).described_as(
+                f"slowest window on '{node.name}' ({self._get_vm_size(node)}) "
+                f"reached {baseline_ratio:.0%} of the baseline, below the "
+                f"{floor:.0%} floor for this size family. Confirm the baseline "
+                f"came from an unpacked run of the same size, then review host "
+                f"contention."
+            ).is_greater_than_or_equal_to(floor)
 
     @TestCaseMetadata(
         description="""
@@ -173,9 +201,13 @@ class CpuOversubscription(TestSuite):
         platform-packed node. Use it as supporting evidence alongside a run on
         the corresponding base D-series size.
 
+        Runbook variable "cpu_oversub_baseline" works as in
+        perf_cpu_steal_time: when set, the test also fails if any VM's slowest
+        window is below its size family's floor.
+
         Runbook variables "cpu_oversub_duration" (max 10800) and
-        "cpu_oversub_window" set the total duration and window length in
-        seconds; the duration must be divisible by the window.
+        "cpu_oversub_window" (min 5) set the total duration and window length
+        in seconds; the duration must be divisible by the window.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -193,7 +225,8 @@ class CpuOversubscription(TestSuite):
     ) -> None:
         duration, window = self._get_duration_and_window(variables)
         window_count = duration // window
-        nodes = environment.nodes.list()
+        # Nodes.list() returns a generator; materialize it for len() and reuse.
+        nodes = list(environment.nodes.list())
         errors_before = {
             node.name: self._get_kernel_error_lines(node.tools[Dmesg]) for node in nodes
         }
@@ -201,7 +234,7 @@ class CpuOversubscription(TestSuite):
             f"starting {duration}s concurrent cpu load on {len(nodes)} VMs "
             f"({window_count} x {window}s windows each)"
         )
-        ratios = run_in_parallel(
+        node_results = run_in_parallel(
             [
                 partial(
                     self._run_cpu_windows_and_report,
@@ -211,11 +244,15 @@ class CpuOversubscription(TestSuite):
                     window_count=window_count,
                     window=window,
                     test_case_name="perf_cpu_concurrent_load_multi_vm",
+                    baseline_ops_per_sec=self._get_baseline_ops_per_sec(
+                        variables, node
+                    ),
                 )
                 for node in nodes
             ],
             log,
         )
+        ratios = [min_to_peak for min_to_peak, _ in node_results]
 
         lowest_ratio = min(ratios)
         send_unified_perf_message(
@@ -247,6 +284,20 @@ class CpuOversubscription(TestSuite):
             "the corresponding base VM size."
         ).is_empty()
 
+        below_floor: Dict[str, str] = {}
+        for node, (_, baseline_ratio) in zip(nodes, node_results):
+            floor = self._get_performance_floor(node)
+            if baseline_ratio is not None and baseline_ratio < floor:
+                below_floor[node.name] = (
+                    f"{self._get_vm_size(node)}: {baseline_ratio:.0%} of "
+                    f"baseline, floor {floor:.0%}"
+                )
+        assert_that(below_floor).described_as(
+            "one or more VMs' slowest window fell below the floor for their "
+            "size family. Confirm each baseline came from an unpacked run of "
+            "the same size, then review host contention."
+        ).is_empty()
+
     def _run_cpu_windows_and_report(
         self,
         node: Node,
@@ -255,10 +306,12 @@ class CpuOversubscription(TestSuite):
         window_count: int,
         window: int,
         test_case_name: str,
-    ) -> float:
+        baseline_ops_per_sec: Optional[float],
+    ) -> Tuple[float, Optional[float]]:
         """
-        Runs back-to-back cpu windows on all vCPUs of the node, publishes the
-        metrics, and returns the node's min-to-peak throughput ratio.
+        Runs back-to-back cpu windows on all vCPUs of the node and publishes the
+        metrics. Returns the min-to-peak throughput ratio, and the slowest
+        window as a fraction of the baseline (None if no baseline is given).
         """
         thread_count = node.tools[Lscpu].get_thread_count()
         stress_ng = node.tools[StressNg]
@@ -296,6 +349,17 @@ class CpuOversubscription(TestSuite):
             "cpu_bogo_ops_per_sec_min": (min(throughputs), "ops/s"),
             "cpu_throughput_min_to_peak_ratio": (min_to_peak_ratio, ""),
         }
+        baseline_ratio: Optional[float] = None
+        if baseline_ops_per_sec is not None:
+            baseline_ratio = min(throughputs) / baseline_ops_per_sec
+            metrics["cpu_throughput_min_percent_of_baseline"] = (
+                baseline_ratio * 100,
+                "%",
+            )
+            metrics["cpu_throughput_p50_percent_of_baseline"] = (
+                self._percentile(throughputs, 50) / baseline_ops_per_sec * 100,
+                "%",
+            )
         for name, (value, unit) in metrics.items():
             relativity = (
                 MetricRelativity.LowerIsBetter
@@ -328,7 +392,7 @@ class CpuOversubscription(TestSuite):
                 f"{guardrail}. Compare with a run on the "
                 f"corresponding base D-series size."
             )
-        return min_to_peak_ratio
+        return min_to_peak_ratio, baseline_ratio
 
     @TestCaseMetadata(
         description="""
@@ -345,8 +409,8 @@ class CpuOversubscription(TestSuite):
         offset as perf metrics.
 
         Runbook variables "cpu_oversub_duration" (max 10800) and
-        "cpu_oversub_window" set the total duration and sampling interval in
-        seconds; the duration must be divisible by the window.
+        "cpu_oversub_window" (min 5) set the total duration and sampling
+        interval in seconds; the duration must be divisible by the window.
         """,
         priority=3,
         timeout=TIMEOUT,
@@ -386,7 +450,8 @@ class CpuOversubscription(TestSuite):
             f"vCPUs of node '{node.name}', sampling every {window}s"
         )
         stress_process = stress_ng.launch_cpu_async(
-            num_cores=thread_count, timeout_in_seconds=duration
+            num_cores=thread_count,
+            timeout_in_seconds=duration + self.TIMESYNC_LOAD_MARGIN_IN_SECONDS,
         )
         timer = create_timer()
         try:
@@ -414,8 +479,8 @@ class CpuOversubscription(TestSuite):
                     f"synchronized {is_synchronized}"
                 )
             stress_process.wait_result(
-                # stress-ng should already be finishing; allow for teardown
-                timeout=120,
+                # remaining load margin plus time for stress-ng teardown
+                timeout=self.TIMESYNC_LOAD_MARGIN_IN_SECONDS + 120,
                 expected_exit_code=0,
                 expected_exit_code_failure_message="stress-ng cpu stressor failed",
             )
@@ -466,19 +531,60 @@ class CpuOversubscription(TestSuite):
             "to tell oversubscription effects from image issues."
         ).is_less_than_or_equal_to(self.PROVISIONAL_MAX_CLOCK_OFFSET_IN_SECONDS)
 
-    def _get_min_to_peak_guardrail(self, node: Node) -> float:
+    def _get_vm_size(self, node: Node) -> str:
         try:
-            vm_size = node.capability.get_extended_runbook(
-                AzureNodeSchema, AZURE
-            ).vm_size
+            return str(
+                node.capability.get_extended_runbook(AzureNodeSchema, AZURE).vm_size
+            )
         except LisaException:
             # Non-Azure node with another platform's schema; no size family.
-            return self.DEFAULT_MIN_TO_PEAK_GUARDRAIL
+            return ""
+
+    def _get_min_to_peak_guardrail(self, node: Node) -> float:
+        vm_size = self._get_vm_size(node)
         if self._a_series_size_pattern.match(vm_size):
             return self.A_SERIES_MIN_TO_PEAK_GUARDRAIL
         if self._dt_size_pattern.match(vm_size):
             return self.DT_MIN_TO_PEAK_GUARDRAIL
         return self.DEFAULT_MIN_TO_PEAK_GUARDRAIL
+
+    def _get_performance_floor(self, node: Node) -> float:
+        vm_size = self._get_vm_size(node)
+        if self._a_series_size_pattern.match(vm_size):
+            return self.A_SERIES_PERFORMANCE_FLOOR
+        if self._dt_size_pattern.match(vm_size):
+            return self.DT_PERFORMANCE_FLOOR
+        return self.STANDARD_PERFORMANCE_FLOOR
+
+    def _get_baseline_ops_per_sec(
+        self, variables: Dict[str, Any], node: Node
+    ) -> Optional[float]:
+        raw = str(variables.get("cpu_oversub_baseline", "")).strip()
+        if not raw:
+            return None
+        try:
+            if "=" not in raw:
+                baselines = {"": float(raw)}
+            else:
+                baselines = {}
+                for item in raw.split(","):
+                    size, value = item.split("=", 1)
+                    baselines[self._normalize_vm_size(size)] = float(value)
+            if any(value <= 0 for value in baselines.values()):
+                raise ValueError("baseline must be positive")
+        except ValueError as error:
+            raise LisaException(
+                f"runbook variable 'cpu_oversub_baseline' has invalid value "
+                f"'{raw}'. Use a positive number, or comma-separated "
+                f"'size=ops_per_sec' pairs, e.g. "
+                f"'Standard_DT2as_v7=3288,Standard_DT32ads_v7=51853'."
+            ) from error
+        if "" in baselines:
+            return baselines[""]
+        return baselines.get(self._normalize_vm_size(self._get_vm_size(node)))
+
+    def _normalize_vm_size(self, vm_size: str) -> str:
+        return re.sub(r"^standard_", "", vm_size.strip().lower())
 
     def _get_duration_and_window(self, variables: Dict[str, Any]) -> Tuple[int, int]:
         duration = self._get_duration(variables)
