@@ -261,15 +261,22 @@ class Nics(InitializableMixin):
         ]
 
     def _get_nics_driver(self) -> None:
-        for nic in [x.name for x in self.nics.values()]:
-            self.get_nic_driver(nic)
+        for nic in self.nics.values():
+            self.get_nic_driver(nic.name)
+            if nic.lower:
+                nic.lower_module_name = self._get_nic_driver_path(nic.lower).name
 
     # update the current nic driver in the NicInfo instance
     # grabs the driver short name and the driver sysfs path
     def get_nic_driver(self, nic_name: str) -> str:
+        nic = self.get_nic(nic_name)
+        nic.driver_sysfs_path = self._get_nic_driver_path(nic_name)
+        nic.module_name = nic.driver_sysfs_path.name
+        return nic.module_name
+
+    def _get_nic_driver_path(self, nic_name: str) -> PurePosixPath:
         # get the current driver for the nic from the node
         # sysfs provides a link to the driver entry at device/driver
-        nic = self.get_nic(nic_name)
         readlink = self._node.tools[Readlink]
         # ex return value:
         # /sys/bus/vmbus/drivers/hv_netvsc
@@ -279,13 +286,12 @@ class Nics(InitializableMixin):
         assert_that(found_link).described_as(
             f"sysfs check for NIC device {nic_name} driver returned no output"
         ).is_not_equal_to("")
-        nic.driver_sysfs_path = PurePosixPath(found_link)
-        driver_name = nic.driver_sysfs_path.name
+        driver_path = PurePosixPath(found_link)
+        driver_name = driver_path.name
         assert_that(driver_name).described_as(
             f"sysfs entry contained no filename for device driver: {found_link}"
         ).is_not_equal_to("")
-        nic.module_name = driver_name
-        return driver_name
+        return driver_path
 
     def get_nic(self, nic_name: str) -> NicInfo:
         return self.nics[nic_name]
@@ -681,7 +687,9 @@ class Nics(InitializableMixin):
         """
         Discover standalone PCI NICs by checking device paths for PCI
         information. This handles scenarios where NICs operate as standalone
-        PCI devices without synthetic pairing.
+        PCI devices without synthetic pairing, including baremetal PFs with
+        no enabled VFs and unpaired guest VFs. Driver binding is validated
+        separately in _get_nics_driver.
         """
         # Get unpaired NICs that might have PCI devices
         unpaired_nics = self.get_unpaired_devices()
@@ -703,27 +711,12 @@ class Nics(InitializableMixin):
                 # Path format: /sys/devices/.../XXXX:XX:XX.X/net/nicname
                 pci_slot = lspci.get_pci_slot_from_device_path(device_path)
                 if pci_slot:
-                    # Get the module name for this PCI device
-                    try:
-                        module_name = lspci.get_used_module(pci_slot)
-                        if module_name:
-                            nic.pci_slot = pci_slot
-                            # For standalone PCI NICs, set module_name directly
-                            # (no lower_module_name since there's no lower device)
-                            nic.module_name = module_name
-                            self._node.log.debug(
-                                f"Associated unpaired NIC {nic_name} "
-                                f"with PCI slot {pci_slot} (module: {module_name})"
-                            )
-                        else:
-                            self._node.log.debug(
-                                f"Found PCI slot {pci_slot} for NIC {nic_name} "
-                                f"but could not determine module name"
-                            )
-                    except Exception as e:
-                        self._node.log.debug(
-                            f"Could not get module for PCI slot {pci_slot}: {e}"
-                        )
+                    # PCI identity does not depend on lspci reporting a driver.
+                    # _get_nics_driver validates the binding separately via sysfs.
+                    nic.pci_slot = pci_slot
+                    self._node.log.debug(
+                        f"Associated unpaired NIC {nic_name} with PCI slot {pci_slot}"
+                    )
                 else:
                     self._node.log.debug(
                         f"Could not extract PCI slot from device path for {nic_name}: "
