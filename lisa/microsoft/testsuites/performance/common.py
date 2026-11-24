@@ -3,8 +3,9 @@
 import inspect
 import pathlib
 import time
+from contextlib import ExitStack, contextmanager
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union, cast
 
 from assertpy import assert_that
 from retry import retry
@@ -28,11 +29,12 @@ from lisa.messages import (
     NetworkTCPPerformanceMessage,
     NetworkUDPPerformanceMessage,
 )
-from lisa.operating_system import BSD, Ubuntu
+from lisa.operating_system import BSD, Linux, Ubuntu
 from lisa.schema import NetworkDataPath
 from lisa.testsuite import TestResult
 from lisa.tools import (
     FIOMODES,
+    Cat,
     Echo,
     Fdisk,
     Fio,
@@ -44,6 +46,7 @@ from lisa.tools import (
     Mdadm,
     Netperf,
     Ntttcp,
+    Readlink,
     Sar,
     Sockperf,
     Ssh,
@@ -934,6 +937,75 @@ def perf_sockperf(
             sysctl.reset()
 
 
+def _write_disk_nr_requests(node: Node, path: pathlib.PurePath, value: int) -> None:
+    node.tools[Echo].write_to_file(str(value), path, sudo=True, ignore_error=False)
+    actual = node.tools[Cat].read(str(path), force_run=True, sudo=True).strip()
+    if actual != str(value):
+        raise LisaException(
+            f"nr_requests readback mismatch at {path}: "
+            f"requested {value}, got {actual!r}"
+        )
+    node.log.info(f"Verified {path}={actual}")
+
+
+@contextmanager
+def _limit_disk_nr_requests(
+    node: Node, data_disks: List[str], limit: Optional[int]
+) -> Iterator[Dict[str, int]]:
+    if limit is None:
+        yield {}
+        return
+
+    cat = node.tools[Cat]
+    readlink = node.tools[Readlink]
+    originals: Dict[pathlib.PurePath, int] = {}
+    for disk in data_disks:
+        canonical = pathlib.PurePosixPath(readlink.get_canonical_path(disk, sudo=True))
+        if canonical.parent != pathlib.PurePosixPath("/dev"):
+            raise LisaException(f"Expected a raw data disk under /dev, got {canonical}")
+        queue = node.get_pure_path(f"/sys/block/{canonical.name}/queue")
+        path = queue / "nr_requests"
+        if path in originals:
+            continue
+        original_text = cat.read(str(path), force_run=True, sudo=True).strip()
+        if not original_text.isdecimal() or int(original_text) <= 0:
+            raise LisaException(f"Invalid nr_requests at {path}: {original_text!r}")
+        original = int(original_text)
+        originals[path] = original
+        scheduler = cat.read(
+            str(queue / "scheduler"), force_run=True, sudo=True
+        ).strip()
+        node.log.info(
+            f"nr_requests experiment: {canonical}, original={original}, "
+            f"limit={limit}, target={min(original, limit)}, "
+            f"scheduler={scheduler}"
+        )
+
+    def restore(path: pathlib.PurePath, original: int) -> None:
+        try:
+            node.log.info(f"Restoring {path}={original}")
+            if cat.read(str(path), force_run=True, sudo=True).strip() != str(original):
+                _write_disk_nr_requests(node, path, original)
+        except Exception:
+            node.log.exception(f"Failed to restore {path}={original}")
+            raise
+
+    effective: Dict[str, int] = {}
+    with ExitStack() as cleanup:
+        try:
+            for path, original in originals.items():
+                target = min(original, limit)
+                if target < original:
+                    # A failed write/readback can still have changed the setting.
+                    cleanup.callback(restore, path, original)
+                    _write_disk_nr_requests(node, path, target)
+                effective[str(path)] = target
+            yield effective
+        except Exception as error:
+            node.log.exception(f"nr_requests experiment failed before cleanup: {error}")
+            raise
+
+
 def perf_premium_datadisks(
     node: Node,
     test_result: TestResult,
@@ -943,7 +1015,25 @@ def perf_premium_datadisks(
     start_iodepth: int = 1,
     max_iodepth: int = 256,
     ioengine: IoEngine = IoEngine.LIBAIO,
+    variables: Optional[Dict[str, Any]] = None,
 ) -> None:
+    limit_value = variables.get("fio_nr_requests_limit") if variables else None
+    nr_requests_limit: Optional[int] = None
+    if limit_value is not None:
+        if (
+            isinstance(limit_value, bool)
+            or not isinstance(limit_value, (int, str))
+            or not str(limit_value).isdecimal()
+            or int(limit_value) < 0
+        ):
+            raise LisaException(
+                "fio_nr_requests_limit must be a non-negative integer; "
+                "0 disables the experiment"
+            )
+        nr_requests_limit = int(limit_value) or None
+        if nr_requests_limit is not None and not isinstance(node.os, Linux):
+            raise SkippedException("The nr_requests experiment requires Linux")
+
     disk = node.features[Disk]
     data_disks = disk.get_raw_data_disks()
     disk_count = len(data_disks)
@@ -954,23 +1044,27 @@ def perf_premium_datadisks(
     filename = ":".join(partition_disks)
     cpu = node.tools[Lscpu]
     thread_count = cpu.get_thread_count()
-    perf_disk(
-        node,
-        start_iodepth,
-        max_iodepth,
-        filename,
-        test_name=inspect.stack()[1][3],
-        core_count=thread_count,
-        disk_count=disk_count,
-        disk_setup_type=disk_setup_type,
-        disk_type=disk_type,
-        numjob=thread_count,
-        block_size=block_size,
-        size_mb=8192,
-        overwrite=True,
-        test_result=test_result,
-        ioengine=ioengine,
-    )
+    with _limit_disk_nr_requests(node, data_disks, nr_requests_limit) as effective:
+        if nr_requests_limit is not None:
+            test_result.information["fio_nr_requests_limit"] = nr_requests_limit
+            test_result.information["fio_nr_requests_effective"] = effective
+        perf_disk(
+            node,
+            start_iodepth,
+            max_iodepth,
+            filename,
+            test_name=inspect.stack()[1][3],
+            core_count=thread_count,
+            disk_count=disk_count,
+            disk_setup_type=disk_setup_type,
+            disk_type=disk_type,
+            numjob=thread_count,
+            block_size=block_size,
+            size_mb=8192,
+            overwrite=True,
+            test_result=test_result,
+            ioengine=ioengine,
+        )
 
 
 def perf_resource_disks(

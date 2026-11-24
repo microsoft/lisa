@@ -11,6 +11,8 @@ Microsoft tests
 
    -  `Advanced <#advanced>`__
 
+-  `Storage queue-request experiment <#storage-queue-request-experiment>`__
+
 -  `Test cases specification <#test-cases-specification>`__
 
 Overview
@@ -141,6 +143,72 @@ Advanced
 If you want to verify on specified conditions, like to select some VM size in
 azure, or select test cases by names, learn more from :doc:`runbook reference
 <runbook>`.
+
+Storage queue-request experiment
+--------------------------------
+
+The ``StoragePerformance`` cases using the shared premium-data-disk helper
+accept the optional ``fio_nr_requests_limit`` variable. This includes the
+Premium SSD, Premium SSD v2, Ultra Disk and Standard SSD variants, including
+their 4K, 1024K and io_uring cases where available.
+
+To investigate whether block-layer request allocation contributes to NVMe
+timeouts or low IOPS, first declare this optional, case-visible variable in
+your existing runbook's ``variable`` section:
+
+.. code:: yaml
+
+   - name: fio_nr_requests_limit
+     value: null
+     is_case_visible: true
+
+``is_case_visible`` is required for LISA to pass the variable to the test.
+The null default keeps the experiment disabled. Run the existing case once
+without an override (baseline), then repeat it with a positive integer ceiling:
+
+.. code:: bash
+
+   lisa -r <your-existing-runbook>
+   lisa -r <your-existing-runbook> -v fio_nr_requests_limit:64
+
+``64`` is a suggested initial trial, not a proven optimal value or a default
+change to validation. A further trial at ``128`` can help compare the effect.
+Omitting the variable or specifying ``0`` preserves the existing workload
+and queue settings.
+
+Without changing the runbook, set the case-visible environment variable
+``CV_LISA_fio_nr_requests_limit`` in the actual LISA process/job/container.
+Use ``64`` for the trial or ``0`` for an explicit baseline. LISA also accepts
+uppercase environment-variable names, as used by Azure Pipelines. This still
+requires an execution environment containing the updated LISA implementation.
+
+The Linux-only experiment resolves only the selected raw data disks, logs
+their original ``queue/nr_requests`` and scheduler, and lowers values above
+the requested ceiling. It never increases a smaller value, changes the
+scheduler, or writes to the OS/resource disks through a wildcard. The setting
+is applied to each whole data disk, even though fio targets its partition.
+It is read back before fio runs, and original values are restored on success,
+workload failure or partial setup failure. Restoration errors are surfaced;
+cleanup is attempted for every changed disk. Restoration requires a reachable
+guest and cannot be guaranteed after a guest crash or runner termination.
+
+The requested ceiling and effective per-device values are recorded in the
+test result's ``information`` as ``fio_nr_requests_limit`` and
+``fio_nr_requests_effective``. Review the original values in the log: if all
+are already at or below the ceiling, the trial makes no queue changes.
+Unsupported writes, unexpected readback or invalid values fail explicitly
+rather than claiming the experiment was applied.
+
+``nr_requests`` controls block-layer request allocation per block device,
+not a single controller-wide NVMe outstanding-I/O limit. Its effect depends
+on the kernel, scheduler and driver; an accepted value does not prove a
+hardware queue-depth cap. See the `kernel sysfs block ABI documentation
+<https://github.com/torvalds/linux/blob/v6.12/Documentation/ABI/stable/sysfs-block>`__.
+The experiment leaves fio jobs, iodepth, runtime and performance reporting
+unchanged. Compare IOPS, bandwidth and latency using matched image/kernel,
+SKU, disk configuration and fio settings, and separately inspect console/kernel
+logs for NVMe timeouts/resets even if fio and the case pass. This is a hypothesis
+test, not a product fix or a reason to waive the original performance target.
 
 Test cases specification
 ------------------------
