@@ -1101,6 +1101,7 @@ def verify_dpdk_send_receive(
         receive_timeout,
         constants.SIGINT,
         kill_timeout=receive_timeout,
+        foreground=True,
     )
     receive_process.wait_output("start packet forwarding")
     send_process = sender.node.tools[Timeout].start_with_timeout(
@@ -1108,6 +1109,7 @@ def verify_dpdk_send_receive(
         test_duration,
         constants.SIGINT,
         kill_timeout=kill_timeout,
+        foreground=True,
     )
 
     results = dict()
