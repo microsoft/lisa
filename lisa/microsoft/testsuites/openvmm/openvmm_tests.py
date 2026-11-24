@@ -61,6 +61,8 @@ def _get_openvmm_tests_type() -> Any:
     LISA installs host build and MSHV archive-extraction dependencies
     noninteractively before Flowey preparation when missing-dependency
     installation is enabled, including when reusing an existing checkout.
+    When nextest identifies failed subtests, their names appear in the LISA
+    result summary. The full nextest log and JUnit report remain in the artifacts.
     vmm_version reports the selected OpenVMM executable's version, also recorded
     in the source manifest or packaged-binary provenance.
     The legacy openvmm_vmm_tests_profile variable applies only to the separate

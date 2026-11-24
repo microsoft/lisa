@@ -224,6 +224,7 @@ class OpenVmmTests(Tool):
                             log_path=log_path,
                             timeout=self.VMM_TIMEOUT,
                             update_envs=env,
+                            remote_junit=input_dir / "target/nextest/ci/junit.xml",
                         )
                 finally:
                     # Preserve diagnostics from build, setup and execution before
@@ -651,9 +652,10 @@ class OpenVmmTests(Tool):
         )
 
     def _collect_native_results(self, log_path: Path, junit: Path) -> None:
-        self._copy_back_if_exists(
-            self.repo_root / "input/target/nextest/ci/junit.xml", junit
-        )
+        if not junit.exists():
+            self._copy_back_if_exists(
+                self.repo_root / "input/target/nextest/ci/junit.xml", junit
+            )
         remote_archive = self.repo_root / "diagnostics.tar.gz"
         result = self.node.execute(
             f"tar -czf {shlex.quote(str(remote_archive))} "
@@ -773,19 +775,17 @@ class OpenVmmTests(Tool):
             name = "openvmm_vmm_tests_prebuilt_binary"
             local_junit = log_path / f"{name}.junit.xml"
             local_junit.unlink(missing_ok=True)
-            try:
-                self._run_logged_command(
-                    name=name,
-                    command=self._wrap_command_for_group(
-                        f"bash {shlex.quote(str(output_dir / 'run.sh'))}"
-                    ),
-                    log_path=log_path,
-                    timeout=self.VMM_TIMEOUT,
-                    update_envs=env,
-                    artifact_dir=output_dir / "test_results",
-                )
-            finally:
-                self._copy_back_if_exists(remote_junit, local_junit)
+            self._run_logged_command(
+                name=name,
+                command=self._wrap_command_for_group(
+                    f"bash {shlex.quote(str(output_dir / 'run.sh'))}"
+                ),
+                log_path=log_path,
+                timeout=self.VMM_TIMEOUT,
+                update_envs=env,
+                artifact_dir=output_dir / "test_results",
+                remote_junit=remote_junit,
+            )
             if not local_junit.exists():
                 raise LisaException(
                     "Prebuilt OpenVMM validation requires a fresh nextest JUnit "
@@ -1214,8 +1214,14 @@ class OpenVmmTests(Tool):
         update_envs: Dict[str, str],
         artifact_dir: Optional[PurePath] = None,
         sudo: bool = False,
+        remote_junit: Optional[PurePath] = None,
     ) -> None:
         remote_log = self._artifact_root / f"{name}.log"
+        local_log = log_path / f"{name}.log"
+        local_junit = log_path / f"{name}.junit.xml"
+        if remote_junit is not None:
+            # Retry attempts can share a log directory.
+            local_log.unlink(missing_ok=True)
         self.node.execute(
             f": > {shlex.quote(str(remote_log))}",
             shell=True,
@@ -1225,23 +1231,26 @@ class OpenVmmTests(Tool):
                 f"failed to create command log as checkout owner: {remote_log}"
             ),
         )
-        command_result = self.node.execute(
-            (
-                "bash -lc "
-                + shlex.quote(
-                    "set -o pipefail; "
-                    f"{{ {command}; }} > {shlex.quote(str(remote_log))} 2>&1"
-                )
-            ),
-            shell=True,
-            sudo=sudo,
-            cwd=self.repo_root,
-            timeout=timeout,
-            update_envs=update_envs,
-            expected_exit_code=None,
-        )
-
-        self._copy_back_if_exists(remote_log, log_path / f"{name}.log")
+        try:
+            command_result = self.node.execute(
+                (
+                    "bash -lc "
+                    + shlex.quote(
+                        "set -o pipefail; "
+                        f"{{ {command}; }} > {shlex.quote(str(remote_log))} 2>&1"
+                    )
+                ),
+                shell=True,
+                sudo=sudo,
+                cwd=self.repo_root,
+                timeout=timeout,
+                update_envs=update_envs,
+                expected_exit_code=None,
+            )
+            self._copy_back_if_exists(remote_log, local_log)
+        finally:
+            if remote_junit is not None:
+                self._copy_back_if_exists(remote_junit, local_junit)
 
         if artifact_dir:
             remote_archive = self._artifact_root / f"{name}_artifacts.tar.gz"
@@ -1254,18 +1263,37 @@ class OpenVmmTests(Tool):
         if command_result.exit_code == 0:
             return
 
-        timed_out = getattr(command_result, "is_timeout", False)
-        tail_output = self._tail_remote_log(remote_log)
-        if timed_out:
-            raise LisaException(
-                f"{name} timed out after {timeout} seconds. "
-                f"Last log lines: {tail_output}"
+        failure = (
+            f"{name} timed out after {timeout} seconds."
+            if getattr(command_result, "is_timeout", False)
+            else f"{name} failed with exit code {command_result.exit_code}."
+        )
+        tail = f"Last log lines: {self._tail_remote_log(remote_log)}"
+        if remote_junit is not None:
+            failed_tests = self._format_failed_vmm_tests(local_junit, local_log)
+            if failed_tests:
+                raise LisaException(f"{failure}\n{failed_tests}\n{tail}")
+        raise LisaException(f"{failure} {tail}")
+
+    def _format_failed_vmm_tests(self, junit_file: Path, log_file: Path) -> str:
+        try:
+            if junit_file.exists():
+                summary = self._parse_junit_summary(junit_file)
+                if summary.failed_tests:
+                    return self.format_run_summary(summary, include_passed=False)
+        except (ETree.ParseError, LisaException, OSError, ValueError) as error:
+            self._log.warning(
+                f"Could not read OpenVMM JUnit report {junit_file}: {error}"
             )
 
-        raise LisaException(
-            f"{name} failed with exit code {command_result.exit_code}. "
-            f"Last log lines: {tail_output}"
-        )
+        try:
+            if log_file.exists():
+                summary = self._extract_log_summary(log_file)
+                if summary.failed_tests:
+                    return self.format_run_summary(summary, include_passed=False)
+        except (OSError, ValueError) as error:
+            self._log.warning(f"Could not read OpenVMM test log {log_file}: {error}")
+        return ""
 
     def _ensure_cargo_nextest(
         self,
@@ -1519,15 +1547,6 @@ class OpenVmmTests(Tool):
             )
 
         lines = [overview]
-        if include_passed and (passed_count or summary.passed_tests):
-            lines.append("Passed tests:")
-            lines.append(
-                self._summarize_test_names(
-                    summary.passed_tests,
-                    max_items=max_items,
-                    empty_message="  - no passing test names captured",
-                )
-            )
         if include_failed and (failed_count or summary.failed_tests):
             lines.append("Failed tests:")
             lines.append(
@@ -1535,6 +1554,15 @@ class OpenVmmTests(Tool):
                     summary.failed_tests,
                     max_items=max_items,
                     empty_message="  - no failing test names captured",
+                )
+            )
+        if include_passed and (passed_count or summary.passed_tests):
+            lines.append("Passed tests:")
+            lines.append(
+                self._summarize_test_names(
+                    summary.passed_tests,
+                    max_items=max_items,
+                    empty_message="  - no passing test names captured",
                 )
             )
 
