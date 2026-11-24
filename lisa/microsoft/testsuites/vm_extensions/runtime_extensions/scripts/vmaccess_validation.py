@@ -46,6 +46,25 @@ def _account_fingerprint(users: List[str], groups: List[str]) -> str:
     return hashlib.sha256(json.dumps(records, sort_keys=True).encode()).hexdigest()
 
 
+def _validate_sshd_config() -> None:
+    command = ["/usr/sbin/sshd", "-t"]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode:
+        for directory in ("/run/sshd", "/var/run/sshd"):
+            if result.stderr.strip() == (
+                f"Missing privilege separation directory: {directory}"
+            ):
+                # Socket-activated SSH may not have started its service yet.
+                Path(directory).mkdir(mode=0o755, exist_ok=True)
+                result = subprocess.run(command, capture_output=True, text=True)
+                break
+    _require(
+        result.returncode == 0,
+        f"sshd configuration validation failed (exit code {result.returncode}): "
+        f"{result.stderr.strip() or result.stdout.strip()}",
+    )
+
+
 def _snapshot_state() -> Dict[str, Any]:
     import grp
     import pwd
@@ -56,7 +75,7 @@ def _snapshot_state() -> Dict[str, Any]:
         not any(user.startswith(("vmaccess-", "vmaccessuser")) for user in users),
         "A VMAccess test account already exists; refusing to overwrite its state",
     )
-    subprocess.run(["/usr/sbin/sshd", "-t"], check=True, capture_output=True, text=True)
+    _validate_sshd_config()
     directory = Path(tempfile.mkdtemp(prefix="lisa-vmaccess-state-", dir="/var/tmp"))
     files = []
     for index, filename in enumerate(_STATE_FILES):
@@ -141,7 +160,7 @@ def _restore_state(request: Dict[str, Any]) -> Dict[str, Any]:
             os.chown(destination, saved["uid"], saved["gid"])
         elif destination.exists():
             destination.unlink()
-    subprocess.run(["/usr/sbin/sshd", "-t"], check=True, capture_output=True, text=True)
+    _validate_sshd_config()
     # Restore the service's effective configuration, not just its files.
     service = subprocess.run(
         ["systemctl", "list-unit-files", "ssh.service", "--no-legend"],
