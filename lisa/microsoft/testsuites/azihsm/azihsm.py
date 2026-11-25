@@ -22,6 +22,7 @@ from lisa import (
 from lisa.base_tools import Cat, Uname
 from lisa.features import HsmSettings, SecureBootEnabled
 from lisa.operating_system import CBLMariner, Posix, Ubuntu
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.tools import (
     Dmesg,
     Echo,
@@ -66,6 +67,7 @@ _STATE_LOCK = Lock()
     requirement=simple_requirement(
         supported_features=[HsmSettings(is_enabled=True), SecureBootEnabled()],
         supported_os=[CBLMariner, Ubuntu],
+        unsupported_platform_type=[BAREMETAL],
     ),
 )
 class AziHsm(TestSuite):

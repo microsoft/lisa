@@ -14,6 +14,7 @@ from lisa import (
     simple_requirement,
 )
 from lisa.operating_system import FreeBSD
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
 
@@ -35,6 +36,7 @@ class WaAgentBvt(TestSuite):
         requirement=simple_requirement(
             supported_features=[AzureExtension],
             unsupported_os=[FreeBSD],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_vm_agent(self, log: Logger, node: Node) -> None:

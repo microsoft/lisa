@@ -25,6 +25,7 @@ from lisa import (
 )
 from lisa.base_tools import Service
 from lisa.operating_system import Fedora
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.tools import Cat, Journalctl, Pgrep, Reboot
 from lisa.util import check_till_timeout
 
@@ -123,7 +124,10 @@ class FedoraCloudValidation(TestSuite):
         fedora-release-common package version.
         """,
         priority=1,
-        requirement=simple_requirement(supported_os=[Fedora]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            unsupported_platform_type=[BAREMETAL],
+        ),
     )
     def verify_fedora_edition_identification(self, node: Node) -> None:
         """
@@ -214,7 +218,10 @@ class FedoraCloudValidation(TestSuite):
         systemctl reports zero failed units.
         """,
         priority=1,
-        requirement=simple_requirement(supported_os=[Fedora]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            unsupported_platform_type=[BAREMETAL],
+        ),
     )
     def verify_services_started(self, node: Node) -> None:
         """
@@ -264,7 +271,10 @@ class FedoraCloudValidation(TestSuite):
         leaving the OS in a modified state unsuitable for other tests.
         """,
         priority=1,
-        requirement=simple_requirement(supported_os=[Fedora]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            unsupported_platform_type=[BAREMETAL],
+        ),
         use_new_environment=True,
     )
     def verify_package_install_remove(self, node: Node) -> None:
@@ -363,7 +373,10 @@ class FedoraCloudValidation(TestSuite):
         baseline unaffected by prior test activity.
         """,
         priority=1,
-        requirement=simple_requirement(supported_os=[Fedora]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            unsupported_platform_type=[BAREMETAL],
+        ),
         use_new_environment=True,
     )
     def verify_reboot_and_mounts(self, node: Node) -> None:
@@ -389,7 +402,10 @@ class FedoraCloudValidation(TestSuite):
         accepts commands through the connected session.
         """,
         priority=1,
-        requirement=simple_requirement(supported_os=[Fedora]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            unsupported_platform_type=[BAREMETAL],
+        ),
     )
     def verify_base_startup(self, node: Node) -> None:
         default_target = node.execute("systemctl get-default")
@@ -422,7 +438,10 @@ class FedoraCloudValidation(TestSuite):
         Confirms the Fedora cloud image reports Enforcing through getenforce.
         """,
         priority=1,
-        requirement=simple_requirement(supported_os=[Fedora]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            unsupported_platform_type=[BAREMETAL],
+        ),
     )
     def verify_base_selinux(self, node: Node) -> None:
         getenforce = node.execute("getenforce")
@@ -441,7 +460,10 @@ class FedoraCloudValidation(TestSuite):
         enables updates-testing for the update transaction.
         """,
         priority=1,
-        requirement=simple_requirement(supported_os=[Fedora]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            unsupported_platform_type=[BAREMETAL],
+        ),
         use_new_environment=True,
     )
     def verify_update_cli(self, node: Node) -> None:
@@ -495,7 +517,10 @@ class FedoraCloudValidation(TestSuite):
         and that its configured state persists correctly across reboots.
         """,
         priority=1,
-        requirement=simple_requirement(supported_os=[Fedora]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            unsupported_platform_type=[BAREMETAL],
+        ),
         use_new_environment=True,
     )
     def verify_service_manipulation(self, node: Node) -> None:
@@ -580,7 +605,10 @@ class FedoraCloudValidation(TestSuite):
         validates no filesystem corruption errors before/after reboot.
         """,
         priority=1,
-        requirement=simple_requirement(supported_os=[Fedora]),
+        requirement=simple_requirement(
+            supported_os=[Fedora],
+            unsupported_platform_type=[BAREMETAL],
+        ),
         use_new_environment=True,
     )
     def verify_system_logging(self, node: Node) -> None:

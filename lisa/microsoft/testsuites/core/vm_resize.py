@@ -16,6 +16,7 @@ from lisa import (
 )
 from lisa.features import Resize, ResizeAction, StartStop
 from lisa.schema import NodeSpace
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.testsuite import TestResult
 from lisa.tools import Lscpu
 from lisa.util.logger import Logger
@@ -42,6 +43,7 @@ class VmResize(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[Resize],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_vm_hot_resize(self, result: TestResult) -> None:
@@ -62,6 +64,7 @@ class VmResize(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[Resize],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_vm_hot_resize_decrease(self, result: TestResult) -> None:
@@ -83,6 +86,7 @@ class VmResize(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[Resize, StartStop],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_vm_resize_increase(self, result: TestResult) -> None:
@@ -102,6 +106,7 @@ class VmResize(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[Resize, StartStop],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_vm_resize_decrease(self, result: TestResult) -> None:

@@ -18,6 +18,7 @@ from lisa import (
 )
 from lisa.features import NetworkInterface, SerialConsole, Synthetic
 from lisa.operating_system import FreeBSD
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.tools import Ip, KernelConfig, Uname, Wget
 from lisa.util import perf_timer
 
@@ -45,7 +46,10 @@ class NetInterface(TestSuite):
 
         """,
         priority=1,
-        requirement=simple_requirement(network_interface=Synthetic()),
+        requirement=simple_requirement(
+            network_interface=Synthetic(),
+            unsupported_platform_type=[BAREMETAL],
+        ),
     )
     def validate_netvsc_reload(self, node: Node, log_path: Path) -> None:
         self._validate_netvsc_built_in(node)
@@ -108,6 +112,7 @@ class NetInterface(TestSuite):
             network_interface=schema.NetworkInterfaceOptionSettings(
                 data_path=schema.NetworkDataPath.Synthetic,
             ),
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_network_interface_reload_via_ip_link(

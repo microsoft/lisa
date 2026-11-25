@@ -40,7 +40,7 @@ from lisa.operating_system import (
     SuseRepositoryInfo,
     Ubuntu,
 )
-from lisa.sut_orchestrator import AZURE, HYPERV, QEMU, READY
+from lisa.sut_orchestrator import AZURE, BAREMETAL, HYPERV, QEMU, READY
 from lisa.sut_orchestrator.azure.common import is_cloud_init_enabled
 from lisa.sut_orchestrator.azure.features import AzureDiskOptionSettings
 from lisa.sut_orchestrator.azure.tools import Waagent
@@ -1842,7 +1842,10 @@ class AzureImageStandard(TestSuite):
         cifs.
         """,
         priority=1,
-        requirement=simple_requirement(supported_os=[Linux]),
+        requirement=simple_requirement(
+            supported_os=[Linux],
+            unsupported_platform_type=[BAREMETAL],
+        ),
     )
     def verify_essential_kernel_modules(self, node: Node) -> None:
         if not isinstance(node.os, Linux):

@@ -23,6 +23,7 @@ from lisa.operating_system import (
     Suse,
     Ubuntu,
 )
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
 
@@ -49,6 +50,7 @@ class AzureMonitorAgentLinuxExtension(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[AzureExtension],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_azuremonitoragent_linux(self, log: Logger, node: Node) -> None:

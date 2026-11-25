@@ -278,7 +278,10 @@ class TestResult:
 
         test_supported_platforms = self.runtime_data.requirement.platform_type
 
-        result = environment_platform_type_set.check(test_supported_platforms)
+        if test_supported_platforms.is_allow_set:
+            result = environment_platform_type_set.check(test_supported_platforms)
+        else:
+            result = test_supported_platforms.check(environment_platform_type_set)
 
         return result
 

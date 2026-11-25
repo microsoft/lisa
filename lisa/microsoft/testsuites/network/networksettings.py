@@ -103,9 +103,7 @@ class NetworkSettings(TestSuite):
 
         """,
         priority=1,
-        requirement=simple_requirement(
-            unsupported_os=[BSD, Windows],
-        ),
+        requirement=simple_requirement(unsupported_os=[BSD, Windows]),
     )
     def verify_ringbuffer_settings_change(self, node: Node) -> None:
         skip_if_no_synthetic_nics(node)
