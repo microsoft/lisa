@@ -67,8 +67,8 @@ class Perf(Tool):
         # Run perf to check if it exists
         # This handles cases when perf exists, but cannot be run
         # due to version mismatch on Debian backports
-        result = self.run()
-        if "not found" in result.stdout:
+        result = self.run(force_run=True)
+        if "not found" in f"{result.stdout}\n{result.stderr}":
             return False
 
         return True
