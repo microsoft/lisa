@@ -691,7 +691,6 @@ class Xfstests(Tool):
         "libaio-devel",
         "libattr-devel",
         "libbtrfs-devel",
-        "libcap",
         "libcap2",
         "libcap-devel",
         "libtool",
