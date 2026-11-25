@@ -115,33 +115,28 @@ class BareMetalPlatform(Platform):
         # process the cluster elements from runbook
         self._predeploy_environment(environment, log)
 
-        # deploy cluster
-        self.cluster.deploy(environment)
-
         if self._cluster_runbook.ready_checker:
             ready_checker = self.ready_checker_factory.create_by_runbook(
                 self._cluster_runbook.ready_checker, parent_logger=log
             )
+            for node in environment.nodes.list():
+                ready_checker.prepare(node)
+
+        self.cluster.deploy(environment)
+
+        if ready_checker:
+            try:
+                self._check_ready(environment, ready_checker)
+            except (LisaException, AssertionError) as error:
+                log.info(
+                    f"Deployment readiness failed: {error}. "
+                    "Attempting one platform-specific deployment recovery."
+                )
+                self.cluster.recover_deployment(environment)
+                self._check_ready(environment, ready_checker)
 
         for index, node in enumerate(environment.nodes.list()):
             node_context = get_node_context(node)
-
-            # ready checker
-            if ready_checker:
-                try:
-                    ready_checker.is_ready(node)
-                except (LisaException, AssertionError) as e:
-                    log.info(
-                        f"SSH ready check failed: {e}. "
-                        "Resetting server and retrying..."
-                    )
-                    node.features[StartStop].restart()
-                    log.info(
-                        "Retrying SSH ready check after server reset "
-                        "(this is the final attempt)..."
-                    )
-                    ready_checker.is_ready(node)
-
             assert node_context.client.connection, "connection is required"
             # get ip address
             if self._cluster_runbook.ip_getter:
@@ -155,6 +150,15 @@ class BareMetalPlatform(Platform):
             node.initialize()
 
         self._log.debug(f"deploy environment {environment.name} successfully")
+
+    @staticmethod
+    def _check_ready(environment: Environment, ready_checker: ReadyChecker) -> None:
+        for node in environment.nodes.list():
+            if ready_checker.is_ready(node) is not True:
+                raise LisaException(
+                    f"Deployment readiness checker '{ready_checker.type_name()}' "
+                    f"returned false for node {node.index}"
+                )
 
     def _delete_environment(self, environment: Environment, log: Logger) -> None:
         self.cluster.delete(environment, log)

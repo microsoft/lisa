@@ -12,6 +12,8 @@ Run tests on different platforms
 
 -  `Run on Ready computers <#run-on-ready-computers>`__
 
+-  `Run on iDRAC-managed Linux servers <#run-on-idrac-managed-linux-servers>`__
+
 -  `Run on Linux and QEMU <#run-on-linux-and-qemu>`__
 
 -  `OpenVMM NIC passthrough <#openvmm-nic-passthrough>`__
@@ -348,6 +350,61 @@ Learn more from :doc:`runbook reference <runbook>`.
 For a comprehensive introduction to LISA supported test parameters and runbook
 schema, please read :doc:`command-line reference <command_line>` and
 :doc:`runbook reference <runbook>`.
+
+Run on iDRAC-managed Linux servers
+----------------------------------
+
+For unattended ISO installations that reformat the Linux root filesystem,
+use the ``ssh_fresh_install`` readiness checker instead of ``ssh``. SSH
+connectivity alone does not prove that the ISO booted: the server may have
+returned to its previous installation.
+
+The checker reads the existing root filesystem UUID before deployment, using
+``sudo -n findmnt --noheadings --output UUID --target /`` over SSH. It refuses
+deployment if this identity cannot be established. After deployment, a
+different root UUID is required before LISA initializes the test node or
+runs test cases. Reconnecting to the original root filesystem fails
+readiness immediately.
+
+For example:
+
+.. code:: yaml
+
+   platform:
+     - type: baremetal
+       baremetal:
+         cluster:
+           - type: idrac
+             address: $(idrac_address)
+             username: $(idrac_username)
+             password: $(idrac_password)
+             ready_checker:
+               type: ssh_fresh_install
+               timeout: 2700
+             client:
+               - connection:
+                   address: $(server_address)
+                   username: $(server_username)
+                   password: $(server_password)
+                 iso_http_url: $(iso_url)
+       requirement:
+         node_count: 1
+
+Set the readiness timeout to cover firmware startup, installation, and the
+first installed-OS boot. The example allows 45 minutes for each readiness
+attempt. The pre-install and installed systems must both support the UUID
+command and the configured SSH credentials.
+
+On failed readiness, iDRAC recovery resets the management controller and
+retries the complete ISO deployment once, retaining the original UUID as
+the baseline. A second readiness failure prevents test execution. Controller
+and virtual-media errors are also fatal after their bounded recovery attempts.
+Deployment and controller reset are refused when controller jobs are active,
+scheduled, or cannot be verified; LISA does not cancel those jobs.
+
+This checker is not suitable for blank or initially unreachable servers, or
+images that preserve the root UUID. Use the existing ``ssh`` checker for
+workflows that require only SSH readiness; it does not verify reinstallation.
 
 Run on Linux and QEMU
 ---------------------
