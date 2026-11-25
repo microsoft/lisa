@@ -442,7 +442,13 @@ class Ntttcp(Tool):
         return process.wait_result(
             expected_exit_code=0,
             expected_exit_code_failure_message="fail to run ntttcp client",
-            timeout=run_time_seconds + tolerance_seconds,
+            # Keep tolerance available beyond all configured test phases.
+            timeout=(
+                warm_up_time_seconds
+                + run_time_seconds
+                + cool_down_time_seconds
+                + tolerance_seconds
+            ),
         )
 
     def create_ntttcp_result(
