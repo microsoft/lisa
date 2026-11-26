@@ -8,7 +8,7 @@ import importlib
 import json
 import re
 from pathlib import Path
-from typing import Dict, List, Set, Tuple, Type, TypedDict
+from typing import Dict, List, Optional, Set, Tuple, Type, TypedDict
 
 from validation_report import ValidationRecommendation
 
@@ -16,6 +16,7 @@ from lisa.operating_system import OperatingSystem
 from lisa.testselector import _is_os_compatible, _is_platform_compatible
 from lisa.testsuite import TestCaseMetadata, get_cases_metadata
 from lisa.util.os_resolver import infer_target_os, resolve_os_class
+from lisa.util.package import _import_root_package
 
 
 class ValidationGroup(TypedDict):
@@ -127,6 +128,9 @@ def reviewed_images(repo_root: Path) -> List[str]:
 def load_metadata(
     repo_root: Path, case_files: Dict[str, str]
 ) -> Dict[str, TestCaseMetadata]:
+    # Match LISA's builtin extension namespace without importing every suite.
+    if case_files:
+        _import_root_package("microsoft", repo_root / "lisa" / "microsoft")
     for path in sorted(set(case_files.values())):
         module = importlib.import_module(path.removesuffix(".py").replace("/", "."))
         if Path(module.__file__ or "").resolve() != (repo_root / path).resolve():
@@ -140,7 +144,8 @@ def load_metadata(
         matches = [
             case
             for case in registered.values()
-            if case.name == name
+            if case.name == name.rsplit(".", 1)[-1]
+            and ("." not in name or case.full_name == name)
             and case.suite.name == case.full_name.rsplit(".", 1)[0]
             and getattr(case.suite.test_class, "__module__", "") == module_name
         ]
@@ -167,6 +172,40 @@ def _os_names(node: ast.AST) -> Set[str]:
     return result
 
 
+def changed_class_attributes(
+    source: ast.Module, lines: Set[int]
+) -> List[Tuple[ast.ClassDef, ast.stmt, str, List[ast.Attribute]]]:
+    changes: List[Tuple[ast.ClassDef, ast.stmt, str, List[ast.Attribute]]] = []
+    for owner in source.body:
+        if not isinstance(owner, ast.ClassDef):
+            continue
+        for statement in owner.body:
+            if not isinstance(statement, (ast.Assign, ast.AnnAssign)) or not any(
+                statement.lineno <= line <= (statement.end_lineno or statement.lineno)
+                for line in lines
+            ):
+                continue
+            targets = (
+                statement.targets
+                if isinstance(statement, ast.Assign)
+                else [statement.target]
+            )
+            for target in targets:
+                if not isinstance(target, ast.Name):
+                    continue
+                references = [
+                    node
+                    for node in ast.walk(owner)
+                    if isinstance(node, ast.Attribute)
+                    and isinstance(node.ctx, ast.Load)
+                    and isinstance(node.value, ast.Name)
+                    and node.value.id in ("self", "cls", owner.name)
+                    and node.attr == target.id
+                ]
+                changes.append((owner, statement, target.id, references))
+    return changes
+
+
 def changed_os_context(
     repo_root: Path, changed_lines: Dict[str, Set[int]]
 ) -> Tuple[Set[str], str]:
@@ -179,6 +218,9 @@ def changed_os_context(
             continue
         source = file_path.read_text(encoding="utf-8")
         tree = ast.parse(source)
+        line_numbers = set(line_numbers)
+        for _, _, _, references in changed_class_attributes(tree, line_numbers):
+            line_numbers.update(node.lineno for node in references)
         nodes = list(ast.walk(tree))
         for line in sorted(line_numbers):
             enclosing = [
@@ -298,11 +340,18 @@ def build_validation_plan(
     reasons: Dict[str, str],
     changed_lines: Dict[str, Set[int]],
     explicit_images: List[str],
+    no_guest_reason: Optional[str] = None,
 ) -> ValidationPlan:
+    if case_files and no_guest_reason is not None:
+        raise ValueError("A no-guest reason cannot accompany selected cases.")
     if not case_files:
         return {
             "status": "not_required",
-            "reason": "No guest validation required.",
+            "reason": (
+                "No guest validation required."
+                if no_guest_reason is None
+                else no_guest_reason
+            ),
             "groups": [],
         }
     metadata = load_metadata(repo_root, case_files)

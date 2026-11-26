@@ -391,6 +391,7 @@ def _apply_filter(  # noqa: C901
             continue
         if runbook_key in [
             constants.NAME,
+            constants.TESTCASE_CRITERIA_FULL_NAME,
             constants.TESTCASE_CRITERIA_AREA,
             constants.TESTCASE_CRITERIA_CATEGORY,
         ]:

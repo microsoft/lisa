@@ -409,13 +409,11 @@ def _test_case_methods(
     return methods
 
 
-def _without_removed_test_cases(
-    repo_root: Path, path: str, diff: str
-) -> Tuple[str, bool, Optional[Tuple[List[str], bool]]]:
+def _original_source_from_diff(repo_root: Path, path: str, diff: str) -> Optional[str]:
     original_blob = re.search(r"(?m)^index ([0-9a-f]+)\.\.[0-9a-f]+", diff)
     if not original_blob or not original_blob.group(1).strip("0"):
-        print(f"No original testsuite blob for {path}; retaining coverage.")
-        return diff, False, None
+        print(f"No original Python blob for {path}; retaining coverage.")
+        return None
 
     original = subprocess.run(
         ["git", "cat-file", "blob", original_blob.group(1)],
@@ -427,11 +425,20 @@ def _without_removed_test_cases(
     )
     if original.returncode:
         raise ValueError(f"Cannot read original {path}: {original.stderr.strip()}")
+    return original.stdout
+
+
+def _without_removed_test_cases(
+    repo_root: Path, path: str, diff: str
+) -> Tuple[str, bool, Optional[Tuple[List[str], bool]]]:
+    original_source = _original_source_from_diff(repo_root, path, diff)
+    if original_source is None:
+        return diff, False, None
     source_path = repo_root / path
     current_source = (
         source_path.read_text(encoding="utf-8") if source_path.is_file() else ""
     )
-    before = ast.parse(original.stdout, filename=f"{path} (before)")
+    before = ast.parse(original_source, filename=f"{path} (before)")
     after = ast.parse(current_source, filename=path)
     old_methods = _test_case_methods(before)
     new_methods = _test_case_methods(after)
@@ -520,7 +527,7 @@ def _without_removed_test_cases(
 
     # Text diff anchors can land in an unchanged neighbor after a method deletion.
     changed_methods = [
-        method.name
+        f"{key[0]}.{key[1]}"
         for key, method in new_methods.items()
         if key not in old_methods or ast.dump(old_methods[key]) != ast.dump(method)
     ]
@@ -566,6 +573,81 @@ def filter_removed_test_cases(
         "".join(remaining_diff),
         method_changes,
     )
+
+
+def _non_selection_schema_ast(source: str, path: str) -> str:
+    tree = ast.parse(source, filename=path)
+    body: List[ast.stmt] = []
+    for node in tree.body:
+        if (
+            path == "lisa/schema.py"
+            and isinstance(node, ast.ClassDef)
+            and node.name == "Criteria"
+        ):
+            continue
+        if (
+            path == "lisa/util/constants.py"
+            and isinstance(node, (ast.Assign, ast.AnnAssign))
+            and isinstance(node.value, ast.Constant)
+            and isinstance(node.value.value, str)
+        ):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if (
+                len(targets) == 1
+                and isinstance(targets[0], ast.Name)
+                and (
+                    targets[0].id == "TESTCASE_CRITERIA"
+                    or targets[0].id.startswith("TESTCASE_CRITERIA_")
+                )
+            ):
+                continue
+        body.append(node)
+    return ast.dump(ast.Module(body=body, type_ignores=[]))
+
+
+def has_only_host_selection_changes(
+    repo_root: Path, changed_files: str, diff: str
+) -> bool:
+    relevant = {
+        _normalize_repo_path(path)
+        for path in changed_files.splitlines()
+        if any(
+            pattern.match(_normalize_repo_path(path))
+            for pattern in RELEVANT_CHANGE_PATTERNS
+        )
+    }
+    if not relevant or not relevant.issubset(
+        {"lisa/testselector.py", "lisa/schema.py", "lisa/util/constants.py"}
+    ):
+        return False
+
+    blocks: Dict[str, str] = {}
+    for block in re.split(r"(?m)(?=^diff --git )", diff):
+        match = re.search(r"(?m)^\+\+\+ b/(.+)$", block) or re.search(
+            r"(?m)^--- a/(.+)$", block
+        )
+        if match:
+            path = _normalize_repo_path(match.group(1))
+            if path in blocks:
+                print(f"Multiple diffs for {path}; retaining guest coverage.")
+                return False
+            blocks[path] = block
+
+    for path in sorted(relevant):
+        source = repo_root / path
+        if path not in blocks or not source.is_file():
+            return False
+        if path == "lisa/testselector.py":
+            continue
+        original = _original_source_from_diff(repo_root, path, blocks[path])
+        if original is None:
+            return False
+        # Comparing both ASTs preserves coverage for deletions outside Criteria.
+        if _non_selection_schema_ast(original, path) != _non_selection_schema_ast(
+            source.read_text(encoding="utf-8"), path
+        ):
+            return False
+    return True
 
 
 def _extract_tool_imports(tree: ast.AST) -> Dict[str, str]:
@@ -814,7 +896,11 @@ def list_test_cases(
         in_case_meta = False
         priority = 99
         case_metadata_lines: List[str] = []
+        suite_name = ""
         for line_no, line in enumerate(lines, start=1):
+            suite_match = re.match(r"class (\w+)", line)
+            if suite_match:
+                suite_name = suite_match.group(1)
             if "@TestSuiteMetadata" in line:
                 in_suite_meta = True
             if in_suite_meta:
@@ -841,7 +927,7 @@ def list_test_cases(
                         (
                             rel,
                             area,
-                            m.group(1),
+                            f"{suite_name}.{m.group(1)}",
                             priority,
                             _extract_supported_features(metadata_block),
                             case_tools_by_line.get(line_no, ()),
@@ -925,7 +1011,7 @@ def _get_test_method_changes(
                     _decorator_name(decorator) == "TestCaseMetadata"
                     for decorator in child.decorator_list
                 ):
-                    modified_test_cases.append(method_name)
+                    modified_test_cases.append(f"{node.name}.{method_name}")
 
     return modified_test_cases, shared_method_changed
 
@@ -1091,7 +1177,7 @@ def _case_os_calls(source: ast.Module, affected: Set[str]) -> Dict[str, Set[str]
                 for item in child.decorator_list
             ):
                 continue
-            result[child.name] = _resolve_function_tools(
+            result[f"{cls.name}.{child.name}"] = _resolve_function_tools(
                 (cls.name, child.name), direct, self_calls, plain_calls, {}, set()
             )
     return result
@@ -1159,9 +1245,11 @@ SELECTION_SYSTEM_PROMPT = (
     "- Which test cases directly test the changed functionality\n"
     "- Select only cases impacted by the modified code\n"
     "- Return [] if no candidate covers the change; do not substitute smoke_test\n"
-    "- Include related integration tests\n"
-    "- Be conservative: include cases that MIGHT be affected\n"
-    "Return ONLY a JSON array of test case name strings, no explanation."
+    "- Select the smallest set that validates every changed behavior\n"
+    "- Reuse one case for multiple changed paths when it validates all of them\n"
+    "- Keep extra cases for distinct branches or assertions, not duplicate names\n"
+    "Return ONLY a JSON array of exact Suite.method identifiers from the "
+    "provided candidate list, no explanation."
 )
 
 
@@ -1286,7 +1374,8 @@ def generate_runbook(case_names: List[str], marketplace_image: str = "") -> str:
     for name in case_names:
         lines += [
             "  - criteria:",
-            f'      name: "{name}"',
+            f"      full_name: {json.dumps(re.escape(name))}",
+            "      maturity: [stable, preview]",
         ]
     return "\n".join(lines) + "\n"
 
@@ -1336,15 +1425,12 @@ def build_prompt(
     testsuite_guidance = ""
     if testsuite_related_cases:
         testsuite_guidance = (
-            "\nChanged testsuite test methods map to these cases. IMPORTANT NOTE: "
-            "The candidate list has been narrowed down to ONLY the test methods "
-            "that were actually modified. If only "
-            "verify_generic_ext4_standard_datadisk was changed, ONLY that case "
-            "is in the list, not other tests in the same file. So strongly "
-            "prefer to select all candidates in this list unless the diff "
-            "clearly shows the change does not impact the named methods. "
-            "Common/shared helper methods (for example _install_xfstests and "
-            "before_case) have similar effect. "
+            "\nThese cases are related to changed testsuite code. Independently "
+            "edited test methods must each be validated. For a shared helper, "
+            "choose one caller only when it executes and validates the changed "
+            "path. Keep additional callers for different branches, inputs or "
+            "assertions required by the diff. Sharing a method name, area, tool "
+            "or feature is not proof that two cases validate the same behavior. "
         )
 
     testsuite_case_summary = ""
@@ -1402,8 +1488,8 @@ def build_prompt(
         f"{testsuite_guidance}\n"
         f"{feature_guidance}\n"
         f"{tool_guidance}\n"
-        "Return a JSON array of case names only, e.g. "
-        '["smoke_test", "verify_cpu_count"].'
+        "Return a JSON array of exact suite-qualified case identifiers only, e.g. "
+        '["CPU.verify_cpu_count"]. Do not strip the suite name.'
     )
 
 
@@ -1434,19 +1520,39 @@ def build_case_summary(
     return "\n".join(lines)
 
 
+def resolve_case_names(selected: List[str], candidates: List[str]) -> List[str]:
+    resolved: List[str] = []
+    candidate_set = set(candidates)
+    for name in selected:
+        if name in candidate_set or "." in name:
+            resolved.append(name)
+            continue
+        matches = [
+            candidate
+            for candidate in candidates
+            if candidate.rsplit(".", 1)[-1] == name.rsplit(".", 1)[-1]
+        ]
+        resolved.extend(matches or [name])
+    return list(dict.fromkeys(resolved))
+
+
 def _is_smoke_case(case_name: str) -> bool:
+    case_name = case_name.rsplit(".", 1)[-1]
     return case_name == "smoke_test" or case_name.startswith("smoke_")
 
 
 def _is_stress_case(case_name: str) -> bool:
+    case_name = case_name.rsplit(".", 1)[-1]
     return case_name.startswith("stress_")
 
 
 def _is_perf_case(case_name: str) -> bool:
+    case_name = case_name.rsplit(".", 1)[-1]
     return case_name.startswith("perf_")
 
 
 def _is_verify_case(case_name: str) -> bool:
+    case_name = case_name.rsplit(".", 1)[-1]
     return case_name.startswith("verify_")
 
 
@@ -1581,7 +1687,9 @@ def parse_ai_response(response: str) -> List[str]:
         return []
     valid: List[str] = []
     for item in parsed:
-        if isinstance(item, str) and re.fullmatch(r"[A-Za-z0-9_]+", item):
+        if isinstance(item, str) and re.fullmatch(
+            r"[A-Za-z0-9_]+(?:\.[A-Za-z0-9_]+)?", item
+        ):
             valid.append(item)
         else:
             print(f"WARNING: dropping malformed AI-selected case: {item!r}")
@@ -1618,9 +1726,12 @@ def apply_smoke_fallback(
         return non_smoke_cases
 
     valid_names = {name for _, _, name, _, _, _ in all_cases}
-    if "smoke_test" in valid_names:
+    smoke_cases = sorted(
+        name for name in valid_names if name.rsplit(".", 1)[-1] == "smoke_test"
+    )
+    if smoke_cases:
         print("No targeted cases remained. Falling back to smoke_test.")
-        return ["smoke_test"]
+        return smoke_cases
 
     return []
 
@@ -1899,6 +2010,335 @@ def minimize_framework_only_cases(
     return selected
 
 
+def _testsuite_functions(
+    source: ast.Module,
+) -> List[Tuple[str, Union[ast.FunctionDef, ast.AsyncFunctionDef]]]:
+    functions: List[Tuple[str, Union[ast.FunctionDef, ast.AsyncFunctionDef]]] = []
+    for node in source.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            functions.append(("", node))
+        elif isinstance(node, ast.ClassDef):
+            functions.extend(
+                (node.name, child)
+                for child in node.body
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+            )
+    return functions
+
+
+def _has_conditional_logic(node: ast.AST) -> bool:
+    return any(
+        isinstance(
+            item,
+            (
+                ast.If,
+                ast.IfExp,
+                ast.BoolOp,
+                ast.Try,
+                ast.For,
+                ast.AsyncFor,
+                ast.While,
+                ast.ListComp,
+                ast.SetComp,
+                ast.DictComp,
+                ast.GeneratorExp,
+                ast.Lambda,
+                ast.FunctionDef,
+                ast.AsyncFunctionDef,
+            ),
+        )
+        or type(item).__name__ in ("Match", "TryStar")
+        for item in ast.walk(node)
+    )
+
+
+def _testsuite_logic_callers(source: ast.Module) -> Dict[str, Set[str]]:
+    functions = _testsuite_functions(source)
+    direct = {
+        (scope, node.name): {f"{scope}.{node.name}" if scope else node.name}
+        for scope, node in functions
+    }
+    self_calls: Dict[Tuple[str, str], Set[str]] = {}
+    plain_calls: Dict[Tuple[str, str], Set[str]] = {}
+    for scope, node in functions:
+        body: List[ast.stmt] = []
+        for statement in node.body:
+            if _has_conditional_logic(statement):
+                break
+            body.append(statement)
+            if isinstance(statement, (ast.Return, ast.Raise)):
+                break
+        (
+            _,
+            self_calls[(scope, node.name)],
+            plain_calls[(scope, node.name)],
+        ) = _collect_function_details(ast.Module(body=body, type_ignores=[]), {})
+    callers: Dict[str, Set[str]] = {}
+    for scope, node in functions:
+        if not any(
+            _decorator_name(item) == "TestCaseMetadata" for item in node.decorator_list
+        ):
+            continue
+        keys = [(scope, node.name)] + [
+            (scope, hook)
+            for hook in ("before_case", "after_case", "before_suite", "after_suite")
+            if (scope, hook) in direct
+        ]
+        callers[f"{scope}.{node.name}"] = set().union(
+            *[
+                _resolve_function_tools(key, direct, self_calls, plain_calls, {}, set())
+                for key in keys
+            ]
+        )
+    return callers
+
+
+def _metadata_requirements(decorators: List[ast.expr]) -> Tuple[str, ...]:
+    return tuple(
+        sorted(
+            f"{keyword.arg}:{ast.dump(keyword.value)}"
+            for decorator in decorators
+            if isinstance(decorator, ast.Call)
+            for keyword in decorator.keywords
+            if keyword.arg
+            in (
+                "requirement",
+                "supported_os",
+                "unsupported_os",
+                "supported_features",
+                "supported_platform_type",
+                "unsupported_platform_type",
+                None,
+            )
+        )
+    )
+
+
+def _case_validation_requirements(source: ast.Module) -> Dict[str, Tuple[str, ...]]:
+    suites = {
+        node.name: _metadata_requirements(node.decorator_list)
+        for node in source.body
+        if isinstance(node, ast.ClassDef)
+    }
+    return {
+        f"{scope}.{node.name}": (
+            *suites.get(scope, ()),
+            "case",
+            *_metadata_requirements(node.decorator_list),
+        )
+        for scope, node in _testsuite_functions(source)
+    }
+
+
+def _os_guarded_path(node: ast.AST, parents: Dict[ast.AST, ast.AST]) -> bool:
+    from validation_plan import _os_names
+
+    while node in parents:
+        node = parents[node]
+        if isinstance(node, ast.If):
+            if not _os_names(node.test):
+                return False
+        elif isinstance(
+            node,
+            (
+                ast.IfExp,
+                ast.BoolOp,
+                ast.For,
+                ast.AsyncFor,
+                ast.While,
+                ast.Try,
+                ast.ListComp,
+                ast.SetComp,
+                ast.DictComp,
+                ast.GeneratorExp,
+                ast.Lambda,
+            ),
+        ):
+            return False
+        elif type(node).__name__ in ("Match", "TryStar"):
+            return False
+    return True
+
+
+def _tool_install_reads(owner: ast.ClassDef, attribute: str) -> bool:
+    if any(
+        isinstance(node, ast.Attribute)
+        and isinstance(node.ctx, ast.Store)
+        and isinstance(node.value, ast.Name)
+        and node.value.id in ("self", "cls", owner.name)
+        and node.attr == attribute
+        for node in ast.walk(owner)
+    ):
+        return False
+    if not any(
+        isinstance(base, (ast.Name, ast.Attribute))
+        and (base.id if isinstance(base, ast.Name) else base.attr) == "Tool"
+        for base in owner.bases
+    ):
+        return False
+    functions = _testsuite_functions(ast.Module(body=[owner], type_ignores=[]))
+    if not any(
+        node.name == "can_install"
+        and len(node.body) == 1
+        and isinstance(node.body[0], ast.Return)
+        and isinstance(node.body[0].value, ast.Constant)
+        and node.body[0].value.value is True
+        for _, node in functions
+    ):
+        return False
+    parents = {
+        child: node for node in ast.walk(owner) for child in ast.iter_child_nodes(node)
+    }
+    direct: Dict[Tuple[str, str], Set[str]] = {}
+    calls: Dict[Tuple[str, str], Set[str]] = {}
+    for scope, function in functions:
+        key = (scope, function.name)
+        direct[key] = {
+            attribute
+            for node in ast.walk(function)
+            if isinstance(node, ast.Attribute)
+            and isinstance(node.ctx, ast.Load)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "self"
+            and node.attr == attribute
+            and _os_guarded_path(node, parents)
+        }
+        calls[key] = {
+            node.func.attr
+            for node in ast.walk(function)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "self"
+            and _os_guarded_path(node, parents)
+        }
+    return attribute in _resolve_function_tools(
+        (owner.name, "_install"), direct, calls, {}, {}, set()
+    )
+
+
+def _tool_attribute_coverage(
+    source: ast.Module,
+    lines: Set[int],
+    related: List[str],
+    all_cases: List[Tuple[str, str, str, int, Tuple[str, ...], Tuple[str, ...]]],
+    path: str,
+) -> Tuple[Set[int], Dict[str, List[str]]]:
+    from validation_plan import changed_class_attributes
+
+    covered: Set[int] = set()
+    obligations: Dict[str, List[str]] = {}
+    for owner, statement, attribute, references in changed_class_attributes(
+        source, lines
+    ):
+        value = (
+            statement.value
+            if isinstance(statement, (ast.Assign, ast.AnnAssign))
+            else None
+        )
+        if (
+            not references
+            or not isinstance(
+                value, (ast.Constant, ast.List, ast.Tuple, ast.Set, ast.Dict)
+            )
+            or any(isinstance(node, ast.Call) for node in ast.walk(value))
+            or _has_conditional_logic(value)
+            or not _tool_install_reads(owner, attribute)
+        ):
+            continue
+        candidates = [
+            name
+            for _, _, name, _, _, tools in all_cases
+            if name in related and owner.name in tools
+        ]
+        if candidates:
+            covered.update(
+                line
+                for line in lines
+                if statement.lineno
+                <= line
+                <= (statement.end_lineno or statement.lineno)
+            )
+            obligations[
+                f"Changed tool installation attribute {path}:{owner.name}.{attribute}"
+            ] = candidates
+    return covered, obligations
+
+
+def testsuite_coverage(
+    repo_root: Path,
+    changed_lines: Dict[str, Set[int]],
+    related: List[str],
+    all_cases: List[Tuple[str, str, str, int, Tuple[str, ...], Tuple[str, ...]]],
+    method_changes: Dict[str, Tuple[List[str], bool]],
+) -> Tuple[List[str], Dict[str, List[str]]]:
+    mandatory: List[str] = []
+    obligations: Dict[str, List[str]] = {}
+    for path, lines in changed_lines.items():
+        if not any(pattern.match(path) for pattern in TESTSUITE_CHANGE_PATTERNS):
+            continue
+        candidates = [
+            name
+            for case_path, _, name, _, _, _ in all_cases
+            if name in related
+            and _testsuite_suite_key(case_path) == _testsuite_suite_key(path)
+        ]
+        if path in method_changes and not method_changes[path][1]:
+            mandatory.extend(method_changes[path][0])
+            continue
+        source = ast.parse((repo_root / path).read_text(encoding="utf-8"))
+        functions = [
+            (scope, node)
+            for scope, node in _testsuite_functions(source)
+            if any(
+                min([node.lineno] + [item.lineno for item in node.decorator_list])
+                <= line
+                <= (node.end_lineno or node.lineno)
+                for line in lines
+            )
+        ]
+        covered = {
+            line
+            for _, node in functions
+            for line in lines
+            if min([node.lineno] + [item.lineno for item in node.decorator_list])
+            <= line
+            <= (node.end_lineno or node.lineno)
+        }
+        attribute_lines, attribute_obligations = _tool_attribute_coverage(
+            source, lines, candidates, all_cases, path
+        )
+        covered.update(attribute_lines)
+        obligations.update(attribute_obligations)
+        if covered != lines or (not functions and not attribute_obligations):
+            print(f"No precise shared-path mapping for {path}; retaining its cases.")
+            mandatory.extend(candidates)
+            continue
+        callers = _testsuite_logic_callers(source)
+        requirements = _case_validation_requirements(source)
+        for scope, node in functions:
+            key = f"{scope}.{node.name}" if scope else node.name
+            if key in candidates:
+                mandatory.append(key)
+                continue
+            matching = [name for name in candidates if key in callers.get(name, set())]
+            if (
+                not matching
+                or len({requirements[name] for name in matching}) > 1
+                or _has_conditional_logic(ast.Module(body=node.body, type_ignores=[]))
+            ):
+                print(
+                    f"Cannot prove caller equivalence for {path}:{key}; "
+                    "retaining callers."
+                )
+                mandatory.extend(matching or candidates)
+            else:
+                obligations[f"Changed shared testsuite path {path}:{key}"] = matching
+    if not mandatory and not obligations and related:
+        mandatory.extend(related)
+    return list(dict.fromkeys(mandatory)), obligations
+
+
 def ensure_required_coverage(
     selected: List[str],
     testsuite_cases: List[str],
@@ -1906,6 +2346,7 @@ def ensure_required_coverage(
     changed_features: Tuple[str, ...],
     changed_tools: Tuple[str, ...],
     os_obligations: Optional[Dict[str, List[str]]] = None,
+    shared_obligations: Optional[Dict[str, List[str]]] = None,
 ) -> Tuple[List[str], Dict[str, str]]:
     required = list(dict.fromkeys(testsuite_cases))
     reasons = {name: "Changed test or shared testsuite code" for name in required}
@@ -1922,16 +2363,39 @@ def ensure_required_coverage(
             (f"Changed OS method {name}", candidates)
             for name, candidates in (os_obligations or {}).items()
         ]
+        + list((shared_obligations or {}).items())
     )
     for reason, candidates in obligations:
         if not candidates:
             raise ValueError(f"No test covers {reason}; manual validation required.")
-        name = next(
-            (item for item in required + selected if item in candidates), candidates[0]
+    priority = {name: value for _, _, name, value, _, _ in all_cases}
+    cost = {
+        name: (len(features), len(tools), index)
+        for index, (_, _, name, _, features, tools) in enumerate(all_cases)
+    }
+    while obligations:
+        covering_cases = set(chain.from_iterable(items for _, items in obligations))
+        name = min(
+            covering_cases,
+            key=lambda item: (
+                item not in required,
+                -sum(item in items for _, items in obligations),
+                item not in selected,
+                priority.get(item, 99),
+                cost.get(item, (99, 99, len(all_cases))),
+                item,
+            ),
         )
         if name not in required:
             required.append(name)
-        reasons[name] = f"{reasons[name]}; {reason}" if name in reasons else reason
+        for reason, items in obligations:
+            if name in items:
+                reasons[name] = (
+                    f"{reasons[name]}; {reason}" if name in reasons else reason
+                )
+        obligations = [
+            (reason, items) for reason, items in obligations if name not in items
+        ]
     return required, reasons
 
 
@@ -1943,18 +2407,26 @@ def write_outputs(
     required_cases: Optional[List[str]] = None,
     reasons: Optional[Dict[str, str]] = None,
     changed_lines: Optional[Dict[str, Set[int]]] = None,
+    no_guest_reason: Optional[str] = None,
 ) -> None:
     """Write runbook, GitHub Actions outputs, and step summary."""
     from validation_plan import build_validation_plan, parse_explicit_images
     from validation_report import recommendation_table
 
+    inventory_names = [entry[2] for entry in all_cases]
+    expanded = resolve_case_names(validated, inventory_names)
+    additional = [name for name in expanded if name not in validated]
+    if additional:
+        print(f"Resolved bare method names to candidate identities: {additional}")
+    validated = expanded
+    required_cases = resolve_case_names(required_cases or [], inventory_names)
     case_files: Dict[str, str] = {}
     for path, _, name, _, _, _ in all_cases:
         if name not in validated:
             continue
         if name in case_files and case_files[name] != path:
             raise ValueError(
-                f"Selected method name {name!r} is ambiguous across suites."
+                f"Selected case identifier {name!r} is ambiguous across files."
             )
         case_files[name] = path
     if set(validated) != set(case_files):
@@ -1966,6 +2438,7 @@ def write_outputs(
         reasons or {},
         changed_lines or {},
         parse_explicit_images(os.environ.get("PR_VALIDATION_IMAGES", "[]")),
+        no_guest_reason=no_guest_reason,
     )
     groups = plan["groups"]
     marketplace_image = groups[0]["marketplace_image"] if len(groups) == 1 else ""
@@ -1974,9 +2447,7 @@ def write_outputs(
     plan_path = output_path.with_suffix(".json")
     plan_path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
     print(f"Validation plan written to {plan_path}: {json.dumps(plan)}")
-    executable = [
-        name.rsplit(".", 1)[-1] for group in groups for name in group["cases"]
-    ]
+    executable = [name for group in groups for name in group["cases"]]
     # Do not leave a runnable legacy fragment for recommendation-only plans.
     runbook = generate_runbook(executable, marketplace_image)
     output_path.write_text(runbook, encoding="utf-8")
@@ -2065,9 +2536,22 @@ def main() -> None:
     changed_files, diff, method_changes = filter_removed_test_cases(
         repo_root, changed_files, diff
     )
-    if not has_relevant_code_changes(changed_files) or has_only_comment_changes(diff):
-        print("No remaining guest-code changes. Guest validation is not required.")
-        write_outputs([], [], "", output_file)
+    host_selection_only = has_only_host_selection_changes(
+        repo_root, changed_files, diff
+    )
+    if (
+        not has_relevant_code_changes(changed_files)
+        or has_only_comment_changes(diff)
+        or host_selection_only
+    ):
+        reason = (
+            "Only host-side testcase-selection logic changed. "
+            "Guest validation is not required; host-side CI checks still apply."
+            if host_selection_only
+            else "No remaining guest-code changes. Guest validation is not required."
+        )
+        print(reason)
+        write_outputs([], [], "", output_file, no_guest_reason=reason)
         return
 
     has_framework_changes, has_testsuite_changes = get_change_scope(changed_files)
@@ -2110,6 +2594,13 @@ def main() -> None:
     os_obligations = get_os_method_obligations(
         repo_root, changed_lines_by_file, all_cases
     )
+    mandatory_suite_cases, shared_obligations = testsuite_coverage(
+        repo_root,
+        changed_lines_by_file,
+        testsuite_related_cases,
+        all_cases,
+        method_changes,
+    )
     os_cases = list(dict.fromkeys(chain.from_iterable(os_obligations.values())))
     feature_related_cases = get_feature_related_cases(all_cases, changed_features)
     tool_related_cases = get_tool_related_cases(all_cases, changed_tools)
@@ -2122,11 +2613,16 @@ def main() -> None:
         print(f"Detected changed tool classes: {list(changed_tools)}")
         print(f"Cases using changed tools: {tool_related_cases}")
 
-    # For testsuite changes, run only the cases mapped from modified tests.
-    # get_testsuite_related_cases already expands to full suite for shared/common
-    # method changes and narrows to specific case names for method-local edits.
+    # Keep edited tests; share callers only when their changed path is mapped.
     if has_testsuite_changes and not has_framework_changes and testsuite_related_cases:
-        validated = list(dict.fromkeys(testsuite_related_cases))
+        validated, reasons = ensure_required_coverage(
+            [],
+            mandatory_suite_cases,
+            all_cases,
+            (),
+            (),
+            shared_obligations=shared_obligations,
+        )
         print(
             "Testsuite change detected. Using deterministic testsuite selection: "
             f"{validated}"
@@ -2137,9 +2633,7 @@ def main() -> None:
             "",
             output_file,
             required_cases=validated,
-            reasons={
-                name: "Changed test or shared testsuite code" for name in validated
-            },
+            reasons=reasons,
             changed_lines=changed_lines_by_file,
         )
         return
@@ -2220,6 +2714,7 @@ def main() -> None:
     selected_cases = parse_ai_response(response)
 
     candidate_name_set = set(candidate_case_names)
+    selected_cases = resolve_case_names(selected_cases, candidate_case_names)
 
     validated = [c for c in selected_cases if c in candidate_name_set]
     invalid = [c for c in selected_cases if c not in candidate_name_set]
@@ -2256,13 +2751,19 @@ def main() -> None:
     )
     required_cases, reasons = ensure_required_coverage(
         validated,
-        testsuite_related_cases,
+        mandatory_suite_cases,
         all_cases,
         changed_features,
         changed_tools,
         os_obligations,
+        shared_obligations,
     )
-    validated = list(dict.fromkeys(required_cases + validated))
+    shared_callers = set(chain.from_iterable(shared_obligations.values()))
+    validated = list(
+        dict.fromkeys(
+            required_cases + [name for name in validated if name not in shared_callers]
+        )
+    )
     if not validated:
         raise ValueError(
             "AI selected no targeted tests; validation coverage is missing."

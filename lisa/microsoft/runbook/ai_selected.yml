@@ -10,6 +10,8 @@ variable:
     value: 0
   - name: test_case_name
     value: ""
+  - name: test_case_full_name
+    value: ""
   - name: marketplace_image
     value: ""
   - name: location
@@ -19,4 +21,5 @@ notifier:
 testcase:
   - criteria:
       name: $(test_case_name)
+      full_name: $(test_case_full_name)
       maturity: [stable, preview]

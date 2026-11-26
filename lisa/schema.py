@@ -1741,6 +1741,7 @@ class Criteria:
 
     name: Optional[str] = None
     area: Optional[str] = None
+    full_name: Optional[str] = None
     category: Optional[str] = None
     priority: Optional[Union[int, List[int]]] = field(
         default=None,
@@ -1767,7 +1768,7 @@ class Criteria:
     )
 
     def __post_init__(self, *args: Any, **kwargs: Any) -> None:
-        strip_strs(self, ["name", "area", "category", "tags"])
+        strip_strs(self, ["name", "full_name", "area", "category", "tags"])
         self.maturity = self._normalize_maturity(self.maturity)
 
     @staticmethod

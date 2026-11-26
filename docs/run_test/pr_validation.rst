@@ -17,9 +17,20 @@ Draft filter to apply.
 Selection rules
 ---------------
 
-* Changed test methods, including metadata edits, are required. Shared helper
-  edits conservatively include cases from the affected file or testsuite area.
-  Changes in multiple files are accumulated.
+* Changed test methods, including metadata edits, remain independently required.
+  Shared helper edits use scoped, transitive caller mappings. A straight-line
+  shared path needs one representative caller; a case covering multiple changed
+  paths is preferred. Conditional helpers and changes without a guaranteed
+  caller mapping retain conservative coverage rather than assuming that one
+  case validates every branch. Guarded calls are not counted as guaranteed,
+  and callers with different OS/platform/feature requirements are not collapsed.
+  Changes in multiple files are accumulated, and all mapped obligations must
+  still have a selected case.
+  Declarative Tool attributes are traced through the Tool installation path.
+  Cases retrieving that Tool share an installation obligation, so changing a
+  dependency list does not require running every filesystem variant. Attributes
+  used only in unrelated or unresolved conditional paths retain conservative
+  coverage. Within mapped alternatives, lower-cost requirements are preferred.
 * Removing complete decorated test methods without changing remaining code
   produces ``not_required`` with no model call or guest execution. Complete
   test-only suite/file removals are also skipped; deleted helper or other
@@ -37,12 +48,28 @@ Selection rules
   to find direct test callers. For example, changing ``Suse._update_packages``
   recalls tests that call ``node.os.update_packages``, rather than treating the
   OS change as an unrelated smoke-test request.
-* The selector imports only the selected testsuite modules and checks their
-  registered OS and platform requirements. Ambiguous method names are errors.
+* The selector uses ``Suite.method`` identifiers throughout discovery, model
+  selection, metadata lookup and execution. Equal method names in different
+  suites remain separate cases. Bare method names resolve to all same-named
+  candidates instead of raising an ambiguity error. A suite-qualified selection
+  retains that exact case; it does not automatically expand to other suites'
+  same-named methods. Bare names resolve to candidate identities and are subject
+  to the same coverage requirements. Names alone cannot establish caller
+  equivalence. Each selected case retains its suite-qualified identity for
+  metadata and execution.
+  The selector imports only the selected testsuite modules and checks their
+  registered OS and platform requirements.
+  Before importing, it registers LISA's built-in ``microsoft`` extension
+  namespace so existing ``microsoft.testsuites`` helper imports resolve in the
+  pipeline's editable-install environment. This does not preload all suites or
+  require an extra ``PYTHONPATH`` entry. Repository provenance checks remain
+  enforced for selected modules.
 * Images come exclusively from the reviewed list in
   ``.github/copilot-instructions.md``. Changed OS classes and enclosing OS
   branches constrain image selection. For example, a SUSE-specific change cannot
   fall back to Ubuntu. Compatible cases are grouped by image.
+  For changed class attributes, the selector follows their read sites into OS
+  branches; the attribute's name alone does not determine the target OS.
 * Version comparisons or changes affecting both architectures/generations need
   explicit images. Set the pipeline's ``validationImages`` parameter to a JSON
   array of exact strings from the reviewed list, for example:
@@ -58,6 +85,15 @@ Selection rules
   tests. Missing mappings, unsupported target distributions/platforms, invalid
   model responses with no covered obligations, and model API failures are not
   replaced with a successful-looking smoke run.
+* Host-side testcase-selection changes also produce ``not_required`` for guest
+  execution, without a model call. This applies to ``lisa/testselector.py``,
+  changes confined to ``Criteria`` in ``lisa/schema.py``, and literal
+  ``TESTCASE_CRITERIA`` / ``TESTCASE_CRITERIA_*`` declarations. Both original and
+  current schema/constants ASTs are compared: other declarations, including
+  deleted code, retain guest coverage requirements. Mixed guest/framework
+  changes still follow normal selection. The plan explains this host-only
+  scope; it does not claim that host-side tests passed. Other CI checks remain
+  required, and no arbitrary guest case is used to validate selection logic.
 * Known non-Azure suites (including OpenVMM/MSHV host coverage), and cases whose
   registered platform requirement excludes Azure, produce ``manual_required``.
   The plan contains suite-qualified ``recommendations`` with platform/host
@@ -116,8 +152,14 @@ Before deploying guests, it queries every selected image in the configured
 region using ``az vm image show`` and resolves ``latest`` to a concrete version.
 An unavailable target fails validation rather than switching distributions.
 
-Groups run sequentially with exact method-name filters. The plan records
-suite-qualified identities and rejects ambiguous method names. LISA retains
+Groups run sequentially with exact ``criteria.full_name`` filters. Existing
+``criteria.name`` filters continue to match method names. The plan records
+suite-qualified identities so selecting one case does not execute another
+suite's same-named method. Generated YAML fragments include stable/preview
+maturity, matching the validation runner. Older baseline runbooks use legacy
+method filters only when they select exactly the planned suite-qualified cases;
+otherwise comparison fails explicitly instead of running an unintended case.
+LISA retains
 responsibility for VM capability/SKU matching; the selector's preflight checks
 OS and platform, not every hardware or runtime prerequisite. Both stable and
 preview cases can be selected so directly changed preview tests are not silently
