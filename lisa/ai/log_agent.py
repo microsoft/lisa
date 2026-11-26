@@ -17,7 +17,7 @@ from openai import AsyncAzureOpenAI
 from retry import retry
 
 from . import logger
-from .common import VERBOSITY_LENGTH_THRESHOLD
+from .common import VERBOSITY_LENGTH_THRESHOLD, AzureOpenAIAuthentication
 from .default_flow import async_analyze_default
 
 
@@ -130,24 +130,25 @@ async def _calculate_similarity_async(
         api_key: Azure OpenAI API key.
     """
     deployment_name = "text-embedding-3-large"
-    client = AsyncAzureOpenAI(
-        api_key=api_key,
-        azure_endpoint=endpoint,
-        api_version="2024-02-15-preview",
-    )
-    try:
-        resp = await client.embeddings.create(
-            model=deployment_name, input=[text1, text2]
+    with AzureOpenAIAuthentication(api_key) as authentication:
+        client = AsyncAzureOpenAI(
+            azure_endpoint=endpoint,
+            api_version="2024-02-15-preview",
+            **authentication.openai_client_kwargs(),
         )
-        if not resp.data or len(resp.data) < 2:
-            raise ValueError("Embedding response did not return two embeddings.")
-        emb1 = resp.data[0].embedding
-        emb2 = resp.data[1].embedding
-        similarity = _cosine_similarity(emb1, emb2)
-        logger.info(f"Cosine similarity: {similarity}")
-        return similarity
-    finally:
-        await client.close()
+        try:
+            resp = await client.embeddings.create(
+                model=deployment_name, input=[text1, text2]
+            )
+            if not resp.data or len(resp.data) < 2:
+                raise ValueError("Embedding response did not return two embeddings.")
+            emb1 = resp.data[0].embedding
+            emb2 = resp.data[1].embedding
+            similarity = _cosine_similarity(emb1, emb2)
+            logger.info(f"Cosine similarity: {similarity}")
+            return similarity
+        finally:
+            await client.close()
 
 
 def _calculate_similarity(text1: str, text2: str, endpoint: str, api_key: str) -> float:
@@ -295,7 +296,7 @@ def _load_config(selected_flow: str) -> Config:
     load_dotenv(os.path.join(get_current_directory(), ".env"))
 
     # Get environment variables
-    azure_openai_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+    azure_openai_api_key = os.getenv("AZURE_OPENAI_API_KEY", "")
     azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
     embedding_endpoint = os.getenv("EMBEDDING_ENDPOINT")
     general_deployment_name = os.getenv("GENERAL_DEPLOYMENT_NAME")
@@ -305,7 +306,7 @@ def _load_config(selected_flow: str) -> Config:
     code_path = os.getenv("CODE_PATH", "../../")
 
     return Config(
-        azure_openai_api_key=azure_openai_api_key,  # type: ignore
+        azure_openai_api_key=azure_openai_api_key,
         azure_openai_endpoint=azure_openai_endpoint,  # type: ignore
         embedding_endpoint=embedding_endpoint,  # type: ignore
         general_deployment_name=general_deployment_name,  # type: ignore

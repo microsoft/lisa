@@ -36,8 +36,9 @@ class LogAgentSchema(schema.Notifier):
         default="",
         metadata=field_metadata(
             required=False,
-            description="Azure OpenAI API key for authentication, if not set, will use "
-            "default authentication methods.",
+            description="Optional legacy Azure OpenAI API key. When omitted, "
+            "authentication uses DefaultAzureCredential (managed identity, workload "
+            "identity, Azure CLI, and other supported Microsoft Entra ID sources).",
         ),
     )
     azure_openai_endpoint: str = field(
@@ -81,7 +82,8 @@ class LogAgentSchema(schema.Notifier):
     )
 
     def __post_init__(self) -> None:
-        add_secret(self.azure_openai_api_key)
+        if self.azure_openai_api_key:
+            add_secret(self.azure_openai_api_key)
 
 
 class LogAgent(Notifier):
@@ -156,9 +158,9 @@ class LogAgent(Notifier):
                 f"Skipping AI analysis for test {message.full_name}({message.id_}): "
                 "already processed"
             )
-            message.analysis[
-                "AI"
-            ] = f"skip same error, refer to {self._analysis_results[message.message]}"
+            message.analysis["AI"] = (
+                f"skip same error, refer to {self._analysis_results[message.message]}"
+            )
             return
 
         self._log.info(f"Initiating AI analysis for failed test: {message.full_name}")

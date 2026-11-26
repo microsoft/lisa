@@ -22,6 +22,8 @@ from .common import (
     AGENT_MAX_TOKENS,
     AGENT_TEMPERATURE,
     AGENT_TOP_P,
+    AzureOpenAIAuthentication,
+    AzureOpenAITokenProvider,
     get_current_directory,
 )
 
@@ -769,11 +771,13 @@ class FileSearchAgentBase(ChatAgent):  # type: ignore
         deployment_name: str,
         api_key: str,
         base_url: str,
+        ad_token_provider: Optional[AzureOpenAITokenProvider] = None,
     ) -> None:
         chat_client = self._create_chat_client(
             deployment_name=deployment_name,
             api_key=api_key,
             base_url=base_url,
+            ad_token_provider=ad_token_provider,
         )
         plugin = FileSearchPlugin(paths=paths)
         tools = [
@@ -799,6 +803,7 @@ class FileSearchAgentBase(ChatAgent):  # type: ignore
         deployment_name: str,
         api_key: str,
         base_url: str,
+        ad_token_provider: Optional[AzureOpenAITokenProvider] = None,
     ) -> AzureOpenAIChatClient:
         """Create an AI chat client for the file search agent using Azure OpenAI.
 
@@ -807,10 +812,17 @@ class FileSearchAgentBase(ChatAgent):  # type: ignore
             api_key: The API key for Azure AI Inference
             base_url: The endpoint URL for Azure AI Inference
         """
+        if api_key:
+            auth_kwargs: Dict[str, Any] = {"api_key": api_key}
+        elif ad_token_provider is not None:
+            auth_kwargs = {"ad_token_provider": ad_token_provider}
+        else:
+            raise ValueError(
+                "Azure OpenAI authentication requires an API key or token provider"
+            )
+
         return AzureOpenAIChatClient(
-            deployment_name=deployment_name,
-            api_key=api_key,
-            endpoint=base_url,
+            deployment_name=deployment_name, endpoint=base_url, **auth_kwargs
         )
 
 
@@ -831,6 +843,7 @@ class LogSearchAgent(FileSearchAgentBase):
         deployment_name: str,
         api_key: str,
         base_url: str,
+        ad_token_provider: Optional[AzureOpenAITokenProvider] = None,
     ) -> None:
         instructions = _load_prompt("log_search.txt", flow="default")
 
@@ -845,6 +858,7 @@ class LogSearchAgent(FileSearchAgentBase):
             deployment_name=deployment_name,
             api_key=api_key,
             base_url=base_url,
+            ad_token_provider=ad_token_provider,
         )
 
 
@@ -865,6 +879,7 @@ class CodeSearchAgent(FileSearchAgentBase):
         deployment_name: str,
         api_key: str,
         base_url: str,
+        ad_token_provider: Optional[AzureOpenAITokenProvider] = None,
     ) -> None:
         instructions = _load_prompt("code_search.txt", flow="default")
 
@@ -879,6 +894,7 @@ class CodeSearchAgent(FileSearchAgentBase):
             deployment_name=deployment_name,
             api_key=api_key,
             base_url=base_url,
+            ad_token_provider=ad_token_provider,
         )
 
 
@@ -953,6 +969,27 @@ async def async_analyze_default(
     """
     Default async analysis method using multi-agent orchestration.
     """
+    with AzureOpenAIAuthentication(azure_openai_api_key) as authentication:
+        return await _async_analyze_default(
+            authentication=authentication,
+            azure_openai_endpoint=azure_openai_endpoint,
+            general_deployment_name=general_deployment_name,
+            software_deployment_name=software_deployment_name,
+            code_path=code_path,
+            log_folder_path=log_folder_path,
+            error_message=error_message,
+        )
+
+
+async def _async_analyze_default(
+    authentication: AzureOpenAIAuthentication,
+    azure_openai_endpoint: str,
+    general_deployment_name: str,
+    software_deployment_name: str,
+    code_path: str,
+    log_folder_path: List[str],
+    error_message: str,
+) -> str:
     system_instructions = _load_prompt("user.txt", flow="default")
 
     trigger_keywords = [
@@ -997,22 +1034,24 @@ async def async_analyze_default(
     log_search_agent = LogSearchAgent(
         log_paths=log_folder_path,
         deployment_name=software_deployment_name,
-        api_key=azure_openai_api_key,
+        api_key=authentication.api_key or "",
         base_url=azure_openai_endpoint,
+        ad_token_provider=authentication.token_provider,
     )
     code_search_agent = CodeSearchAgent(
         code_paths=[code_path],
         deployment_name=software_deployment_name,
-        api_key=azure_openai_api_key,
+        api_key=authentication.api_key or "",
         base_url=azure_openai_endpoint,
+        ad_token_provider=authentication.token_provider,
     )
 
     # Create summary agent for final answer synthesis
     final_answer_prompt = _load_prompt("final_answer.txt", flow="default")
     summary_chat_client = AzureOpenAIChatClient(
-        api_key=azure_openai_api_key,
         endpoint=azure_openai_endpoint,
         deployment_name=general_deployment_name,
+        **authentication.chat_client_kwargs(),
     )
     summary_agent = ChatAgent(
         chat_client=summary_chat_client,
