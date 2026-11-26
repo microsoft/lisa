@@ -2,10 +2,9 @@
 # Licensed under the MIT license.
 
 import os
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Awaitable, Callable, Dict, Optional
 
-from azure.core.credentials import TokenCredential
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity.aio import DefaultAzureCredential, get_bearer_token_provider
 
 # Constants used in the code
 VERBOSITY_LENGTH_THRESHOLD = 1000  # Max length for verbose log messages
@@ -16,7 +15,7 @@ AGENT_TOP_P = 0.6
 AGENT_MAX_TOKENS = 8000
 
 AZURE_COGNITIVE_SERVICES_SCOPE = "https://cognitiveservices.azure.com/.default"
-AzureOpenAITokenProvider = Callable[[], str]
+AzureOpenAITokenProvider = Callable[[], Awaitable[str]]
 
 
 class AzureOpenAIAuthentication:
@@ -24,7 +23,7 @@ class AzureOpenAIAuthentication:
 
     def __init__(self, api_key: str = "") -> None:
         self.api_key = api_key if api_key.strip() else None
-        self.credential: Optional[TokenCredential] = None
+        self.credential: Optional[DefaultAzureCredential] = None
         self.token_provider: Optional[AzureOpenAITokenProvider] = None
 
         if self.api_key is None:
@@ -47,16 +46,16 @@ class AzureOpenAIAuthentication:
             raise RuntimeError("Azure OpenAI token provider is not configured")
         return {"azure_ad_token_provider": self.token_provider}
 
-    def close(self) -> None:
+    async def close(self) -> None:
         if self.credential is not None:
-            self.credential.close()
+            await self.credential.close()
             self.credential = None
 
-    def __enter__(self) -> "AzureOpenAIAuthentication":
+    async def __aenter__(self) -> "AzureOpenAIAuthentication":
         return self
 
-    def __exit__(self, *_: Any) -> None:
-        self.close()
+    async def __aexit__(self, *_: Any) -> None:
+        await self.close()
 
 
 def get_current_directory() -> str:

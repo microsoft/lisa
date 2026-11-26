@@ -130,7 +130,7 @@ async def _calculate_similarity_async(
         api_key: Azure OpenAI API key.
     """
     deployment_name = "text-embedding-3-large"
-    with AzureOpenAIAuthentication(api_key) as authentication:
+    async with AzureOpenAIAuthentication(api_key) as authentication:
         client = AsyncAzureOpenAI(
             azure_endpoint=endpoint,
             api_version="2024-02-15-preview",

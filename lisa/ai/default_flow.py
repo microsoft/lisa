@@ -969,7 +969,7 @@ async def async_analyze_default(
     """
     Default async analysis method using multi-agent orchestration.
     """
-    with AzureOpenAIAuthentication(azure_openai_api_key) as authentication:
+    async with AzureOpenAIAuthentication(azure_openai_api_key) as authentication:
         return await _async_analyze_default(
             authentication=authentication,
             azure_openai_endpoint=azure_openai_endpoint,
