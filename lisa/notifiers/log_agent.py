@@ -36,8 +36,9 @@ class LogAgentSchema(schema.Notifier):
         default="",
         metadata=field_metadata(
             required=False,
-            description="Azure OpenAI API key for authentication, if not set, will use "
-            "default authentication methods.",
+            description="Optional legacy Azure OpenAI API key. When omitted, "
+            "authentication uses DefaultAzureCredential (managed identity, workload "
+            "identity, Azure CLI, and other supported Microsoft Entra ID sources).",
         ),
     )
     azure_openai_endpoint: str = field(
@@ -81,7 +82,8 @@ class LogAgentSchema(schema.Notifier):
     )
 
     def __post_init__(self) -> None:
-        add_secret(self.azure_openai_api_key)
+        if self.azure_openai_api_key:
+            add_secret(self.azure_openai_api_key)
 
 
 class LogAgent(Notifier):

@@ -65,6 +65,7 @@ azure = [
 ]
 
 ai = [
+    "azure-identity ~= 1.17.0b1",
     "opentelemetry-semantic-conventions-ai == 0.4.13",
     "agent-framework-core == 1.0.0b260130",
     "agent-framework-azure-ai == 1.0.0b260130",
