@@ -2,8 +2,9 @@
 # Licensed under the MIT license.
 import re
 from collections import Counter
+from dataclasses import dataclass
 from functools import partial
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, cast
 
 from assertpy import assert_that
 
@@ -11,6 +12,7 @@ from lisa import (
     Environment,
     Logger,
     Node,
+    RemoteNode,
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
@@ -22,10 +24,20 @@ from lisa.operating_system import BSD, Windows
 from lisa.sut_orchestrator import AZURE
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.testsuite import TestResult
-from lisa.tools import Chrony, Dmesg, Lscpu, StressNg
+from lisa.tools import Chrony, Dmesg, Fio, Iperf3, Kill, Lscpu, StressNg
 from lisa.util import LisaException, SkippedException, check_till_timeout
 from lisa.util.parallel import run_in_parallel
 from lisa.util.perf_timer import create_timer
+
+
+@dataclass
+class _CpuWindowResult:
+    # slowest window / fastest window on this node
+    min_to_peak_ratio: float
+    # slowest window / BASELINE_OPS_PER_SEC, None if the size has no baseline
+    baseline_ratio: Optional[float]
+    p50_ops_per_sec: float
+    min_ops_per_sec: float
 
 
 @TestSuiteMetadata(
@@ -83,6 +95,16 @@ class CpuOversubscription(TestSuite):
     # VMs loaded at once in the multi-VM test. Enough for several VMs to
     # plausibly share a host, while keeping the cost of one run bounded.
     MULTI_VM_COUNT = 4
+    # Windows per phase in the mixed-size overpacking test. It runs three
+    # phases, so 10 x 60s keeps the whole test near 30 minutes of load.
+    MIXED_PHASE_WINDOW_COUNT = 10
+    # Runtime of each iperf3 and fio measurement on standard VMs. Long enough
+    # for a stable average, short enough to repeat with and without DT load.
+    IO_MEASURE_SECONDS = 300
+    # iperf3 parallel streams, so throughput reaches the VM's network limit.
+    IPERF3_PARALLEL_STREAMS = 8
+    # fio queue depth for the 4K random-read storage measurement.
+    FIO_IODEPTH = 64
     # Provisional bound on chrony's system clock offset under load. Azure's
     # PTP-based sync normally keeps the offset well under 1 ms, so 100 ms
     # indicates a real clock disruption rather than normal jitter.
@@ -152,13 +174,13 @@ class CpuOversubscription(TestSuite):
         log: Logger,
         result: TestResult,
     ) -> None:
-        _, baseline_ratio = self._run_cpu_windows_and_report(
+        baseline_ratio = self._run_cpu_windows_and_report(
             node=node,
             log=log,
             result=result,
             test_case_name="perf_cpu_steal_time",
             baseline_ops_per_sec=self._get_baseline_ops_per_sec(node),
-        )
+        ).baseline_ratio
         if baseline_ratio is not None:
             floor = self._get_performance_floor(node)
             assert_that(baseline_ratio).described_as(
@@ -228,7 +250,7 @@ class CpuOversubscription(TestSuite):
             ],
             log,
         )
-        ratios = [min_to_peak for min_to_peak, _ in node_results]
+        ratios = [node_result.min_to_peak_ratio for node_result in node_results]
 
         lowest_ratio = min(ratios)
         send_unified_perf_message(
@@ -261,7 +283,8 @@ class CpuOversubscription(TestSuite):
         ).is_empty()
 
         below_floor: Dict[str, str] = {}
-        for node, (_, baseline_ratio) in zip(nodes, node_results):
+        for node, node_result in zip(nodes, node_results):
+            baseline_ratio = node_result.baseline_ratio
             floor = self._get_performance_floor(node)
             if baseline_ratio is not None and baseline_ratio < floor:
                 below_floor[node.name] = (
@@ -274,6 +297,350 @@ class CpuOversubscription(TestSuite):
             "the same size, then review host contention."
         ).is_empty()
 
+    @TestCaseMetadata(
+        description="""
+        Covers the OK2GoLive overpacking scenarios for CPU on a node packed with
+        a mix of oversubscribed (DTv7/DTav7/Asv3) and standard VMs. The
+        environment must contain both kinds of VM, deployed onto the same
+        packed node (for example a single-node TIP session); otherwise the test
+        is skipped. LISA does not create the packing or control the overcommit
+        level; those come from the deployment.
+
+        Runs three 10-minute phases of 60-second stress-ng cpu windows:
+        1. Standard VMs busy, oversubscribed VMs idle: standard-VM reference.
+        2. Scenario 2 (packed but quiet): oversubscribed VMs busy, standard VMs
+           idle. For sizes with a measured baseline, the slowest window must
+           reach at least 90% of it (full speed).
+        3. Scenario 1 (everyone busy): all VMs busy. Each standard VM's slowest
+           window must reach at least 90% of its phase 1 median (no
+           degradation). Each oversubscribed VM's slowest window must reach its
+           family's floor (50% for DT, 75% for Asv3) of its baseline, or of its
+           phase 2 median for sizes without a baseline.
+        Also fails if any VM logs new soft lockups, RCU stalls or call traces.
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=simple_requirement(
+            min_count=2,
+            unsupported_os=[BSD, Windows],
+        ),
+    )
+    def perf_cpu_overpacked_node_mixed_sizes(
+        self,
+        environment: Environment,
+        log: Logger,
+        result: TestResult,
+    ) -> None:
+        test_case_name = "perf_cpu_overpacked_node_mixed_sizes"
+        nodes = list(environment.nodes.list())
+        oversubscribed, standard = self._split_by_oversubscription(nodes)
+        errors_before = {
+            node.name: self._get_kernel_error_lines(node.tools[Dmesg]) for node in nodes
+        }
+
+        log.info(
+            f"overpacking phase 1/3 on {len(standard)} standard VMs, "
+            f"oversubscribed VMs idle"
+        )
+        standard_alone = self._run_cpu_phase(
+            standard, log, result, test_case_name, "phase1_standard_alone_"
+        )
+        log.info(
+            f"overpacking phase 2/3 (scenario 2) on {len(oversubscribed)} "
+            f"oversubscribed VMs, standard VMs idle"
+        )
+        oversubscribed_quiet = self._run_cpu_phase(
+            oversubscribed, log, result, test_case_name, "scenario2_quiet_"
+        )
+        log.info(f"overpacking phase 3/3 (scenario 1) on all {len(nodes)} VMs")
+        all_busy = self._run_cpu_phase(
+            nodes, log, result, test_case_name, "scenario1_all_busy_"
+        )
+
+        failures: Dict[str, str] = {}
+        for node in oversubscribed:
+            baseline = self._get_baseline_ops_per_sec(node)
+            if baseline is not None:
+                quiet_ratio = oversubscribed_quiet[node.name].min_ops_per_sec / baseline
+                self._report_ratio(
+                    node,
+                    result,
+                    test_case_name,
+                    "scenario2_min_vs_baseline",
+                    quiet_ratio,
+                )
+                if quiet_ratio < self.STANDARD_PERFORMANCE_FLOOR:
+                    failures[f"{node.name} scenario 2"] = (
+                        f"{self._get_vm_size(node)} reached {quiet_ratio:.0%} of "
+                        f"baseline, expected full speed "
+                        f"(>= {self.STANDARD_PERFORMANCE_FLOOR:.0%})"
+                    )
+            reference = baseline or oversubscribed_quiet[node.name].p50_ops_per_sec
+            busy_ratio = all_busy[node.name].min_ops_per_sec / reference
+            floor = self._get_performance_floor(node)
+            self._report_ratio(
+                node, result, test_case_name, "scenario1_min_vs_reference", busy_ratio
+            )
+            if busy_ratio < floor:
+                reference_name = "baseline" if baseline else "scenario 2 median"
+                failures[f"{node.name} scenario 1"] = (
+                    f"{self._get_vm_size(node)} reached {busy_ratio:.0%} of its "
+                    f"{reference_name}, floor {floor:.0%}"
+                )
+        for node in standard:
+            busy_ratio = (
+                all_busy[node.name].min_ops_per_sec
+                / standard_alone[node.name].p50_ops_per_sec
+            )
+            self._report_ratio(
+                node, result, test_case_name, "scenario1_min_vs_alone", busy_ratio
+            )
+            if busy_ratio < self.STANDARD_PERFORMANCE_FLOOR:
+                failures[f"{node.name} scenario 1"] = (
+                    f"{self._get_vm_size(node)} reached {busy_ratio:.0%} of its "
+                    f"speed with oversubscribed VMs idle, expected no degradation "
+                    f"(>= {self.STANDARD_PERFORMANCE_FLOOR:.0%})"
+                )
+
+        self._assert_no_new_kernel_errors(nodes, errors_before)
+        assert_that(failures).described_as(
+            "overpacking scenario expectations were not met. Confirm all VMs "
+            "were on the same packed node, then review host contention."
+        ).is_empty()
+
+    @TestCaseMetadata(
+        description="""
+        Covers the OK2GoLive requirement that standard VMs on a packed node see
+        no network or storage degradation when oversubscribed VMs (DTv7/DTav7/
+        Asv3) are busy. The environment must contain at least one
+        oversubscribed VM and one standard VM on the same packed node (for
+        example a single-node TIP session); otherwise the test is skipped.
+
+        Measures, with oversubscribed VMs idle and then with them running
+        stress-ng on all vCPUs:
+        - storage: fio 4K random read IOPS on a file on the first standard VM.
+        - network: iperf3 TCP throughput between the first two standard VMs
+          (only if there are at least two).
+        Fails if either measurement under load drops below 90% of its idle
+        value.
+        """,
+        priority=3,
+        timeout=TIMEOUT,
+        requirement=simple_requirement(
+            min_count=2,
+            unsupported_os=[BSD, Windows],
+        ),
+    )
+    def perf_io_standard_vm_under_oversubscribed_load(
+        self,
+        environment: Environment,
+        log: Logger,
+        result: TestResult,
+    ) -> None:
+        test_case_name = "perf_io_standard_vm_under_oversubscribed_load"
+        nodes = list(environment.nodes.list())
+        oversubscribed, standard = self._split_by_oversubscription(nodes)
+        # iperf3 stops the firewall and fio leaves files; later cases need a
+        # clean VM.
+        for node in standard:
+            node.mark_dirty()
+        network_pair = standard[:2] if len(standard) >= 2 else []
+        if not network_pair:
+            log.info(
+                "only one standard VM in the environment, skipping the network "
+                "measurement; storage is still measured"
+            )
+
+        log.info("measuring standard-VM I/O with oversubscribed VMs idle")
+        idle = self._measure_standard_io(standard[0], network_pair, log)
+
+        log.info(
+            f"measuring standard-VM I/O with {len(oversubscribed)} "
+            f"oversubscribed VMs busy"
+        )
+        # Two sequential measurements plus margin for tool startup.
+        load_seconds = self.IO_MEASURE_SECONDS * 2 + 300
+        stress_processes = [
+            node.tools[StressNg].launch_cpu_async(
+                num_cores=node.tools[Lscpu].get_thread_count(),
+                timeout_in_seconds=load_seconds,
+            )
+            for node in oversubscribed
+        ]
+        try:
+            busy = self._measure_standard_io(standard[0], network_pair, log)
+        finally:
+            for process in stress_processes:
+                if process.is_running():
+                    process.kill()
+
+        failures: Dict[str, str] = {}
+        for name, unit in (("storage_iops", "IOPS"), ("network_gbps", "Gbps")):
+            if name not in idle:
+                continue
+            ratio = busy[name] / idle[name] if idle[name] else 0.0
+            for metric_name, value, metric_unit in (
+                (f"{name}_oversubscribed_idle", idle[name], unit),
+                (f"{name}_oversubscribed_busy", busy[name], unit),
+                (f"{name}_busy_vs_idle_ratio", ratio, ""),
+            ):
+                send_unified_perf_message(
+                    node=standard[0],
+                    test_result=result,
+                    test_case_name=test_case_name,
+                    metric_name=metric_name,
+                    metric_value=value,
+                    metric_unit=metric_unit,
+                    metric_relativity=MetricRelativity.HigherIsBetter,
+                    tool="fio" if name == "storage_iops" else "iperf3",
+                )
+            log.info(
+                f"standard-VM {name} on '{standard[0].name}': idle "
+                f"{idle[name]:.2f} {unit}, oversubscribed busy {busy[name]:.2f} "
+                f"{unit}, ratio {ratio:.3f}"
+            )
+            if ratio < self.STANDARD_PERFORMANCE_FLOOR:
+                failures[name] = (
+                    f"{ratio:.0%} of idle value, expected no degradation "
+                    f"(>= {self.STANDARD_PERFORMANCE_FLOOR:.0%})"
+                )
+        assert_that(failures).described_as(
+            "standard-VM I/O degraded while oversubscribed VMs were busy. "
+            "Confirm all VMs were on the same packed node, then review host "
+            "network and storage contention."
+        ).is_empty()
+
+    def _split_by_oversubscription(
+        self, nodes: List[Node]
+    ) -> Tuple[List[Node], List[Node]]:
+        oversubscribed = [node for node in nodes if self._is_oversubscribed(node)]
+        standard = [node for node in nodes if not self._is_oversubscribed(node)]
+        if not oversubscribed or not standard:
+            sizes = sorted({self._get_vm_size(node) for node in nodes})
+            raise SkippedException(
+                f"needs at least one oversubscribed (DTv7/DTav7/Asv3) VM and one "
+                f"standard VM in the same environment, got sizes {sizes}. Deploy "
+                f"a mixed-size environment onto a single packed node, e.g. a "
+                f"single-node TIP session."
+            )
+        return oversubscribed, standard
+
+    def _is_oversubscribed(self, node: Node) -> bool:
+        vm_size = self._get_vm_size(node)
+        return bool(
+            self._dt_size_pattern.match(vm_size)
+            or self._a_series_size_pattern.match(vm_size)
+        )
+
+    def _run_cpu_phase(
+        self,
+        nodes: List[Node],
+        log: Logger,
+        result: TestResult,
+        test_case_name: str,
+        metric_prefix: str,
+    ) -> Dict[str, _CpuWindowResult]:
+        node_results = run_in_parallel(
+            [
+                partial(
+                    self._run_cpu_windows_and_report,
+                    node=node,
+                    log=log,
+                    result=result,
+                    test_case_name=test_case_name,
+                    baseline_ops_per_sec=None,
+                    window_count=self.MIXED_PHASE_WINDOW_COUNT,
+                    metric_prefix=metric_prefix,
+                )
+                for node in nodes
+            ],
+            log,
+        )
+        return {
+            node.name: node_result for node, node_result in zip(nodes, node_results)
+        }
+
+    def _report_ratio(
+        self,
+        node: Node,
+        result: TestResult,
+        test_case_name: str,
+        metric_name: str,
+        ratio: float,
+    ) -> None:
+        send_unified_perf_message(
+            node=node,
+            test_result=result,
+            test_case_name=test_case_name,
+            metric_name=metric_name,
+            metric_value=ratio,
+            metric_relativity=MetricRelativity.HigherIsBetter,
+            tool="stress-ng",
+        )
+
+    def _assert_no_new_kernel_errors(
+        self, nodes: List[Node], errors_before: Dict[str, List[str]]
+    ) -> None:
+        new_errors: Dict[str, List[str]] = {}
+        for node in nodes:
+            errors_after = self._get_kernel_error_lines(node.tools[Dmesg])
+            node_new_errors = list(
+                (Counter(errors_after) - Counter(errors_before[node.name])).elements()
+            )
+            if node_new_errors:
+                new_errors[node.name] = node_new_errors
+        assert_that(new_errors).described_as(
+            "one or more VMs reported kernel stability errors during CPU load. "
+            "Review host contention for those VMs and reproduce on the "
+            "corresponding base VM size."
+        ).is_empty()
+
+    def _measure_standard_io(
+        self, storage_node: Node, network_pair: List[Node], log: Logger
+    ) -> Dict[str, float]:
+        measurements = {"storage_iops": self._measure_storage_iops(storage_node)}
+        if network_pair:
+            measurements["network_gbps"] = self._measure_network_gbps(
+                client=network_pair[0], server=network_pair[1]
+            )
+        log.debug(f"standard-VM I/O measurements: {measurements}")
+        return measurements
+
+    def _measure_storage_iops(self, node: Node) -> float:
+        filename = "cpu_oversub_fiodata"
+        try:
+            fio_result = node.tools[Fio].launch(
+                name="cpu_oversub_storage",
+                filename=filename,
+                mode="randread",
+                iodepth=self.FIO_IODEPTH,
+                numjob=node.tools[Lscpu].get_thread_count(),
+                time=self.IO_MEASURE_SECONDS,
+                block_size="4K",
+                # Fio passes size_gb as "--size=<n>M", so 1024 means a 1 GiB file.
+                size_gb=1024,
+                overwrite=True,
+                time_based=True,
+            )
+        finally:
+            data_path = node.get_pure_path(filename)
+            if node.shell.exists(data_path):
+                node.shell.remove(data_path)
+        return float(fio_result.iops)
+
+    def _measure_network_gbps(self, client: Node, server: Node) -> float:
+        server.tools[Iperf3].run_as_server_async()
+        try:
+            client_result = client.tools[Iperf3].run_as_client(
+                server_ip=cast(RemoteNode, server).internal_address,
+                report_unit="g",
+                run_time_seconds=self.IO_MEASURE_SECONDS,
+                parallel_number=self.IPERF3_PARALLEL_STREAMS,
+            )
+        finally:
+            server.tools[Kill].by_name("iperf3")
+        return float(client.tools[Iperf3].get_sender_bandwidth(client_result.stdout))
+
     def _run_cpu_windows_and_report(
         self,
         node: Node,
@@ -281,13 +648,15 @@ class CpuOversubscription(TestSuite):
         result: TestResult,
         test_case_name: str,
         baseline_ops_per_sec: Optional[float],
-    ) -> Tuple[float, Optional[float]]:
+        window_count: Optional[int] = None,
+        metric_prefix: str = "",
+    ) -> _CpuWindowResult:
         """
         Runs back-to-back cpu windows on all vCPUs of the node and publishes the
-        metrics. Returns the min-to-peak throughput ratio, and the slowest
-        window as a fraction of the baseline (None if no baseline is given).
+        metrics, prefixed with metric_prefix. Uses WINDOW_COUNT windows unless
+        window_count is given.
         """
-        window_count = self.WINDOW_COUNT
+        window_count = window_count or self.WINDOW_COUNT
         window = self.WINDOW_IN_SECONDS
         thread_count = node.tools[Lscpu].get_thread_count()
         stress_ng = node.tools[StressNg]
@@ -309,7 +678,8 @@ class CpuOversubscription(TestSuite):
             throughputs.append(throughput)
             steal_percents.append(steal_percent)
             log.info(
-                f"cpu oversubscription window {index + 1}/{window_count} on "
+                f"cpu oversubscription {metric_prefix}window "
+                f"{index + 1}/{window_count} on "
                 f"'{node.name}': {throughput:.2f} bogo ops/s, "
                 f"steal {steal_percent:.2f}%"
             )
@@ -346,7 +716,7 @@ class CpuOversubscription(TestSuite):
                 node=node,
                 test_result=result,
                 test_case_name=test_case_name,
-                metric_name=name,
+                metric_name=f"{metric_prefix}{name}",
                 metric_value=value,
                 metric_unit=unit,
                 metric_relativity=relativity,
@@ -356,7 +726,8 @@ class CpuOversubscription(TestSuite):
             f"{name}={value:.3f}{unit}" for name, (value, unit) in metrics.items()
         )
         log.info(
-            f"cpu oversubscription summary on '{node.name}' ({thread_count} vCPUs, "
+            f"cpu oversubscription {metric_prefix}summary on '{node.name}' "
+            f"({thread_count} vCPUs, "
             f"{window_count} x {window}s windows): {metric_summary}"
         )
         guardrail = self._get_min_to_peak_guardrail(node)
@@ -368,7 +739,12 @@ class CpuOversubscription(TestSuite):
                 f"{guardrail}. Compare with a run on the "
                 f"corresponding base D-series size."
             )
-        return min_to_peak_ratio, baseline_ratio
+        return _CpuWindowResult(
+            min_to_peak_ratio=min_to_peak_ratio,
+            baseline_ratio=baseline_ratio,
+            p50_ops_per_sec=self._percentile(throughputs, 50),
+            min_ops_per_sec=min(throughputs),
+        )
 
     @TestCaseMetadata(
         description="""
