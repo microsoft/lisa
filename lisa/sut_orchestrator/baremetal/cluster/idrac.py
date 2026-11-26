@@ -155,6 +155,7 @@ class Idrac(Cluster):
         return IdracSerialConsole
 
     def deploy(self, environment: Environment) -> Any:
+        power_restore_required = False
         try:
             self.login()
             client_runbook: IdracClientSchema = self.client.get_extended_runbook(
@@ -164,15 +165,54 @@ class Idrac(Cluster):
                 client_runbook.iso_http_url
             ), "iso_http_url is required for idrac client"
             self._ensure_controller_is_idle()
+            power_restore_required = True
             self.reset("ForceOff")
             self._insert_virtual_media(client_runbook.iso_http_url)
             # Media recovery may reset the controller, so arm boot only afterwards.
             self._change_boot_order_once("VCD-DVD")
             self._wait_for_media_inserted(client_runbook.iso_http_url)
             self.reset("On", force_run=True)
+            power_restore_required = False
+        except Exception:
+            if power_restore_required:
+                try:
+                    self._restore_power_after_failed_deployment()
+                except Exception as restoration_error:
+                    # Restoration must not replace the original deployment failure.
+                    self._log.error(
+                        "Failed to restore server power after deployment failure: "
+                        f"{restoration_error}"
+                    )
+            raise
         finally:
             # Ensure logout happens even if deployment fails
             self.logout()
+
+    def _restore_power_after_failed_deployment(self) -> None:
+        self._log.debug(
+            "Deployment failed after the ForceOff operation started. "
+            "Attempting one bounded power restoration."
+        )
+        self.logout()
+        self.login()
+
+        try:
+            power_state = self.get_power_state()
+            self._log.info(
+                f"Server power state after deployment failure: {power_state}"
+            )
+            if power_state == "On":
+                return
+        except Exception as power_state_error:
+            self._log.debug(
+                "Could not determine the server power state after deployment "
+                f"failure: {power_state_error}. Attempting power-on."
+            )
+            self.logout()
+            self.login()
+
+        self.reset("On", force_run=True)
+        self._log.info("Server power restoration completed after deployment failure.")
 
     def recover_deployment(self, environment: Environment) -> None:
         self._log.info(
