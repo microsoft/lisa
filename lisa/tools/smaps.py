@@ -15,7 +15,7 @@ class Smaps(Tool):
         return False
 
     def get_page_sizes(self) -> Dict[str, int]:
-        """Return KernelPageSize and MMUPageSize of the first mapping in bytes."""
+        """Return the first mapping's page sizes in bytes, accepting LF or CRLF."""
         # Read once so both values describe the same mapping of the same process.
         result = self.run(
             str(self.node.get_pure_path("/proc/self/smaps")),
@@ -26,7 +26,8 @@ class Smaps(Tool):
                 "CONFIG_PROC_PAGE_MONITOR on the guest."
             ),
         )
-        mappings = re.split(r"(?m)^[0-9a-f]+-[0-9a-f]+ ", result.stdout, maxsplit=2)
+        stdout = result.stdout.replace("\r\n", "\n")
+        mappings = re.split(r"(?m)^[0-9a-f]+-[0-9a-f]+ ", stdout, maxsplit=2)
         if len(mappings) < 2:
             raise LisaException(
                 "No process mapping found in /proc/self/smaps. "
