@@ -158,9 +158,9 @@ class LogAgent(Notifier):
                 f"Skipping AI analysis for test {message.full_name}({message.id_}): "
                 "already processed"
             )
-            message.analysis["AI"] = (
-                f"skip same error, refer to {self._analysis_results[message.message]}"
-            )
+            message.analysis[
+                "AI"
+            ] = f"skip same error, refer to {self._analysis_results[message.message]}"
             return
 
         self._log.info(f"Initiating AI analysis for failed test: {message.full_name}")
