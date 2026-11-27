@@ -949,6 +949,7 @@ def perf_premium_datadisks(
     ioengine: IoEngine = IoEngine.LIBAIO,
     verify_max_disks: bool = False,
 ) -> None:
+    """Run per-disk fio with at least one job per data disk."""
     disk = node.features[Disk]
     data_disks = disk.get_raw_data_disks()
     disk_count = len(data_disks)
@@ -975,7 +976,9 @@ def perf_premium_datadisks(
     thread_count = cpu.get_thread_count()
     # Each fio job targets one disk (see perf_disk per_disk_jobs). Cap the
     # per-job region so all jobs on a disk fit without overlapping.
-    total_jobs = min(thread_count, 256) if ioengine == IoEngine.LIBAIO else thread_count
+    total_jobs = max(thread_count, disk_count)
+    if ioengine == IoEngine.LIBAIO:
+        total_jobs = min(total_jobs, 256)
     if total_jobs < disk_count:
         raise SkippedException(
             f"per-disk fio needs at least one job per data disk: "
@@ -1000,7 +1003,7 @@ def perf_premium_datadisks(
         disk_count=disk_count,
         disk_setup_type=disk_setup_type,
         disk_type=disk_type,
-        numjob=thread_count,
+        numjob=total_jobs,
         block_size=block_size,
         size_mb=size_mb,
         overwrite=True,
