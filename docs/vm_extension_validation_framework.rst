@@ -669,7 +669,11 @@ The suite covers:
 
 All 15 cases reuse a VM serially. Before each case the suite snapshots the
 SSH configuration, provisioning metadata, agent sudoers file, and available
-iptables rules. Cleanup removes test accounts and their new groups, restores
+iptables rules. SSH configuration validation creates the standard privilege
+separation runtime directory if sshd reports it missing, as can happen before
+the SSH service starts on socket-activated images such as Ubuntu 24.04. It does
+not require an SSH connection; other validation errors remain fatal and include
+sshd's diagnostic output. Cleanup removes test accounts and their new groups, restores
 the snapshot, restarts the SSH service locally, and removes both extensions.
 The snapshot also fingerprints existing local account records in ``passwd``,
 ``shadow``, ``group``, and ``gshadow`` (when present). After test-account cleanup,
