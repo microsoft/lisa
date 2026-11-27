@@ -106,7 +106,12 @@ class FileUploaderTransformer(DeploymentTransformer):
             remote_path = PurePath(destination_path)
             self._log.debug(f"uploading file from '{local_path}' to '{remote_path}'")
 
-            copy.copy_to_remote(local_path, remote_path)
+            copy.copy_to_remote(
+                src=local_path,
+                dest=remote_path,
+                recurse=False,
+                sudo=False,
+            )
             uploaded_files.append(name)
 
         result[UPLOADED_FILES] = uploaded_files
