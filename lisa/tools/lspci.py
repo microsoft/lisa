@@ -420,16 +420,26 @@ class Lspci(Tool):
         ]
         return gpu_device_list
 
+    def get_devices_by_vendor_id(
+        self, vendor_id: str, force_run: bool = False
+    ) -> List[PciDevice]:
+        """Return all PCI devices matching the vendor ID, regardless of device ID."""
+        return [
+            device
+            for device in self.get_devices(force_run=force_run)
+            if device.vendor_id == vendor_id
+        ]
+
     def get_devices_by_vendor_device_id(
         self,
         vendor_id: str,
         device_id: str,
         force_run: bool = False,
     ) -> List[PciDevice]:
-        full_list = self.get_devices(force_run=force_run)
+        full_list = self.get_devices_by_vendor_id(vendor_id, force_run=force_run)
         devices_list = []
         for device in full_list:
-            if device.device_id == device_id and device.vendor_id == vendor_id:
+            if device.device_id == device_id:
                 devices_list.append(device)
         return devices_list
 
