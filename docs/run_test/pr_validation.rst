@@ -44,6 +44,21 @@ Selection rules
   every detected feature/tool. AI ranks related candidates; it cannot remove
   these obligations. Priority and naming conventions are not evidence that a
   different test covers the same path.
+  Tool discovery includes suite lifecycle hooks, including tools stored on
+  ``self`` in ``before_case``. In-file Tool subclasses are traced to their
+  ancestors and consuming Tools; an override change is not attributed to an
+  unrelated Tool simply because both classes occupy the same file.
+  For each Tool obligation, known Azure suites are preferred over dedicated
+  host suites when both have mapped callers. Direct edits to a host suite still
+  retain that suite's own validation obligations.
+  OS dispatch in Tool ``create`` factories constrains the reviewed images.
+  A Debian implementation therefore requires a Debian image, rather than a
+  default Ubuntu image, even if Ubuntu also inherits the Debian implementation.
+  Guarded calls to a changed Tool method produce ``manual_required`` with the
+  compatible image, case and source prerequisites. For example, a dump-path
+  change guarded by RAM exceeding free OS-disk space cannot be validated by
+  an arbitrary small VM. These plans emit no executable groups; reviewers must
+  configure and verify the guarded path before running dedicated validation.
 * OS implementation changes follow public OS wrappers and in-file test helpers
   to find direct test callers. For example, changing ``Suse._update_packages``
   recalls tests that call ``node.os.update_packages``, rather than treating the

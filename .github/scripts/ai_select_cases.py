@@ -25,6 +25,8 @@ from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
 
+from tool_impact import tool_change_impact
+
 FRAMEWORK_CHANGE_PATTERNS = (
     re.compile(r"^lisa/advanced_tools/.+\.py$"),
     re.compile(r"^lisa/base_tools/.+\.py$"),
@@ -799,6 +801,15 @@ def _extract_case_tools_by_line(lines: List[str]) -> Dict[int, Tuple[str, ...]]:
             cache,
             set(),
         )
+        for hook in ("before_case", "after_case", "before_suite", "after_suite"):
+            resolved = resolved | _resolve_function_tools(
+                (key[0], hook),
+                direct_tools,
+                self_calls,
+                plain_calls,
+                cache,
+                set(),
+            )
         case_tools[line_no] = tuple(sorted(resolved))
 
     return case_tools
@@ -847,18 +858,17 @@ def extract_changed_feature_names(
 def extract_changed_tool_names(
     repo_root: Path, changed_files: str, diff: str, known_tools: Set[str]
 ) -> Tuple[str, ...]:
-    matched_tools = _extract_changed_named_classes(
-        repo_root,
-        changed_files,
-        diff,
-        known_tools,
-        r"(^|/)tools?(\.py|/.+\.py)$",
-        _identity_name,
+    changed_lines_by_file = _extract_changed_new_lines(diff)
+    changed_tools = set(
+        _extract_changed_named_classes(
+            repo_root,
+            changed_files,
+            diff,
+            known_tools,
+            r"(^|/)tools?(\.py|/.+\.py)$",
+            _identity_name,
+        )
     )
-    if matched_tools:
-        return matched_tools
-
-    changed_tools: Set[str] = set()
     for raw_path in changed_files.splitlines():
         changed_path = _normalize_repo_path(raw_path)
         if not changed_path or not re.search(
@@ -875,9 +885,14 @@ def extract_changed_tool_names(
         except SyntaxError:
             continue
 
-        for node in tree.body:
-            if isinstance(node, ast.ClassDef) and node.name in known_tools:
-                changed_tools.add(node.name)
+        lines = _changed_lines_for_file(repo_root, changed_path, changed_lines_by_file)
+        impact = tool_change_impact(tree, lines)
+        changed_tools.update(impact.tools & known_tools)
+        if impact.tools and not impact.tools & known_tools:
+            raise ValueError(
+                f"No testcase Tool mapping for {changed_path}: "
+                f"{sorted(impact.tools)}; manual validation required."
+            )
 
     return tuple(sorted(changed_tools))
 
@@ -1132,13 +1147,20 @@ def get_tool_related_cases(
     if not changed_tools:
         return []
 
-    changed_tool_names = {tool.lower() for tool in changed_tools}
-    related_cases: List[str] = []
-    for _, _, case_name, _, _, used_tools in all_cases:
-        if any(used_tool.lower() in changed_tool_names for used_tool in used_tools):
-            related_cases.append(case_name)
-
-    return related_cases
+    related_cases: Set[str] = set()
+    for tool in changed_tools:
+        matching = [
+            (path, name)
+            for path, _, name, _, _, used_tools in all_cases
+            if tool.lower() in {used.lower() for used in used_tools}
+        ]
+        azure_cases = [
+            name
+            for path, name in matching
+            if not has_only_unsupported_platform_changes(path)
+        ]
+        related_cases.update(azure_cases or [name for _, name in matching])
+    return [name for _, _, name, _, _, _ in all_cases if name in related_cases]
 
 
 def _case_os_calls(source: ast.Module, affected: Set[str]) -> Dict[str, Set[str]]:
@@ -1896,13 +1918,10 @@ def align_with_tool_usage(
         return aligned_cases
 
     print(
-        "AI selected no cases using changed tools. Falling back to tool-related cases."
+        "AI selected no cases using changed tools. "
+        "Deterministic Tool obligations will supply required callers."
     )
-    return [
-        case_name
-        for _, _, case_name, _, _, _ in all_cases
-        if case_name in tool_related_cases
-    ]
+    return []
 
 
 def _add_representative_case(

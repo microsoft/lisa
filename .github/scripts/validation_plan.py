@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple, Type, TypedDict
 
+from tool_impact import tool_change_impact
 from validation_report import ValidationRecommendation
 
 from lisa.operating_system import OperatingSystem
@@ -218,6 +219,16 @@ def changed_os_context(
             continue
         source = file_path.read_text(encoding="utf-8")
         tree = ast.parse(source)
+        for guard in tool_change_impact(tree, line_numbers).factory_guards:
+            names.update(_os_names(guard))
+            contexts.append(ast.unparse(guard))
+            if any(
+                isinstance(node, ast.UnaryOp)
+                and isinstance(node.op, ast.Not)
+                and _os_names(node.operand)
+                for node in ast.walk(guard)
+            ):
+                contexts.append("UNRESOLVED_OS_BRANCH")
         line_numbers = set(line_numbers)
         for _, _, _, references in changed_class_attributes(tree, line_numbers):
             line_numbers.update(node.lineno for node in references)
@@ -360,7 +371,7 @@ def build_validation_plan(
         for name, path in case_files.items()
     ):
         return manual_plan(case_files, metadata, required_cases, reasons)
-    return _azure_validation_plan(
+    plan = _azure_validation_plan(
         repo_root,
         case_files,
         required_cases,
@@ -369,6 +380,41 @@ def build_validation_plan(
         explicit_images,
         metadata,
     )
+    prerequisites: List[str] = []
+    for path, lines in changed_lines.items():
+        file_path = repo_root / path
+        if file_path.suffix != ".py" or not file_path.is_file():
+            continue
+        tree = ast.parse(file_path.read_text(encoding="utf-8"))
+        for caller, guard, helper in tool_change_impact(tree, lines).guarded_calls:
+            if not _os_names(guard):
+                prerequisites.append(
+                    f"{path}:{caller} requires {ast.unparse(guard)}.\n{helper}"
+                )
+    if not prerequisites:
+        return plan
+    return {
+        "status": "manual_required",
+        "reason": "Changed Tool method is reached through a runtime guard. "
+        "A compatible image and testcase alone do not prove this path executes; "
+        "configure and verify the prerequisites before dedicated validation.",
+        "groups": [],
+        "recommendations": [
+            {
+                "case": name,
+                "platform": "Azure",
+                "requirements": (
+                    f"Marketplace image: {group['marketplace_image']}\n"
+                    + "\n".join(dict.fromkeys(prerequisites))
+                ),
+                "reason": group["reasons"][name],
+                "required": name in group["required_cases"],
+                "execution_status": "not_executed",
+            }
+            for group in plan["groups"]
+            for name in group["cases"]
+        ],
+    }
 
 
 def _azure_validation_plan(
