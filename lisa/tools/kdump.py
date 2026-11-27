@@ -12,6 +12,7 @@ from func_timeout import FunctionTimedOut, func_set_timeout
 from semver import VersionInfo
 
 from lisa.base_tools import Cat, Sed, Service, Wget
+from lisa.base_tools.service import Systemctl
 from lisa.executable import Tool
 from lisa.operating_system import (
     CBLMariner,
@@ -660,6 +661,34 @@ class KdumpDebian(KdumpBase):
         assert isinstance(self.node.os, Debian)
         self.node.os.install_packages("kdump-tools")
         return self._check_exists()
+
+    def config_resource_disk_dump_path(self, dump_path: str) -> None:
+        """Configure the Debian dump destination and its mount dependencies."""
+        self.node.tools[Mkdir].create_directory(dump_path, sudo=True)
+        kdump_conf = "/etc/default/kdump-tools"
+        sed = self.node.tools[Sed]
+        sed.substitute(
+            match_lines="^[[:space:]]*KDUMP_COREDIR=",
+            regexp="KDUMP_COREDIR=",
+            replacement="#KDUMP_COREDIR=",
+            file=kdump_conf,
+            sudo=True,
+        )
+        sed.append(f'KDUMP_COREDIR="{dump_path}"', kdump_conf, sudo=True)
+
+        if self.node.shell.exists(PurePosixPath("/run/systemd/system")):
+            # Both normal boot and crash capture must wait for the dump filesystem.
+            for service in ("kdump-tools", "kdump-tools-dump"):
+                drop_in_dir = f"/etc/systemd/system/{service}.service.d"
+                self.node.tools[Mkdir].create_directory(drop_in_dir, sudo=True)
+                self.node.tools[Echo].write_to_file(
+                    value=f"[Unit]\nRequiresMountsFor={dump_path}",
+                    file=PurePosixPath(f"{drop_in_dir}/lisa-dump-path.conf"),
+                    sudo=True,
+                    ignore_error=False,
+                )
+            self.node.tools[Systemctl].daemon_reload()
+        self.dump_path = dump_path
 
     def calculate_crashkernel_size(self, total_memory: str) -> str:
         # If the function returns empty string, it means using the default crash kernel
