@@ -943,10 +943,27 @@ def perf_premium_datadisks(
     start_iodepth: int = 1,
     max_iodepth: int = 256,
     ioengine: IoEngine = IoEngine.LIBAIO,
+    verify_max_disks: bool = False,
 ) -> None:
     disk = node.features[Disk]
     data_disks = disk.get_raw_data_disks()
     disk_count = len(data_disks)
+    if verify_max_disks:
+        # choose_max_value affects provisioning, not matching reused environments.
+        # Verify guest-visible disks so a max-disk test cannot pass with fewer disks.
+        assert_that(node.capability.disk).described_as(
+            "Disk capability is required; check the Azure node capability."
+        ).is_not_none()
+        disk_capability = cast(schema.DiskOptionSettings, node.capability.disk)
+        max_count = disk_capability.max_data_disk_count
+        assert_that(isinstance(max_count, int) and max_count > 0).described_as(
+            f"Expected a resolved positive maximum data-disk count, got {max_count}. "
+            "Check the Azure SKU disk capability before running max-disk tests."
+        ).is_true()
+        assert_that(disk_count).described_as(
+            f"Visible data-disk count must match the VM's maximum ({max_count}) "
+            "before fio"
+        ).is_equal_to(max_count)
     assert_that(disk_count).described_as(
         "At least 1 data disk for fio testing."
     ).is_greater_than(0)
