@@ -51,9 +51,10 @@ class Kill(Tool):
         )
 
         if result.exit_code != 0:
-            if ignore_not_exist and "No such process" in result.stdout:
+            output = f"{result.stdout}\n{result.stderr}".strip()
+            if ignore_not_exist and "No such process" in output:
                 self._log.debug(f"Kill for {pid} did not find any processes to kill.")
             else:
                 raise LisaException(
-                    f"failed to run {self.command} -{signum} {pid}: {result.stdout}"
+                    f"failed to run {self.command} -{signum} {pid}: {output}"
                 )
