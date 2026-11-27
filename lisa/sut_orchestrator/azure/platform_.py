@@ -1658,7 +1658,9 @@ class AzurePlatform(Platform):
 
             log.info(f"vm setting: {azure_node_runbook}")
 
-        self._check_windows_recovery_registration(nodes_parameters)
+        # Hooks may update the template, so keep the cached original unchanged.
+        template = deepcopy(self._load_template())
+        self._prepare_windows_recovery(nodes_parameters, template)
 
         if is_windows:
             # set password for windows any time.
@@ -1686,9 +1688,6 @@ class AzurePlatform(Platform):
             self._azure_runbook.use_public_address = False
         arm_parameters.source_address_prefixes = self._get_ip_addresses()
 
-        # the arm template may be updated by the hooks, so make a copy to avoid
-        # the original template is modified.
-        template = deepcopy(self._load_template())
         plugin_manager.hook.azure_update_arm_template(
             template=template, environment=environment
         )
@@ -1709,8 +1708,6 @@ class AzurePlatform(Platform):
                 environment=environment,
                 log=log,
             )
-
-        self._apply_windows_recovery(template, arm_parameters.nodes)
 
         # composite deployment properties
         parameters = arm_parameters.to_dict()  # type: ignore
@@ -3867,54 +3864,18 @@ class AzurePlatform(Platform):
         self._add_image_features(node_space)
         self._check_image_capability(node_space)
 
-    def _apply_windows_recovery(
-        self, template: Dict[str, Any], nodes: List[AzureNodeArmParameter]
+    def _prepare_windows_recovery(
+        self, nodes: List[AzureNodeArmParameter], template: Dict[str, Any]
     ) -> None:
         if not any(
             node.enable_windows_recovery and node.is_linux is False for node in nodes
         ):
-            return
-
-        resources = template["resources"]
-        if isinstance(resources, dict):
-            resources = list(resources.values())
-        virtual_machines = [
-            resource
-            for resource in resources
-            if resource["type"] == "Microsoft.Compute/virtualMachines"
-        ]
-        if len(virtual_machines) != 1 or "copy" not in virtual_machines[0]:
-            raise LisaException(
-                "Windows recovery requires a single copied VM resource "
-                "in the ARM template."
-            )
-
-        virtual_machine = virtual_machines[0]
-        properties = virtual_machine["properties"]
-        if not isinstance(properties, dict):
-            raise LisaException(
-                "VM template properties must be an object before applying "
-                "Windows recovery."
-            )
-
-        # Features must finish updating the JSON object before it becomes an expression.
-        node = "parameters('nodes')[range(0, variables('node_count'))[copyIndex()]]"
-        recovery = (
-            f"if(and({node}.enable_windows_recovery, "
-            f"equals({node}.is_linux, false())), "
-            "createObject('recoveryProfile', "
-            "createObject('enableWindowsRecovery', true())), createObject())"
-        )
-        virtual_machine[
-            "properties"
-        ] = f"[union({_to_arm_expression(properties)}, {recovery})]"
-
-    def _check_windows_recovery_registration(
-        self, nodes: List[AzureNodeArmParameter]
-    ) -> None:
-        if not any(
-            node.enable_windows_recovery and node.is_linux is False for node in nodes
-        ):
+            resources = template["resources"]
+            if isinstance(resources, dict):
+                resources = resources.values()
+            for resource in resources:
+                if resource["type"] == "Microsoft.Compute/virtualMachines":
+                    resource["properties"].pop("recoveryProfile", None)
             return
 
         feature_client = FeatureClient(self.credential, self.subscription_id)
@@ -3964,38 +3925,6 @@ class AzurePlatform(Platform):
             self._log.debug(f"Failed to check BYOIP feature: {e}")
             self._cached_byoip_registered = False
         return self._cached_byoip_registered
-
-
-def _to_arm_expression(value: object) -> str:
-    if isinstance(value, str):
-        if not value.startswith("[[") and value.startswith("[") and value.endswith("]"):
-            return value[1:-1]
-        literal = value[1:] if value.startswith("[[") else value
-        return "'" + literal.replace("'", "''") + "'"
-    if isinstance(value, dict):
-        if "copy" in value:
-            raise LisaException(
-                "ARM property copy loops must be expressed as array expressions "
-                "before applying Windows recovery."
-            )
-        items = []
-        for key, item in value.items():
-            if not isinstance(key, str):
-                raise LisaException("ARM template object keys must be strings.")
-            items.append(
-                "'" + key.replace("'", "''") + "', " + _to_arm_expression(item)
-            )
-        return f"createObject({', '.join(items)})"
-    if isinstance(value, list):
-        if not value:
-            return "json('[]')"
-        return f"createArray({', '.join(_to_arm_expression(item) for item in value)})"
-    if value is None or isinstance(value, (bool, int, float)):
-        return f"json('{json.dumps(value, allow_nan=False)}')"
-    raise LisaException(
-        f"Unsupported ARM template value type for Windows recovery: "
-        f"{type(value).__name__}."
-    )
 
 
 def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[str]:

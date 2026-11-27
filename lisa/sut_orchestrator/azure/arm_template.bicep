@@ -488,12 +488,12 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2026-04-01' = [for i in ra
         )
     }
     networkProfile: {
-      networkInterfaces: map(range(0, nodes[i].nic_count), j => {
+      networkInterfaces: [for j in range(0, nodes[i].nic_count): {
         id: resourceId('Microsoft.Network/networkInterfaces', '${nodes[i].name}-nic-${j}')
         properties: {
           primary: ((j == 0) ? true : false)
         }
-      })
+      }]
     }
     diagnosticsProfile: {
       bootDiagnostics: {
@@ -503,6 +503,9 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2026-04-01' = [for i in ra
     additionalCapabilities: {
       ultraSSDEnabled: (nodes[i].data_disk_type == 'UltraSSD_LRS') ? true: false
     }
+    recoveryProfile: nodes[i].enable_windows_recovery && nodes[i].is_linux == false
+      ? { enableWindowsRecovery: true }
+      : null
     securityProfile: getSecurityProfile(nodes[i])
   }
   zones: (use_availability_zones ? availability_zones : null)

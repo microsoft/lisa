@@ -227,10 +227,9 @@ deployment.
   ``false``. Windows recovery is enabled only when this setting is ``true`` and
   the node's resolved ``is_linux`` value is ``false``. The VM deployment then
   includes ``properties.recoveryProfile.enableWindowsRecovery: true``. The
-  recovery profile is omitted for Linux nodes, unresolved OS types, and when
-  the setting is disabled.
-
-  LISA applies the recovery condition after all feature template updates.
+  recovery profile is completely omitted when no Windows node enables
+  recovery. In a deployment containing recovery-enabled Windows nodes,
+  other nodes receive a ``null`` recovery profile and recovery stays disabled.
   The generated template keeps VM properties as JSON objects so existing
   features, including hibernation, can update them without changes.
 

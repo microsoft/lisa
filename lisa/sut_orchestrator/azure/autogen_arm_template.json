@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "900159006007376783"
+      "templateHash": "16271687924675044954"
     }
   },
   "functions": [
@@ -819,7 +819,18 @@
           "dataDisks": "[if(empty(parameters('data_disks')), null(), concat(map(filter(range(0, length(parameters('data_disks'))), lambda('j', not(__bicep.shouldAttachDataDisk(parameters('data_disks')[lambdaVariables('j')])))), lambda('j', __bicep.getCreateDisk(parameters('data_disks')[lambdaVariables('j')], format('{0}-data-disk-{1}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, lambdaVariables('j')), lambdaVariables('j')))), map(filter(range(0, length(parameters('data_disks'))), lambda('j', __bicep.shouldAttachDataDisk(parameters('data_disks')[lambdaVariables('j')]))), lambda('j', __bicep.getAttachDisk(parameters('data_disks')[lambdaVariables('j')], format('{0}-data-disk-{1}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, lambdaVariables('j')), lambdaVariables('j'))))))]"
         },
         "networkProfile": {
-          "networkInterfaces": "[map(range(0, parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count), lambda('j', createObject('id', resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic-{1}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, lambdaVariables('j'))), 'properties', createObject('primary', if(equals(lambdaVariables('j'), 0), true(), false())))))]"
+          "copy": [
+            {
+              "name": "networkInterfaces",
+              "count": "[length(range(0, parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count))]",
+              "input": {
+                "id": "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic-{1}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, range(0, parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count)[copyIndex('networkInterfaces')]))]",
+                "properties": {
+                  "primary": "[if(equals(range(0, parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count)[copyIndex('networkInterfaces')], 0), true(), false())]"
+                }
+              }
+            }
+          ]
         },
         "diagnosticsProfile": {
           "bootDiagnostics": {
@@ -829,6 +840,7 @@
         "additionalCapabilities": {
           "ultraSSDEnabled": "[if(equals(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].data_disk_type, 'UltraSSD_LRS'), true(), false())]"
         },
+        "recoveryProfile": "[if(and(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].enable_windows_recovery, equals(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].is_linux, false())), createObject('enableWindowsRecovery', true()), null())]",
         "securityProfile": "[__bicep.getSecurityProfile(parameters('nodes')[range(0, variables('node_count'))[copyIndex()]])]"
       },
       "zones": "[if(variables('use_availability_zones'), variables('availability_zones'), null())]",
