@@ -459,7 +459,7 @@ resource nodes_data_disks_with_vhds 'Microsoft.Compute/disks@2022-03-02' = [
   }
 ]
 
-resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in range(0, node_count): {
+resource nodes_vms 'Microsoft.Compute/virtualMachines@2026-04-01' = [for i in range(0, node_count): {
   name: nodes[i].name
   location: nodes[i].location
   tags: union(combined_vm_tags, nodes[i].vm_tags)
@@ -488,12 +488,12 @@ resource nodes_vms 'Microsoft.Compute/virtualMachines@2024-03-01' = [for i in ra
         )
     }
     networkProfile: {
-      networkInterfaces: [for j in range(0, nodes[i].nic_count): {
+      networkInterfaces: map(range(0, nodes[i].nic_count), j => {
         id: resourceId('Microsoft.Network/networkInterfaces', '${nodes[i].name}-nic-${j}')
         properties: {
           primary: ((j == 0) ? true : false)
         }
-      }]
+      })
     }
     diagnosticsProfile: {
       bootDiagnostics: {

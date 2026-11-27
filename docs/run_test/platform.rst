@@ -221,6 +221,42 @@ deployment.
             vm_size: "<vm size>"
             maximize_capability: "<true or false>"
             osdisk_size_in_gb: <disk size in gb>
+            enable_windows_recovery: false
+
+* **enable_windows_recovery**. Optional per-node Azure setting, defaulting to
+  ``false``. Windows recovery is enabled only when this setting is ``true`` and
+  the node's resolved ``is_linux`` value is ``false``. The VM deployment then
+  includes ``properties.recoveryProfile.enableWindowsRecovery: true``. The
+  recovery profile is omitted for Linux nodes, unresolved OS types, and when
+  the setting is disabled.
+
+  LISA applies the recovery condition after all feature template updates.
+  The generated template keeps VM properties as JSON objects so existing
+  features, including hibernation, can update them without changes.
+
+  VM resources use Compute API version ``2026-04-01``, including nodes where
+  Windows recovery is disabled. Enabling Windows recovery also requires the
+  subscription feature ``Microsoft.Compute/WindowsRecovery`` to be
+  ``Registered``. LISA checks this prerequisite only for Windows nodes with
+  recovery enabled and reports an error if it is not ready. It does not
+  automatically register the subscription feature. The identity running LISA
+  must have permission to read the subscription feature registration state.
+
+  An administrator can request registration with:
+
+  .. code:: powershell
+
+     az feature register --namespace Microsoft.Compute --name WindowsRecovery --subscription <subscription-id>
+
+  Wait until the feature state is ``Registered`` before retrying deployment.
+
+  Example for a Windows node:
+
+  .. code:: yaml
+
+     azure:
+       is_linux: false
+       enable_windows_recovery: true
 
 * **admin_private_key_file**: This step is optional. If not provided, LISA will generate a new key pair for you,
   which can be found in the log folder. LISA connects to the Azure test VM via SSH using key authentication. Before running the test, ensure you have a key pair

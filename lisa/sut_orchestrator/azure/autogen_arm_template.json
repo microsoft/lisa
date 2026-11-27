@@ -6,7 +6,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.48.1.52935",
-      "templateHash": "4446121512093725254"
+      "templateHash": "900159006007376783"
     }
   },
   "functions": [
@@ -801,7 +801,7 @@
         "count": "[length(range(0, variables('node_count')))]"
       },
       "type": "Microsoft.Compute/virtualMachines",
-      "apiVersion": "2024-03-01",
+      "apiVersion": "2026-04-01",
       "name": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name]",
       "location": "[parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].location]",
       "tags": "[union(variables('combined_vm_tags'), parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].vm_tags)]",
@@ -819,18 +819,7 @@
           "dataDisks": "[if(empty(parameters('data_disks')), null(), concat(map(filter(range(0, length(parameters('data_disks'))), lambda('j', not(__bicep.shouldAttachDataDisk(parameters('data_disks')[lambdaVariables('j')])))), lambda('j', __bicep.getCreateDisk(parameters('data_disks')[lambdaVariables('j')], format('{0}-data-disk-{1}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, lambdaVariables('j')), lambdaVariables('j')))), map(filter(range(0, length(parameters('data_disks'))), lambda('j', __bicep.shouldAttachDataDisk(parameters('data_disks')[lambdaVariables('j')]))), lambda('j', __bicep.getAttachDisk(parameters('data_disks')[lambdaVariables('j')], format('{0}-data-disk-{1}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, lambdaVariables('j')), lambdaVariables('j'))))))]"
         },
         "networkProfile": {
-          "copy": [
-            {
-              "name": "networkInterfaces",
-              "count": "[length(range(0, parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count))]",
-              "input": {
-                "id": "[resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic-{1}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, range(0, parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count)[copyIndex('networkInterfaces')]))]",
-                "properties": {
-                  "primary": "[if(equals(range(0, parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count)[copyIndex('networkInterfaces')], 0), true(), false())]"
-                }
-              }
-            }
-          ]
+          "networkInterfaces": "[map(range(0, parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].nic_count), lambda('j', createObject('id', resourceId('Microsoft.Network/networkInterfaces', format('{0}-nic-{1}', parameters('nodes')[range(0, variables('node_count'))[copyIndex()]].name, lambdaVariables('j'))), 'properties', createObject('primary', if(equals(lambdaVariables('j'), 0), true(), false())))))]"
         },
         "diagnosticsProfile": {
           "bootDiagnostics": {

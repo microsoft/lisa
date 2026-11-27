@@ -745,6 +745,7 @@ class AzureNodeSchema:
     is_linux: Optional[bool] = None
     # Control-plane-only Windows tests do not need the OpenSSH bootstrap.
     enable_ssh: bool = True
+    enable_windows_recovery: bool = False
 
     _marketplace: InitVar[Optional[AzureVmMarketplaceSchema]] = None
 

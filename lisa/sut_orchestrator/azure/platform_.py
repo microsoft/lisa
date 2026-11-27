@@ -1658,6 +1658,8 @@ class AzurePlatform(Platform):
 
             log.info(f"vm setting: {azure_node_runbook}")
 
+        self._check_windows_recovery_registration(nodes_parameters)
+
         if is_windows:
             # set password for windows any time.
             arm_parameters.admin_password = self.runbook.admin_password
@@ -1707,6 +1709,8 @@ class AzurePlatform(Platform):
                 environment=environment,
                 log=log,
             )
+
+        self._apply_windows_recovery(template, arm_parameters.nodes)
 
         # composite deployment properties
         parameters = arm_parameters.to_dict()  # type: ignore
@@ -3863,6 +3867,87 @@ class AzurePlatform(Platform):
         self._add_image_features(node_space)
         self._check_image_capability(node_space)
 
+    def _apply_windows_recovery(
+        self, template: Dict[str, Any], nodes: List[AzureNodeArmParameter]
+    ) -> None:
+        if not any(
+            node.enable_windows_recovery and node.is_linux is False for node in nodes
+        ):
+            return
+
+        resources = template["resources"]
+        if isinstance(resources, dict):
+            resources = list(resources.values())
+        virtual_machines = [
+            resource
+            for resource in resources
+            if resource["type"] == "Microsoft.Compute/virtualMachines"
+        ]
+        if len(virtual_machines) != 1 or "copy" not in virtual_machines[0]:
+            raise LisaException(
+                "Windows recovery requires a single copied VM resource "
+                "in the ARM template."
+            )
+
+        virtual_machine = virtual_machines[0]
+        properties = virtual_machine["properties"]
+        if not isinstance(properties, dict):
+            raise LisaException(
+                "VM template properties must be an object before applying "
+                "Windows recovery."
+            )
+
+        # Features must finish updating the JSON object before it becomes an expression.
+        node = "parameters('nodes')[range(0, variables('node_count'))[copyIndex()]]"
+        recovery = (
+            f"if(and({node}.enable_windows_recovery, "
+            f"equals({node}.is_linux, false())), "
+            "createObject('recoveryProfile', "
+            "createObject('enableWindowsRecovery', true())), createObject())"
+        )
+        virtual_machine[
+            "properties"
+        ] = f"[union({_to_arm_expression(properties)}, {recovery})]"
+
+    def _check_windows_recovery_registration(
+        self, nodes: List[AzureNodeArmParameter]
+    ) -> None:
+        if not any(
+            node.enable_windows_recovery and node.is_linux is False for node in nodes
+        ):
+            return
+
+        feature_client = FeatureClient(self.credential, self.subscription_id)
+        try:
+            feature = feature_client.features.get(
+                "Microsoft.Compute", "WindowsRecovery"
+            )
+        except HttpResponseError as error:
+            raise LisaException(
+                "Unable to check Microsoft.Compute/WindowsRecovery registration "
+                f"for subscription '{self.subscription_id}'. Verify access to "
+                "read subscription feature registration."
+            ) from error
+
+        if feature.properties is None or not feature.properties.state:
+            raise LisaException(
+                "Microsoft.Compute/WindowsRecovery response did not include "
+                "a registration state."
+            )
+
+        state = feature.properties.state
+        self._log.debug(f"WindowsRecovery feature registration state: {state}")
+        if state.lower() != "registered":
+            raise LisaException(
+                "enable_windows_recovery requires Microsoft.Compute/WindowsRecovery "
+                f"to be Registered in subscription '{self.subscription_id}'; "
+                f"current state is '{state}'. An administrator must run "
+                "'az feature register --namespace Microsoft.Compute "
+                f"--name WindowsRecovery --subscription {self.subscription_id}' "
+                "and wait for the state to become Registered. "
+                "LISA does not automatically register this subscription feature."
+            )
+
     def _is_byoip_feature_registered(self) -> bool:
         if self._cached_byoip_registered is not None:
             return self._cached_byoip_registered
@@ -3879,6 +3964,38 @@ class AzurePlatform(Platform):
             self._log.debug(f"Failed to check BYOIP feature: {e}")
             self._cached_byoip_registered = False
         return self._cached_byoip_registered
+
+
+def _to_arm_expression(value: object) -> str:
+    if isinstance(value, str):
+        if not value.startswith("[[") and value.startswith("[") and value.endswith("]"):
+            return value[1:-1]
+        literal = value[1:] if value.startswith("[[") else value
+        return "'" + literal.replace("'", "''") + "'"
+    if isinstance(value, dict):
+        if "copy" in value:
+            raise LisaException(
+                "ARM property copy loops must be expressed as array expressions "
+                "before applying Windows recovery."
+            )
+        items = []
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise LisaException("ARM template object keys must be strings.")
+            items.append(
+                "'" + key.replace("'", "''") + "', " + _to_arm_expression(item)
+            )
+        return f"createObject({', '.join(items)})"
+    if isinstance(value, list):
+        if not value:
+            return "json('[]')"
+        return f"createArray({', '.join(_to_arm_expression(item) for item in value)})"
+    if value is None or isinstance(value, (bool, int, float)):
+        return f"json('{json.dumps(value, allow_nan=False)}')"
+    raise LisaException(
+        f"Unsupported ARM template value type for Windows recovery: "
+        f"{type(value).__name__}."
+    )
 
 
 def _get_allowed_locations(nodes_requirement: List[schema.NodeSpace]) -> List[str]:
