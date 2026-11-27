@@ -402,6 +402,12 @@ and virtual-media errors are also fatal after their bounded recovery attempts.
 Deployment and controller reset are refused when controller jobs are active,
 scheduled, or cannot be verified; LISA does not cancel those jobs.
 
+iDRAC ISO deployment sets the one-time boot override without requesting an
+automatic reboot. LISA powers off the server only after the override completes
+and it verifies the requested virtual media. If a power command requires
+resetting the iDRAC controller, LISA prepares and verifies the ISO boot again
+before retrying that command.
+
 This checker is not suitable for blank or initially unreachable servers, or
 images that preserve the root UUID. Use the existing ``ssh`` checker for
 workflows that require only SSH readiness; it does not verify reinstallation.

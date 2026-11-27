@@ -163,13 +163,20 @@ class Idrac(Cluster):
             assert (
                 client_runbook.iso_http_url
             ), "iso_http_url is required for idrac client"
-            self._ensure_controller_is_idle()
-            self.reset("ForceOff")
-            self._insert_virtual_media(client_runbook.iso_http_url)
-            # Media recovery may reset the controller, so arm boot only afterwards.
-            self._change_boot_order_once("VCD-DVD")
-            self._wait_for_media_inserted(client_runbook.iso_http_url)
-            self.reset("On", force_run=True)
+            iso_http_url = client_runbook.iso_http_url
+
+            def _prepare_iso_boot() -> None:
+                self._ensure_controller_is_idle()
+                self._insert_virtual_media(iso_http_url)
+                # Media recovery may reset the controller, so arm boot afterwards.
+                self._change_boot_order_once("VCD-DVD")
+                self._wait_for_media_inserted(iso_http_url)
+
+            _prepare_iso_boot()
+            self.reset("ForceOff", prepare_after_idrac_reset=_prepare_iso_boot)
+            self.reset(
+                "On", force_run=True, prepare_after_idrac_reset=_prepare_iso_boot
+            )
         finally:
             # Ensure logout happens even if deployment fails
             self.logout()
@@ -309,12 +316,24 @@ class Idrac(Cluster):
         self._wait_for_completion(response)
         return str(response.dict["ServerScreenShotFile"])
 
-    def reset(self, operation: str, force_run: bool = False) -> None:
+    def reset(
+        self,
+        operation: str,
+        force_run: bool = False,
+        *,
+        prepare_after_idrac_reset: Optional[Callable[[], None]] = None,
+    ) -> None:
         expected_state = self.state_dict.get(operation)
-        if expected_state:
-            if not force_run and self.get_power_state() == expected_state:
-                self._log.debug(f"System is already in {expected_state} state.")
-                return
+        # Power-state polling must not invalidate the verified ISO boot setup.
+        reset_on_read_error = prepare_after_idrac_reset is None
+
+        def _is_expected_state() -> bool:
+            power_state: str = self.get_power_state(reset_on_error=reset_on_read_error)
+            return power_state == expected_state
+
+        if expected_state and not force_run and _is_expected_state():
+            self._log.debug(f"System is already in {expected_state} state.")
+            return
 
         body = {"ResetType": operation}
         url = "/redfish/v1/Systems/System.Embedded.1/Actions/ComputerSystem.Reset"
@@ -340,7 +359,14 @@ class Idrac(Cluster):
                     f"is already in '{expected_state}' state. Continuing."
                 )
             elif self._reset_if_idrac_error(error_msg):
-                # iDRAC was reset, retry the operation once
+                if prepare_after_idrac_reset is not None:
+                    if operation == "On" and _is_expected_state():
+                        self._log.debug(
+                            "Server is already on after iDRAC recovery; "
+                            "not arming the ISO for another boot."
+                        )
+                        return
+                    prepare_after_idrac_reset()
                 self._run_with_idrac_job_retry(
                     f"ComputerSystem.Reset '{operation}' after iDRAC reset",
                     _post_reset,
@@ -351,13 +377,13 @@ class Idrac(Cluster):
 
         if expected_state:
             check_till_timeout(
-                lambda: self.get_power_state() == expected_state,
+                _is_expected_state,
                 timeout_message=(f"wait for client into '{expected_state}' state"),
             )
         self._log.debug(f"{operation} initiated successfully.")
 
     @retry(tries=3, delay=5)  # type: ignore
-    def get_power_state(self) -> str:
+    def get_power_state(self, *, reset_on_error: bool = True) -> str:
         response = self.redfish_instance.get(
             "/redfish/v1/Systems/System.Embedded.1/",
         )
@@ -374,7 +400,7 @@ class Idrac(Cluster):
             f"status={status}, keys={response_keys}. "
             "Verify the iDRAC System endpoint and Lifecycle Controller health."
         )
-        if self._reset_if_idrac_error(error_msg):
+        if reset_on_error and self._reset_if_idrac_error(error_msg):
             raise LisaException(f"{error_msg} iDRAC reset completed; retrying.")
         raise LisaException(error_msg)
 
@@ -919,7 +945,11 @@ class Idrac(Cluster):
             sys_config, encoding="utf8", method="html"
         ).decode()
 
-        body = {"ShareParameters": {"Target": "ALL"}, "ImportBuffer": import_buffer}
+        body = {
+            "ShareParameters": {"Target": "ALL"},
+            "ImportBuffer": import_buffer,
+            "ShutdownType": "NoReboot",
+        }
         url = (
             "/redfish/v1/Managers/iDRAC.Embedded.1/Actions/Oem/"
             "EID_674_Manager.ImportSystemConfiguration"
