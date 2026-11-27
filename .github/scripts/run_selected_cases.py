@@ -4,6 +4,7 @@
 """Resolve reviewed images, execute validation groups, and enforce JUnit coverage."""
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -15,6 +16,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 from xml.etree import ElementTree
 
+from ai_select_cases import find_testsuites_dir, list_test_cases
 from validation_plan import reviewed_images
 
 
@@ -44,13 +46,42 @@ def resolve_image(image: str, location: str) -> str:
 
 
 def case_pattern(full_names: List[str]) -> str:
-    # LISA Criteria.name matches method names, not suite-qualified names.
-    # The selector rejects ambiguous method names before producing a plan.
-    return (
-        "^(?:"
-        + "|".join(re.escape(name.rsplit(".", 1)[1]) for name in full_names)
-        + ")$"
+    return "^(?:" + "|".join(re.escape(name) for name in full_names) + ")$"
+
+
+def case_filter(source: Path, runbook: str, names: List[str]) -> str:
+    criteria = next(
+        node
+        for node in ast.parse(
+            (source / "lisa" / "schema.py").read_text(encoding="utf-8")
+        ).body
+        if isinstance(node, ast.ClassDef) and node.name == "Criteria"
     )
+    supports_full_name = any(
+        isinstance(node, ast.AnnAssign)
+        and isinstance(node.target, ast.Name)
+        and node.target.id == "full_name"
+        for node in criteria.body
+    )
+    runbook_source = (source / runbook).read_text(encoding="utf-8")
+    if supports_full_name and re.search(
+        r"full_name:\s*\$\(test_case_full_name\)", runbook_source
+    ):
+        return f"test_case_full_name:{case_pattern(names)}"
+
+    # Legacy filters are safe only if they select exactly the planned identities.
+    inventory = list_test_cases(source, find_testsuites_dir(source))
+    methods = {name.rsplit(".", 1)[-1] for name in names}
+    matches = {
+        candidate
+        for _, _, candidate, _, _, _ in inventory
+        if candidate.rsplit(".", 1)[-1] in methods
+    }
+    if matches != set(names):
+        raise ValueError(
+            f"Legacy runbook cannot select {names!r} unambiguously: {sorted(matches)}"
+        )
+    return f"test_case_name:{case_pattern(sorted(methods))}"
 
 
 def read_outcomes(directory: Path, expected: List[str]) -> Dict[str, Dict[str, str]]:
@@ -244,7 +275,7 @@ def execute_group(
         "-v",
         f"marketplace_image:{image}",
         "-v",
-        f"test_case_name:{case_pattern(names)}",
+        case_filter(source, runbook, names),
         "-v",
         "enable_tests:False",
         "-v",
