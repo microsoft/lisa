@@ -14,6 +14,7 @@ from assertpy import assert_that
 from retry import retry
 
 from lisa.tools import Cat, Ip, KernelConfig, Ls, Lspci, Modprobe, Readlink, Tee
+from lisa.tools.lspci import CONTROLLER_ID_DICT, VENDOR_ID_MICROSOFT
 from lisa.util import InitializableMixin, LisaException, constants, find_groups_in_lines
 
 if TYPE_CHECKING:
@@ -658,21 +659,14 @@ class Nics(InitializableMixin):
                 break
 
     def is_mana_device_present(self) -> bool:
+        """Detect Microsoft Ethernet controllers without restricting device IDs."""
         lspci = self._node.tools[Lspci]
-        pci_devices = lspci.get_devices_by_type(
-            constants.DEVICE_TYPE_SRIOV, force_run=True
+        return any(
+            device.controller_id in CONTROLLER_ID_DICT[constants.DEVICE_TYPE_SRIOV]
+            for device in lspci.get_devices_by_vendor_id(
+                VENDOR_ID_MICROSOFT, force_run=True
+            )
         )
-        all_mana_devices = False
-        for pci_device in pci_devices:
-            if (
-                "Device 00ba" in pci_device.device_info
-                and pci_device.vendor == "Microsoft Corporation"
-            ):
-                all_mana_devices = True
-                break
-            else:
-                all_mana_devices = False
-        return all_mana_devices
 
     def is_mana_driver_enabled(self) -> bool:
         return self._node.tools[KernelConfig].is_enabled("CONFIG_MICROSOFT_MANA")
