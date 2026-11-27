@@ -3653,7 +3653,8 @@ class AzureExtension(AzureFeatureMixin, Feature):
         )
         return extension
 
-    def normalize_type_handler_version(self, version: str) -> Tuple[str, bool]:
+    @classmethod
+    def normalize_type_handler_version(cls, version: str) -> Tuple[str, bool]:
         """
         Normalize a requested extension version for installation.
 
@@ -3663,7 +3664,7 @@ class AzureExtension(AzureFeatureMixin, Feature):
             - True if the original version included a patch component
         """
         requested_version = version.strip()
-        matched = self._TYPE_HANDLER_VERSION_PATTERN.fullmatch(requested_version)
+        matched = cls._TYPE_HANDLER_VERSION_PATTERN.fullmatch(requested_version)
         if not matched:
             raise LisaException(
                 "Invalid extension_version format. Expected 'Major.Minor' "

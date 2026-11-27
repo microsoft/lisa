@@ -603,6 +603,7 @@ class TestSuiteMetadata:
         self.requirement = requirement
         self.reuse_deployed_environment = reuse_deployed_environment
         self.owner = owner
+        self.reuse_deployed_environment = reuse_deployed_environment
         maturity = maturity.strip() if maturity else ""
         self.maturity = maturity if maturity else constants.TESTCASE_MATURITY_STABLE
         if self.maturity not in constants.TESTCASE_MATURITY_LEVELS:
