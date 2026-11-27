@@ -17,7 +17,7 @@ from lisa import (
 )
 from lisa.features.security_profile import CvmDisabled, is_cvm
 from lisa.operating_system import BSD, Redhat
-from lisa.sut_orchestrator import AZURE, HYPERV, READY
+from lisa.sut_orchestrator import AZURE, BAREMETAL, HYPERV, READY
 from lisa.sut_orchestrator.azure.platform_ import AzurePlatform
 from lisa.tools import KernelConfig, LisDriver, Lsinitrd, Lsmod, Modinfo, Modprobe
 from lisa.tools.kernel_config import ModulesType
@@ -106,6 +106,7 @@ class HvModule(TestSuite):
         requirement=simple_requirement(
             unsupported_os=[BSD],
             supported_features=[CvmDisabled()],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_initrd_modules(self, environment: Environment) -> None:
@@ -240,6 +241,7 @@ class HvModule(TestSuite):
         priority=1,
         requirement=simple_requirement(
             min_core_count=4,
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_reload_hyperv_modules(self, log: Logger, node: Node) -> None:

@@ -15,7 +15,7 @@ from lisa import (
 )
 from lisa.features.security_profile import CvmDisabled
 from lisa.operating_system import BSD
-from lisa.sut_orchestrator import AZURE, HYPERV, READY
+from lisa.sut_orchestrator import AZURE, BAREMETAL, HYPERV, READY
 from lisa.sut_orchestrator.azure.tools import KvpClient
 from lisa.tools import Pgrep, Service, Stat
 from lisa.util import get_matched_str
@@ -50,6 +50,7 @@ class Kvp(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[CvmDisabled()],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_kvp(self, node: Node, log: Logger) -> None:

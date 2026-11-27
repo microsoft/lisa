@@ -32,6 +32,7 @@ from lisa.operating_system import (
     Ubuntu,
     Windows,
 )
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.tools import (
     Cat,
     Chmod,
@@ -638,6 +639,7 @@ class TimeSync(TestSuite):
         priority=1,
         requirement=simple_requirement(
             unsupported_os=[BSD, Windows],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_pmu_disabled_for_arm64(self, node: Node) -> None:

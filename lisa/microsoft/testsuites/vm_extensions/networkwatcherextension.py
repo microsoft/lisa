@@ -20,6 +20,7 @@ from lisa.operating_system import (
     Suse,
     Ubuntu,
 )
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.sut_orchestrator.azure.features import AzureExtension
 from lisa.util import SkippedException
 
@@ -47,6 +48,7 @@ class NetworkWatcherExtension(TestSuite):
         tags=["microsoft.azure.networkwatcher.networkwatcheragentlinux"],
         requirement=simple_requirement(
             supported_features=[AzureExtension],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_azure_network_watcher(self, log: Logger, node: Node) -> None:

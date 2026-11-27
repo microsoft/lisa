@@ -9,8 +9,10 @@ from lisa import (
     TestCaseMetadata,
     TestSuite,
     TestSuiteMetadata,
+    simple_requirement,
 )
 from lisa.operating_system import CentOs
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.tools import Modprobe
 
 
@@ -35,6 +37,7 @@ class Floppy(TestSuite):
         If the module is loaded, running modprobe will have no output
         """,
         priority=1,
+        requirement=simple_requirement(unsupported_platform_type=[BAREMETAL]),
     )
     def verify_floppy_module_is_blacklisted(self, node: RemoteNode) -> None:
         os_version = node.os.information.version

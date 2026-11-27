@@ -37,6 +37,7 @@ from lisa.features import (
     Synthetic,
 )
 from lisa.features.security_profile import CvmDisabled
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.tools import Cat, GrubConfig, KernelConfig, Lspci
 from lisa.util import LisaException, constants
 from lisa.util.shell import wait_tcp_port_ready
@@ -103,6 +104,7 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[SerialConsole],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def smoke_test_check_serial_console_pattern(
@@ -175,6 +177,7 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             network_interface=Synthetic(),
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_deployment_provision_synthetic_nic(
@@ -193,6 +196,7 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             disk=DiskStandardSSDLRS(),
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_deployment_provision_standard_ssd_disk(
@@ -211,6 +215,7 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             disk=DiskEphemeral(),
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_deployment_provision_ephemeral_managed_disk(
@@ -229,6 +234,7 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             disk=DiskPremiumSSDLRS(),
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_deployment_provision_premium_disk(
@@ -251,6 +257,7 @@ class Provisioning(TestSuite):
             ),
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[AvailabilityZoneEnabled()],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_deployment_provision_premiumv2_disk(
@@ -269,6 +276,7 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             network_interface=Sriov(),
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_deployment_provision_sriov(
@@ -313,6 +321,7 @@ class Provisioning(TestSuite):
                 data_disk_count=search_space.IntRange(min=1),
             ),
             environment_status=EnvironmentStatus.Deployed,
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_deployment_provision_ultra_datadisk(
@@ -335,6 +344,7 @@ class Provisioning(TestSuite):
         requirement=simple_requirement(
             environment_status=EnvironmentStatus.Deployed,
             supported_features=[StartStop],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_stop_start_in_platform(

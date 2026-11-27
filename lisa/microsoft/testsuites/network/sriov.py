@@ -43,7 +43,7 @@ from lisa.microsoft.testsuites.network.common import (
 )
 from lisa.nic import NicInfo
 from lisa.operating_system import BSD, Posix, Windows
-from lisa.sut_orchestrator import AZURE, HYPERV
+from lisa.sut_orchestrator import AZURE, BAREMETAL, HYPERV
 from lisa.sut_orchestrator.azure.common import AzureNodeSchema
 from lisa.tools import (
     Cat,
@@ -2130,6 +2130,7 @@ class Sriov(TestSuite):
                 data_path=schema.NetworkDataPath.Sriov,
                 nic_count=search_space.IntRange(min=2, choose_max_value=True),
             ),
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_sriov_reload_modules(self, environment: Environment) -> None:

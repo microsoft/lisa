@@ -21,7 +21,7 @@ from lisa import (
 )
 from lisa.features.security_profile import CvmDisabled
 from lisa.operating_system import BSD, Debian, Windows
-from lisa.sut_orchestrator import AZURE
+from lisa.sut_orchestrator import AZURE, BAREMETAL
 from lisa.sut_orchestrator.azure.common import (
     AzureNodeSchema,
     get_compute_client,
@@ -58,7 +58,8 @@ class VmSnapsotLinuxBVTExtension(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_features=[AzureExtension, CvmDisabled()]
+            supported_features=[AzureExtension, CvmDisabled()],
+            unsupported_platform_type=[BAREMETAL],
         ),
         tags=["microsoft.azure.recoveryservices.vmsnapshotlinux"],
     )

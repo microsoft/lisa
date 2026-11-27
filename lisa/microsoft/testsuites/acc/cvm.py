@@ -7,6 +7,7 @@ from assertpy import assert_that
 
 from lisa import Logger, Node, TestCaseMetadata, TestSuite, TestSuiteMetadata
 from lisa.features.security_profile import CvmEnabled
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.testsuite import simple_requirement
 from lisa.tools import Dmesg, Lsvmbus
 from lisa.util import LisaException
@@ -54,6 +55,7 @@ class CVMSuite(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[CvmEnabled()],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_lsvmbus(self, log: Logger, node: Node) -> None:
@@ -83,6 +85,7 @@ class CVMSuite(TestSuite):
         priority=1,
         requirement=simple_requirement(
             supported_features=[CvmEnabled()],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_isolation_config(self, log: Logger, node: Node) -> None:

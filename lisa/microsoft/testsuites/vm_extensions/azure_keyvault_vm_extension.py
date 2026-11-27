@@ -20,6 +20,7 @@ from lisa import (
 )
 from lisa.base_tools.service import Service
 from lisa.operating_system import CBLMariner, Ubuntu
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.sut_orchestrator.azure.common import (
     add_system_assign_identity,
     assign_access_policy,
@@ -101,6 +102,7 @@ class AzureKeyVaultExtensionBvt(TestSuite):
             # This test is enabled for Ubuntu & CBLMariner.
             supported_os=[Ubuntu, CBLMariner],
             supported_features=[AzureExtension],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_key_vault_extension(

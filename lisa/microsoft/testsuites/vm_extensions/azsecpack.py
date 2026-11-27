@@ -25,6 +25,7 @@ from lisa.operating_system import (
     Redhat,
     Ubuntu,
 )
+from lisa.sut_orchestrator import BAREMETAL
 from lisa.sut_orchestrator.azure.common import (
     add_tag_for_vm,
     add_user_assign_identity,
@@ -75,7 +76,9 @@ class AzSecPack(TestSuite):
         """,
         priority=1,
         requirement=simple_requirement(
-            supported_features=[AzureExtension], unsupported_os=[BSD]
+            supported_features=[AzureExtension],
+            unsupported_os=[BSD],
+            unsupported_platform_type=[BAREMETAL],
         ),
     )
     def verify_azsecpack(self, node: Node, log: Logger, result: TestResult) -> None:
